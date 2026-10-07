@@ -1,0 +1,2 @@
+create index tenant_active_allocation_policies_tenant_version
+  on public.tenant_active_allocation_policies (tenant_id, policy_version_id);

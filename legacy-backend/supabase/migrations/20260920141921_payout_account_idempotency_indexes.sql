@@ -1,0 +1,2 @@
+create index payout_account_command_idempotency_payout_account
+    on financial_ops.payout_account_command_idempotency (payout_account_id);

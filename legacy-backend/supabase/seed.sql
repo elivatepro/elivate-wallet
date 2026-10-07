@@ -1,0 +1,1 @@
+-- Foundation wave has no application seed data.

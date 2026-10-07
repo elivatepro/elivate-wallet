@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true,
+    "noImplicitReturns": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true
+  },
+  "tasks": {
+    "fmt:check": "deno fmt --check src tests supabase/functions",
+    "lint": "deno lint src tests supabase/functions",
+    "test": "deno test tests",
+    "check": "deno task fmt:check && deno task lint && deno task test"
+  }
+}
