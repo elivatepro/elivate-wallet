@@ -1,4 +1,4 @@
-import { createClient } from "npm:@supabase/supabase-js@2.117.3";
+import { createClient } from "@supabase/supabase-js";
 import { createPinHasher } from "../_shared/pin.ts";
 import { type Actor, createHandler } from "./handler.ts";
 

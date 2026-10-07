@@ -37,6 +37,7 @@ select is(
   1000, 'every issued reference is kept so none is reused'
 );
 select throws_ok($$ select refs.issue('ABC') $$, '23514', null, 'unknown reference types are rejected');
+do $$ begin perform audit.record('test.event', null, null); end $$;
 select throws_ok(
   $$ delete from audit.security_events $$, 'P0001', 'invariant_violation', 'audit events are append-only'
 );
