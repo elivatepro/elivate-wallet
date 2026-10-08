@@ -176,7 +176,7 @@
 						<span class="pocket-text">
 							<span class="pocket-name">{p.name}</span>
 							{#if percentOf(p.pocketId)}<span class="pocket-sub"
-									>{percentOf(p.pocketId)}% of income</span
+									>{Number(percentOf(p.pocketId))}% of income</span
 								>{/if}
 						</span>
 						<span class="pocket-amount">{money(p.available)}</span>

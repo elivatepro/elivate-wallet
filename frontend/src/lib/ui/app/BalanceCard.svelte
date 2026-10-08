@@ -152,19 +152,19 @@
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
-		max-width: calc(100% - 110px);
 	}
 
 	.amount {
-		font-size: 36px;
+		font-size: clamp(26px, 8.5vw, 36px);
+		white-space: nowrap;
 		font-weight: var(--font-weight-semibold);
 		letter-spacing: -0.035em;
 		line-height: 40px;
 		font-variant-numeric: tabular-nums;
-		overflow-wrap: anywhere;
 	}
 
 	.chips {
+		max-width: calc(100% - 96px);
 		display: flex;
 		flex-wrap: wrap;
 		gap: 8px;

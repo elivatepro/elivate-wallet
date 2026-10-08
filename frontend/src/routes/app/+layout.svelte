@@ -54,6 +54,17 @@
 	const person = $derived(shell.state.kind === 'ready' ? shell.state.view.profile : null);
 	const path = $derived(page.url.pathname);
 	/** Navigation hint only; every command is still authorized by the backend. */
+	const TITLES: Record<string, string> = {
+		'/app/payout-accounts': 'Payout accounts',
+		'/app/invitations': 'Invitations',
+		'/app/split': 'Pockets & split',
+		'/app/reviews': 'NIN reviews',
+		'/app/notifications': 'Notifications',
+		'/app/more': 'More'
+	};
+	const pageTitle = $derived(
+		Object.entries(TITLES).find(([prefix]) => path.startsWith(prefix))?.[1] ?? 'Home'
+	);
 	/** Blueprint 06 Q4 reviewers (the backend re-checks each review). */
 	const reviewer = $derived(
 		summary?.role === 'president_team_member' || summary?.role === 'world_team_member'
@@ -158,7 +169,7 @@
 
 	<div class="main">
 		<header class="topbar">
-			<span class="breadcrumb">Home</span>
+			<span class="breadcrumb">{pageTitle}</span>
 			<Popover.Root>
 				<Popover.Trigger class="bell" aria-label="Notifications">
 					<Bell size={19} strokeWidth={1.5} aria-hidden="true" />
