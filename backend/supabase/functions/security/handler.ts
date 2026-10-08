@@ -42,7 +42,21 @@ export interface Deps {
   readonly allowedOrigins: readonly string[];
 }
 
-type Route = (request: Request, actor: Actor, requestId: string) => Promise<unknown>;
+type Route = (
+  request: Request,
+  actor: Actor,
+  requestId: string,
+  id?: string,
+) => Promise<unknown>;
+
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Routes with one UUID path segment, written as `:id` in the route key. */
+function routeWithId(routeKey: string): { key: string; id?: string } {
+  const found = routeKey.match(/^(POST \/admin\/outbox\/)([^/]+)(\/requeue)$/);
+  if (!found || !uuidPattern.test(found[2] ?? "")) return { key: routeKey };
+  return { key: `${found[1]}:id${found[3]}`, id: (found[2] ?? "").toLowerCase() };
+}
 
 function parseDetails(raw: string | null | undefined): Details {
   if (!raw) return {};
@@ -157,6 +171,35 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       adminChange("grant_platform_admin", request, actor, requestId),
     "POST /admin/admins/revoke": (request, actor, requestId) =>
       adminChange("revoke_platform_admin", request, actor, requestId),
+
+    // Blueprint 03: dead-lettered emails (platform admins).
+    "GET /admin/outbox": (request, actor) => {
+      const query = new URL(request.url).searchParams;
+      for (const key of query.keys()) {
+        if (key !== "limit") {
+          throw new ApiError("validation_error", { field: key, reason: "unknown_field" });
+        }
+      }
+      const limit = query.get("limit");
+      if (limit !== null && !/^[0-9]{1,3}$/.test(limit)) {
+        throw new ApiError("validation_error", { field: "limit" });
+      }
+      return call("outbox_dead_letters", {
+        p_user_id: actor.userId,
+        p_session_id: actor.sessionId,
+        p_limit: limit === null ? null : Number(limit),
+      });
+    },
+
+    "POST /admin/outbox/:id/requeue": async (request, actor, requestId, id) => {
+      const body = await v.readBody(request, ["reason", "idempotencyKey"]);
+      return call("outbox_requeue", {
+        ...base(actor, requestId),
+        p_event_id: id,
+        p_reason: v.text(body, "reason", 500),
+        p_idempotency_key: v.idempotencyKey(body),
+      });
+    },
   };
 
   async function adminChange(fn: string, request: Request, actor: Actor, requestId: string) {
@@ -174,7 +217,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
     const requestId = crypto.randomUUID();
     const cors = corsHeaders(request.headers.get("origin"), deps.allowedOrigins);
     const path = new URL(request.url).pathname.replace(/^.*?\/security(?=\/|$)/, "") || "/";
-    const routeKey = `${request.method} ${path}`;
+    const { key: routeKey, id } = routeWithId(`${request.method} ${path}`);
 
     const finish = (response: Response, code?: string): Response => {
       deps.log({
@@ -198,7 +241,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       const token = request.headers.get("authorization")?.match(/^Bearer (.+)$/)?.[1];
       const actor = token ? await deps.verifyToken(token) : null;
       if (!actor) throw new ApiError("authentication_required");
-      return finish(success(await route(request, actor, requestId), requestId, cors));
+      return finish(success(await route(request, actor, requestId, id), requestId, cors));
     } catch (error) {
       if (error instanceof ApiError) {
         return finish(failure(error.code, requestId, error.details, cors), error.code);
