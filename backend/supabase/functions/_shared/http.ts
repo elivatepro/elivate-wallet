@@ -25,6 +25,11 @@ export const errorStatus = {
   scope_exceeds_authority: 403,
   permission_not_grantable: 422,
   self_target_forbidden: 403,
+  role_not_invitable: 403,
+  invitation_unavailable: 410,
+  invitation_exists: 409,
+  invitation_email_mismatch: 403,
+  email_unverified: 403,
 } as const;
 
 export type ErrorCode = keyof typeof errorStatus;
@@ -54,6 +59,11 @@ const messages: Record<ErrorCode, string> = {
   scope_exceeds_authority: "You can only give access within what you manage.",
   permission_not_grantable: "This permission can't be changed or given.",
   self_target_forbidden: "You can't do this to yourself.",
+  role_not_invitable: "You can't invite someone to that role.",
+  invitation_unavailable: "This invitation is no longer available.",
+  invitation_exists: "This person already has a pending invitation for that office and role.",
+  invitation_email_mismatch: "This invitation was sent to a different email address.",
+  email_unverified: "Verify your email address to continue.",
 };
 
 export type Details = Readonly<Record<string, unknown>>;

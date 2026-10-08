@@ -423,3 +423,12 @@ verify_jwt = true
 
 [functions.org]
 verify_jwt = true
+
+# Blueprint 03: `preview` and `verify-email` serve people who are not signed
+# in; every other route verifies the bearer in the handler.
+[functions.invitations]
+verify_jwt = false
+
+# Called by pg_cron/pg_net with OUTBOX_WORKER_SECRET, never a user JWT.
+[functions.outbox-worker]
+verify_jwt = false
