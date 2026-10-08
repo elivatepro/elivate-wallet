@@ -1,8 +1,8 @@
 # Production readiness runbook — Elivate Wallet 2.0 backend
 
-Status: **draft, not executed.** Written 2026-10-08 against `main` at `c648abd` (slices 01–02: 9 migrations, Edge Functions `security` and `org`). Read-only inspection of the development project `crljnkdwkxkwgvhxfrbl` and the Cloudflare account informed it (see §10).
+Status: **decisions answered by the owner 2026-10-08 (§1); not executed.** Written 2026-10-08 against `main` at `c648abd` (slices 01–02: 9 migrations, Edge Functions `security` and `org`). Read-only inspection of the development project `crljnkdwkxkwgvhxfrbl` and the Cloudflare account informed it (see §10).
 
-This is a runbook an agent executes top to bottom, in one session, **after** the owner has (1) answered the decisions below and (2) created the production Supabase project. Every step that changes something is one the owner has approved by approving this runbook for that session; anything not listed here needs a separate request. Steps marked **OWNER** are done by the owner in a dashboard or terminal; the agent never sees or handles those values.
+This is a runbook an agent executes top to bottom, in one session, **after** the owner has (1) answered the decisions below (done 2026-10-08) and (2) created the production Supabase project (owner decision: before the first public deploy). Every step that changes something is one the owner has approved by approving this runbook for that session; anything not listed here needs a separate request. Steps marked **OWNER** are done by the owner in a dashboard or terminal; the agent never sees or handles those values.
 
 Hard rules for the whole run:
 - **Never run `supabase config push`.** It overwrites dashboard-managed Auth settings, including the Cloudflare SMTP setup.
@@ -11,32 +11,40 @@ Hard rules for the whole run:
 - Read no data rows except the owner's own account in §7, which the owner names.
 - Use the CLI version CI pins (`supabase` 2.117.0) unless the owner approves an upgrade.
 
-Not covered here (separate work): the frontend and its hosting (U-10), the `api.elivatewallet.com` custom domain, Paystack, application email (slice 03 outbox), Storage buckets, cron jobs, monitoring/alerting, and DR targets (U-06).
+Not covered here (separate work): the frontend and its hosting (decided 2026-10-08: SvelteKit on Cloudflare Workers, not deployed yet; `00-product.md` P-04), the `api.elivatewallet.com` custom domain, Paystack, application email (slice 03 outbox), Storage buckets, cron jobs, monitoring/alerting, and DR targets (U-06).
 
 ---
 
-## 1. Decisions I need from you
+## 1. Owner decisions (2026-10-08)
 
-| # | Question | Options | Recommendation + why |
-|---|---|---|---|
-| 1 | Region for the production project (it can't be changed after creation) | `eu-west-2` London · `eu-west-3` Paris · `eu-central-1` Frankfurt · `eu-west-1` Ireland. Supabase has no Africa region. | **`eu-west-2` (London).** It's usually one of the fastest Supabase regions from Lagos, and dev already runs there, so what you've seen in dev carries over. Before creating the project, measure from a Nigerian connection (§2.1) and only pick Paris or Frankfurt if they're clearly faster. Every option is outside Nigeria, so check your NDPA cross-border transfer obligations with your adviser. |
-| 2 | Compute size and backups | Your organization is already on **Pro**. (a) Micro compute + daily backups (kept 7 days; you could lose up to ~24 h). (b) Small compute + 7-day point-in-time recovery (PITR) (roughly +$15 and +$100 a month; restore to any second; PITR needs Small or larger). (c) Medium or larger later, after load tests. | **(a) now, then (b) before the first real income is recorded.** Until money enters the ledger, the database holds only accounts and offices. PITR matters once financial records exist. Recovery point and recovery time targets are still unresolved (U-06), so neither option is the final disaster-recovery answer. Check current prices in the dashboard. Storage files are never included in database backups. |
-| 3 | Project name | e.g. "Elivate Wallet — Production"; optionally rename dev | **"Elivate Wallet — Production", and rename dev to "Elivate Wallet — Development".** Dev is currently named just "Elivate Wallet", which makes it easy to push to the wrong project. |
-| 4 | Production sender and Cloudflare sending domain | (a) Production sends from `noreply@elivatewallet.com` (already onboarded; SPF, DKIM and DMARC ready), and dev moves to a subdomain such as `noreply@dev.elivatewallet.com`. (b) Both share the main domain. (c) Production moves to a new subdomain such as `mail.elivatewallet.com`. | **(a), with a separate Email Sending API token for each environment.** Users see the brand domain, dev test mail can't hurt production's sending reputation, and revoking one token doesn't break the other environment. The daily sending quota (currently 200 a day) belongs to the Cloudflare account, so both environments share it whichever option you pick. |
-| 5 | Production app URLs | Site URL, redirect allow-list, `CORS_ORIGINS`, `PIN_RESET_REDIRECT_URL` | **Site URL `https://app.elivatewallet.com`. Allow-list: `https://app.elivatewallet.com/**` and `https://admin.elivatewallet.com/**`, with no localhost. `CORS_ORIGINS=https://app.elivatewallet.com,https://admin.elivatewallet.com`. `PIN_RESET_REDIRECT_URL=https://app.elivatewallet.com/` until the frontend defines its reset route.** The domains come from P-04. The frontend runtime is still open (U-10), and this secret can be changed later without redeploying. |
-| 6 | First platform admin | Which email, and when it's created | **Your own named mailbox (not a shared alias). It's created by the one-time SQL in §7, right after that account has confirmed its email and set its PIN.** Add a second admin in the app soon after: the last admin can't be revoked, so a single admin is a single point of failure. |
-| 7 | Legacy Supabase API keys | Both functions read `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY`. Supabase says legacy keys keep working until the end of 2026. | **Launch on legacy keys only if the new project still issues them. Schedule a small backend change to `SUPABASE_PUBLISHABLE_KEYS`/`SUPABASE_SECRET_KEYS` before the end of 2026.** If the new project has no legacy keys, stop at §6 because the functions won't start. |
-| 8 | Back up `PIN_HMAC_SECRET` | (a) The agent generates it and nobody ever sees it. (b) The agent generates it and puts it on your clipboard once, for your password manager. | **(b).** Supabase can't show a secret's value later. If it's ever overwritten or lost, every PIN stops verifying and every user has to do the email reset. |
+The owner approved every recommendation; the answers are recorded here.
+
+| # | Question | Owner decision |
+|---|---|---|
+| 1 | Region (permanent) | **`eu-west-2` (London)**, after a quick latency check from a Nigerian connection (§2.1); Paris or Frankfurt only if clearly faster. Every option is outside Nigeria, so the owner checks NDPA cross-border transfer obligations with their adviser. |
+| 2 | Compute size and backups | **Micro compute + daily backups now; Small compute + 7-day PITR before the first real income is recorded.** Recovery targets stay open (U-06). Storage files are never in database backups. |
+| 3 | Project names | **"Elivate Wallet — Production"**, and rename dev to **"Elivate Wallet — Development"**. The dev rename has **not been performed yet**; until it is, the dev project is still the bare "Elivate Wallet". |
+| 4 | Production sender and sending domain | **Production sends from `noreply@elivatewallet.com`, name "Elivate Wallet", no reply-to.** Development moves to `noreply@dev.elivatewallet.com` once that subdomain is onboarded in Cloudflare Email Sending (until then dev may use the main domain). One Email Sending token per environment, with separate SMTP (Auth) and REST (application email) tokens. The daily quota belongs to the Cloudflare account and is shared. |
+| 5 | Production app URLs | **App `https://app.elivatewallet.com`, admin `https://admin.elivatewallet.com`.** Site URL `https://app.elivatewallet.com`; allow-list `https://app.elivatewallet.com/**` and `https://admin.elivatewallet.com/**`, no localhost; `CORS_ORIGINS=https://app.elivatewallet.com,https://admin.elivatewallet.com`; `PIN_RESET_REDIRECT_URL=https://app.elivatewallet.com/` until the frontend's `token_hash` confirm route exists (W-01), then that route. |
+| 6 | First platform admin | **The owner's own named mailbox, created by the one-time guarded SQL in §7** after it has confirmed its email and set its PIN. A second admin is added in the app soon after. |
+| 7 | Legacy Supabase API keys | **Launch on legacy keys if the new project still issues them; migrate the functions to the new keys before the end of 2026.** If the new project has no legacy keys, stop at §6. |
+| 8 | Back up `PIN_HMAC_SECRET` | **(b):** the agent generates it and copies it once to the owner's clipboard for their password manager, then clears the clipboard. |
+| 9 | When to create production | **Before the first public deploy.** Not needed for local Phase 2 work. |
+
+**Owner actions outstanding:**
+- Confirm the Cloudflare **Workers Paid** plan is active and **request a sending-quota increase** (currently 200 a day, shared by dev and production) before a public launch (§2.5).
+- Rename the dev project (decision 3).
+- Run the region latency check (§2.1) and create the production project (decisions 1–3, 9).
 
 Record the answers here before running:
 
 ```
 PROD_REF=            # filled in after the owner creates the project
-REGION=              # decision 1
-COMPUTE / PITR=      # decision 2
-PROJECT_NAME=        # decision 3
-SENDER=              # decision 4 (address + display name "Elivate Wallet")
-APP_URL=             # decision 5
+REGION=eu-west-2     # decision 1 (confirm after the latency check)
+COMPUTE / PITR=Micro + daily backups; Small + PITR before first real income   # decision 2
+PROJECT_NAME=Elivate Wallet — Production                                      # decision 3
+SENDER=noreply@elivatewallet.com, "Elivate Wallet", no reply-to                # decision 4
+APP_URL=https://app.elivatewallet.com (admin https://admin.elivatewallet.com)  # decision 5
 FIRST_ADMIN_EMAIL=   # decision 6 — kept in the session only, never committed
 ```
 
@@ -134,10 +142,10 @@ Write down each setting's value before changing it. That record is the rollback 
 | Auth → Rate Limits | Emails sent per hour | 30 (the custom-SMTP default) until the Cloudflare daily quota is raised. Set it to at most quota ÷ 24 so Supabase throttles before Cloudflare rejects. | Supabase SMTP guide |
 | | Token refresh / Sign-up + sign-in / Token verification | 150 per 5 min / 30 per 5 min / 30 per 5 min per IP | config |
 | Auth → Emails → SMTP | (see §4) | | |
-| Auth → Emails → Templates | Confirm signup, Magic Link | Supabase defaults are fine for launch (branded templates are a later slice). The **Magic Link** template is used only for the PIN reset (`security` → `signInWithOtp`, `shouldCreateUser: false`), so its subject should say so, e.g. "Reset your Elivate Wallet PIN". | Blueprint 01 B4 |
+| Auth → Emails → Templates | Confirm signup, Magic Link | Owner decision (2026-10-08, W-01): both links use `token_hash` and open the frontend's Continue (POST) page. Switch the production templates once that route exists; until then the defaults are acceptable for a smoke test. Editing the **development** project's templates is not approved yet (it comes with the first real sign-up). The **Magic Link** template is used only for the PIN reset (`security` → `signInWithOtp`, `shouldCreateUser: false`), so its subject should say so, e.g. "Reset your Elivate Wallet PIN". | Blueprint 01 B4 |
 | | Security notifications (password/email changed etc.) | Leave off for now. Each one is an extra Auth email, which counts against the quota and complicates the one-email-per-event check in §8. | |
 | Auth → Hooks | All hooks | **None enabled.** The gate reads `auth.sessions` / `auth.mfa_amr_claims` directly; no custom access-token hook exists. | migrations 0300 |
-| Auth → Attack Protection | CAPTCHA | Off (needs the frontend; revisit with U-10) | config |
+| Auth → Attack Protection | CAPTCHA | Off. Owner decision (2026-10-08): Worker rate limiting + Turnstile on sign-up/sign-in in the SvelteKit app; revisit this setting with the frontend's rate-limit spike. | config |
 | Settings → API (Data API) | Exposed schemas | **`public`, `graphql_public`, `api`**. Functions call `service.schema("api").rpc(...)`, which fails if `api` isn't exposed. Only `service_role` can execute it. | config `[api].schemas` |
 | | Extra search path · Max rows | `public, extensions` · 1000 | config |
 | Settings → Database | Enforce SSL | On | hardening |
@@ -174,8 +182,9 @@ Supabase injects `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY
 | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | both | platform-provided (decision 7) |
 
 Placeholders for later slices. **Don't set them now.** Their exact names are fixed by each slice's approved blueprint, not here:
-- Cloudflare Email Sending API token (and account id) for application email: **added when slice 03 (invitations / email outbox) ships.** Use a separate token from the SMTP one.
-- Payout-side provider credentials (NUBAN account-name lookup, OpenAI receipt extraction; automated payouts stay deferred, W-26): **added when slice 05 (withdrawals/payout/verification) ships.**
+- Cloudflare Email Sending REST API token (and account id) for application email, plus the worker secret (kept in Vault for pg_cron → pg_net): **added when slice 03 (invitations / email outbox) ships.** Email-Sending-only, separate from the SMTP token, one per environment (decision 4).
+- Paystack secret for Resolve Account Number and the bank list: **added when slice 05 (payout accounts) ships** (owner decision 2026-10-08, W-17).
+- OpenAI receipt extraction: **added with the withdrawals/payout/verification slice.** Automated payouts stay deferred (W-26).
 
 Set the secrets without echoing them:
 ```sh
@@ -206,11 +215,11 @@ prod_guard || exit 1
 cd backend
 supabase db push --project-ref "$PROD_REF" --dry-run
 ```
-Expect exactly these 9, in order, and nothing else: `20261008000100_foundation`, `…0200_accounts`, `…0300_pin_and_sessions`, `…0400_platform_admin_and_status`, `…0500_review_fixes`, `…0600_admin_lock_order`, `…0700_org`, `…0800_authz`, `…0900_org_commands`. **Abort point:** if anything else is listed, stop.
+Expect exactly the files in `backend/supabase/migrations` at the release commit, in order, and nothing else. On 2026-10-08 that is the 9 slice 01–02 files (`20261008000100_foundation`, `…0200_accounts`, `…0300_pin_and_sessions`, `…0400_platform_admin_and_status`, `…0500_review_fixes`, `…0600_admin_lock_order`, `…0700_org`, `…0800_authz`, `…0900_org_commands`), plus `20261009000100_tidy_up` once PR #5 merges, plus whatever slices 03–05 add. **Abort point:** if anything else is listed, stop.
 
 ```sh
 supabase db push --project-ref "$PROD_REF"          # if prompted for the DB password, the OWNER types it; never pass -p
-supabase migration list --project-ref "$PROD_REF"   # local and remote columns identical, 9 rows
+supabase migration list --project-ref "$PROD_REF"   # local and remote columns identical
 ```
 Don't use `--include-seed` (there is no seed and production gets none) or `--include-all`.
 
@@ -326,13 +335,13 @@ No frontend exists yet, so the owner drives the Auth and function APIs from thei
 | §2.5 | Workers Paid not active, or the domain isn't "ready" | Nothing changed. Owner fixes it, then resume. |
 | §3–4 | A setting can't be set, or the SMTP test fails | Restore the recorded "before" values in the dashboard. |
 | §5 | Wrong secret value | `supabase secrets set` again (or `secrets unset NAME`). No redeploy needed. A regenerated `PIN_HMAC_SECRET` is harmless only **before** any PIN exists. |
-| §6.1 | Dry-run lists anything other than the 9 | Stop. A failed real push stops at the failing file; earlier files stay applied. There are no down-migrations, and the project has no user data yet. With owner approval, the cleanest reset is deleting and recreating the project (back to §2). |
+| §6.1 | Dry-run lists anything other than the release commit's migrations | Stop. A failed real push stops at the failing file; earlier files stay applied. There are no down-migrations, and the project has no user data yet. With owner approval, the cleanest reset is deleting and recreating the project (back to §2). |
 | §6.2–6.3 | Smoke mismatch | Redeploy the function from the last good commit. Fix config and re-run the checks. |
 | §7 | `first_admin_already_exists` or no or several matches | Nothing was written (one transaction). Investigate. Never insert by hand. |
 | §8 | Missing or duplicate email, SPF/DKIM/DMARC not `pass`, or `401` on a valid JWT | Stop. Production stays unused until fixed. Don't announce sign-ups. |
 
 **Record-keeping (agent, last step):**
-1. Update the `AGENTS.md` workspace snapshot with an "Update <date> (production)" line. Include: the production ref, name and region; compute/backup choice; migrations `0100`–`0900` applied; `security` and `org` deployed with JWT verification; secret **names** set; SMTP on Cloudflare with sender X (token entered by the owner); first platform admin created (UID only, no email); and §8 results (SPF/DKIM/DMARC pass, one email per event). Also state that `supabase config push` and `supabase link` remain forbidden for production.
+1. Update the `AGENTS.md` workspace snapshot with an "Update <date> (production)" line. Include: the production ref, name and region; compute/backup choice; the migrations applied (first and last version); `security` and `org` deployed with JWT verification; secret **names** set; SMTP on Cloudflare with sender X (token entered by the owner); first platform admin created (UID only, no email); and §8 results (SPF/DKIM/DMARC pass, one email per event). Also state that `supabase config push` and `supabase link` remain forbidden for production.
 2. Update U-11 in `00-product.md` if real delivery and the paid plan are now confirmed.
 3. Commit on a branch and open a PR as usual. Never commit refs to secrets, emails, tokens or keys.
 
@@ -352,16 +361,16 @@ Matches the repo:
 - Organization is on Pro. Project is in `eu-west-2`, Postgres 17.6.
 
 Drift:
-1. **Leftover legacy function secrets in dev.** `ELIVATE_APP_ORIGIN`, `NUBAN_API_KEY`, `OPENAI_API_KEY`, `OPENAI_RECEIPT_MODEL` and `PAYOUT_VERIFIER_SECRET` are set but unused by current code. (AGENTS.md records the vault secrets and functions as removed; these Edge Function secrets weren't.) Recommend unsetting them (needs owner approval), or keeping them only until slice 05 fixes its names. Don't copy them to production.
-2. **Dev `CORS_ORIGINS` includes the production origin** `https://app.elivatewallet.com` (preflight returns allow). Once production exists, dev should list only dev and local origins, so a production frontend can never reach the dev backend.
-3. **Dev project name is the bare "Elivate Wallet",** and the main checkout's `backend/supabase/.temp` is linked to it (decision 3; §2 hard rules).
-4. `config.toml` `additional_redirect_urls` contains `https://127.0.0.1:3000` (https) while `site_url` is `http://127.0.0.1:3000`. This is local-only and harmless, but production must not copy any localhost entry.
+1. **Resolved 2026-10-08 (owner-approved): leftover legacy function secrets in dev.** `ELIVATE_APP_ORIGIN`, `NUBAN_API_KEY`, `OPENAI_API_KEY`, `OPENAI_RECEIPT_MODEL` and `PAYOUT_VERIFIER_SECRET` were unset. Don't recreate them in production; later slices name their own secrets.
+2. **Resolved 2026-10-08 (owner-approved): dev `CORS_ORIGINS` included the production origin.** It is now `http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000`, so a production frontend can't reach the dev backend.
+3. **Dev project name is the bare "Elivate Wallet",** and the main checkout's `backend/supabase/.temp` is linked to it. The owner approved renaming it "Elivate Wallet — Development" (decision 3); the rename hasn't been done yet.
+4. `config.toml` `additional_redirect_urls` contained `https://127.0.0.1:3000` (https) while `site_url` is `http://127.0.0.1:3000`. Fixed to `http://` in the backend tidy-up (PR #5, local only). Production must not copy any localhost entry.
 
 Risks:
-- **Gateway JWT check vs asymmetric signing keys (unverified, potentially blocking).** Dev signs user JWTs with **ES256** (public JWKS), and both functions keep the gateway's `verify_jwt = true`. Supabase's signing-key docs warn that functions using the Verify JWT setting can break under the new keys and recommend turning it off and verifying in code. The code already verifies the token with `auth.getClaims` and takes `sub`/`session_id` only from it. No authenticated call has run against dev yet (no real users), and CI runs on a local HS256 stack, so this is untested end to end. §8 step 4 is the first real test. If it fails, the fix (`verify_jwt = false`, relying on `getClaims`) is a reviewed change to `config.toml` and the blueprint, not a production tweak. Ideally, test it in dev first with the owner's dev account.
+- **Gateway JWT check vs asymmetric signing keys (unverified, potentially blocking).** Dev signs user JWTs with **ES256** (public JWKS), and both functions keep the gateway's `verify_jwt = true`. Supabase's signing-key docs warn that functions using the Verify JWT setting can break under the new keys and recommend turning it off and verifying in code. The code already verifies the token with `auth.getClaims` and takes `sub`/`session_id` only from it. No authenticated call has run against dev yet (no real users), and CI runs on a local HS256 stack, so this is untested end to end. **The owner deferred the first real sign-up and the signed-in call test on dev (2026-10-08), so this risk stays open.** §8 step 4 is the first real test. If it fails, the fix (`verify_jwt = false`, relying on `getClaims`) is a reviewed change to `config.toml` and the blueprint, not a production tweak. Ideally, test it in dev first with the owner's dev account.
 - **Legacy API keys sunset** (decision 7): the functions depend on `SUPABASE_ANON_KEY`/`SUPABASE_SERVICE_ROLE_KEY`, which Supabase says work until the end of 2026.
-- **Email capacity:** the Cloudflare account quota is currently **200 a day**, shared by dev and production. Supabase's custom-SMTP default is 30 Auth emails an hour, and sign-ups and PIN resets share that budget. Request a Cloudflare increase and size the Supabase limit before onboarding a network.
-- **Paid plan unconfirmed:** the Workers Paid subscription couldn't be read with the available token. Email Sending usage shows **0 sent**, consistent with real delivery never having been tested (U-11).
+- **Email capacity:** the Cloudflare account quota is currently **200 a day**, shared by dev and production. Owner action: request an increase (§1). Supabase's custom-SMTP default is 30 Auth emails an hour, and sign-ups and PIN resets share that budget. Request a Cloudflare increase and size the Supabase limit before onboarding a network.
+- **Paid plan unconfirmed:** the Workers Paid subscription couldn't be read with the available token; the owner will confirm it (§1). Email Sending usage shows **0 sent**, consistent with real delivery never having been tested (U-11).
 - **DMARC `p=reject` without reporting:** misconfigured mail is silently rejected. Add `rua=`.
 - **Key escrow:** `PIN_HMAC_SECRET` can't be read back from Supabase (decision 8).
 - **Region is permanent:** there's no Supabase region in Africa (decision 1).
