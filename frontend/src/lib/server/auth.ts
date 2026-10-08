@@ -32,7 +32,8 @@ export function createAuthClient(cookies: Cookies, config: AuthConfig): Supabase
 				}
 			}
 		},
-		auth: { flowType: 'pkce', detectSessionInUrl: false, autoRefreshToken: false },
+		// @supabase/ssr always uses PKCE; email links use token_hash + verifyOtp, which needs no verifier.
+		auth: { detectSessionInUrl: false, autoRefreshToken: false },
 		global: { fetch: config.fetch }
 	});
 }

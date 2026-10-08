@@ -3,7 +3,7 @@
 # their headers and nonce CSP from hooks.server.ts / the Kit config.
 /*
   X-Content-Type-Options: nosniff
-  Referrer-Policy: no-referrer
+  Referrer-Policy: same-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
   X-Frame-Options: DENY
 

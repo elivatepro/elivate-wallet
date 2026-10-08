@@ -53,12 +53,16 @@ export function requestJson<S extends Schema.ConstraintDecoder<unknown>>(
 			try: () => response.text(),
 			catch: () => new TransportError({ reason: 'network', status: response.status })
 		});
-		let body: unknown = undefined;
-		try {
-			body = text === '' ? undefined : JSON.parse(text);
-		} catch {
-			body = undefined;
-		}
-		return yield* decodeResponse(request.route, response.status, body, schema);
+		return yield* decodeResponse(request.route, response.status, parseJson(text), schema);
 	});
+}
+
+/** Parsed JSON, or undefined for an empty or non-JSON body (HTML 502 pages...). */
+function parseJson(text: string): unknown {
+	if (text === '') return undefined;
+	try {
+		return JSON.parse(text);
+	} catch {
+		return undefined;
+	}
 }

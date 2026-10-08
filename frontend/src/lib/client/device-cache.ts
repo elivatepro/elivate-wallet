@@ -55,7 +55,8 @@ export function assertCacheable(value: unknown, path = ''): void {
 	}
 }
 
-const isKind = (kind: string): kind is CacheKind => (CACHE_KINDS as readonly string[]).includes(kind);
+const isKind = (kind: string): kind is CacheKind =>
+	(CACHE_KINDS as readonly string[]).includes(kind);
 
 const keyFor = (scope: CacheScope, kind: CacheKind) =>
 	`${PREFIX}${encodeURIComponent(scope.uid)}:${encodeURIComponent(scope.workspaceId)}:${kind}`;
@@ -134,7 +135,10 @@ export function purgeAll(store: KeyValueStore): void {
 /** Remembers which user+workspace the shell last showed, to label offline data. */
 export function rememberScope(store: KeyValueStore, scope: CacheScope): void {
 	try {
-		store.setItem(LAST_SCOPE_KEY, JSON.stringify({ uid: scope.uid, workspaceId: scope.workspaceId }));
+		store.setItem(
+			LAST_SCOPE_KEY,
+			JSON.stringify({ uid: scope.uid, workspaceId: scope.workspaceId })
+		);
 	} catch {
 		// best-effort
 	}
@@ -160,7 +164,10 @@ export function browserStore(): KeyValueStore | null {
 			getItem: (k) => ls.getItem(k),
 			setItem: (k, v) => ls.setItem(k, v),
 			removeItem: (k) => ls.removeItem(k),
-			keys: () => Array.from({ length: ls.length }, (_, i) => ls.key(i)).filter((k): k is string => k !== null)
+			keys: () =>
+				Array.from({ length: ls.length }, (_, i) => ls.key(i)).filter(
+					(k): k is string => k !== null
+				)
 		};
 	} catch {
 		return null;

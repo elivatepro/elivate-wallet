@@ -22,13 +22,20 @@ describe('error codes', () => {
 
 describe('decodeResponse', () => {
 	it('returns decoded data for a success envelope', () => {
-		const exit = run(decodeResponse('GET /security/state', 200, fx.success(fx.securityStateReady), SecurityState));
+		const exit = run(
+			decodeResponse('GET /security/state', 200, fx.success(fx.securityStateReady), SecurityState)
+		);
 		expect(Exit.isSuccess(exit) && exit.value.gate).toBe('ready');
 	});
 
 	it('maps a failure envelope to a typed BackendError with details and requestId', () => {
 		const exit = run(
-			decodeResponse('POST /security/pin/verify', 403, fx.failure('pin_incorrect', { attemptsRemaining: 3 }), SecurityState)
+			decodeResponse(
+				'POST /security/pin/verify',
+				403,
+				fx.failure('pin_incorrect', { attemptsRemaining: 3 }),
+				SecurityState
+			)
 		);
 		const error = failureOf(exit);
 		expect(error._tag).toBe('BackendError');
@@ -41,23 +48,31 @@ describe('decodeResponse', () => {
 	});
 
 	it('treats an unknown error code as a contract violation, never inventing a code', () => {
-		const error = failureOf(run(decodeResponse('GET /org/workspaces', 409, fx.failure('brand_new_code'), Workspaces)));
+		const error = failureOf(
+			run(decodeResponse('GET /org/workspaces', 409, fx.failure('brand_new_code'), Workspaces))
+		);
 		expect(error._tag).toBe('ContractViolation');
 		expect(categorize(error)).toBe('defect');
 	});
 
 	it('treats a non-envelope body (gateway 401, HTML 502) as a TransportError', () => {
-		const gateway = failureOf(run(decodeResponse('GET /security/state', 401, { msg: 'Invalid JWT' }, SecurityState)));
+		const gateway = failureOf(
+			run(decodeResponse('GET /security/state', 401, { msg: 'Invalid JWT' }, SecurityState))
+		);
 		expect(gateway).toMatchObject({ _tag: 'TransportError', reason: 'non_envelope', status: 401 });
 		expect(categorize(gateway)).toBe('authentication');
-		const html = failureOf(run(decodeResponse('GET /security/state', 502, undefined, SecurityState)));
+		const html = failureOf(
+			run(decodeResponse('GET /security/state', 502, undefined, SecurityState))
+		);
 		expect(html).toMatchObject({ _tag: 'TransportError', status: 502 });
 		expect(isRetryableRead(html)).toBe(true);
 	});
 
 	it('rejects success data that does not match the route schema', () => {
 		const bad = { ...fx.securityStateReady, gate: 'step_up' };
-		const error = failureOf(run(decodeResponse('GET /security/state', 200, fx.success(bad), SecurityState)));
+		const error = failureOf(
+			run(decodeResponse('GET /security/state', 200, fx.success(bad), SecurityState))
+		);
 		expect(error._tag).toBe('ContractViolation');
 	});
 });
@@ -87,7 +102,9 @@ describe('org schemas', () => {
 		expect(decoded.tenantName).toBe('Sunrise Network');
 	});
 	it('rejects an ended membership in the workspace list', () => {
-		expect(() => Schema.decodeUnknownSync(Workspace)({ ...fx.workspace, status: 'ended' })).toThrow();
+		expect(() =>
+			Schema.decodeUnknownSync(Workspace)({ ...fx.workspace, status: 'ended' })
+		).toThrow();
 	});
 	it('lets active memberships open even when the network awaits payment or is suspended', () => {
 		const w = Schema.decodeUnknownSync(Workspace)(fx.workspace);

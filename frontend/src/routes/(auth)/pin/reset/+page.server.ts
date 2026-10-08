@@ -18,7 +18,10 @@ export const actions: Actions = {
 	default: async (event) => {
 		const session = await requireSession(event);
 		const form = await event.request.formData();
-		const input = { pin: String(form.get('pin') ?? ''), pinConfirm: String(form.get('pinConfirm') ?? '') };
+		const input = {
+			pin: String(form.get('pin') ?? ''),
+			pinConfirm: String(form.get('pinConfirm') ?? '')
+		};
 		const exit = await runApi(
 			event,
 			session,

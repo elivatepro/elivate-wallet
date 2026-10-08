@@ -50,7 +50,8 @@ self.addEventListener('message', (event) => {
 	if (event.data?.type === 'SKIP_WAITING') void self.skipWaiting();
 });
 
-const isAppNavigation = (url: URL) => url.pathname === SHELL || url.pathname.startsWith(`${SHELL}/`);
+const isAppNavigation = (url: URL) =>
+	url.pathname === SHELL || url.pathname.startsWith(`${SHELL}/`);
 
 self.addEventListener('fetch', (event) => {
 	const request = event.request;
@@ -60,9 +61,7 @@ self.addEventListener('fetch', (event) => {
 	if (url.pathname.startsWith('/api/')) return;
 
 	if (precached.has(url.pathname) && request.mode !== 'navigate') {
-		event.respondWith(
-			caches.match(url.pathname).then((hit) => hit ?? fetch(request))
-		);
+		event.respondWith(caches.match(url.pathname).then((hit) => hit ?? fetch(request)));
 		return;
 	}
 

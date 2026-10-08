@@ -41,8 +41,10 @@ function layer(fetcher: typeof fetch) {
 	return Layer.mergeAll(SecurityApiLive, OrgApiLive).pipe(Layer.provide(edge));
 }
 
-const run = <A>(program: Effect.Effect<A, ApiFailure, SecurityApi | OrgApi>, fetcher: typeof fetch) =>
-	Effect.runPromise(Effect.exit(program.pipe(Effect.provide(layer(fetcher)))));
+const run = <A>(
+	program: Effect.Effect<A, ApiFailure, SecurityApi | OrgApi>,
+	fetcher: typeof fetch
+) => Effect.runPromise(Effect.exit(program.pipe(Effect.provide(layer(fetcher)))));
 
 const failure = <A>(exit: Exit.Exit<A, ApiFailure>) =>
 	Exit.isFailure(exit) ? Effect.runSync(Effect.flip(Effect.failCause(exit.cause))) : null;
@@ -128,7 +130,9 @@ describe('SecurityApi', () => {
 	});
 
 	it('surfaces gate codes from any route as typed errors', async () => {
-		const { fetcher } = fakeFetch([{ status: 423, body: fx.failure('pin_locked', { attemptsRemaining: 0 }) }]);
+		const { fetcher } = fakeFetch([
+			{ status: 423, body: fx.failure('pin_locked', { attemptsRemaining: 0 }) }
+		]);
 		const exit = await run(
 			Effect.gen(function* () {
 				return yield* (yield* SecurityApi).verifyPin({ pin: '0000' });
@@ -140,13 +144,21 @@ describe('SecurityApi', () => {
 
 	it('times out a hanging request as a TransportError', async () => {
 		const hanging = ((_: RequestInfo | URL, init?: RequestInit) =>
-			new Promise((_, reject) => init?.signal?.addEventListener('abort', () => reject(new Error('aborted'))))) as typeof fetch;
+			new Promise((_, reject) =>
+				init?.signal?.addEventListener('abort', () => reject(new Error('aborted')))
+			)) as typeof fetch;
 		const { requestJson } = await import('#lib/contract/transport.js');
 		const { SecurityState } = await import('#lib/contract/security.js');
 		const exit = await Effect.runPromise(
 			Effect.exit(
 				requestJson(
-					{ fetch: hanging, url: 'http://127.0.0.1/x', method: 'GET', route: 'GET /x', timeoutMs: 20 },
+					{
+						fetch: hanging,
+						url: 'http://127.0.0.1/x',
+						method: 'GET',
+						route: 'GET /x',
+						timeoutMs: 20
+					},
 					SecurityState
 				)
 			)

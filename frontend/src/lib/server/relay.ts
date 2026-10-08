@@ -13,10 +13,16 @@ import { failureOf } from './flow';
 const headers = { 'cache-control': 'no-store', 'content-type': 'application/json; charset=utf-8' };
 
 const local = (status: number, code: BackendError['code'], message: string, retryable = false) =>
-	new BackendError({ status, code, message, retryable, details: {}, requestId: crypto.randomUUID() });
+	new BackendError({
+		status,
+		code,
+		message,
+		retryable,
+		details: {},
+		requestId: crypto.randomUUID()
+	});
 
-export const unauthenticated = () =>
-	local(401, 'authentication_required', 'Sign in to continue.');
+export const unauthenticated = () => local(401, 'authentication_required', 'Sign in to continue.');
 
 /** Maps any failure to a relayed envelope with an honest status. */
 export function toBackendError(failure: EdgeFailure): BackendError {
@@ -28,7 +34,13 @@ export function toBackendError(failure: EdgeFailure): BackendError {
 				? unauthenticated()
 				: local(502, 'internal_error', 'Something went wrong. Try again.', true);
 		case 'ContractViolation':
-			console.error(JSON.stringify({ route: failure.route, requestId: failure.requestId, contract: 'violation' }));
+			console.error(
+				JSON.stringify({
+					route: failure.route,
+					requestId: failure.requestId,
+					contract: 'violation'
+				})
+			);
 			return local(502, 'internal_error', 'Something went wrong. Try again.');
 	}
 }

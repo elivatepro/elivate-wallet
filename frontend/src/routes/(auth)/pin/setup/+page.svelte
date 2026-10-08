@@ -34,7 +34,14 @@
 	}}
 >
 	<div class="fields">
-		<PinField id="pin" name="pin" label="PIN" autocomplete="new-password" error={form?.errors?.pin} autofocus />
+		<PinField
+			id="pin"
+			name="pin"
+			label="PIN"
+			autocomplete="new-password"
+			error={form?.errors?.pin}
+			autofocus
+		/>
 		<PinField
 			id="pinConfirm"
 			name="pinConfirm"

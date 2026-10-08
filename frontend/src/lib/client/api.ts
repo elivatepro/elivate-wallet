@@ -24,7 +24,8 @@ export function loadSession(
 	).pipe(
 		Effect.retry({
 			times: 2,
-			while: (e: ApiFailure) => isRetryableRead(e) && !(e._tag === 'TransportError' && e.reason === 'network'),
+			while: (e: ApiFailure) =>
+				isRetryableRead(e) && !(e._tag === 'TransportError' && e.reason === 'network'),
 			schedule: Schedule.exponential('300 millis').pipe(Schedule.jittered)
 		})
 	);

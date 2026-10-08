@@ -65,7 +65,8 @@
 				{#each [0, 1, 2, 3] as index (index)}
 					<div
 						class="cell"
-						class:active={focused && (index === value.length || (index === 3 && value.length === 4))}
+						class:active={focused &&
+							(index === value.length || (index === 3 && value.length === 4))}
 					>
 						{#if index < value.length}
 							<span class="dot">•</span>

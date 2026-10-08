@@ -74,7 +74,9 @@
 			<div class="workspace">
 				{#if summary}
 					<span class="tenant">{summary.tenantName}</span>
-					<span class="role">{ROLE_LABELS[summary.role]}{summary.officeName ? ` · ${summary.officeName}` : ''}</span>
+					<span class="role"
+						>{ROLE_LABELS[summary.role]}{summary.officeName ? ` · ${summary.officeName}` : ''}</span
+					>
 				{:else if shell.state.kind === 'loading'}
 					<span class="role" aria-busy="true">Loading…</span>
 				{/if}
@@ -99,7 +101,10 @@
 							{#if shell.state.kind === 'ready'}
 								<div class="menu-label">{shell.state.view.state.uid}</div>
 							{/if}
-							<DropdownMenu.Item class="menu-item" onSelect={() => window.location.assign('/workspaces?switch')}>
+							<DropdownMenu.Item
+								class="menu-item"
+								onSelect={() => window.location.assign('/workspaces?switch')}
+							>
 								Switch workspace
 							</DropdownMenu.Item>
 							<DropdownMenu.CheckboxItem
@@ -123,7 +128,9 @@
 		{#if updated.current}
 			<div class="banner" role="status">
 				<span>A new version of Elivate Wallet is ready.</span>
-				<button type="button" onclick={reloadForUpdate}><RefreshCw size={16} aria-hidden="true" />Reload</button>
+				<button type="button" onclick={reloadForUpdate}
+					><RefreshCw size={16} aria-hidden="true" />Reload</button
+				>
 			</div>
 		{/if}
 
@@ -131,8 +138,8 @@
 			<div class="banner offline" role="status">
 				<WifiOff size={16} aria-hidden="true" />
 				<span>
-					{shell.state.savedAt ? staleLabel(shell.state.savedAt, true) : 'You’re offline'}. Actions are
-					unavailable until you reconnect.
+					{shell.state.savedAt ? staleLabel(shell.state.savedAt, true) : 'You’re offline'}. Actions
+					are unavailable until you reconnect.
 				</span>
 			</div>
 		{/if}

@@ -27,10 +27,14 @@ export const actions: Actions = {
 			return fail(429, { message: 'A link was just sent. Try again in a minute.' });
 		}
 		if (failure._tag === 'BackendError' && failure.code === 'internal_error') {
-			// Plan §6.4 #8: the reset may be recorded even though the email failed,
-			// and a retry within 60 s is rate limited. Never auto-retry; say so.
+			// Since the tidy-up PR the backend withdraws the request when the email
+			// fails (`details.emailSent: false`), so an immediate retry is allowed.
+			// Still never auto-retried: the person presses the button again.
+			const notSent = failure.details.emailSent === false;
 			return fail(503, {
-				message: 'We couldn’t confirm the email was sent. If it doesn’t arrive, try again in a minute.'
+				message: notSent
+					? 'We couldn’t send the email. Try again.'
+					: 'Something went wrong. Try again in a minute.'
 			});
 		}
 		redirectForFailure(failure);

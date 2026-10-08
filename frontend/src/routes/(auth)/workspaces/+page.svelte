@@ -39,12 +39,15 @@
 						<span class="text">
 							<span class="name">{workspace.tenantName}</span>
 							<span class="meta">
-								{ROLE_LABELS[workspace.role]}{workspace.officeName ? ` · ${workspace.officeName}` : ''}
+								{ROLE_LABELS[workspace.role]}{workspace.officeName
+									? ` · ${workspace.officeName}`
+									: ''}
 							</span>
 							{#if status}<span class="status">{status}</span>{/if}
 							{#if !workspace.selectable}<span class="status">Membership suspended</span>{/if}
 						</span>
-						<span class="chev" aria-hidden="true"><ChevronRight size={20} strokeWidth={1.6} /></span>
+						<span class="chev" aria-hidden="true"><ChevronRight size={20} strokeWidth={1.6} /></span
+						>
 					</button>
 				</form>
 			</li>

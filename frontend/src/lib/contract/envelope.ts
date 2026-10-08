@@ -79,7 +79,11 @@ export function decodeResponse<S extends Schema.ConstraintDecoder<unknown>>(
 }
 
 /** Builds the same envelope shape for responses relayed by the app server. */
-export const successBody = (data: unknown, requestId: string) => ({ ok: true as const, data, requestId });
+export const successBody = (data: unknown, requestId: string) => ({
+	ok: true as const,
+	data,
+	requestId
+});
 
 export const failureBody = (error: BackendError) => ({
 	ok: false as const,

@@ -16,7 +16,10 @@ export const actions: Actions = {
 	default: async (event) => {
 		const { session } = await expectGate(event, 'pin_setup_required');
 		const form = await event.request.formData();
-		const input = { pin: String(form.get('pin') ?? ''), pinConfirm: String(form.get('pinConfirm') ?? '') };
+		const input = {
+			pin: String(form.get('pin') ?? ''),
+			pinConfirm: String(form.get('pinConfirm') ?? '')
+		};
 		const exit = await runApi(
 			event,
 			session,

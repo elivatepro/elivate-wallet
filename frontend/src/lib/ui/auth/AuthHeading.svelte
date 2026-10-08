@@ -20,7 +20,9 @@
 <div class="heading" class:with-icon={!!icon} data-tone={tone}>
 	{#if icon}
 		{@const Icon = icon}
-		<div class="tile" aria-hidden="true"><Icon size={24} strokeWidth={1.6} aria-hidden="true" /></div>
+		<div class="tile" aria-hidden="true">
+			<Icon size={24} strokeWidth={1.6} aria-hidden="true" />
+		</div>
 	{/if}
 	<p class="eyebrow"><span class="dot" aria-hidden="true"></span>{eyebrow}</p>
 	<h1 tabindex="-1">{title}</h1>
