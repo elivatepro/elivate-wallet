@@ -134,8 +134,10 @@ describe('app endpoint schema', () => {
 		const view = Schema.decodeUnknownSync(SessionView)({
 			state: fx.securityStateReady,
 			workspace: fx.workspace,
-			capabilities: fx.capabilities
+			capabilities: fx.capabilities,
+			profile: { name: 'Ada Obi', hasPhoto: false }
 		});
 		expect(view.workspace?.membershipId).toBe(fx.workspace.membershipId);
+		expect(view.profile?.name).toBe('Ada Obi');
 	});
 });

@@ -14,6 +14,9 @@
 		"directory": ".svelte-kit/cloudflare"
 	},
 	"observability": { "enabled": true },
+	// Private profile photos (Blueprint 06 B4). R2 must be enabled on the
+	// account and the bucket created before the next deploy.
+	"r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "elivate-wallet-dev-photos" }],
 	"routes": [{ "pattern": "app.elivatewallet.com", "custom_domain": true }],
 	"workers_dev": false,
 	"preview_urls": false

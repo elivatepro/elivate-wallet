@@ -2,6 +2,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import { Effect, Exit } from 'effect';
 import { SecurityApi } from '#lib/server/apis.js';
 import { expectGate, failureOf, redirectForFailure } from '#lib/server/flow.js';
+import { readOnboardingMembership } from '#lib/server/onboarding.js';
 import { runApi } from '#lib/server/request.js';
 import { GATE_PATHS } from '#lib/gate.js';
 import { pinFieldErrors } from '../pin-errors';
@@ -9,6 +10,8 @@ import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
 	await expectGate(event, 'pin_setup_required');
+	// An accepted invitation sets its PIN inside the first-use wizard.
+	if (readOnboardingMembership(event.cookies)) redirect(303, '/onboarding/pin');
 	return {};
 };
 

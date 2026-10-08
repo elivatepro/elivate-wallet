@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import {
+	completeIdentityAndProfile,
 	confirmLinkFor,
 	createNetworkFor,
 	expectAccessible,
@@ -46,8 +47,19 @@ test('sign-up → email confirm → PIN setup → workspace picker → shell, th
 	await expect(page.getByRole('heading', { name: 'No workspace yet' })).toBeVisible();
 	await expect(page.getByText(/EW-\d{5,}/)).toBeVisible();
 
-	// 5. With exactly one workspace it is opened automatically (decision 48).
+	// 5. Once a workspace exists, first-use setup runs (W-01 step 6): NIN and
+	// profile; a President Team member has no wallet, so no bank step.
 	await createNetworkFor(email, PASSWORD, PIN, 'Sunrise Test Network');
+	await page.goto('/workspaces');
+	await expect(page).toHaveURL(/\/onboarding$/);
+	await expect(
+		page.getByRole('heading', { name: 'Welcome to Sunrise Test Network' })
+	).toBeVisible();
+	await page.getByRole('link', { name: 'Let’s begin' }).click();
+	await completeIdentityAndProfile(page);
+	await expect(page.getByRole('heading', { name: 'You’re all set, Ada' })).toBeVisible();
+
+	// 6. With exactly one workspace it is opened automatically (decision 48).
 	await page.goto('/workspaces');
 	await expect(page).toHaveURL(/\/app$/);
 	await expect(page.getByText('Sunrise Test Network').filter({ visible: true })).toBeVisible();
@@ -55,7 +67,7 @@ test('sign-up → email confirm → PIN setup → workspace picker → shell, th
 	// No token or membership id in any URL.
 	expect(page.url()).not.toMatch(/token|membership|[0-9a-f]{8}-[0-9a-f]{4}/i);
 
-	// 6. Sign out, sign back in: password, then PIN (one wrong try first).
+	// 7. Sign out, sign back in: password, then PIN (one wrong try first).
 	await page.getByRole('button', { name: 'Account' }).click();
 	await page.getByRole('menuitem', { name: 'Sign out' }).click();
 	await expect(page).toHaveURL(/\/sign-in$/);

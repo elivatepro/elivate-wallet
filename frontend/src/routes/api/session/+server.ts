@@ -1,6 +1,8 @@
 import { Effect, Exit } from 'effect';
 import { failureOf, isBackendError } from '#lib/server/flow.js';
 import type { SessionView } from '#lib/contract/app.js';
+import { shownName } from '#lib/contract/identity.js';
+import { IdentityApi } from '#lib/server/apis-identity.js';
 import { OrgApi, SecurityApi } from '#lib/server/apis.js';
 import { clearWorkspace, readWorkspace } from '#lib/server/cookies.js';
 import { respond, respondError, unauthenticated } from '#lib/server/relay.js';
@@ -19,8 +21,15 @@ export const GET: RequestHandler = async (event) => {
 			const security = yield* SecurityApi;
 			const org = yield* OrgApi;
 			const state = yield* security.state;
-			const view: SessionView = { state, workspace: null, capabilities: null };
-			if (state.gate !== 'ready' || !membershipId) return view;
+			const base: SessionView = { state, workspace: null, capabilities: null, profile: null };
+			if (state.gate !== 'ready') return base;
+			// The name is a nicety: any failure leaves it out, never the session.
+			const profile = yield* (yield* IdentityApi).profile.pipe(
+				Effect.map((p) => ({ name: shownName(p), hasPhoto: p.hasPhoto })),
+				Effect.orElseSucceed(() => null)
+			);
+			const view: SessionView = { ...base, profile };
+			if (!membershipId) return view;
 			const workspaces = yield* org.workspaces;
 			const workspace = workspaces.find((w) => w.membershipId === membershipId) ?? null;
 			if (!workspace) return view;
