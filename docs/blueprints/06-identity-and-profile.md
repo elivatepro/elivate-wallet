@@ -55,7 +55,7 @@ Status: **owner instructed "build everything now" (2026-10-08)**; decisions belo
 New error codes (append-only, `_shared/http.ts` and the frontend list): `nin_not_verified` (422, `details.checksRemaining`), `nin_in_use` (409), `nin_review_required` (409).
 
 ### B3. Edge Function `identity` (`verify_jwt = true`)
-`GET /profile`, `PATCH /profile`, `POST /profile/photo`, `POST /nin/verify` `{ nin }`, `POST /nin/review` (`X-Membership`) `{ nin, givenName, middleNames?, surname, idempotencyKey }`, `GET /nin/reviews` (`X-Membership`), `POST /nin/reviews/:id/decide` (`X-Membership`) `{ decision, reason, idempotencyKey }`, `GET /admin/nin/reviews`, `POST /admin/nin/reviews/:id/decide`.
+`GET /profile`, `GET /onboarding/workspace` (`X-Membership`; gate `ready` or `pin_setup_required`; the caller's own membership only: network, office, role, because the wizard Welcome comes before the PIN), `PATCH /profile`, `POST /profile/photo`, `POST /nin/verify` `{ nin }`, `POST /nin/review` (`X-Membership`) `{ nin, givenName, middleNames?, surname, idempotencyKey }`, `GET /nin/reviews` (`X-Membership`), `POST /nin/reviews/:id/decide` (`X-Membership`) `{ decision, reason, idempotencyKey }`, `GET /admin/nin/reviews`, `POST /admin/nin/reviews/:id/decide`.
 
 The raw NIN exists only in memory in the Edge Function: fingerprint = hex HMAC-SHA256(`NIN_FINGERPRINT_KEY`, `"nin:v1:" + nin`). Provider adapter `_shared/nin_provider.ts`: 2xx with a first name and surname → `found`; 2xx without names → `unavailable` (never burns a check; logs only the key shape); 400/404/422 → `not_found`; 401/403/429/5xx/network/timeout (10 s) → `unavailable` (`provider_unavailable`). No NIN, name, phone or response body in logs.
 

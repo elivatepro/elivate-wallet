@@ -203,6 +203,15 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       return { photoKey: typeof profile.photoKey === "string" ? profile.photoKey : null };
     }),
 
+    // Wizard Welcome (allowed before the PIN): the caller's own membership.
+    route("GET", "/onboarding/workspace", (c) => {
+      onlyQuery(c.query, []);
+      return call("onboarding_workspace", {
+        ...actorArgs(c),
+        p_membership_id: workspace(c.request),
+      });
+    }),
+
     route("PATCH", "/profile", async (c) => {
       const body = await v.readBody(c.request, ["displayName", "phone", "rank", "idempotencyKey"]);
       const changes: Record<string, unknown> = {};
