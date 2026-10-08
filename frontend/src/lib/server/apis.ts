@@ -8,14 +8,25 @@ import { BackendError, isRetryableRead } from '#lib/contract/errors.js';
 import {
 	AcceptedInvitation,
 	AcceptInvitationRequest,
+	CreatedInvitation,
+	CreateInvitationRequest,
+	IdempotencyKey,
+	InvitationPage,
+	InviteEmail,
 	InvitationPreview,
 	InvitationRoutes,
 	InvitationTokenRequest,
 	MyInvitations,
+	ReissuedInvitation,
+	ReissueInvitationRequest,
+	Reason,
+	RevokedInvitation,
+	RevokeInvitationRequest,
 	VerificationSent,
+	type InvitationStatus,
 	type MyInvitation
 } from '#lib/contract/invitations.js';
-import { Capabilities, OrgRoutes, Workspaces, type Workspace } from '#lib/contract/org.js';
+import { Capabilities, Offices, OrgRoutes, Workspaces, type Workspace } from '#lib/contract/org.js';
 import {
 	Pin,
 	PinResetRequested,
@@ -24,6 +35,7 @@ import {
 	SecurityRoutes,
 	SecurityState
 } from '#lib/contract/security.js';
+import { Role, Uuid } from '#lib/contract/common.js';
 import { EdgeTransport, type EdgeFailure } from './edge';
 
 const readPolicy = {
@@ -113,6 +125,8 @@ export const SecurityApiLive = Layer.effect(
 export interface OrgApiShape {
 	readonly workspaces: Effect.Effect<ReadonlyArray<Workspace>, EdgeFailure>;
 	readonly capabilities: (membershipId: string) => Effect.Effect<Capabilities, EdgeFailure>;
+	/** Active offices in the workspace's subtree (first page, up to 100). */
+	readonly activeOffices: (membershipId: string) => Effect.Effect<typeof Offices.Type, EdgeFailure>;
 }
 
 export class OrgApi extends Context.Service<OrgApi, OrgApiShape>()('OrgApi') {}
@@ -128,6 +142,18 @@ export const OrgApiLive = Layer.effect(
 			capabilities: (membershipId) =>
 				edge
 					.call({ fn: 'org', route: OrgRoutes.capabilities, membershipId }, Capabilities)
+					.pipe(Effect.retry(readPolicy)),
+			activeOffices: (membershipId) =>
+				edge
+					.call(
+						{
+							fn: 'org',
+							route: OrgRoutes.offices,
+							membershipId,
+							query: { status: 'active', limit: '100' }
+						},
+						Offices
+					)
 					.pipe(Effect.retry(readPolicy))
 		};
 	})
@@ -144,7 +170,54 @@ export interface InvitationsApiShape {
 	readonly preview: (token: string) => Effect.Effect<InvitationPreview, EdgeFailure>;
 	/** Public (no session): Auth emails that address a sign-in link. Never retried. */
 	readonly verifyEmail: (token: string) => Effect.Effect<void, EdgeFailure>;
+	/** The leader's invitations in the workspace (newest first). */
+	readonly list: (
+		membershipId: string,
+		query: { status?: InvitationStatus; cursor?: string; limit?: number }
+	) => Effect.Effect<InvitationPage, EdgeFailure>;
+	/** Commands below are never retried: the caller keeps its idempotency key (W-00). */
+	readonly create: (
+		membershipId: string,
+		input: {
+			readonly officeId: string;
+			readonly role: string;
+			readonly email: string;
+			readonly reason?: string;
+			readonly idempotencyKey: string;
+		}
+	) => Effect.Effect<typeof CreatedInvitation.Type, EdgeFailure>;
+	readonly reissue: (
+		membershipId: string,
+		invitationId: string,
+		input: { idempotencyKey: string }
+	) => Effect.Effect<ReissuedInvitation, EdgeFailure>;
+	readonly revoke: (
+		membershipId: string,
+		invitationId: string,
+		input: { reason: string; idempotencyKey: string }
+	) => Effect.Effect<RevokedInvitation, EdgeFailure>;
 }
+
+/**
+ * Decodes a command body locally. On failure the first field (in the given
+ * order) that is present-but-invalid, or required-but-missing, is reported
+ * exactly like the Edge's own `validation_error`.
+ */
+const decodeBody = <S extends Schema.ConstraintDecoder<unknown>>(
+	schema: S,
+	input: Readonly<Record<string, unknown>>,
+	fields: ReadonlyArray<readonly [name: string, check: (value: unknown) => boolean]>
+): Effect.Effect<S['Type'], BackendError> =>
+	Schema.decodeUnknownEffect(schema)(input).pipe(
+		Effect.mapError(() => localValidation(fields.find(([n, ok]) => !ok(input[n]))?.[0] ?? 'body'))
+	) as Effect.Effect<S['Type'], BackendError>;
+
+const isKey = Schema.is(IdempotencyKey);
+const optional = (check: (value: unknown) => boolean) => (value: unknown) =>
+	value === undefined || check(value);
+
+const invitationIdOk = (id: string) =>
+	Schema.is(Uuid)(id) ? Effect.succeed(id) : Effect.fail(localValidation('invitationId'));
 
 const tokenBody = (token: string) =>
 	Schema.decodeUnknownEffect(InvitationTokenRequest)({ token }).pipe(
@@ -191,6 +264,68 @@ export const InvitationsApiLive = Layer.effect(
 						)
 					),
 					Effect.asVoid
+				),
+			list: (membershipId, query) => {
+				const params: Record<string, string> = {};
+				if (query.status) params.status = query.status;
+				if (query.cursor) params.cursor = query.cursor;
+				if (query.limit) params.limit = String(query.limit);
+				return edge
+					.call(
+						{ fn: 'invitations', route: InvitationRoutes.list, membershipId, query: params },
+						InvitationPage
+					)
+					.pipe(Effect.retry(readPolicy));
+			},
+			create: (membershipId, input) =>
+				decodeBody(CreateInvitationRequest, input, [
+					['officeId', Schema.is(Uuid)],
+					['role', Schema.is(Role)],
+					['email', Schema.is(InviteEmail)],
+					['reason', optional(Schema.is(Reason))],
+					['idempotencyKey', isKey]
+				]).pipe(
+					Effect.flatMap((body) =>
+						edge.call(
+							{ fn: 'invitations', route: InvitationRoutes.create, body, membershipId },
+							CreatedInvitation
+						)
+					)
+				),
+			reissue: (membershipId, invitationId, input) =>
+				invitationIdOk(invitationId).pipe(
+					Effect.andThen(decodeBody(ReissueInvitationRequest, input, [['idempotencyKey', isKey]])),
+					Effect.flatMap((body) =>
+						edge.call(
+							{
+								fn: 'invitations',
+								route: InvitationRoutes.reissue(invitationId),
+								body,
+								membershipId
+							},
+							ReissuedInvitation
+						)
+					)
+				),
+			revoke: (membershipId, invitationId, input) =>
+				invitationIdOk(invitationId).pipe(
+					Effect.andThen(
+						decodeBody(RevokeInvitationRequest, input, [
+							['reason', Schema.is(Reason)],
+							['idempotencyKey', isKey]
+						])
+					),
+					Effect.flatMap((body) =>
+						edge.call(
+							{
+								fn: 'invitations',
+								route: InvitationRoutes.revoke(invitationId),
+								body,
+								membershipId
+							},
+							RevokedInvitation
+						)
+					)
 				)
 		};
 	})

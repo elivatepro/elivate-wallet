@@ -8,6 +8,10 @@
 	import { getContext } from 'svelte';
 	import Bell from '@lucide/svelte/icons/bell';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
+	import IdCard from '@lucide/svelte/icons/id-card';
+	import Landmark from '@lucide/svelte/icons/landmark';
+	import MailPlus from '@lucide/svelte/icons/mail-plus';
+	import PieChart from '@lucide/svelte/icons/chart-pie';
 	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
 	import EyeOff from '@lucide/svelte/icons/eye-off';
 	import LogOut from '@lucide/svelte/icons/log-out';
@@ -26,6 +30,10 @@
 		shell.state.kind === 'ready' || shell.state.kind === 'offline' ? shell.state.summary : null
 	);
 	const uid = $derived(shell.state.kind === 'ready' ? shell.state.view.state.uid : null);
+	/** Navigation hint only; the backend authorizes every command. */
+	const can = (permission: string) =>
+		shell.state.kind === 'ready' &&
+		(shell.state.view.capabilities?.permissions ?? []).includes(permission);
 	const person = $derived(shell.state.kind === 'ready' ? shell.state.view.profile : null);
 
 	function nextTheme() {
@@ -68,6 +76,36 @@
 	<ChevronsUpDown size={14} strokeWidth={1.6} aria-hidden="true" />
 	<span class="visually-hidden">Switch workspace</span>
 </a>
+
+<section class="group" aria-labelledby="wallet-label">
+	<h2 class="eyebrow" id="wallet-label">Wallet</h2>
+	<div class="card">
+		<a class="row" href="/app/payout-accounts">
+			<Landmark size={20} strokeWidth={1.8} aria-hidden="true" />
+			<span class="label">Payout accounts</span>
+			<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
+		</a>
+		<a class="row" href="/app/split">
+			<PieChart size={20} strokeWidth={1.8} aria-hidden="true" />
+			<span class="label">Pockets &amp; split</span>
+			<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
+		</a>
+		{#if summary?.role === 'president_team_member' || summary?.role === 'world_team_member'}
+			<a class="row" href="/app/reviews">
+				<IdCard size={20} strokeWidth={1.8} aria-hidden="true" />
+				<span class="label">NIN reviews</span>
+				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
+			</a>
+		{/if}
+		{#if can('invite_members')}
+			<a class="row" href="/app/invitations">
+				<MailPlus size={20} strokeWidth={1.8} aria-hidden="true" />
+				<span class="label">Invitations</span>
+				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
+			</a>
+		{/if}
+	</div>
+</section>
 
 <section class="group" aria-labelledby="account-label">
 	<h2 class="eyebrow" id="account-label">Account</h2>
@@ -271,6 +309,7 @@
 		font-size: 15px;
 		line-height: 18px;
 		text-align: left;
+		text-decoration: none;
 		cursor: pointer;
 	}
 

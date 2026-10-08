@@ -19,6 +19,10 @@ export type RootPose =
 	| 'load-error'
 	| 'notifications'
 	| 'home-empty'
+	| 'home'
+	| 'split'
+	| 'payout-accounts'
+	| 'invitations-manage'
 	| 'onboard-welcome'
 	| 'onboard-pin'
 	| 'onboard-verifying'
@@ -50,6 +54,12 @@ export const ROOT_HEIGHTS: Record<RootPose, number> = {
 	'load-error': 523,
 	notifications: 520,
 	'home-empty': 520,
+	// Paper "App — Screens v3" H04/H06 balance card (Root on the coin stack).
+	home: 525,
+	// L01/L02 split editor, Y02 payout accounts, I01 invitations hero.
+	split: 520,
+	'payout-accounts': 523,
+	'invitations-manage': 524,
 	// Paper "Onboarding — Invited member" · Root — Onboarding poses.
 	'onboard-welcome': 525,
 	'onboard-pin': 525,

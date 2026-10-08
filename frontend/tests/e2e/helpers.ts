@@ -86,6 +86,11 @@ async function apiSession(email: string, password: string, pin: string) {
 	await call('security', '/pin/verify', { pin });
 	return {
 		userId: data.user.id,
+		sessionId: (
+			JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64url').toString()) as {
+				session_id: string;
+			}
+		).session_id,
 		call,
 		close: () => supabase.auth.signOut({ scope: 'local' })
 	};
@@ -244,4 +249,37 @@ export async function completeIdentityAndProfile(page: Page) {
 	await page.getByRole('listbox', { name: 'Rank' }).press('ArrowDown');
 	await page.getByRole('button', { name: 'Set rank' }).click();
 	await page.getByRole('button', { name: 'Continue' }).click();
+}
+
+/**
+ * Records income for a member through the real api.record_income command,
+ * as the founder (President Team), with a synthetic receipt record. Runs the
+ * command in the local database with the founder's live session.
+ */
+export async function recordIncome(
+	founder: { email: string; password: string; pin: string },
+	memberEmail: string,
+	amount = '1000.00'
+) {
+	const api = await apiSession(founder.email, founder.password, founder.pin);
+	const workspaces = await api.call<Array<{ membershipId: string; role: string }>>(
+		'org',
+		'/workspaces'
+	);
+	const president = workspaces.find((w) => w.role === 'president_team_member')!.membershipId;
+	const key = `e2e${crypto.randomUUID().replaceAll('-', '')}`;
+	localSql(`do $$
+declare
+  target uuid := (select m.id from org.memberships m join auth.users u on u.id = m.user_id
+                  where u.email = '${memberEmail}' and m.role = 'member' and m.status = 'active' limit 1);
+  evidence uuid;
+begin
+  evidence := (api.create_evidence_upload('${api.userId}', '${api.sessionId}', '${president}', target, '${key}',
+    'receipt.pdf', 'application/pdf', 1000, repeat('b', 64))->>'evidenceId')::uuid;
+  perform api.finalize_evidence_upload('${api.userId}', '${api.sessionId}', '${president}', evidence, 1000,
+    repeat('b', 64), 'application/pdf');
+  perform api.record_income('${api.userId}', '${api.sessionId}', '${president}', target, 'NGN', '${amount}',
+    'Fiverr', to_char(now() at time zone 'UTC', 'YYYY-MM-DD'), null, null, null, null, array[evidence], '${key}');
+end $$`);
+	await api.close();
 }

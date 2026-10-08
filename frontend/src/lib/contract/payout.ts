@@ -49,6 +49,10 @@ export type PayoutAccount = typeof PayoutAccount.Type;
 
 export const PayoutAccounts = Schema.Struct({ items: Schema.Array(PayoutAccount) });
 export const Confirmed = Schema.Struct({ payoutAccount: PayoutAccount });
+/** POST /accounts/:id/deactivate answers the same shape. */
+export const Deactivated = Confirmed;
+/** POST /accounts/:id/primary; `changed` is false when it already was primary. */
+export const PrimarySet = Schema.Struct({ payoutAccount: PayoutAccount, changed: Schema.Boolean });
 
 export const PayoutRoutes = {
 	banks: { method: 'GET', path: '/banks' },
@@ -56,3 +60,8 @@ export const PayoutRoutes = {
 	confirm: { method: 'POST', path: '/accounts' },
 	accounts: { method: 'GET', path: '/accounts' }
 } as const;
+
+export const primaryRoute = (payoutAccountId: string) =>
+	({ method: 'POST', path: `/accounts/${payoutAccountId}/primary` }) as const;
+export const deactivateRoute = (payoutAccountId: string) =>
+	({ method: 'POST', path: `/accounts/${payoutAccountId}/deactivate` }) as const;
