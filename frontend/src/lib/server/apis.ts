@@ -8,8 +8,11 @@ import { BackendError, isRetryableRead } from '#lib/contract/errors.js';
 import {
 	AcceptedInvitation,
 	AcceptInvitationRequest,
+	InvitationPreview,
 	InvitationRoutes,
+	InvitationTokenRequest,
 	MyInvitations,
+	VerificationSent,
 	type MyInvitation
 } from '#lib/contract/invitations.js';
 import { Capabilities, OrgRoutes, Workspaces, type Workspace } from '#lib/contract/org.js';
@@ -133,11 +136,20 @@ export const OrgApiLive = Layer.effect(
 export interface InvitationsApiShape {
 	readonly mine: Effect.Effect<ReadonlyArray<MyInvitation>, EdgeFailure>;
 	/** Never retried: the caller keeps the idempotency key and resubmits (W-00). */
-	readonly accept: (input: {
-		invitationId: string;
-		idempotencyKey: string;
-	}) => Effect.Effect<AcceptedInvitation, EdgeFailure>;
+	readonly accept: (
+		input:
+			{ invitationId: string; idempotencyKey: string } | { token: string; idempotencyKey: string }
+	) => Effect.Effect<AcceptedInvitation, EdgeFailure>;
+	/** Public (no session): the email the link is bound to. */
+	readonly preview: (token: string) => Effect.Effect<InvitationPreview, EdgeFailure>;
+	/** Public (no session): Auth emails that address a sign-in link. Never retried. */
+	readonly verifyEmail: (token: string) => Effect.Effect<void, EdgeFailure>;
 }
+
+const tokenBody = (token: string) =>
+	Schema.decodeUnknownEffect(InvitationTokenRequest)({ token }).pipe(
+		Effect.mapError(() => localValidation('token'))
+	);
 
 export class InvitationsApi extends Context.Service<InvitationsApi, InvitationsApiShape>()(
 	'InvitationsApi'
@@ -153,13 +165,32 @@ export const InvitationsApiLive = Layer.effect(
 				.pipe(Effect.retry(readPolicy)),
 			accept: (input) =>
 				Schema.decodeUnknownEffect(AcceptInvitationRequest)(input).pipe(
-					Effect.mapError(() => localValidation('invitationId')),
+					Effect.mapError(() => localValidation('token' in input ? 'token' : 'invitationId')),
 					Effect.flatMap((body) =>
 						edge.call(
 							{ fn: 'invitations', route: InvitationRoutes.accept, body },
 							AcceptedInvitation
 						)
 					)
+				),
+			preview: (token) =>
+				tokenBody(token).pipe(
+					Effect.flatMap((body) =>
+						edge.call(
+							{ fn: 'invitations', route: InvitationRoutes.preview, body },
+							InvitationPreview
+						)
+					)
+				),
+			verifyEmail: (token) =>
+				tokenBody(token).pipe(
+					Effect.flatMap((body) =>
+						edge.call(
+							{ fn: 'invitations', route: InvitationRoutes.verifyEmail, body },
+							VerificationSent
+						)
+					),
+					Effect.asVoid
 				)
 		};
 	})

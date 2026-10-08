@@ -1,7 +1,11 @@
 // E2E helpers. Talk only to the local stack: Mailpit for emails, the local
-// Supabase API for the one setup step the UI does not offer yet (creating a
-// network, which belongs to the later billing slice). Synthetic data only.
+// Supabase API for setup steps the UI does not offer yet (creating and
+// activating a network, offices, sending an invitation), and the local
+// database container for the two things no API offers (registering a platform
+// admin, reading an invitation's token id). Synthetic data only.
 
+import { execFileSync } from 'node:child_process';
+import { createHmac } from 'node:crypto';
 import { expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { createClient } from '@supabase/supabase-js';
@@ -9,6 +13,8 @@ import { createClient } from '@supabase/supabase-js';
 const MAILPIT = process.env.MAILPIT_URL ?? 'http://127.0.0.1:54324';
 const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
 const PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY ?? '';
+const DB_CONTAINER = process.env.E2E_DB_CONTAINER ?? 'supabase_db_elivate-wallet';
+const INVITATION_TOKEN_SECRET = process.env.INVITATION_TOKEN_SECRET ?? '';
 
 export const uniqueEmail = (label: string) =>
 	`e2e-${label}-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.test`;
@@ -37,37 +43,124 @@ export async function confirmLinkFor(to: string, subject: RegExp): Promise<strin
 	throw new Error(`no email with subject ${subject} for ${to}`);
 }
 
-/**
- * Creates a pending-payment network for the person through the real Edge
- * Functions (POST /org/networks), in a separate Auth session of their own.
- */
-export async function createNetworkFor(email: string, password: string, pin: string, name: string) {
+/** Runs one SQL statement in the LOCAL database container and returns its text output. */
+function localSql(sql: string): string {
+	return execFileSync(
+		'docker',
+		['exec', DB_CONTAINER, 'psql', '-U', 'postgres', '-d', 'postgres', '-tAc', sql],
+		{ encoding: 'utf8' }
+	).trim();
+}
+
+const key = () => crypto.randomUUID();
+
+/** A signed-in API session for setup steps, with the PIN already verified. */
+async function apiSession(email: string, password: string, pin: string) {
 	const supabase = createClient(SUPABASE_URL, PUBLISHABLE_KEY, {
 		auth: { persistSession: false, autoRefreshToken: false }
 	});
 	const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 	if (error || !data.session) throw new Error('test sign-in failed');
-	const call = async (fn: string, path: string, body: unknown) => {
+	const token = data.session.access_token;
+	const call = async <T = Record<string, unknown>>(
+		fn: string,
+		path: string,
+		body?: unknown,
+		membershipId?: string
+	): Promise<T> => {
+		const headers: Record<string, string> = {
+			authorization: `Bearer ${token}`,
+			apikey: PUBLISHABLE_KEY
+		};
+		if (body !== undefined) headers['content-type'] = 'application/json';
+		if (membershipId) headers['x-membership'] = membershipId;
 		const response = await fetch(`${SUPABASE_URL}/functions/v1/${fn}${path}`, {
-			method: 'POST',
-			headers: {
-				authorization: `Bearer ${data.session.access_token}`,
-				apikey: PUBLISHABLE_KEY,
-				'content-type': 'application/json'
-			},
-			body: JSON.stringify(body)
+			method: body === undefined ? 'GET' : 'POST',
+			headers,
+			body: body === undefined ? undefined : JSON.stringify(body)
 		});
-		const json = (await response.json()) as { ok: boolean };
+		const json = (await response.json()) as { ok: boolean; data: T };
 		if (!json.ok) throw new Error(`${fn}${path} failed: ${JSON.stringify(json)}`);
-		return json;
+		return json.data;
 	};
 	await call('security', '/pin/verify', { pin });
-	await call('org', '/networks', {
+	return {
+		userId: data.user.id,
+		call,
+		close: () => supabase.auth.signOut({ scope: 'local' })
+	};
+}
+
+/**
+ * Creates a pending-payment network for the person through the real Edge
+ * Functions (POST /org/networks), in a separate Auth session of their own.
+ */
+export async function createNetworkFor(email: string, password: string, pin: string, name: string) {
+	const api = await apiSession(email, password, pin);
+	await api.call('org', '/networks', {
 		name,
 		shortName: name.split(' ')[0],
-		idempotencyKey: crypto.randomUUID()
+		idempotencyKey: key()
 	});
-	await supabase.auth.signOut({ scope: 'local' });
+	await api.close();
+}
+
+/**
+ * Founder setup for invitation tests: an active network (activated by the
+ * founder after registering them as a local platform admin), a World Team
+ * office they lead, and a member invitation for `inviteeEmail` into it.
+ * Returns the emailed join link's path, rebuilt from the token id with the
+ * run's INVITATION_TOKEN_SECRET exactly like the outbox worker does.
+ */
+export async function inviteMember(
+	founder: { email: string; password: string; pin: string },
+	network: string,
+	inviteeEmail: string
+): Promise<{ joinPath: string }> {
+	const api = await apiSession(founder.email, founder.password, founder.pin);
+	localSql(
+		`insert into identity.platform_admins (user_id, grant_reason) values ('${api.userId}', 'e2e local stack')`
+	);
+	const started = await api.call<{ tenantId: string; membershipId: string }>('org', '/networks', {
+		name: network,
+		shortName: network.split(' ')[0],
+		idempotencyKey: key()
+	});
+	await api.call('org', `/admin/tenants/${started.tenantId}/activate`, {
+		reason: 'e2e local activation',
+		idempotencyKey: key()
+	});
+	const { uid } = await api.call<{ uid: string }>('security', '/state');
+	const office = await api.call<{ officeId: string }>(
+		'org',
+		'/offices',
+		{
+			type: 'world_team',
+			name: `${network.split(' ')[0]} World Team`,
+			leaderUids: [uid],
+			idempotencyKey: key()
+		},
+		started.membershipId
+	);
+	const invitation = await api.call<{ invitationId: string }>(
+		'invitations',
+		'/',
+		{ officeId: office.officeId, role: 'member', email: inviteeEmail, idempotencyKey: key() },
+		started.membershipId
+	);
+	await api.close();
+	return { joinPath: `/join#t=${invitationToken(invitation.invitationId)}` };
+}
+
+/** The current link token of an invitation (same derivation as _shared/invite_token.ts). */
+export function invitationToken(invitationId: string): string {
+	if (!/^[0-9a-f]{64}$/i.test(INVITATION_TOKEN_SECRET)) {
+		throw new Error('INVITATION_TOKEN_SECRET is not set; run through scripts/e2e-local.sh');
+	}
+	const tokenId = localSql(`select token_id from org.invitations where id = '${invitationId}'`);
+	return createHmac('sha256', Buffer.from(INVITATION_TOKEN_SECRET, 'hex'))
+		.update(`inv:v1:${tokenId}`)
+		.digest('base64url');
 }
 
 /** axe-core WCAG A/AA scan; no violations allowed. */
@@ -86,4 +179,34 @@ export async function expectNoHorizontalScroll(page: Page) {
 		() => document.documentElement.scrollWidth - document.documentElement.clientWidth
 	);
 	expect(overflow).toBeLessThanOrEqual(0);
+}
+
+/**
+ * A confirmed account with a PIN, made through the real Auth + security API
+ * (sign-up, the emailed token_hash verified server-side, first PIN).
+ */
+export async function createConfirmedAccount(email: string, password: string, pin: string) {
+	const supabase = createClient(SUPABASE_URL, PUBLISHABLE_KEY, {
+		auth: { persistSession: false, autoRefreshToken: false }
+	});
+	const { error } = await supabase.auth.signUp({ email, password });
+	if (error) throw new Error('test sign-up failed');
+	const link = new URL(await confirmLinkFor(email, /Confirm your Elivate Wallet email/));
+	const verified = await supabase.auth.verifyOtp({
+		token_hash: link.searchParams.get('token_hash') ?? '',
+		type: 'signup'
+	});
+	const token = verified.data.session?.access_token;
+	if (verified.error || !token) throw new Error('test confirmation failed');
+	const response = await fetch(`${SUPABASE_URL}/functions/v1/security/pin/set`, {
+		method: 'POST',
+		headers: {
+			authorization: `Bearer ${token}`,
+			apikey: PUBLISHABLE_KEY,
+			'content-type': 'application/json'
+		},
+		body: JSON.stringify({ pin, pinConfirm: pin })
+	});
+	if (!((await response.json()) as { ok: boolean }).ok) throw new Error('test PIN setup failed');
+	await supabase.auth.signOut({ scope: 'local' });
 }

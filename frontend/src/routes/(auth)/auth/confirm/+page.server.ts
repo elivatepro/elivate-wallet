@@ -4,7 +4,7 @@
 // HttpOnly cookies and the browser is redirected to a clean URL.
 
 import { redirect } from '@sveltejs/kit';
-import { clearWorkspace } from '#lib/server/cookies.js';
+import { clearWorkspace, markJoinPasswordNeeded, readJoinToken } from '#lib/server/cookies.js';
 import type { Actions, PageServerLoad } from './$types';
 
 const LINK_TYPES = ['signup', 'email', 'magiclink'] as const;
@@ -36,6 +36,14 @@ export const actions: Actions = {
 		if (error) redirect(303, '/auth/link-expired');
 
 		clearWorkspace(cookies);
+		// An invitation opened in this browser asked Auth for this email (W-02):
+		// a sign-up link means the email created the account, which still needs
+		// a password; either way the join page continues. Without that cookie a
+		// magic link can only be a PIN reset.
+		if (readJoinToken(cookies)) {
+			if (link.type === 'signup') markJoinPasswordNeeded(cookies, locals.secureCookies);
+			redirect(303, '/join');
+		}
 		// PIN reset links (Magic Link template) continue to the new-PIN form;
 		// sign-up confirmations continue through the gate (normally PIN setup).
 		redirect(303, link.type === 'magiclink' ? '/pin/reset' : '/workspaces');

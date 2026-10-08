@@ -18,16 +18,21 @@ import { requireConfig } from './config';
 
 export type ApiServices = SecurityApi | OrgApi | InvitationsApi;
 
+/**
+ * `session` null runs without a bearer token: only the public invitation
+ * routes (preview, verify-email) accept that; everything else answers
+ * `authentication_required`.
+ */
 export function runApi<A>(
 	event: RequestEvent,
-	session: VerifiedSession,
+	session: VerifiedSession | null,
 	program: Effect.Effect<A, EdgeFailure, ApiServices>
 ): Promise<Exit.Exit<A, EdgeFailure>> {
 	const config = requireConfig();
 	const edge = EdgeTransportLive({
 		supabaseUrl: config.supabaseUrl,
 		publishableKey: config.publishableKey,
-		accessToken: session.accessToken,
+		accessToken: session?.accessToken ?? null,
 		fetch: event.fetch,
 		signal: event.request.signal
 	});
