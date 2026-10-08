@@ -8,16 +8,21 @@
 	let { data }: PageProps = $props();
 	let busy = $state(false);
 	useRoot('confirm-email');
-	const isReset = $derived(data.type === 'magiclink');
+	// A Magic Link is a PIN reset unless an invitation is open in this browser.
+	const isJoin = $derived(data.type === 'magiclink' && data.joining);
+	const isReset = $derived(data.type === 'magiclink' && !data.joining);
+	const title = $derived(
+		isReset ? 'Reset your PIN' : isJoin ? 'Continue joining' : 'Confirm your email'
+	);
 </script>
 
 <svelte:head>
-	<title>{isReset ? 'Reset your PIN' : 'Confirm your email'} · Elivate Wallet</title>
+	<title>{title} · Elivate Wallet</title>
 </svelte:head>
 
 <AuthHeading
-	eyebrow={isReset ? 'Reset PIN' : 'Verify email'}
-	title={isReset ? 'Reset your PIN' : 'Confirm your email'}
+	eyebrow={isReset ? 'Reset PIN' : isJoin ? 'Invitation' : 'Verify email'}
+	{title}
 	lead="Press Continue to finish on this device."
 />
 <form method="POST" onsubmit={() => (busy = true)}>

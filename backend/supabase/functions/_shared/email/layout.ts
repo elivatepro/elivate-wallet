@@ -121,7 +121,7 @@ export function renderLayout(input: EmailLayout): string {
     };">${escapeHtml(input.status.label)}</td>`
     : "";
   const reference = input.reference
-    ? `<div style="padding-top:6px;font-family:${mono};font-size:13px;line-height:16px;color:#A9B0B3;">${
+    ? `<div style="padding-top:6px;word-break:break-all;overflow-wrap:anywhere;font-family:${mono};font-size:13px;line-height:16px;color:#A9B0B3;">${
       escapeHtml(input.reference)
     }</div>`
     : "";
@@ -157,7 +157,7 @@ ${sender(input.brand, base)}
 <tr><td class="ew-hero-wrap" style="padding:0 16px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#1A1D1E" background="${base}/hero.jpg" style="background:#1A1D1E url('${base}/hero.jpg') 50% 50% / cover no-repeat;border-radius:14px;border-collapse:separate;">
 <tr>
-<td class="ew-hero-copy" valign="top" style="padding:24px;height:176px;">
+<td class="ew-hero-copy" valign="top" style="word-break:break-word;padding:24px;height:176px;">
 <table role="presentation" width="100%" height="100%" cellpadding="0" cellspacing="0" border="0" style="height:100%;">
 <tr><td valign="top"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
 <td style="background:#2C3133;border-radius:999px;padding:3px 10px;font-family:${font};font-size:12px;line-height:16px;color:#D5DADB;">${
@@ -165,7 +165,7 @@ ${sender(input.brand, base)}
   }</td>${status}
 </tr></table></td></tr>
 <tr><td valign="bottom">
-<div class="ew-display" style="font-family:${font};font-size:36px;line-height:42px;font-weight:600;letter-spacing:-0.02em;color:#FFFFFF;">${
+<div class="ew-display" style="overflow-wrap:anywhere;word-break:break-word;font-family:${font};font-size:36px;line-height:42px;font-weight:600;letter-spacing:-0.02em;color:#FFFFFF;">${
     escapeHtml(input.display)
   }</div>${reference}
 </td></tr>

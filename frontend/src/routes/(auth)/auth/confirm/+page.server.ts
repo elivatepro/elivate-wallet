@@ -18,10 +18,12 @@ function parse(tokenHash: unknown, type: unknown): { tokenHash: string; type: Li
 	return { tokenHash, type: type as LinkType };
 }
 
-export const load: PageServerLoad = ({ url }) => {
+export const load: PageServerLoad = ({ url, cookies }) => {
 	const link = parse(url.searchParams.get('token_hash'), url.searchParams.get('type'));
 	if (!link) redirect(303, '/auth/link-expired');
-	return { tokenHash: link.tokenHash, type: link.type };
+	// Same rule as the action: with an invitation open here, any link continues
+	// the join, so a Magic Link is not a PIN reset.
+	return { tokenHash: link.tokenHash, type: link.type, joining: !!readJoinToken(cookies) };
 };
 
 export const actions: Actions = {
