@@ -70,6 +70,8 @@ async function asPresident(page: Page, email: string, network: string) {
 async function fillIncome(page: Page, amount: string) {
 	await page.getByRole('button', { name: /Member/ }).click();
 	const picker = page.getByRole('dialog', { name: 'Choose the member' });
+	// Server-side search across the network (owner decision 2026-10-08).
+	await picker.getByLabel('Search members').fill('obi');
 	await picker.getByRole('button', { name: /Ada Obi/ }).click();
 	await page.getByLabel('Amount received').fill(amount);
 	await page.getByLabel('Source').fill('Fiverr order');
@@ -91,7 +93,7 @@ test('the President records income for a member with a receipt', async ({ page }
 	await expect(page).toHaveURL(/\/app\/income$/);
 
 	// Nothing chosen yet: local validation, nothing sent.
-	await page.getByRole('button', { name: 'Post income' }).last().click();
+	await page.getByRole('button', { name: 'Review and post' }).last().click();
 	await expect(page.getByText('Choose the member.')).toBeVisible();
 	await expect(page.getByText('Add the receipt.')).toBeVisible();
 
@@ -103,14 +105,15 @@ test('the President records income for a member with a receipt', async ({ page }
 	await expect(preview.getByText('₦250.00')).toBeVisible();
 	await expectAccessible(page);
 
-	await page.getByRole('button', { name: 'Post ₦1,000.00' }).last().click();
-	const dialog = page.getByRole('dialog', { name: 'Post this income?' });
+	await page.getByRole('button', { name: 'Review and post' }).last().click();
+	const dialog = page.getByRole('dialog', { name: 'Post ₦1,000.00?' });
+	await expect(dialog.getByText('1 file')).toBeVisible();
 	await dialog.getByLabel('Your PIN').fill(PIN);
-	await dialog.getByRole('button', { name: 'Post ₦1,000.00' }).click();
+	await dialog.getByRole('button', { name: 'Post income' }).click();
 
 	await expect(page.getByRole('heading', { name: 'Income posted' })).toBeVisible();
-	await expect(page.getByText(/^INC-[0-9A-Z]{4}-[0-9A-Z]{4}$/)).toBeVisible();
-	await expect(page.getByText('Point Value · 40%')).toBeVisible();
+	await expect(page.getByText('₦1,000.00 is in Ada’s pockets now.')).toBeVisible();
+	await expect(page.getByText(/^INC-[0-9A-Z]{4}-[0-9A-Z]{4}$/).first()).toBeVisible();
 	await expectAccessible(page);
 
 	// The member sees it on Home.
@@ -137,20 +140,16 @@ test('an unknown outcome survives a reload and is recovered with the same key', 
 		await route.fetch();
 		await route.abort('failed');
 	});
-	await page.getByRole('button', { name: 'Post ₦2,500.50' }).last().click();
-	const dialog = page.getByRole('dialog', { name: 'Post this income?' });
+	await page.getByRole('button', { name: 'Review and post' }).last().click();
+	const dialog = page.getByRole('dialog', { name: 'Post ₦2,500.50?' });
 	await dialog.getByLabel('Your PIN').fill(PIN);
-	await dialog.getByRole('button', { name: 'Post ₦2,500.50' }).click();
-	await expect(
-		page.getByRole('heading', { name: 'We couldn’t confirm this income' })
-	).toBeVisible();
+	await dialog.getByRole('button', { name: 'Post income' }).click();
+	await expect(page.getByRole('heading', { name: 'Checking what happened' })).toBeVisible();
 	await page.unroute('**/api/income');
 
 	await page.reload();
-	await expect(
-		page.getByRole('heading', { name: 'We couldn’t confirm this income' })
-	).toBeVisible();
-	await expect(page.getByText('₦2,500.50')).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Checking what happened' })).toBeVisible();
+	await expect(page.getByText(/confirming the ₦2,500\.50 income for Ada/)).toBeVisible();
 	await page.getByRole('button', { name: 'Check again' }).click();
 	await expect(page.getByRole('heading', { name: 'Income posted' })).toBeVisible();
 

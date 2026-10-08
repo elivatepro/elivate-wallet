@@ -1,14 +1,15 @@
 <!--
-	Member field of Record income (Paper T02/T05 "Member"): the closed field is
-	drawn; the sheet that opens is a stub until Paper draws it (Blueprint 09).
-	Lists only members the backend says the leader may record income for;
-	search filters the loaded pages, "Load more" pages the backend cursor.
+	Member field of Record income (Paper v4 J01 "Member"): the closed field is
+	drawn; the sheet that opens is not drawn yet (Blueprint 09). Lists only
+	members the backend says the leader may record income for. Search runs on
+	the server across the whole network (owner decision 2026-10-08); "Load more"
+	pages the backend cursor of the list being shown.
 -->
 <script lang="ts">
 	import { Dialog } from 'bits-ui';
 	import Check from '@lucide/svelte/icons/check';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
-	import type { IncomeTarget } from '#lib/contract/income.js';
+	import type { IncomeTarget, IncomeTargets } from '#lib/contract/income.js';
 	import { initials } from '#lib/income.js';
 
 	let {
@@ -19,7 +20,8 @@
 		disabled = false,
 		error = null,
 		onLoadMore,
-		onChange
+		onChange,
+		search
 	}: {
 		targets: ReadonlyArray<IncomeTarget>;
 		selected?: IncomeTarget | null;
@@ -29,24 +31,65 @@
 		error?: string | null;
 		onLoadMore: () => void;
 		onChange?: (target: IncomeTarget) => void;
+		/** One page of server-side search results; null when the read failed. */
+		search: (query: string, cursor: string | null) => Promise<IncomeTargets | null>;
 	} = $props();
 
 	let open = $state(false);
 	let query = $state('');
+	let results = $state<IncomeTarget[]>([]);
+	let resultsCursor = $state<string | null>(null);
+	let searching = $state(false);
+	let searchFailed = $state(false);
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	/** Drops answers to older queries (typing fast). */
+	let generation = 0;
+
+	export function openPicker() {
+		open = true;
+	}
+
+	function onQuery() {
+		clearTimeout(timer);
+		const q = query.trim();
+		generation += 1;
+		if (!q) {
+			searching = false;
+			searchFailed = false;
+			return;
+		}
+		searching = true;
+		const mine = generation;
+		timer = setTimeout(async () => {
+			const page = await search(q.slice(0, 100), null);
+			if (mine !== generation) return;
+			searching = false;
+			searchFailed = !page;
+			results = page ? [...page.items] : [];
+			resultsCursor = page?.nextCursor ?? null;
+		}, 250);
+	}
+
+	async function moreResults() {
+		const q = query.trim();
+		if (!q || !resultsCursor) return;
+		const mine = generation;
+		searching = true;
+		const page = await search(q.slice(0, 100), resultsCursor);
+		if (mine !== generation) return;
+		searching = false;
+		if (!page) return void (searchFailed = true);
+		const seen = new Set(results.map((t) => t.membershipId));
+		results = [...results, ...page.items.filter((t) => !seen.has(t.membershipId))];
+		resultsCursor = page.nextCursor;
+	}
 
 	const label = (t: IncomeTarget) => t.person?.name ?? t.person?.uid ?? 'Member';
 	const detail = (t: IncomeTarget) =>
 		t.person ? `UID ${t.person.uid} · ${t.officeName}` : t.officeName;
 
-	const shown = $derived.by(() => {
-		const q = query.trim().toLowerCase();
-		if (!q) return targets;
-		return targets.filter((t) =>
-			[t.person?.name ?? '', t.person?.uid ?? '', t.officeName].some((v) =>
-				v.toLowerCase().includes(q)
-			)
-		);
-	});
+	const searchingNow = $derived(query.trim().length > 0);
+	const shown = $derived(searchingNow ? results : targets);
 
 	function choose(target: IncomeTarget) {
 		selected = target;
@@ -88,8 +131,11 @@
 						type="search"
 						placeholder="Search name, UID or office"
 						aria-label="Search members"
+						maxlength="100"
 						bind:value={query}
+						oninput={onQuery}
 					/>
+					{#if searchingNow && searching}<p class="none" role="status">Searching…</p>{/if}
 					<ul class="list" aria-label="Members">
 						{#each shown as target (target.membershipId)}
 							<li>
@@ -115,16 +161,22 @@
 								</button>
 							</li>
 						{:else}
-							<li class="none">No member matches “{query.trim()}”.</li>
+							{#if searchingNow && !searching}
+								<li class="none">
+									{searchFailed
+										? 'We couldn’t search right now. Try again.'
+										: `No member matches “${query.trim()}”.`}
+								</li>
+							{/if}
 						{/each}
 					</ul>
-					{#if hasMore}
+					{#if searchingNow ? !!resultsCursor : hasMore}
 						<button
 							type="button"
 							class="more"
-							onclick={onLoadMore}
-							disabled={loadingMore}
-							aria-busy={loadingMore}>Load more members</button
+							onclick={() => (searchingNow ? moreResults() : onLoadMore())}
+							disabled={searchingNow ? searching : loadingMore}
+							aria-busy={searchingNow ? searching : loadingMore}>Load more members</button
 						>
 					{/if}
 				</div>
