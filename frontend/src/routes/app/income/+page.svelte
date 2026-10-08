@@ -31,7 +31,7 @@
 		type IncomeTarget,
 		type RecordIncomeInput
 	} from '#lib/contract/income.js';
-	import type { Currency } from '#lib/contract/ledger.js';
+	import { CommandOutcome, type Currency } from '#lib/contract/ledger.js';
 	import { getJson, newKey, sendCommand } from '#lib/client/api.js';
 	import { uploadReceipt } from '#lib/client/income-api.js';
 	import {
@@ -495,6 +495,21 @@
 		if (!attempt) return;
 		dialogError = null;
 		pinError = null;
+		if (!pin) {
+			// Shared F-03 lookup first (Blueprint 08): a cancelled attempt needs no
+			// replay; committed or not found, the same key goes again below.
+			const key = attempt.request.idempotencyKey;
+			const exit = await Effect.runPromiseExit(
+				getJson(
+					`/api/commands/outcome?${new URLSearchParams({ key, command: 'record_income' })}`,
+					CommandOutcome
+				)
+			);
+			if (Exit.isSuccess(exit) && exit.value.status === 'cancelled') {
+				restart('That attempt was cancelled. Nothing was posted.');
+				return;
+			}
+		}
 		await dispatch(attempt.request, pin);
 	}
 
@@ -593,7 +608,12 @@
 		</ul>
 		<div class="actions">
 			<button type="button" class="primary" onclick={recordAnother}>Record another</button>
-			<a class="ghost" href="/app">Back to Home</a>
+			<a
+				class="ghost"
+				href={result.walletId
+					? `/app/wallets?wallet=${result.walletId}&tx=${result.transactionId}`
+					: '/app/wallets'}>View in activity</a
+			>
 		</div>
 	</section>
 {:else if phase === 'unknown' && pending && attempt}

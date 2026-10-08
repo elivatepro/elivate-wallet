@@ -1,7 +1,7 @@
 -- Blueprint 08 — B6 080: unknown-outcome recovery (F-03, W-00).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(14);
 
 create function pg_temp.u(n int) returns uuid language sql immutable as
   $$ select ('10000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
@@ -58,6 +58,8 @@ begin
     '1000.00', 'Fiverr', to_char(now() at time zone 'UTC', 'YYYY-MM-DD'), null, null, null, null, array[e], key));
 end $$;
 
+select is((select result->>'walletId' from posted)::uuid, ledger.wallet_for(pg_temp.u(6)),
+  'the income result names the wallet it went into');
 select is(pg_temp.outcome(4, 'never-sent-key-0001')->>'status', 'not_found', 'an unknown key has no outcome');
 select is(pg_temp.outcome(4, (select key from posted))->>'status', 'committed', 'a posted income is committed');
 select is(pg_temp.outcome(4, (select key from posted))->>'command', 'record_income', 'and names its command');

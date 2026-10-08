@@ -68,6 +68,8 @@ export const IncomePosted = Schema.Struct({
 	status: Schema.Literal('posted'),
 	transactionId: Uuid,
 	membershipId: Uuid,
+	/** Blueprint 08: the member's wallet (absent on results stored before it). */
+	walletId: Schema.optionalKey(Uuid),
 	currency: Currency,
 	amount: Money,
 	allocations: Schema.Array(IncomeAllocation),

@@ -3,6 +3,7 @@
 // checks and the copy for backend outcomes. No floats touch money here.
 
 import type { ApiFailure } from '#lib/contract/errors.js';
+import { isUnknownOutcome } from './recovery';
 import type { Currency } from '#lib/contract/ledger.js';
 import {
 	RECEIPT_MAX_BYTES,
@@ -201,7 +202,7 @@ export function validateDraft(draft: IncomeDraft): DraftErrors {
 
 /** True for answers that prove nothing posted (W-00): any backend refusal but a server error. */
 export const isDefinitive = (failure: ApiFailure | undefined): boolean =>
-	failure?._tag === 'BackendError' && failure.code !== 'internal_error';
+	failure?._tag === 'BackendError' && !isUnknownOutcome(failure);
 
 /** One short line for a refused income command. */
 export function incomeMessage(failure: ApiFailure | undefined): string {
