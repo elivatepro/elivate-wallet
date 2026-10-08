@@ -12,7 +12,11 @@ const json = (res, status, body) => {
 	res.end(JSON.stringify(body));
 };
 /** @type {Record<string, string>} */
-const accounts = { '0123456789': 'ADA NKEM OBI', '0987654321': 'CHUKWUDI NWOSU' };
+const accounts = {
+	'0123456789': 'ADA NKEM OBI',
+	1122334455: 'ADA NKEM OBI',
+	'0987654321': 'CHUKWUDI NWOSU'
+};
 
 createServer((req, res) => {
 	const url = new URL(req.url ?? '/', `http://127.0.0.1:${port}`);

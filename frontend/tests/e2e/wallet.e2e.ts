@@ -66,7 +66,7 @@ test('member Home shows the posted income split across pockets', async ({ page }
 	await expect(page.getByText('Reserved ₦0.00')).toBeVisible();
 	// Default split 40 / 10 / 15 / 25 / 10 (U-01).
 	await expect(page.getByText('₦400.00', { exact: true })).toBeVisible();
-	await expect(page.getByText('40.00% of income')).toBeVisible();
+	await expect(page.getByText('40% of income')).toBeVisible();
 	await expect(page.getByText('+₦1,000.00')).toBeVisible();
 	await expectAccessible(page);
 

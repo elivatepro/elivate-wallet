@@ -141,7 +141,7 @@ export interface PayoutApiShape {
 		membershipId: string,
 		payoutAccountId: string,
 		input: { reason: string; idempotencyKey: string }
-	) => Effect.Effect<PayoutAccount, EdgeFailure>;
+	) => Effect.Effect<typeof Deactivated.Type, EdgeFailure>;
 }
 
 export class PayoutApi extends Context.Service<PayoutApi, PayoutApiShape>()('PayoutApi') {}
@@ -185,13 +185,12 @@ export const PayoutApiLive = Layer.effect(
 					{ fn, route: primaryRoute(payoutAccountId), body: input, membershipId },
 					PrimarySet
 				),
+			// Relayed as the backend shapes it ({ payoutAccount }), like setPrimary.
 			deactivate: (membershipId, payoutAccountId, input) =>
-				edge
-					.call(
-						{ fn, route: deactivateRoute(payoutAccountId), body: input, membershipId },
-						Deactivated
-					)
-					.pipe(Effect.map((r) => r.payoutAccount))
+				edge.call(
+					{ fn, route: deactivateRoute(payoutAccountId), body: input, membershipId },
+					Deactivated
+				)
 		};
 	})
 );
