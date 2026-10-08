@@ -1,6 +1,6 @@
 # Blueprint 02 — Networks, offices, memberships and access
 
-Status: **draft for owner review (2026-10-08)**; owner answered Q1–Q6 on 2026-10-08 (recorded below and in W-05). Contract: D-01, D-02, A-01–A-05, W-05, W-06, D-10 (seat counting only, see "Not in it"), D-11 (audit log), T-01, T-04. Builds on Blueprint 01 (accounts, UID, PIN gate, step-up, references, idempotency).
+Status: **approved by owner 2026-10-08** (Q1–Q6 answered the same day; recorded below and in W-05). Contract: D-01, D-02, A-01–A-05, W-05, W-06, D-10 (seat counting only, see "Not in it"), D-11 (audit log), T-01, T-04. Builds on Blueprint 01 (accounts, UID, PIN gate, step-up, references, idempotency).
 
 Part A is for the owner: what this slice does, in plain language. Part B is the exact build spec that migrations, functions and tests are written from.
 
@@ -71,7 +71,7 @@ erDiagram
 | `org.office_moves` | `id`, `tenant_id`, `office_id`, `from_parent_id`, `to_parent_id`, `reason`, `actor_user_id`, `at` | Append-only history of re-placements. |
 | `org.memberships` | `id`, `tenant_id`, `office_id` (null only for `president_team_member`), `user_id`, `role`, `is_primary`, `status` (`active`/`suspended`/`ended`), `started_at`, `ended_at`, `ended_reason`, `replaced_by_id` | `member` fits any office; `world_team_member`/`director`/`team_leader` only the matching office kind, and holding it makes the person a leader of that office (Q3, Q4). Unique: one non-ended membership per (tenant, user, office, role); one primary per (tenant, user) among non-ended. An active office keeps ≥ 1 active leader. `ended_at` set iff `ended`. |
 | `org.membership_events` | `id`, `tenant_id`, `membership_id`, `action`, `from_status`, `to_status`, `reason`, `actor_user_id`, `at` | Append-only. |
-| `authz.permission_catalog` | `key`, `protected`, `grantable`, `scope` (`self`/`office`/`tenant`/`assignment`), `wallet_holder_baseline`, `can_target_own_wallet`, `step_up` | Exactly the 31 A-03 rows; immutable after seeding. |
+| `authz.permission_catalog` | `key`, `protected`, `grantable`, `scope` (`self`/`office`/`tenant`/`assignment`), `wallet_holder_baseline`, `can_target_own_wallet` | Exactly the 31 A-03 rows; immutable after seeding. |
 | `authz.default_role_permissions` | `role`, `permission_key`, `allowed` | The A-03 matrix. |
 | `authz.role_permissions` | `tenant_id`, `role`, `permission_key`, `allowed`, `updated_by`, `updated_at` | Seeded from defaults when the tenant is created, in the same transaction. Only non-protected rows editable. |
 | `authz.access_assignments` | `id`, `tenant_id`, `subject_user_id`, `created_by`, `reason`, `created_at`, `revoked_at`, `revoked_by`, `revoke_reason` | Groups rules for listing and bulk revoke. |
@@ -96,7 +96,7 @@ erDiagram
 6. Explicit rules active now for actor + permission whose scope covers the target. `member` scope matches the **target user** however the target was given (fixes legacy bug b). Any deny → deny. Otherwise any allow → allow.
 7. Role policy: `role_permissions` for the roles of the step-4 memberships. Office scope covers the subtree; President scope covers the tenant.
 8. `review_financial_evidence` comes only from an active reviewer assignment, never from role policy or rules.
-9. Default deny. Then step-up per catalog and A-05.
+9. Default deny. Step-up is enforced by each command (`S` in B4), per A-05.
 
 No caching in this slice: every call resolves live, so revocations take effect on the next request, including retries. `authz_version` is bumped on every membership/rule/policy change, ready for caching later.
 
@@ -118,19 +118,18 @@ All writes take `idempotencyKey`; replay re-runs `authz.decide` before returning
 | `POST /org/offices/{id}/place` | `api.place_office` | President Team · R · S | `parentOfficeId` or null. Moves the office and its whole subtree (Q2). Money provenance is untouched; subtree totals follow the current tree. |
 | `POST /org/offices/{id}/leaders` | `api.add_office_leader` | `manage_members` over office · R · S | Adds a leader membership. |
 | `POST /org/offices/{id}/leaders/replace` | `api.replace_office_leader` | `manage_members` over office · R · S | Outgoing leader's membership ends, incoming starts (W-05). |
-| `POST /org/offices/{id}/leaders/{membershipId}/end` | `api.end_membership` | `end_membership` · R · S | Refused for the office's last active leader (`last_leader`); use replace. |
 | `GET /org/members` | `api.list_members` | `manage_members` or `view_managed_wallets` over office | Filter by office (subtree), role, status; cursor paging. |
 | `POST /org/memberships` | `api.add_membership` | `manage_members` over target office | `userUid`, `officeId`. Role `member` only (leaders via the leader routes, Presidents via Q5). |
 | `POST /org/memberships/{id}/move` | `api.move_membership` | `move_membership` over both offices · R · S | Ends old, creates new, primary carried over. |
 | `POST /org/memberships/{id}/suspend` · `/reactivate` | `api.set_membership_status` | `suspend_membership` · R · S | Not the network's last active President Team membership. |
-| `POST /org/memberships/{id}/end` | `api.end_membership` | `end_membership` · R · S | Same last-President and last-leader guards. |
-| `POST /org/presidents` · `DELETE` | `api.add_president` · `api.remove_president` | President Team · R · S | Q5; keeps ≥ 1. |
+| `POST /org/memberships/{id}/end` | `api.end_membership` | `end_membership` · R · S | Same last-President guard; ending an office's last active leader is refused (`last_leader`), use replace. |
+| `POST /org/presidents` · `DELETE /org/presidents/{membershipId}` | `api.add_president` · `api.remove_president` | President Team · R · S | Q5; keeps ≥ 1. |
 | `GET /org/role-permissions` | `api.list_role_permissions` | President Team | Matrix with protected flags. |
 | `PUT /org/role-permissions` | `api.set_role_permission` | `manage_role_permissions` · R · S | Non-protected rows only. |
 | `GET /org/access` | `api.list_access_assignments` | `manage_access_rules` | Subject, permissions, effect, scope, start/expiry, created by, reason, revoked (W-06 field set). |
 | `POST /org/access` | `api.create_access_assignment` | `manage_access_rules` · R · S | `subjectUid`, `rules[]`. Subject must be active in tenant. Each rule's scope ⊆ actor's effective scope for `manage_access_rules`. Grantable permissions only. |
 | `POST /org/access/{id}/revoke` | `api.revoke_access_assignment` | `manage_access_rules` covering its scope · R · S | Bulk revokes all rules in it. |
-| `GET /org/reviewers` · `POST` · `DELETE` | `api.list_reviewers` · `api.assign_reviewer` · `api.end_reviewer` | President Team · R · S on writes | Specific active memberships only. |
+| `GET /org/reviewers` · `POST` · `DELETE /org/reviewers/{assignmentId}` | `api.list_reviewers` · `api.assign_reviewer` · `api.end_reviewer` | President Team · R · S on writes | Specific active memberships only. |
 | `GET /org/audit` | `api.tenant_audit_log` | President Team | Read-only, cursor paging, safe fields only. |
 
 ### B5. Wire contract
