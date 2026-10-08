@@ -32,7 +32,20 @@ export type RootPose =
 	| 'onboard-profile'
 	| 'onboard-bank'
 	| 'onboard-stop'
-	| 'onboard-done';
+	| 'onboard-done'
+	// Paper "App — Screens v2" O/R (org management, Blueprint 07).
+	| 'offices'
+	| 'office'
+	| 'office-new'
+	| 'office-rename'
+	| 'office-leader'
+	| 'roles'
+	| 'cross-access'
+	| 'reviewers'
+	| 'member'
+	| 'member-suspend'
+	| 'member-move'
+	| 'member-end';
 
 /** Rendered Root size on mobile gate screens (Paper: 120×160, 150×200, 180×240). */
 export type RootSize = 'sm' | 'md' | 'lg';
@@ -70,7 +83,20 @@ export const ROOT_HEIGHTS: Record<RootPose, number> = {
 	'onboard-profile': 525,
 	'onboard-bank': 525,
 	'onboard-stop': 525,
-	'onboard-done': 525
+	'onboard-done': 525,
+	// Paper "App — Screens v2" O01/O07/O04/O10/O12, R01/R03/R05/R07/R09/R11/R13.
+	offices: 507,
+	office: 525,
+	'office-new': 512,
+	'office-rename': 512,
+	'office-leader': 512,
+	roles: 446,
+	'cross-access': 513,
+	reviewers: 446,
+	member: 446,
+	'member-suspend': 502,
+	'member-move': 442,
+	'member-end': 502
 };
 
 export const rootSrc = (pose: RootPose) => `/root/${pose}.webp`;
