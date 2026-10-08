@@ -1,8 +1,31 @@
 # Frontend foundation plan — Elivate Wallet 2.0
 
-Status: **Phase 1 draft for owner review (2026-10-08).** Nothing is scaffolded. No package manifest, app code, Supabase or Cloudflare change is part of this document. Contract: P-04, P-06, P-09 (U-10, U-12), W-00, W-01, W-22, W-25, A-01, A-02, A-05, F-03, T-01, T-02. Wire contracts come from `backend/supabase/functions/**` and `backend/supabase/migrations/**` at `main` = `c648abd`.
+Status: **approved by owner 2026-10-08 (decisions 34–52); milestone M1 built in `frontend/`.** Contract: P-04, P-06, P-09 (U-10, U-12), W-00, W-01, W-22, W-25, A-01, A-02, A-05, F-03, T-01, T-02. Wire contracts come from `backend/supabase/functions/**` and `backend/supabase/migrations/**` on `main` after the tidy-up PR #5 (`6f910f7`).
 
-Sources used: the product pack, `design-backlog.md`, Blueprints 01–02, the backend code and tests in this repo, and official package registries and docs (listed in §10). The legacy frontend and Paper were not opened. Visual decisions below rely only on the written P-06 tokens; anything that needs the Paper file is listed as a question.
+Sources used: the product pack, `design-backlog.md`, Blueprints 01–02, the backend code and tests in this repo, official package registries and docs (§10), and — for Phase 2 — the Paper file `Elivate Wallet`, read-only: design tokens and the adopted `Authentication v2` page (exported with `get_jsx`, values copied, never read from screenshots). The legacy frontend was not opened.
+
+## Owner decisions (2026-10-08)
+
+| # | Decision | Where it lands |
+|---|---|---|
+| 34 | SvelteKit 3.0.x | §2 (3.0.1 pinned) |
+| 35 | Effect 4.0.x | §2, §5 (4.0.2 pinned) |
+| 36 | **Changed: hybrid.** Auth/onboarding routes server-rendered (forms work before JS, W-01/W-22). Signed-in app = client-rendered installable PWA shell, precached so it opens offline; it reads through same-origin JSON endpoints on the SvelteKit server (Cloudflare Worker), which forward to the Edge Functions with the session in an HttpOnly cookie (tokens never in browser JS). Rate-limit spike first (§8.6). | §2.1, §4.1, §5 |
+| 36a | **New offline data rule:** installable PWA (manifest, icons, iOS "Add to Home Screen" hint); last-loaded read-only data (balances, history, offices, members) may be cached per user+workspace, max 7 days, labelled stale ("Last updated HH:MM · offline"), erased on sign-out, never shown under another workspace; never cache bank/account numbers, evidence files, tokens or auth responses; "Hide amounts" switch; all commands disabled offline, never queued; update prompt on new version. | §2.2 |
+| 37 | Cloudflare Workers (`adapter-cloudflare`); no deploy yet | §2, §8.4 |
+| 38 | Email links: `token_hash` + "Continue" POST page. Dev-project template edits not yet approved | §7.1, §8.5 |
+| 39 | Worker rate limiting + Turnstile on sign-up/sign-in | §8.6 (follow-up, not in M1) |
+| 40 | SvelteKit built-in service worker | §2.2 |
+| 41 | pnpm pinned via `packageManager`, Node 24 LTS, TypeScript 6.0, Vitest + Playwright + axe, code in `frontend/` | §2, §8 |
+| 42–45 | Plain CSS + Emberlit tokens; Bits UI; Lucide; self-hosted Lexend | §3 |
+| 46 | `Authentication v2` (Paper) adopted; P-06 updated by PR #5 | §3 |
+| 47 | Workspace in HttpOnly cookie + per-form echo | §5.8 |
+| 48 | Auto-select a single workspace | §7.1 |
+| 49 | Local Supabase for daily work and CI; dev project only for owner-approved smoke tests | §8.5 |
+| 50 | Preview origin: owner sets later | §8.4 |
+| 51 / 52 | Analytics deferred; native packaging deferred | — |
+| 53 | Office member counts roll up over the subtree (done in PR #5) | §6.4 #11 |
+| 54 | Backend tidy-up PR approved (merged as #5) | §6.4 |
 
 ---
 
@@ -12,7 +35,7 @@ Sources used: the product pack, `design-backlog.md`, Blueprints 01–02, the bac
 - Svelte owns presentation, form editing and local view state. Effect owns the service layer: dependency injection (Layers), runtime validation (Schema), typed expected failures, timeouts, cancellation, safe read retries, redacted observability.
 - Supabase Auth authenticates. PostgreSQL authorizes and owns financial truth. The frontend presents trusted reads and dispatches approved commands through the `security` and `org` Edge Functions. It never calls `api.*` or any private schema directly.
 
-Everything else in this document is a **proposal** for U-10 and U-12. Section 9 lists every choice that needs your decision.
+U-10 and U-12 were resolved by the owner on 2026-10-08 (table above). Section 9 keeps the original questions for the record.
 
 ---
 
@@ -25,11 +48,11 @@ Versions were checked on **2026-10-08** against the npm registry and nodejs.org.
 | App framework | `@sveltejs/kit` **3.0.1** (3.0.0 released 2026-10-01). Last 2.x: 2.70.3 | **SvelteKit 3.0.x** | Greenfield, so starting on 2.x means an immediate major migration. Kit 3 requires Node ≥ 22.17, TypeScript 6, Svelte ≥ 5.57.1, Vite 8 and `vite-plugin-svelte` 7. Kit config moves into `vite.config` (no `svelte.config.js`) and `$lib` becomes `#lib` (`package.json` `imports`). Remote functions are still experimental in Kit 3, so the plan does not use them. |
 | Svelte | `svelte` **5.57.2** | 5.57.x (runes) | Required by Kit 3. |
 | Effect | `effect` **4.0.2** (4.0.0 released 2026-10-01; last 3.x: 3.22.2) | **Effect 4.0.x** | Effect 4 is announced as stable with long-term support. Schema ships in the core package (`effect/Schema`). The HTTP modules (`effect/http`) are marked `@stability unstable` in 4.0.2, so the transport is our own thin `fetch` wrapper behind an Effect service (§5.2), not the unstable HTTP client. |
-| Rendering | — | **SSR with a server-held session (backend-for-frontend, "BFF")**, form actions with progressive enhancement | See §2.1. |
+| Rendering | — | **Approved: hybrid (decision 36).** Auth/onboarding = SSR + form actions; signed-in app = prerendered CSR PWA shell + same-origin JSON endpoints, session in HttpOnly cookies | See §2.1. |
 | Adapter | `@sveltejs/adapter-cloudflare` **8.0.0** (peer `@sveltejs/kit ^3`, `wrangler ^4.118`) | **adapter-cloudflare** | Cloudflare already hosts DNS and email for `elivatewallet.com`. It runs SvelteKit's server on Workers. |
 | Hosting | `wrangler` **4.148.0** | **Cloudflare Workers with static assets** at `app.elivatewallet.com` | Cloudflare's SvelteKit guide targets Workers with Workers Assets (`wrangler.jsonc`, `nodejs_compat`). No separate Node host to run. |
 | PWA | `@vite-pwa/sveltekit` 1.1.0 supports only Kit `^1.3.1 \|\| ^2.0.1` | **SvelteKit's built-in service worker** plus a hand-written web manifest | No plugin dependency that lags Kit 3. Simpler control over what is cached (§2.2). |
-| Package manager | `pnpm` **12.10.1** | **pnpm**, pinned with the `packageManager` field | Strict dependency isolation, fast CI cache, lockfile review. |
+| Package manager | `pnpm` **12.10.1** | **pnpm**, pinned with the `packageManager` field — built with **`pnpm@11.19.0`** (the version on the build machine; CI uses the same pin via `pnpm/action-setup`). Moving to 12.x is a one-line change plus a lockfile refresh. | Strict dependency isolation, fast CI cache, lockfile review. |
 | Node (dev/CI/build) | Node **24.21.0 LTS "Krypton"** (2026-09-07) | **Node 24 LTS**, pinned in `.nvmrc` / `engines` | Meets Kit 3 (≥ 22.17), Vite 8 and Vitest 5. Production runs on the Workers runtime, not Node. |
 | TypeScript | `typescript` 7.0.2 is latest, 6.0.3 is latest 6.x | **TypeScript 6.0.x** | Kit 3 peers `typescript ^6`. `svelte-check` 4.7.6 peers `^5 \|\| ^6`, so TS 7 is not supported yet. |
 | Type checking | `svelte-check` **4.7.6** | svelte-check in CI | — |
@@ -38,104 +61,93 @@ Versions were checked on **2026-10-08** against the npm registry and nodejs.org.
 | End-to-end | `@playwright/test` **1.64.0**, `@axe-core/playwright` **4.13.0** | **Playwright** against local Supabase, plus axe checks on every auth/gate route at 320, 390 and 1440 px, dark and light | W-00/P-06 acceptance: 320 px, keyboard, both themes. |
 | Supabase client | `@supabase/supabase-js` **2.117.3** (same pin as the Edge Functions), `@supabase/ssr` **0.12.7** | supabase-js plus `@supabase/ssr`, **server-side only** | Session cookies are HttpOnly (§7.4). |
 
-### 2.1 SSR vs SPA, given auth tokens and financial data
+### 2.1 Rendering: the approved hybrid (decision 36)
 
-| | A. SSR + server-held session (BFF) | B. Static SPA (`adapter-static`, `ssr = false`) |
-|---|---|---|
-| Where Supabase tokens live | HttpOnly, Secure, SameSite=Lax cookies. Browser JavaScript never sees the access or refresh token. | Browser storage (localStorage/sessionStorage) via supabase-js. Readable by any script that runs on the origin. |
-| W-01 / W-22 "native POST even before JavaScript hydration" | Met: SvelteKit form actions work without JS; `use:enhance` upgrades them. | Not met: forms need JS. |
-| Who calls the Edge Functions | The Worker, server-to-server. **CORS is not involved.** | The browser, cross-origin. Needs `CORS_ORIGINS` for every origin, and the platform `verify_jwt` 401s arrive outside the envelope. |
-| Supabase Auth rate limits | **Risk**: Auth limits sign-in/sign-up by IP, so every user would share the Worker egress IPs. Needs the spike in §8.6. | Each user has their own IP bucket. |
-| Financial data in HTML | Server-rendered pages contain data, so every authenticated response must be `Cache-Control: no-store` (set centrally in `hooks.server`). | Data only travels as JSON. |
-| Native mobile later (W-25) | Unaffected. The Edge Functions still accept a bearer token directly. | Same. |
+The Phase 1 draft compared (A) SSR with a server-held session and (B) a static SPA with browser-held tokens. The owner chose a **hybrid**:
 
-**Recommendation: A**, the server-held session. It is the only option that meets the native-POST requirement and keeps bearer tokens out of the browser. It is **conditional on the Auth rate-limit spike** (§8.6). If the spike shows hosted Supabase cannot tell users apart behind the Worker and the limits cannot be raised safely, fall back to B. B keeps the same Effect contract layer, uses PKCE and sessionStorage, adds a strict CSP, and records the native-POST gap as an explicit contract exception for owner approval.
+| Part | Rendering | Data path | Why |
+|---|---|---|---|
+| Auth and onboarding: `/sign-in`, `/sign-up`, `/sign-up/check-email`, `/auth/confirm`, `/auth/link-expired`, `/pin/*`, `/workspaces`, `/blocked`, `/sign-out`, `/theme` | **Server-rendered** SvelteKit pages with **form actions** (`use:enhance` upgrades them) | Server load/actions → `SecurityApi` / `OrgApi` (Effect) → Edge Functions | W-01/W-22: native POST works before JavaScript; tokens stay on the server |
+| Signed-in app: `/app/**` | **Client-rendered PWA shell** (`ssr = false`), **prerendered once at build** — the HTML carries no user data, so it can be precached and opens offline | Browser → same-origin JSON endpoints `/api/*` on the SvelteKit server (Worker) → Edge Functions | Installable, offline-capable shell (W-25, 36a) without putting tokens in browser JavaScript |
 
-Inside A, Svelte pages call **form actions** for every command and **server `load` functions** for every read. The browser never receives an Edge Function URL or a Supabase token. The Worker adds the bearer token and `X-Membership` header, validates the response with Effect Schema, and returns only the validated `data` (or a typed failure) to the page.
+- Supabase Auth tokens live only in **HttpOnly, SameSite=Lax cookies** written by `@supabase/ssr` on the server (`Secure` on https). Browser code never sees an access or refresh token, and never receives an Edge Function URL or the publishable key.
+- `/api/*` endpoints relay the backend **envelope unchanged** (`{ ok, data, requestId }` / `{ ok:false, error:{ code, message, retryable, details }, requestId }`) and only ever emit backend error codes. A transport failure becomes `internal_error` (retryable, 502); a gateway 401 becomes `authentication_required`.
+- The browser decodes every `/api/*` response with the same Effect Schemas the server uses (`#lib/contract/*`).
+- CORS is not involved: the Worker calls the Edge Functions server-to-server (§8.7).
+- Server-rendered responses get `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `nosniff`, a nonce CSP (Kit `csp.mode: 'auto'`) and `frame-ancestors 'none'`. The prerendered shell gets a hash-based CSP meta tag from Kit and the static headers in `frontend/_headers`.
+- The Auth per-IP rate-limit question (every user behind the Worker's egress IPs) still applies to the server-rendered sign-in/sign-up. The spike finding is in §8.6.
 
-### 2.2 PWA plan (W-25)
+### 2.2 PWA plan (W-25, decisions 36a and 40)
 
-- Web app manifest: name, short name, icons from the coral Elivate mark (`Assets/elivate-logo-icon.svg` → 192/512/maskable PNGs), `theme_color` and `background_color` = dark canvas `#111314`, `display: standalone`.
-- Service worker (`src/service-worker.ts`, bundled as a module in Kit 3) **precaches only hashed build assets, fonts and one static offline page**. It never caches HTML documents of authenticated routes, form-action responses, or anything from Supabase. Navigation requests go network-first, falling back to the offline page ("You're offline. Wallet data needs a connection.") with its own Root pose (P-06).
-- No offline command queue (W-00, W-25). Forms are disabled while offline.
-- Update detection: Kit's `version.pollInterval` plus `updated.current` from `$app/state` shows a "New version, reload" prompt. Reloading keeps unresolved attempt identifiers (§5.6).
-- Safe areas (`env(safe-area-inset-*)`), `viewport-fit=cover`, 44 px hit areas.
-- Native packaging (Capacitor, etc.) and biometrics stay **out of scope** (U-10 future).
+**Built in M1:**
+- `static/manifest.webmanifest`: name, short name, `start_url`/`id` `/app`, `display: standalone`, dark canvas `#111314` for theme and background, icons rendered from the coral mark (`scripts/make-icons.ts`: 192, 512, maskable 512, Apple touch 180). `app.html` adds the Apple web-app meta tags.
+- **Built-in service worker** (`src/service-worker/index.ts`): precaches hashed build assets (`$app/manifest` `immutable`), static files (except the large desktop auth background) and prerendered pages, which include the `/app` shell. Navigations under `/app` are network-first and fall back to the cached shell offline; every other navigation falls back to `static/offline.html`. It **never** caches `/api/*`, server-rendered auth pages, form-action responses, Auth/Edge traffic, or anything cross-origin.
+- **Update prompt**: Kit's `version.pollInterval` (5 min) plus `updated.current` from `$app/state` show "A new version of Elivate Wallet is ready · Reload"; Reload asks a waiting worker to `skipWaiting` and reloads.
+- **36a device cache scaffold** (`src/lib/client/device-cache.ts`, unit-tested):
+  - approved kinds only: `workspace` (label), `balances`, `history`, `offices`, `members`;
+  - key and stored payload both scoped to **UID + membership id**; an entry is never returned for another pair;
+  - **7-day** maximum age, expired entries deleted on read and swept when the shell starts;
+  - a forbidden-field guard refuses payloads with account/bank numbers, NUBAN/BVN/NIN, tokens, secrets, passwords, PINs, evidence/receipts, session ids;
+  - **erased on sign-out** (every sign-out control purges before submitting) and whenever the sign-in page is shown;
+  - offline banner text: `Last updated HH:MM · offline. Actions are unavailable until you reconnect.`;
+  - "Hide amounts" preference (account menu) stored on the device; amounts arrive with the ledger slice.
+- **Commands offline**: the shell exposes `canAct = online && ready`; nothing is queued (W-00/W-25). M1 has no shell commands yet; sign-out is disabled offline.
+- Safe areas (`env(safe-area-inset-*)`, `viewport-fit=cover`) and 44 px targets.
+
+**Not yet built:** the iOS "Add to Home Screen" hint (needs a Paper composition; follow-up), Root poses for offline/error states (no pose assets in the repo yet), cached `balances/history/offices/members` (their read models don't exist yet).
+
+Native packaging (Capacitor, etc.) and biometrics stay **out of scope** (decision 52).
 
 ---
 
-## 3. U-12 proposals: styling, components, icons, fonts
+## 3. U-12: styling, components, icons, fonts (approved, decisions 42–46)
 
-| Item | Options | Proposal | Why |
-|---|---|---|---|
-| CSS approach | Plain CSS + design tokens · Tailwind CSS v4 (4.3.3) · UnoCSS | **Plain CSS with design tokens as CSS custom properties**, Svelte component-scoped styles, plus a small hand-written layer for layout primitives (stack, cluster, grid) | Emberlit is a small, fixed token set (§3.1). Tokens as variables give dark/light/system switching in one place, add no build-time framework, and keep the "simple, grainy" look hand-tuned rather than utility-generic. Tailwind v4 is the credible alternative (its `@theme` can hold the same tokens) if you prefer utility classes for speed. |
-| Component library | None · **Bits UI 2.19.5** (headless, Svelte 5, peer `svelte ^5.33`) · Melt UI 0.86.6 (pre-1.0 builders) | **Bits UI (headless)**, styled entirely with Emberlit tokens | P-06 requires keyboard operation, focus restoration, dismissal and searchable long lists. Bits UI provides accessible Dialog, Popover, Select, Combobox, Command (⌘K), Tabs and Tooltip without imposing styles. Melt UI is still pre-1.0. A home-grown dialog/combobox is where accessibility bugs come from. |
-| Icons | `@lucide/svelte` 1.52.0 · custom SVG set from Paper | **`@lucide/svelte`** (per-icon imports, tree-shaken), **unless the Paper file uses a different icon family** | Paper can't be inspected in this phase, so please confirm. Custom icons (the mark, Root poses) stay as local SVG/PNG assets. |
-| Font | Self-hosted `@fontsource-variable/lexend` 5.3.0 · Google Fonts CDN | **Self-hosted Lexend variable** (weights 400–700), preloaded, `font-display: swap` | No third-party request on auth pages (privacy), works offline in the PWA shell. |
-| Template | Purchased template · none | **None** | P-06 forbids reusing old template decisions as defaults, and the approved system already exists. |
-| Grain/texture | — | Use the repo assets `Assets/textures/grain-256.png` and `Assets/shaders/grain-gradient-*.png` as static backgrounds | They are already in the repo. The GrainGradient auth background belongs to the **proposed** `Authentication v2` page, so adoption is a question for you (§9). |
+| Item | Decision | Notes |
+|---|---|---|
+| CSS | **Plain CSS + Emberlit tokens** as custom properties (`src/lib/ui/tokens.css`), component-scoped styles | Dark default, `[data-theme=light]`, `[data-theme=system]` follows `prefers-color-scheme` |
+| Components | **Bits UI 2.19.5** (headless) | Used in the shell for the notifications Popover and the account DropdownMenu |
+| Icons | **`@lucide/svelte` 1.52.0**, per-icon imports | The Paper auth icons are Lucide-style strokes (1.6 px); the mark stays a local SVG |
+| Font | **Self-hosted Lexend Variable** (`@fontsource-variable/lexend`) + IBM Plex Mono 400 for the mono eyebrow labels used on `Authentication v2` | No third-party font request |
+| Template | None | — |
+| Auth compositions | **Paper `Authentication v2`** (GrainGradient background + grain overlay) | Backgrounds come from the repo's `Assets/shaders` exports (JPEG-compressed copies in `frontend/static/auth-bg/`) |
 
-### 3.1 Tokens (from P-06, verbatim values)
+### 3.1 Tokens (from the Paper file, read 2026-10-08)
 
-```css
-/* src/lib/ui/tokens.css — values copied from 00-product.md P-06 */
-:root {
-  --font-sans: "Lexend Variable", system-ui, sans-serif;
-  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
-  --space-6: 24px; --space-8: 32px; --space-12: 48px;
-  --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px; --radius-xl: 24px;
-  --hit-min: 44px;
-  --brand-coral: #FF7F4F;          /* Elivate mark: never recolored */
-}
-:root, [data-theme="dark"] {
-  --canvas: #111314; --surface: #1A1D1E; --raised: #232728;
-  --border: #343A3C; --text: #F2F4F4; --accent: #FF7F4F;
-  color-scheme: dark;
-}
-[data-theme="light"] {
-  --canvas: #F7F6F3; --surface: #FFFFFF; --raised: #EEF0F1;
-  --border: #D8DDDE; --text: #212628;
-  --accent: #B74725;               /* deeper coral for small text/controls on light */
-  color-scheme: light;
-}
-@media (prefers-color-scheme: light) {
-  [data-theme="system"] { /* same values as [data-theme="light"] */ }
-}
-```
+`src/lib/ui/tokens.css` copies the Paper design tokens verbatim (file token hash `3a2f6a35`): dark/light canvas, surface, raised, border, text, **muted** (`#A9B0B3` / `#5E686B`), status colors (success `#43C48B`/`#167D55`, warning `#F2B85E`/`#8A5C00`, danger `#F57875`/`#B4433C`, info `#82B8E8`/`#245D85`), accent `#FF7F4F`, accent-strong `#B74725`, accent-subtle (`#3A251F`/`#FFF0EA`), type scale 12–40, weights 400–700, tracking, leading 16–48, spacing 4–48, radii 8/12/16/24/pill, opacities, breakpoints and containers. The auth surface values (field fills and borders, eyebrow colors, the coral gradient pill, shadows, mobile fade) come from the `get_jsx` export of the `Authentication v2` artboards (sign-in desktop/mobile dark, mobile light, start your network, check your inbox, enter your PIN, sign-in issue).
 
-Secondary text, status colors (success, warning, danger, info) and focus-ring values are **not in P-06**. They must come from the Paper `Design system` page in Phase 2 (exported values, not screenshots), or be proposed and approved. They are not invented here. Status always carries text, not only color (P-06).
+Where Paper has no composition, screens are built from the same tokens and parts: PIN setup and new-PIN (from "Enter your PIN"), PIN locked and blocked (from "Sign-in issue"), the email-link Continue page (from "Check your inbox"), the workspace picker, the light desktop auth panel (light tokens; only the mobile light background is drawn, so desktop light reuses it), and the signed-in shell placeholder.
 
-Design-backlog rules carried into implementation: no colored left-edge accent bars (selection = lighter fill + 1 px outline); minimal copy (headline + one line); every screen gets its own Root pose and Root stays away from destructive buttons and dense tables; light mode is built from tokens, not drawn.
+Design-backlog rules carried into implementation: no colored left-edge accent bars; minimal copy (headline + one line); light mode built from tokens, not drawn. Root poses are pending assets (§11).
 
 ---
 
 ## 4. App shell
 
-### 4.1 Route map (in scope now)
+### 4.1 Route map (M1, as built)
 
-SvelteKit route groups. `(public)` needs no session; `(gate)` needs an Auth session but the PIN gate may be closed; `(app)` needs gate `ready`.
+Route groups: `(auth)` holds every server-rendered auth/onboarding page inside the `Authentication v2` frame; `app/` is the prerendered client-rendered shell; `api/` holds the same-origin JSON endpoints. Each `(auth)` page checks the gate itself (`expectGate`) and redirects to the page the gate demands.
 
-| Route | Methods | Purpose | Backend calls |
+| Route | Rendering · methods | Purpose | Backend calls |
 |---|---|---|---|
-| `(public)/sign-in` | GET, POST (`default` action) | Email + password, password visibility toggle, generic error | Supabase Auth `signInWithPassword`, then `GET /security/state` |
-| `(public)/sign-up` | GET, POST | Founder entry, "Start your network" (W-01). Email + password (min 8, Blueprint 01 Q2) | Supabase Auth `signUp` (`emailRedirectTo` = `/auth/confirm`) |
-| `(public)/sign-up/check-email` | GET | Neutral "Check your email" notice. No promise that an account was created or an email delivered (W-01). "Resend" action. | Supabase Auth `resend` (type `signup`) |
-| `(public)/auth/confirm` | GET shows a **Continue** button; POST verifies | Landing for every emailed link (sign-up confirmation and PIN-reset link). GET never consumes the token, so email link scanners can't burn it. POST calls `verifyOtp` with `token_hash`, sets the session cookie and 303-redirects to a clean URL. | Supabase Auth `verifyOtp` |
-| `(public)/auth/link-expired` | GET | One truthful "This link has expired or was already used" state, with the right next step | — |
-| `sign-out` | POST only | Ends this Auth session (proofs cascade) and clears cookies | Supabase Auth `signOut({ scope: 'local' })` |
-| `(gate)/pin/setup` | GET, POST | First PIN, entered twice | `POST /security/pin/set` |
-| `(gate)/pin` | GET, POST | Enter PIN after password, or after 15 min idle. Shows attempts remaining after an error | `POST /security/pin/verify` |
-| `(gate)/pin/locked` | GET | Locked state. Only action: send reset email | — |
-| `(gate)/pin/forgot` | POST | Request the reset email, then show a "sent" state with expiry | `POST /security/pin/reset/request` |
-| `(gate)/pin/reset` | GET, POST | New PIN after arriving from the emailed link (magic-link session) | `POST /security/pin/reset/complete` |
-| `(gate)/blocked` | GET | Account suspended or deactivated: status message plus sign out (gate `account_blocked`) | — |
-| `(app)/workspaces` | GET, POST (`select`) | Workspace picker. Lists non-ended memberships; suspended ones or ones in an inactive office can't be selected. Empty state for a new founder. | `GET /org/workspaces`, then `GET /org/capabilities` with `X-Membership` |
-| `(app)/` (home) | GET | Signed-in shell with a truthful empty home until the ledger slice exists. No fake balances (P-06). | `GET /org/capabilities` (via layout) |
-| `(app)/settings/security` | GET, POST | Devices and sessions; sign out one or all others (W-22). Milestone 2. | `GET /security/sessions`, `POST /security/sessions/revoke` |
-| Step-up | — (not a route) | Inline PIN step on the form that needs it (§7.3) | `POST /security/pin/verify` |
-| `+error.svelte`, offline page | — | 404, no access, session expired, unavailable (Paper X01–X08 compositions) | — |
+| `/` | SSR · GET | Redirects to `/app` (signed in) or `/sign-in` | — |
+| `(auth)/sign-in` | SSR · GET, POST | Email + password, visibility toggle after hydration, one generic error (W-01). Shown = no session, so the device cache is purged here | Auth `signInWithPassword`, then `GET /security/state` → gate page |
+| `(auth)/sign-up` | SSR · GET, POST | "Start your network" (W-01), password ≥ 8. Existing addresses get the same neutral outcome | Auth `signUp` (`emailRedirectTo` `/auth/confirm`) |
+| `(auth)/sign-up/check-email` | SSR · GET | Paper "Check your inbox", neutral copy | — |
+| `(auth)/auth/confirm` | SSR · GET shows **Continue**; POST verifies | Every emailed link (`type` `signup`/`email`/`magiclink`). GET never consumes the token; POST `verifyOtp({ token_hash, type })`, clears the workspace cookie, 303 to a clean URL (`/workspaces` → gate, or `/pin/reset`) | Auth `verifyOtp` |
+| `(auth)/auth/link-expired` | SSR · GET | Expired/used link | — |
+| `(auth)/pin/setup` | SSR · GET, POST | First PIN entered twice | `POST /security/pin/set` |
+| `(auth)/pin` | SSR · GET, POST | PIN after password or idle; "N tries left"; never auto-retried; safe `next` | `POST /security/pin/verify` |
+| `(auth)/pin/locked` | SSR · GET | Only action: email a reset link | — |
+| `(auth)/pin/forgot` | SSR · GET, POST | Request reset; "sent" state with minutes left; `rate_limited` and `internal_error {emailSent:false}` handled | `POST /security/pin/reset/request` |
+| `(auth)/pin/reset` | SSR · GET, POST | New PIN from the magic-link session; `conflict` → request a new link; `authorization_denied` → `/pin/forgot` | `POST /security/pin/reset/complete` |
+| `(auth)/blocked` | SSR · GET | `account_blocked` | — |
+| `(auth)/workspaces` | SSR · GET, POST `?/select` | Picker; a still-valid cookie or **exactly one** selectable workspace opens `/app` automatically (decision 48); `?switch` shows the list anyway; empty state shows the UID | `GET /org/workspaces`, `GET /org/capabilities` (validation before the cookie is set) |
+| `/sign-out` | POST | `signOut({ scope: 'local' })`, clears `ew_ws` | Auth |
+| `/theme` | POST | Dark / Light / System cookie, works without JS | — |
+| `app/` | **CSR shell**, prerendered | Placeholder home, offline/stale banner, update prompt, bell (Popover "No notifications yet"), account menu (switch workspace, Hide amounts, sign out) | `GET /api/session` |
+| `api/session` | JSON · GET | `{ state, workspace, capabilities }` for the selected workspace; clears `ew_ws` on `workspace_invalid` | `GET /security/state`, `GET /org/workspaces`, `GET /org/capabilities` |
 
-Out of scope now, though the shell leaves room for them: network creation and checkout (`POST /org/networks` exists, but plan choice and payment belong to the billing slice), invitations (Blueprint 03), onboarding wizard (U-02), offices/members/access screens (later milestones on the same client), and the admin app (`admin.elivatewallet.com`, separate deployment).
+Later milestones: devices & sessions (`/app/settings/security`), step-up dialog, unknown-outcome recovery, invitations ("Invitations for you", decision 8; onboarding order W-02 = verify email → accept invitation → set PIN → bank account), offices/members/access, network creation and checkout (billing slice), the admin app.
 
 ### 4.2 Layout
 
@@ -166,41 +178,51 @@ Every data region renders exactly one of: *loading* (skeleton, `aria-busy`), *au
 
 ## 5. Effect service layer
 
-All code below is design-level. Exact Effect 4 API names are pinned at scaffold time against the installed version, not guessed (T-02).
+Built against the installed `effect@4.0.2` (`Context.Service`, `Layer.effect`, `Schema.decodeUnknownEffect`, `Effect.retry` options, `Data.TaggedError`).
 
-### 5.1 Layout
+### 5.1 Layout (as built)
 
 ```
-frontend/src/lib/
-  contract/            # shared by server and client; no secrets
-    envelope.ts        # Success/Failure envelope schemas
-    errors.ts          # ErrorCode literal union (from http.ts) + tagged error classes
-    security.ts        # request/response schemas, §6.1
-    org.ts             # request/response schemas, §6.2
-    common.ts          # Uid, Uuid, IsoDateTime, IdempotencyKey, Pin, Reason, Person, Page<T>
-  server/              # server-only (SvelteKit blocks importing it from client code)
-    supabase-auth.ts   # SupabaseAuth service (Layer per request)
-    edge.ts            # EdgeTransport service: fetch + envelope decode
-    security-api.ts    # SecurityApi service: one method per route
-    org-api.ts         # OrgApi service: one method per route
-    session.ts         # cookies: session (HttpOnly), workspace, theme
-    runtime.ts         # ManagedRuntime + per-request layer composition
-  client/
-    attempts.ts        # pending command attempts (sessionStorage, non-secret)
-    context.ts         # workspace switch: cancel in-flight reads, purge state
-    runtime.ts
-  ui/                  # tokens.css, primitives, Bits UI wrappers
+frontend/src/
+  env.ts                 # defineEnvVars: SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY (server-only)
+  hooks.server.ts        # per-request Auth client + verified session, theme, security headers, safe handleError
+  lib/
+    contract/            # shared by server and browser; no secrets
+      common.ts          # Uid, Uuid, IsoDateTime, Role, OfficeType, TenantStatus, AccountStatus, Person
+      errors.ts          # the 24 backend codes + BackendError/TransportError/ContractViolation, categorize()
+      envelope.ts        # envelope schemas + decodeResponse (envelope, then route schema)
+      transport.ts       # requestJson: fetch + timeout/abort + decode (not effect/http, still unstable)
+      security.ts        # SecurityState, PinResetRequested, Sessions, request shapes, routes
+      org.ts             # Workspace, Capabilities, routes, isSelectable
+      app.ts             # SessionView for /api/session
+      fixtures.ts        # synthetic wire fixtures for tests
+    server/              # server-only (Kit blocks it from client bundles)
+      config.ts          # fails closed without SUPABASE_URL / key
+      auth.ts            # @supabase/ssr client (HttpOnly cookies), verifiedSession(), AuthFailure
+      edge.ts            # EdgeTransport service (Context.Service + Layer)
+      apis.ts            # SecurityApi, OrgApi services; read retries; local PIN validation
+      request.ts         # per-request Layer composition, runApi → Exit
+      flow.ts            # gate handling for SSR pages
+      relay.ts           # /api/* envelope relay, workspace echo check
+      cookies.ts         # ew_ws (HttpOnly), ew_theme
+    client/
+      api.ts             # loadSession (Effect, schema-validated)
+      shell.svelte.ts    # shell state machine: loading / ready / offline / error, canAct
+      device-cache.ts    # 36a cache scaffold
+    ui/                  # tokens.css, base.css, ThemeSwitch, auth/* parts
+    gate.ts  labels.ts  theme.ts
+  routes/                # see §4.1
+  service-worker/        # built-in service worker (§2.2)
 ```
 
 ### 5.2 Services
 
-**`SupabaseAuth`** (server, one instance per request). Built on `@supabase/ssr` `createServerClient` with a cookie adapter that writes `HttpOnly; Secure; SameSite=Lax; Path=/` cookies. It uses the **publishable (anon) key only**; no service-role key exists anywhere in the frontend.
-- Operations: `signUp`, `resendSignup`, `signInWithPassword`, `verifyOtp(token_hash, type)`, `signOut(local)`, `claims()` (verified claims via `getClaims`, not an unverified `getSession`), and `accessToken()` (refreshes when expired, single-flight within the request).
-- Failures are mapped from Supabase Auth's documented `AuthError.code` values (`invalid_credentials`, `email_not_confirmed`, `user_already_exists`, `weak_password`, `over_request_rate_limit`, `otp_expired`, …) to `AuthFailure` variants. Unknown codes become `AuthUnavailable`. Sign-in shows one generic error for bad credentials (W-01). `email_not_confirmed` gets its own truthful state with "resend".
+**`SupabaseAuth`** (`server/auth.ts`, one client per request). `@supabase/ssr` `createServerClient` with a cookie adapter that always forces `HttpOnly; SameSite=Lax; Path=/` (and `Secure` on https). **Publishable key only**; no secret or service-role key exists in the frontend.
+- Verified identity comes from `getClaims()`; the access token for Edge calls comes from `getSession()` only after the claims verify.
+- Failures map from Supabase `AuthError.code` to `AuthFailure` kinds (`invalid_credentials`, `email_not_confirmed`, `weak_password`, `rate_limited`, `link_invalid`, `unavailable`). Sign-in shows one generic message for bad credentials (W-01).
 
-**`EdgeTransport`** (server). One function:
-`request({ fn: "security" | "org", method, path, query?, body?, membershipId? }) → Effect<unknown, BackendError | TransportError | ContractViolation>`
-- URL `${SUPABASE_URL}/functions/v1/${fn}${path}`. Headers: `authorization: Bearer <access token>`, `apikey: <publishable key>`, `content-type: application/json`, and `x-membership` when `membershipId` is given.
+**`EdgeTransport`** (`server/edge.ts`): `call({ fn, route, body?, query?, membershipId? }, schema) → Effect<A, BackendError | TransportError | ContractViolation>`.
+- URL `${SUPABASE_URL}/functions/v1/${fn}${path}`. Headers: `authorization: Bearer <access token>`, `apikey: <publishable key>`, `content-type: application/json` with a body, and `x-membership` when `membershipId` is given.
 - Timeout 10 s (reads) / 20 s (commands), carrying the incoming request's `AbortSignal` so a cancelled navigation aborts the fetch.
 - Decodes the body with `Envelope` (§6.0). `ok: true` returns `data` for the route schema to decode. `ok: false` with a known `code` becomes a `BackendError` (status, code, message, retryable, details, requestId). Any **non-envelope** body (for example the platform gateway's own 401 when `verify_jwt` rejects a token, or an HTML 502) becomes a `TransportError` carrying the HTTP status. A 401 non-envelope response is treated as `authentication_required`. An envelope with an unknown `code` becomes a `ContractViolation` (logged, shown as a generic error). Codes are never invented client-side.
 
@@ -258,20 +280,20 @@ Before dispatch, the client records a pending attempt in `sessionStorage`: `{ ke
 
 - The selected membership ID lives in a server-read cookie `ew_ws` (HttpOnly, SameSite=Lax, not a permission, A-02). It is **never in the URL**.
 - Every `org` call except `GET /workspaces`, `POST /networks` and `POST /admin/tenants/:id/activate` sends `x-membership: <uuid>`. The server is the authority: `workspace_invalid` clears the cookie and opens the picker.
-- **Multi-tab safety:** every rendered form carries the workspace ID it was rendered for as a hidden `_ws` field. A form action rejects a mismatch with the cookie ("Workspace changed in another tab", then reload) before calling the backend. A late response for an old workspace is discarded on the client (A-02: "never render old tenant data").
+- **Multi-tab safety (decision 47):** in the hybrid model workspace commands go through `/api/*`, so the echo is a request header: the shell sends `x-ew-workspace: <membership id it rendered for>` and `relay.workspaceEchoMatches()` refuses a mismatch with the cookie (`workspace_invalid`, "Workspace changed in another tab") before calling the backend. Any server-rendered workspace form uses a hidden `_ws` field the same way. `/api/session` returns the membership id, so a late response for an old workspace is discarded on the client (A-02). M1 has no workspace command yet; the check is in place for M2.
 - On switch, the client cancels in-flight reads, drops cached page data (`refreshAll`) and reloads capabilities.
 
 ### 5.9 No sensitive data in URLs, logs or analytics
 
 - URLs carry no email, UID, PIN, token, membership ID or pagination cursor. Cursors are base64 JSON that can contain office names (`org.encode_cursor`), so they stay in form or component state, not query strings.
-- The one unavoidable URL secret is the single-use `token_hash` in emailed links (§7.1). The confirm page sets `Referrer-Policy: no-referrer`, loads no third-party scripts, consumes the token only on POST, and immediately 303-redirects to a clean URL.
+- The one unavoidable URL secret is the single-use `token_hash` in emailed links (§7.1). Every page sets `Referrer-Policy: same-origin` (not `no-referrer`: with `no-referrer` Chromium sends `Origin: null` on native form POSTs and SvelteKit's CSRF check rejects them — found in the M1 e2e run), so the URL never leaves the origin as a referrer; the confirm page loads no third-party scripts, consumes the token only on POST, and immediately 303-redirects to a clean URL.
 - Server logs mirror the backend rule: `{ requestId, routePattern, status, code, ms }` only. Effect `Redacted` wraps tokens, PINs and passwords so they can't be printed accidentally. No user, session or membership IDs and no email or IP in logs.
 - Analytics (PostHog) is **not** installed in Phase 2. The consent/event taxonomy is open (U-11).
 - Response headers on all authenticated pages: `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`, `frame-ancestors 'none'` via SvelteKit CSP (nonce mode), HSTS at the Cloudflare zone.
 
 ---
 
-## 6. Typed client spec (derived from code at `c648abd`)
+## 6. Typed client spec (derived from code on `main` after PR #5, `6f910f7`)
 
 ### 6.0 Transport facts common to both functions
 
@@ -310,11 +332,11 @@ AccountStatus = "active" | "restricted" | "suspended" | "deactivated"
 | `GET /state` | — | `SecurityState` | `authentication_required`, `account_blocked` |
 | `POST /pin/set` | `{ pin, pinConfirm }` | `SecurityState` | `validation_error` (`pin`/`pinConfirm`, `mismatch`), `conflict {reason:"pin_already_set"}` |
 | `POST /pin/verify` | `{ pin }` | `SecurityState` (gate `ready`, new 5-min window) | `pin_incorrect {attemptsRemaining:1..4}` (403), `pin_locked {attemptsRemaining:0}` on the 5th wrong PIN, or `pin_locked {}` if already locked (423), `pin_setup_required` |
-| `POST /pin/reset/request` | `{}` or empty | `{ expiresAt: IsoDateTime }` (+15 min) | `pin_setup_required`, `rate_limited {retryAfterSeconds:60}`, `internal_error` if the email could not be sent (see inconsistency 8) |
+| `POST /pin/reset/request` | `{}` or empty | `{ expiresAt: IsoDateTime }` (+15 min) | `pin_setup_required`, `rate_limited {retryAfterSeconds:60}`, `internal_error {emailSent:false}` (retryable) if the email could not be sent; the request is withdrawn, so no cooldown |
 | `POST /pin/reset/complete` | `{ pin, pinConfirm }` | `SecurityState` | `conflict {reason:"no_pending_reset"}`, `authorization_denied {reason:"email_link_session_required"}` |
 | `GET /sessions` | — | `Array<{ sessionId: Uuid, createdAt, lastActiveAt, userAgent: string\|null, current: boolean }>` | gate codes |
 | `POST /sessions/revoke` | exactly one of `{ sessionId: Uuid }` or `{ allOthers: true }` | `{ revoked: number }` | `validation_error {field:"sessionId"}`, `not_found` |
-| `POST /admin/accounts/status` | `{ targetUid, status: AccountStatus, reason, idempotencyKey }` | `{ targetUid, previousStatus, status, changed: boolean } & CommandMeta` | platform admin + S: `authorization_denied` (not admin; or `{reason:"self_target"}`), `step_up_required`, `not_found`, `idempotency_conflict` |
+| `POST /admin/accounts/status` | `{ targetUid, status: AccountStatus, reason, idempotencyKey }` | `{ targetUid, previousStatus, status, changed: boolean } & CommandMeta` | platform admin + S: `authorization_denied` (not admin), `self_target_forbidden` (own account), `step_up_required`, `not_found`, `idempotency_conflict` |
 | `POST /admin/admins/grant` | `{ targetUid, reason, idempotencyKey }` | `{ targetUid, changed } & CommandMeta` | as above |
 | `POST /admin/admins/revoke` | `{ targetUid, reason, idempotencyKey }` | `{ targetUid, changed } & CommandMeta` | as above + `conflict {reason:"last_platform_admin"}` |
 
@@ -344,8 +366,8 @@ The `/admin/*` routes belong to the admin app (`admin.elivatewallet.com`), not `
 | `POST /offices` | H | `{ type: OfficeType, name, parentOfficeId?: Uuid\|null, leaderUids: Uid[1..20], idempotencyKey }` | `{ officeId, leaderMembershipIds: Uuid[] }` | `hierarchy_invalid`, `role_office_mismatch`, `membership_exists`, `not_found` |
 | `PATCH /offices/:id` | H | `{ name, idempotencyKey }` | `{ officeId, name }` | `authorization_denied`, `not_found` |
 | `POST /offices/:id/place` | H | `{ parentOfficeId: Uuid\|null, reason, idempotencyKey }` R S; the `parentOfficeId` key is required even when null | `{ officeId, parentOfficeId, changed }` | `hierarchy_invalid` |
-| `POST /offices/:id/leaders` | H | `{ leaderUid, reason, idempotencyKey }` R S | `{ membershipId }` | `membership_exists`, `role_office_mismatch` |
-| `POST /offices/:id/leaders/replace` | H | `{ outgoingMembershipId, incomingUid, reason, idempotencyKey }` R S | `{ endedMembershipId, membershipId }` | `conflict {reason:"not_a_current_leader"}`, `validation_error {field:"incomingUid"}` |
+| `POST /offices/:id/leaders` | H | `{ leaderUid, reason, idempotencyKey }` R S | `{ membershipId }` | `membership_exists`, `role_office_mismatch`, `authorization_denied {reason:"office_not_below_own"}` |
+| `POST /offices/:id/leaders/replace` | H | `{ outgoingMembershipId, incomingUid, reason, idempotencyKey }` R S | `{ endedMembershipId, membershipId }` | `conflict {reason:"not_a_current_leader"}`, `validation_error {field:"incomingUid"}`, `authorization_denied {reason:"office_not_below_own"}` |
 | `GET /members` | H | query `officeId?`(Uuid) `role?`(Role) `status?`(MembershipStatus) `cursor?` `limit?` | `Page<Member>` | `authorization_denied` |
 | `POST /memberships` | H | `{ officeId, memberUid, idempotencyKey }` | `{ membershipId, isPrimary }` | `membership_exists`, `not_found` |
 | `POST /memberships/:id/move` | H | `{ toOfficeId, reason, idempotencyKey }` R S | `{ endedMembershipId, membershipId }` | `conflict {reason:"president_membership"\|"membership_not_active"}`, `last_leader` |
@@ -401,6 +423,8 @@ AuditEvent = { id: number /* bigint */, at, actor: Person|null, action: string, 
 `permissions` from `/capabilities` are decoded as `string[]`. The UI maps the known A-03 keys (seeded in `20261008000800_authz.sql`) to navigation and ignores unknown keys, so a new backend permission doesn't break old clients (W-25).
 
 ### 6.4 Backend contract inconsistencies found
+
+**Status after the tidy-up PR #5 (merged 2026-10-08):** #1–#4, #13, #14 blueprint wording now matches the code; #5 account-status self-target now returns 403 `self_target_forbidden` (no more `authorization_denied {reason:"self_target"}`); #6 Edge validation now enforces reasons 3–500 and names 2–100 (trimmed); #8 a failed PIN-reset email returns retryable `internal_error` with `details.emailSent: false` and does not consume the 60 s limit (the `/pin/forgot` page says "We couldn't send the email. Try again."); #9 the security handler rejects non-object DB results; #11 `list_offices` `memberCount` rolls up over the subtree (`leaderCount` stays per office); #12 the local redirect allowlist typo is fixed. New: leader add/replace can return `authorization_denied {reason:"office_not_below_own"}` (decision 1). Still open: #7 (by design), #10 (dev-project email templates, needs owner approval — the local templates in `backend/supabase/templates/` are done), #15, #16. The original findings follow for the record.
 
 | # | Finding | Where | Frontend impact / suggested fix |
 |---|---|---|---|
@@ -480,67 +504,63 @@ AuditEvent = { id: number /* bigint */, at, actor: Person|null, action: string, 
 
 ## 8. Phase 2 build plan
 
-### 8.1 Scaffold (Phase 2, after your decisions)
+### 8.1 Scaffold (done)
 
-- `frontend/` beside `backend/` (§9 #23), created with the official `sv` CLI for **Kit 3**, then trimmed: TypeScript 6, pnpm, Node 24, adapter-cloudflare, Vitest, Playwright. ESLint + Prettier as the `sv` defaults; Kit config inside `vite.config.ts`; `#lib` imports.
-- Add: `effect@4.0.x`, `@supabase/supabase-js@2.117.3` (same pin as the Edge Functions), `@supabase/ssr@0.12.x`, `bits-ui@2.x` (+ its `@internationalized/date` peer), `@lucide/svelte`, `@fontsource-variable/lexend`.
-- `wrangler.jsonc` with `nodejs_compat` and observability enabled, plus **public** vars only: `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_PUBLISHABLE_KEY`. Both are safe for clients, but in mode A only the server uses them. `frontend/.env.example` lists the names with empty values. Real `.env*` files stay ignored (root `.gitignore` already has `.env` and `.env.*`).
-- Assets: copy `Assets/elivate-logo-icon.svg` and the grain textures into `frontend/static/` at build time (or reference them by path). The originals stay untouched.
+- `frontend/` created with `sv create` (minimal, TypeScript, Prettier, ESLint, Vitest, Playwright, adapter-cloudflare/workers) for **Kit 3**, then trimmed. Kit config lives in `vite.config.ts`; `#lib/...` imports with `.js` extensions; `src/env.ts` declares env vars with `defineEnvVars` (Kit 3).
+- Exact pins: `@sveltejs/kit` 3.0.1, `svelte` 5.57.2, `@sveltejs/adapter-cloudflare` 8.0.0, `vite` 8.3.3, `typescript` 6.0.3, `svelte-check` 4.7.6, `effect` 4.0.2, `@supabase/supabase-js` 2.117.3, `@supabase/ssr` 0.12.7, `bits-ui` 2.19.5, `@lucide/svelte` 1.52.0, `@fontsource-variable/lexend` 5.3.0, `@fontsource/ibm-plex-mono` 5.3.0, `vitest` 5.0.3, `@playwright/test` 1.64.0, `@axe-core/playwright` 4.13.0, `wrangler` 4.148.0. `packageManager: pnpm@11.19.0`; `engines.node` `>=24 <25`.
+- Config: **server-only** `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` (not `PUBLIC_*`: in the hybrid model the browser never needs them). `frontend/.env.example` lists them empty; no project URL or key is committed. `wrangler.jsonc` has `nodejs_compat`, observability, `workers_dev: false`, `preview_urls: false` (no deploy target yet, decision 50).
+- Assets: `Assets/elivate-logo-icon.svg` → `static/icons/mark.svg`; PWA PNGs generated by `scripts/make-icons.ts`; `Assets/shaders/*` → JPEG copies in `static/auth-bg/`; grain texture copied. Originals untouched.
 
 ### 8.2 Directories
 
-```
-frontend/
-  package.json  pnpm-lock.yaml  vite.config.ts  wrangler.jsonc  tsconfig.json  .env.example
-  src/
-    app.html  app.d.ts  hooks.server.ts  service-worker.ts (+ its tsconfig)
-    lib/contract/  lib/server/  lib/client/  lib/ui/        (see §5.1)
-    routes/(public)/sign-in, sign-up, sign-up/check-email, auth/confirm, auth/link-expired
-    routes/(gate)/pin, pin/setup, pin/locked, pin/forgot, pin/reset, blocked
-    routes/(app)/+layout.server.ts (state + capabilities), +page.svelte (home), workspaces, settings/security
-    routes/sign-out/+page.server.ts
-  static/  manifest.webmanifest, icons, fonts (via fontsource), offline.html
-  tests/unit/  tests/e2e/
-```
+See §5.1 for `src/`. Also: `tests/e2e/` (Playwright + axe), `scripts/e2e-local.sh`, `scripts/make-icons.ts`, `_headers` (static asset headers), `static/` (manifest, icons, auth backgrounds, `offline.html`). Backend-side, local-only: `backend/supabase/templates/{confirmation,magic_link}.html` wired in `config.toml` (`token_hash` links to `/auth/confirm`, decision 38).
 
 ### 8.3 Milestones
 
-- **M1 — sign-in → PIN → workspace picker (first milestone).** Contract package (§6, all schemas + tests against recorded fixtures shaped exactly like §6), `EdgeTransport` and `SecurityApi`/`OrgApi` (`/state`, `/pin/*`, `/workspaces`, `/capabilities`), the routes in §4.1 except settings, theme switching, tokens, the empty shell, error pages, and e2e for: sign-up → Mailpit link → confirm → set PIN → picker (empty); sign-in → wrong PIN ×2 → correct; lock after 5 → reset via email → new PIN; idle → `pin_required` (the e2e test ages `last_activity_at` through local SQL; nothing in the app shortens the timeout); 320 px + axe in both themes.
-- **M2:** Devices & sessions, step-up dialog wired on a real S route (for example `POST /org/memberships/:id/suspend` in a seeded local tenant), unknown-outcome recovery, PWA manifest + service worker + update prompt.
+- **M1 (built):** contract package with Effect Schemas and fixture tests; `EdgeTransport`, `SecurityApi`, `OrgApi`; sign-in, sign-up, check-email, email-confirm landing (Continue POST), link expired, PIN setup, PIN entry, PIN locked, PIN reset request and new PIN, blocked, workspace picker (auto-select single), signed-in shell placeholder with offline/stale banner and update prompt; Dark/Light/System; PWA manifest, icons, built-in service worker; 36a device-cache scaffold; e2e for sign-up → email link → PIN setup → picker (empty) → network created → auto-select → shell, sign-out (cache erased) → sign-in → wrong PIN → correct PIN; generic sign-in error; signed-out redirects; axe + no horizontal scroll at 320 px in dark and light.
+- **M1 follow-ups:** e2e for lock-after-5 → reset via email → new PIN and idle → `pin_required`; Worker rate limiting + Turnstile (decision 39, §8.6); iOS "Add to Home Screen" hint; Root poses when assets exist; "Forgot password?" (Paper shows it; password recovery is not wired in the backend contract yet).
+- **M2:** Devices & sessions, step-up dialog on a real S route, unknown-outcome recovery, "Invitations for you" (decision 8) once Blueprint 03 lands, cached read models for balances/history as they appear.
 - **M3+:** offices/members/access screens per Paper `App — Screens v2`, as backend slices allow.
 
 ### 8.4 CI job
 
-`.github/workflows/frontend.yml`, mirroring `backend.yml`:
-- Triggers: `push` to `main`; `pull_request` on `frontend/**` and the workflow file.
-- `check` job: Node 24 + pnpm (cached), `pnpm install --frozen-lockfile`, `svelte-check`, lint, `vitest run`, `vite build` (adapter-cloudflare output).
-- `e2e` job: `supabase/setup-cli@v1` at the same `2.117.0` as backend CI, `supabase start` in `backend/` (fresh replay of migrations), `supabase functions serve` with a **CI-generated** `PIN_HMAC_SECRET` (`openssl rand -hex 32`, never stored), `PIN_RESET_REDIRECT_URL=http://127.0.0.1:3000/auth/confirm`, empty `CORS_ORIGINS` (BFF needs none). Then the app starts in preview mode on `127.0.0.1:3000` and Playwright runs, reading confirmation emails from the local Mailpit API (`:54324`).
-- No deploy from CI in Phase 2. Cloudflare deploy credentials and environments are a later, owner-approved step.
+`.github/workflows/frontend.yml` (separate from `backend.yml`):
+- Triggers: `pull_request` on `frontend/**` and the workflow file; `push` to `main` on `frontend/**`, `backend/**` and the workflow file (backend changes can break the e2e contract).
+- `check` job: Node 24 + pnpm from `packageManager` (cached), `pnpm install --frozen-lockfile`, `svelte-check`, Prettier + ESLint, `vitest run`, `vite build` (adapter-cloudflare output, prerendered shell, service worker).
+- `e2e` job: `supabase/setup-cli@v1` at `2.117.0` (same as backend CI) and `scripts/e2e-local.sh`: `supabase start` + `db reset` in `backend/` (fresh replay), `supabase functions serve` with a **per-run generated** `PIN_HMAC_SECRET` (`openssl rand -hex 32`, never stored), `PIN_RESET_REDIRECT_URL=http://127.0.0.1:3000/auth/confirm`, empty `CORS_ORIGINS`; the app builds and runs `vite preview` on `127.0.0.1:3000` (strict port); Playwright reads emails from local Mailpit (`:54324`). The report is uploaded on failure.
+- No deploy from CI. Cloudflare credentials and environments are a later, owner-approved step.
 
 ### 8.5 Local dev: local Supabase vs the development project
 
-| | Local Supabase (default) | Dev project `crljnkdwkxkwgvhxfrbl` (smoke only) |
+| | Local Supabase (default, decision 49) | Dev project `crljnkdwkxkwgvhxfrbl` (owner-approved smoke only) |
 |---|---|---|
-| How | `colima start` → `supabase start` in `backend/` → `supabase functions serve` with an ignored env file → `pnpm dev --host 127.0.0.1 --port 3000` (matches local `site_url`) | Same app with `PUBLIC_SUPABASE_URL` = project URL and the **publishable key** in an ignored `frontend/.env.local` |
-| Email | Mailpit, nothing leaves the machine; templates from `config.toml` (local only) | Real Cloudflare SMTP; deliveries are real. Use only owner-designated test inboxes, synthetic data. |
-| Data | Disposable; e2e seeds via local SQL | No seeding with SQL; no reading of real rows (AGENTS.md) |
-| Keys | Local defaults printed by `supabase status` | **Publishable key only.** Never the service-role key, never in Git, never pasted into chat. |
-| Changes needed | Fix the `config.toml:163` typo; add local `token_hash` email templates under `[auth.email.template.*]` | Owner-approved dashboard edits only: add `http://127.0.0.1:3000/**` to the Auth redirect allowlist; switch the Confirm signup and Magic Link templates to `token_hash`; set `PIN_RESET_REDIRECT_URL` to the app's `/auth/confirm`. **Never `supabase config push`** (it would overwrite the Cloudflare SMTP setup). |
+| How | `colima start`; then either `scripts/e2e-local.sh` (whole run) or `supabase start` in `backend/` + `supabase functions serve --env-file <ignored file>` + `pnpm dev` with `frontend/.env.local` holding the values from `supabase status` | Same app with the project URL and **publishable key** in an ignored `frontend/.env.local` |
+| Email | Mailpit; local `token_hash` templates in `backend/supabase/templates/` | Real Cloudflare SMTP; owner-designated test inboxes only |
+| Shared machine | Hold `/tmp/elivate-supabase.lock` while the stack runs (Phase 2 common rules) | — |
+| Keys | Local defaults | **Publishable key only**; never a secret or service-role key; never in Git or chat |
+| Changes needed | None left (allowlist typo fixed in PR #5; templates added here) | Owner-approved dashboard edits: redirect allowlist for the app origin; Confirm signup and Magic Link templates to `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup` / `…&type=magiclink`; `PIN_RESET_REDIRECT_URL` → the app's `/auth/confirm`. **Never `supabase config push`.** |
 
-### 8.6 Spike gates before committing to mode A (first days of Phase 2)
+Finding from the M1 e2e: `@supabase/ssr` always uses PKCE, so the sign-up `{{ .TokenHash }}` is `pkce_…`-prefixed. `verifyOtp({ token_hash, type })` on the server accepts it and needs no code verifier, so links work across devices.
 
-1. **Auth rate limits behind the Worker.** Supabase Auth limits sign-in and sign-up per IP (token bucket, default 30). Behind the Worker every user shares Cloudflare egress IPs. An open `Sb-Forwarded-For` mechanism exists upstream, but support on hosted projects is unconfirmed. Verify with Supabase docs or support; plan Worker-side limits (Cloudflare Rate Limiting binding keyed on client IP + email) and Turnstile on sign-up/sign-in; decide whether the dashboard limits can be raised. If no safe answer is found, fall back to mode B.
-2. **Live `verify_jwt` with real user JWTs on the dev project.** There has been no real sign-up yet, so the gateway path with a real access token is unproven. Verify with one owner-approved test account.
-3. **`verifyOtp` + `amr`.** Confirm that a `token_hash` magic-link verification produces an `auth.mfa_amr_claims` row with method `otp` or `magiclink` (what `api.complete_pin_reset` checks), first locally, then on dev.
+### 8.6 Spike results (written finding, 2026-10-08; hosted Supabase not touched)
+
+1. **Auth rate limits behind the Worker.** Supabase's rate-limit guide (`supabase.com/docs/guides/auth/rate-limits`, read 2026-10-08):
+   - Sign-up, sign-in (`/token`), `/verify`, `/recover`, `/resend`, `/otp`, `/magiclink` are limited **per IP** (defaults: 30 per 5 min for sign-up/OTP/verify, 150 per 5 min for `/token`); email sends are per user (60 s) and per project. Most limits are adjustable in the dashboard or via the Management API (`rate_limit_*`).
+   - **Forwarding the end-user IP is supported** with the `Sb-Forwarded-For` header, but only when (a) "IP Address Forwarding" is enabled on the project (off by default; `security_sb_forwarded_for_enabled`) and (b) the request is made with a **secret API key** (`sb_secret_…`). Publishable and legacy `anon`/`service_role` keys are not accepted for forwarding.
+   - Consequence: forwarding would put a **secret key in the Worker**. Secret keys carry elevated (service-role-level) privileges, which the plan and AGENTS.md keep out of the frontend. That is a security trade-off the owner must decide; it is **not** adopted here.
+   - **Recommendation (no hosted change made):** keep the publishable key; implement decision 39 — a Cloudflare Rate Limiting binding in the Worker keyed on client IP (`CF-Connecting-IP`) and normalised email for sign-in/sign-up/confirm, plus Turnstile on sign-up and sign-in — and raise the project's per-IP sign-in/sign-up and verify limits to a level sized for the pilot, since all users now share the Worker's egress addresses. Revisit `Sb-Forwarded-For` only if the owner accepts a scoped secret key in the Worker. The hybrid model itself is not blocked: signed-in traffic goes to the Edge Functions (not Auth rate limits), and token refreshes (150 per 5 min per IP) are the remaining shared bucket to watch.
+2. **`verify_jwt` with real user JWTs:** proven **locally** (CLI 2.117.0, edge-runtime 1.74.3) by the e2e run: user access tokens from the server-side session pass the gateway and the functions. The dev-project check stays deferred with the first real sign-up (decision 64).
+3. **`verifyOtp` + `amr` for PIN reset:** not yet exercised (the reset-completion e2e is an M1 follow-up).
 
 ### 8.7 `CORS_ORIGINS` implications
 
-- **Mode A (recommended):** the browser never calls the Edge Functions; the Worker calls them server-to-server without an `Origin` header, so CORS doesn't apply. `CORS_ORIGINS` can stay as narrow as it is today (or empty for the web app). A future native app doesn't use CORS either.
-- **Mode B (fallback):** `CORS_ORIGINS` must list **every exact origin**: `http://127.0.0.1:3000` for local, `https://app.elivatewallet.com`, and each preview hostname. `corsHeaders` has no wildcard support (`_shared/http.ts:115-128`), so per-branch preview URLs would each need adding, or one fixed preview hostname. Changing the dev project's secret is a Supabase mutation that needs owner approval. Gateway 401s from `verify_jwt` may lack CORS headers and show up in the browser as opaque network errors.
+- **Hybrid (approved):** the browser never calls the Edge Functions; the Worker calls them server-to-server without an `Origin` header, so CORS doesn't apply. `CORS_ORIGINS` can stay empty for the web app; e2e runs with it empty. A future native app doesn't use CORS either.
 
 ---
 
-## 9. Decisions I need from you
+## 9. Phase 1 questions (answered 2026-10-08; kept for the record)
+
+See "Owner decisions (2026-10-08)" at the top for the answers.
 
 | # | Question | Options | Recommendation + why |
 |---|---|---|---|
@@ -584,3 +604,16 @@ frontend/
 - Supabase Edge Functions auth guide, `supabase.com/docs/guides/functions/auth` (`verify_jwt` default and guidance).
 - Supabase Auth rate limits, `supabase.com/docs/guides/auth/rate-limits` (IP-based token bucket), and upstream Auth discussion of `Sb-Forwarded-For` (hosted support unconfirmed).
 - Effect blog, `effect.website/blog/` (Effect 4.0 announcement, stable/LTS).
+
+---
+
+## 11. Open issues after M1
+
+- **Rate limiting / Turnstile (decision 39)** not yet built; recommendation in §8.6. Needs the owner's Cloudflare Turnstile site and a decision on raising the Auth per-IP limits.
+- **Dev-project email templates and redirect allowlist** still default (decision 38: not yet approved). Until they change, sign-up links from the dev project won't reach `/auth/confirm`.
+- **Root poses** for empty/offline/error states: no pose assets in the repo yet.
+- **iOS "Add to Home Screen" hint** and a "Forgot password?" flow (drawn in Paper, no backend/Auth contract decision yet) are not built.
+- **Paper gaps** built from tokens rather than drawn: PIN setup/new PIN, PIN locked, blocked, email-link Continue page, workspace picker, light desktop auth panel, signed-in shell. Worth a design pass.
+- **No profile route** (#16): the shell shows the UID, not a name.
+- **pnpm 11 vs 12:** pinned to 11.19.0 (the build machine's version); upgrade when convenient.
+
