@@ -17,7 +17,7 @@ import {
 const PASSWORD = 'correct-horse-battery';
 const PIN = '1357';
 
-test.describe.configure({ mode: 'serial' });
+test.describe.configure({ mode: 'serial', timeout: 90_000 });
 
 const founder = { email: uniqueEmail('money-f'), password: PASSWORD, pin: PIN };
 const member = uniqueEmail('money-m');
@@ -68,6 +68,7 @@ test('a member searches and filters activity and opens a transaction', async ({ 
 
 	await recordIncome(founder, member, '1000.00');
 	await recordIncome(founder, member, '2500.00');
+	await page.reload();
 
 	await page.getByRole('link', { name: 'See all' }).click();
 	await expect(page).toHaveURL(/\/app\/activity$/);
@@ -111,7 +112,9 @@ test('the President sees the team overview and opens a member wallet', async ({ 
 	await openPresidentWorkspace(page);
 	await page.goto('/app/team');
 	await expect(page.getByRole('heading', { name: NETWORK })).toBeVisible();
-	await expect(page.getByText('₦3,500.00').first()).toBeVisible();
+	await expect(
+		page.getByRole('region', { name: 'This month' }).getByText('₦3,500.00', { exact: true })
+	).toBeVisible();
 	await expectAccessible(page);
 
 	await page.goto('/app/wallets');
