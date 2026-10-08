@@ -48,12 +48,12 @@
 			change.error = 'Give a reason (3–500 characters).';
 			return;
 		}
-		done = await change.send(
+		done = !!(await change.send(
 			AppOrgRoutes.memberAction(id, 'role'),
 			'POST',
 			{ role: target, reason: reason.trim(), ...(pin ? { pin } : {}) },
 			workspace.membershipId
-		);
+		));
 	}
 </script>
 

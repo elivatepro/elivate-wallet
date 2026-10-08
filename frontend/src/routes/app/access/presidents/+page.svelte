@@ -49,23 +49,23 @@
 		const body = { reason: reason.trim(), ...(pin ? { pin } : {}) };
 		let ok: boolean;
 		if (removing) {
-			ok = await command.send(
+			ok = !!(await command.send(
 				AppOrgRoutes.presidentRemove(removing.membershipId),
 				'POST',
 				body,
 				workspace.membershipId
-			);
+			));
 		} else {
 			if (!UID_PATTERN.test(uid.trim().toUpperCase())) {
 				command.error = 'Enter the person’s UID (EW-…).';
 				return;
 			}
-			ok = await command.send(
+			ok = !!(await command.send(
 				AppOrgRoutes.presidents,
 				'POST',
 				{ ...body, memberUid: uid.trim().toUpperCase() },
 				workspace.membershipId
-			);
+			));
 		}
 		if (ok) {
 			notice = removing ? 'Removed from the President Team.' : 'Added to the President Team.';

@@ -311,6 +311,7 @@ const CONFLICTS: Record<string, string> = {
 	has_child_offices: 'Move or close the offices under it first.',
 	office_not_empty: 'Move or end its members first. Leaders end with the office.',
 	office_closed: 'That office is closed.',
+	office_changed: 'Someone joined this office meanwhile. Reload and try again.',
 	membership_not_active: 'That membership isn’t active.',
 	membership_ended: 'That membership has already ended.',
 	president_membership: 'President Team memberships are managed separately.',

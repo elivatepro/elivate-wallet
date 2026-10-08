@@ -40,12 +40,12 @@
 			close.error = 'Give a reason (3–500 characters).';
 			return;
 		}
-		done = await close.send(
+		done = !!(await close.send(
 			AppOrgRoutes.officeClose(id),
 			'POST',
 			{ reason: reason.trim(), ...(pin ? { pin } : {}) },
 			workspace.membershipId
-		);
+		));
 	}
 </script>
 

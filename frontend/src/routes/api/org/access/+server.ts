@@ -14,7 +14,7 @@ import {
 } from '#lib/contract/org-admin.js';
 import { OrgApi } from '#lib/server/apis.js';
 import { OrgAdminApi } from '#lib/server/apis-org.js';
-import { currentWorkspace, orgCommand, orgRead } from '#lib/server/org-endpoints.js';
+import { allPages, currentWorkspace, orgCommand, orgRead } from '#lib/server/org-endpoints.js';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = (event) =>
@@ -36,9 +36,12 @@ export const GET: RequestHandler = (event) =>
 						: Effect.succeedNone,
 					canManageAccess
 						? Effect.option(
-								api.read('org', OrgAdminRoutes.access, AccessAssignments, membershipId, {
-									limit: '100'
-								})
+								allPages((cursor) =>
+									api.read('org', OrgAdminRoutes.access, AccessAssignments, membershipId, {
+										limit: '100',
+										...(cursor ? { cursor } : {})
+									})
+								)
 							)
 						: Effect.succeedNone,
 					isPresident
@@ -46,10 +49,15 @@ export const GET: RequestHandler = (event) =>
 						: Effect.succeedNone,
 					canManageAccess
 						? Effect.option(
-								api.read('org', OrgAdminRoutes.offices, OfficeRows, membershipId, {
-									status: 'active',
-									limit: '100'
-								})
+								allPages(
+									(cursor) =>
+										api.read('org', OrgAdminRoutes.offices, OfficeRows, membershipId, {
+											status: 'active',
+											limit: '100',
+											...(cursor ? { cursor } : {})
+										}),
+									5
+								)
 							)
 						: Effect.succeedNone
 				],
@@ -57,14 +65,17 @@ export const GET: RequestHandler = (event) =>
 			);
 			return {
 				rolePermissions: Option.getOrNull(roles),
-				assignments: Option.getOrNull(assignments),
+				assignments: Option.match(assignments, {
+					onNone: () => null,
+					onSome: (all) => ({ items: all.items, nextCursor: null })
+				}),
 				reviewers: Option.getOrNull(reviewers),
 				canEditRoles: capabilities.permissions.includes('manage_role_permissions'),
 				canManageAccess,
 				isPresident,
 				offices: Option.match(offices, {
 					onNone: () => [],
-					onSome: (page) => page.items.map((o) => ({ id: o.id, name: o.name, type: o.type }))
+					onSome: (all) => all.items.map((o) => ({ id: o.id, name: o.name, type: o.type }))
 				})
 			} satisfies AccessView;
 		})

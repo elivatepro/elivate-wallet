@@ -10,7 +10,7 @@ import {
 } from '#lib/contract/org-admin.js';
 import type { Currency } from '#lib/contract/ledger.js';
 import { OrgAdminApi } from '#lib/server/apis-org.js';
-import { currentWorkspace, orgRead, pathId } from '#lib/server/org-endpoints.js';
+import { allPages, currentWorkspace, orgRead, pathId } from '#lib/server/org-endpoints.js';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = (event) => {
@@ -34,10 +34,15 @@ export const GET: RequestHandler = (event) => {
 						: Effect.succeedNone,
 					member.actions.move
 						? Effect.option(
-								api.read('org', OrgAdminRoutes.offices, OfficeRows, membershipId, {
-									status: 'active',
-									limit: '100'
-								})
+								allPages(
+									(cursor) =>
+										api.read('org', OrgAdminRoutes.offices, OfficeRows, membershipId, {
+											status: 'active',
+											limit: '100',
+											...(cursor ? { cursor } : {})
+										}),
+									5
+								)
 							)
 						: Effect.succeedNone,
 					currentWorkspace(membershipId)

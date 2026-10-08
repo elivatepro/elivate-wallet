@@ -8,6 +8,7 @@
 <script lang="ts">
 	import '#lib/ui/org/org.css';
 	import { getContext } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { DropdownMenu } from 'bits-ui';
 	import ArrowRight from '@lucide/svelte/icons/arrow-right';
@@ -95,16 +96,21 @@
 	async function confirm({ reason, pin }: { reason: string; pin: string | undefined }) {
 		if (!workspace || !dialog) return;
 		const action = dialog;
-		const ok = await command.send(
+		const result = await command.send(
 			AppOrgRoutes.memberAction(id, action),
 			'POST',
 			{ reason, ...(action === 'move' ? { toOfficeId: toOffice } : {}), ...(pin ? { pin } : {}) },
 			workspace.membershipId
 		);
-		if (!ok) return;
+		if (!result) return;
 		open = false;
 		notice = DONE[action] ?? null;
-		// A move ends this membership; its replacement is the one to show.
+		// A move ends this membership: show the one that replaced it.
+		const moved = typeof result.membershipId === 'string' ? result.membershipId : null;
+		if (action === 'move' && moved && moved !== id) {
+			await goto(`/app/members/${moved}`);
+			return;
+		}
 		await load();
 	}
 

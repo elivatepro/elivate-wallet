@@ -53,3 +53,30 @@ export const currentWorkspace = (membershipId: string) =>
 		const all = yield* (yield* OrgApi).workspaces;
 		return all.find((w) => w.membershipId === membershipId) ?? null;
 	}) as Effect.Effect<Workspace | null, EdgeFailure, ApiServices>;
+
+/**
+ * Follows `nextCursor` until the list ends or `maxPages` pages (100 rows
+ * each) were read; `truncated` says whether more remain.
+ */
+export const allPages = <T>(
+	page: (
+		cursor: string | null
+	) => Effect.Effect<
+		{ items: ReadonlyArray<T>; nextCursor: string | null },
+		EdgeFailure,
+		ApiServices
+	>,
+	maxPages = 10
+): Effect.Effect<{ items: T[]; truncated: boolean }, EdgeFailure, ApiServices> =>
+	Effect.gen(function* () {
+		const items: T[] = [];
+		let cursor: string | null = null;
+		let pages = 0;
+		do {
+			const next: { items: ReadonlyArray<T>; nextCursor: string | null } = yield* page(cursor);
+			items.push(...next.items);
+			cursor = next.nextCursor;
+			pages += 1;
+		} while (cursor && pages < maxPages);
+		return { items, truncated: cursor !== null };
+	});

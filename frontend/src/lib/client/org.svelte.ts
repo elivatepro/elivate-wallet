@@ -48,7 +48,7 @@ export class OrgCommand {
 		body: Record<string, unknown>,
 		workspaceId: string,
 		withKey = true
-	): Promise<boolean> {
+	): Promise<Readonly<Record<string, unknown>> | null> {
 		this.busy = true;
 		this.error = null;
 		this.pinError = null;
@@ -64,7 +64,7 @@ export class OrgCommand {
 		this.busy = false;
 		if (Exit.isSuccess(exit)) {
 			this.#key = newKey();
-			return true;
+			return exit.value;
 		}
 		const failure = failureOf(exit);
 		if (!keepsKey(failure)) this.#key = newKey();
@@ -72,6 +72,6 @@ export class OrgCommand {
 		if (said.kind === 'locked') window.location.assign('/pin/locked');
 		else if (said.kind === 'pin') this.pinError = said.text;
 		else this.error = said.text;
-		return false;
+		return null;
 	}
 }

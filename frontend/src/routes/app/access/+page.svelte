@@ -145,7 +145,8 @@
 		if (!workspace) return;
 		const changes = [...pending.entries()].map(([key, allowed]) => {
 			const [role, permission] = key.split(':') as [Role, string];
-			const id = `${key}:${allowed}`;
+			// A changed reason is a new request, so it gets new keys (replay stays exact).
+			const id = `${key}:${allowed}:${reason}`;
 			if (!changeKeys.has(id)) changeKeys.set(id, newKey());
 			return { role, permission, allowed, idempotencyKey: changeKeys.get(id)! };
 		});

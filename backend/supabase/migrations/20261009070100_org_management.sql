@@ -124,6 +124,25 @@ begin
 end;
 $$;
 
+-- Invitations only into active offices: FOR SHARE waits for a concurrent
+-- close_office, then sees `closed` (an invitation cannot outlive its office).
+create function org.check_invitation_office()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if (select status from org.offices where id = new.office_id for share) <> 'active' then
+    perform identity.fail('conflict', jsonb_build_object('reason', 'office_closed'));
+  end if;
+  return new;
+end;
+$$;
+
+create trigger invitations_office_active
+before insert on org.invitations
+for each row execute function org.check_invitation_office();
+
 -- ── 1. Close an office ────────────────────────────────────────────────────
 
 create function api.close_office(
@@ -150,6 +169,7 @@ declare
   invitation org.invitations;
   ended_ids uuid[] := '{}'::uuid[];
   revoked int := 0;
+  locked_people uuid[];
 begin
   perform org.require_writer(p_user_id, p_session_id, true);
   workspace := authz.require_workspace(p_user_id, p_membership_id);
@@ -164,10 +184,18 @@ begin
   end if;
 
   -- Lock order: people (the office's open memberships) → office tree → office row.
-  perform org.lock_people(workspace.tenant_id,
-    array(select user_id from org.memberships where office_id = office.id and status <> 'ended'));
+  locked_people := array(select distinct user_id from org.memberships where office_id = office.id and status <> 'ended');
+  perform org.lock_people(workspace.tenant_id, locked_people);
   perform org.lock_tree(workspace.tenant_id);
   select * into office from org.offices where id = office.id for no key update;
+  -- Someone joined between the person locks and the office lock: never take a
+  -- person lock after the office lock (deadlock with role changes); ask for a retry.
+  if exists (
+    select 1 from org.memberships
+    where office_id = office.id and status <> 'ended' and not (user_id = any (locked_people))
+  ) then
+    perform identity.fail('conflict', jsonb_build_object('reason', 'office_changed'));
+  end if;
 
   if office.status = 'closed' then
     return identity.store_result(p_user_id, p_idempotency_key, 'close_office', request,
@@ -575,8 +603,9 @@ begin
       from org.memberships m left join org.offices mo on mo.id = m.office_id
       where m.tenant_id = workspace.tenant_id and m.user_id = target.user_id and m.status <> 'ended'
         and (m.id = target.id or workspace.role = 'president_team_member' or m.user_id = p_user_id
-             or (m.office_id is not null and mo.status = 'active'
-                 and org.office_visible(workspace, m.office_id)))
+             or (m.office_id is not null and mo.status = 'active' and (
+                   (authz.decide(p_user_id, 'manage_members', workspace.tenant_id, m.office_id, m.user_id, workspace.id)->>'allowed')::boolean
+                   or (authz.decide(p_user_id, 'view_managed_wallets', workspace.tenant_id, m.office_id, m.user_id, workspace.id)->>'allowed')::boolean)))
     ), '[]'::jsonb),
     'history', coalesce((
       select jsonb_agg(jsonb_build_object('action', e.action, 'fromStatus', e.from_status, 'toStatus', e.to_status,

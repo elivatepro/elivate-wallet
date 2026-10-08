@@ -217,7 +217,7 @@
 				<header class="o-card-head">
 					<h2 id="members-heading">Members</h2>
 					<a class="o-link" href={`/app/members?officeId=${office.id}`}
-						>See all {office.ownMemberCount}</a
+						>See all {office.memberCount}</a
 					>
 				</header>
 				{#if !view.members}

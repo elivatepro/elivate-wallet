@@ -1,7 +1,7 @@
 <!--
 	Members, Paper "App — Screens v1" C11 (desktop) / C12 (mobile): the
 	workspace's memberships (its office subtree; the President Team: the whole
-	network), searchable by name or UID on the server, filtered by status.
+	network), searchable by name or UID on the server, filtered by status ("Current" = active and suspended).
 	Invitations live on their own page (I01); "Last activity" is not available
 	yet, so the row shows the office and role instead.
 -->
@@ -83,7 +83,7 @@
 			new Date(iso)
 		);
 	const FILTERS = [
-		{ value: 'all', label: 'All' },
+		{ value: 'all', label: 'Current' },
 		{ value: 'active', label: 'Active' },
 		{ value: 'suspended', label: 'Suspended' },
 		{ value: 'ended', label: 'Ended' }
