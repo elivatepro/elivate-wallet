@@ -5,10 +5,16 @@
 <script lang="ts">
 	import { purgeAllDeviceData } from '#lib/client/device-cache.js';
 
-	let { label = 'Back to sign in' }: { label?: string } = $props();
+	let { label = 'Back to sign in', tight = false }: { label?: string; tight?: boolean } = $props();
 </script>
 
-<form method="POST" action="/sign-out" class="signout" onsubmit={() => purgeAllDeviceData()}>
+<form
+	method="POST"
+	action="/sign-out"
+	class="signout"
+	class:tight
+	onsubmit={() => purgeAllDeviceData()}
+>
 	<button type="submit">{label}</button>
 </form>
 
@@ -30,5 +36,11 @@
 		text-decoration: underline 1px var(--auth-link-underline);
 		text-underline-offset: 4px;
 		cursor: pointer;
+	}
+
+	@media (min-width: 1024px) {
+		.tight {
+			margin-top: -8px;
+		}
 	}
 </style>

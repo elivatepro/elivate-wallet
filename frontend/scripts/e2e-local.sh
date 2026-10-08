@@ -27,9 +27,11 @@ supabase db reset --local --yes >/dev/null
 # Values printed by the local stack (local defaults, not secrets).
 eval "$(supabase status -o env | grep -E '^(API_URL|ANON_KEY)=')"
 
-# Throwaway secret, generated per run and never stored.
+# Throwaway secrets, generated per run and never stored.
 {
   echo "PIN_HMAC_SECRET=$(openssl rand -hex 32)"
+  echo "INVITATION_TOKEN_SECRET=$(openssl rand -hex 32)"
+  echo "APP_ORIGIN=http://127.0.0.1:3000"
   echo "PIN_RESET_REDIRECT_URL=http://127.0.0.1:3000/auth/confirm"
   echo "CORS_ORIGINS="
 } > "$env_file"

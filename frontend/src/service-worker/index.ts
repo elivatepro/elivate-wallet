@@ -17,10 +17,15 @@ const CACHE = `ew-shell-${version}`;
 const SHELL = '/app';
 const OFFLINE = '/offline.html';
 
-// Large auth backgrounds are only needed online.
+// Large auth backgrounds and the gate-screen Root poses are only needed online;
+// the shell keeps the poses it can show offline.
+const SHELL_POSES = ['offline-empty', 'load-error', 'home-empty', 'notifications'];
+const neededOffline = (path: string) =>
+	!path.startsWith('/auth-bg/desktop') &&
+	(!path.startsWith('/root/') || SHELL_POSES.some((pose) => path.startsWith(`/root/${pose}`)));
 const precache = [
 	...immutable.map((f) => `/${f.path}`),
-	...assets.map((f) => `/${f.path}`).filter((p) => !p.startsWith('/auth-bg/desktop')),
+	...assets.map((f) => `/${f.path}`).filter(neededOffline),
 	...prerendered.map((f) => `/${f.path}`)
 ].map((p) => p.replace(/\/{2,}/g, '/'));
 const precached = new Set(precache);

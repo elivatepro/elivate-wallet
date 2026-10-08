@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { Effect, Exit, Schema } from 'effect';
 import { SessionView } from './app.js';
@@ -14,9 +15,23 @@ const failureOf = <A>(exit: Exit.Exit<A, ApiFailure>): ApiFailure => {
 };
 
 describe('error codes', () => {
-	it('mirrors the 24 backend codes in _shared/http.ts', () => {
-		expect(ERROR_CODES).toHaveLength(24);
-		expect(new Set(ERROR_CODES).size).toBe(24);
+	it('mirrors the backend codes in _shared/http.ts, in order', () => {
+		const http = readFileSync(
+			new URL('../../../../backend/supabase/functions/_shared/http.ts', import.meta.url),
+			'utf8'
+		);
+		const table = http.slice(http.indexOf('{'), http.indexOf('}'));
+		const backend = [...table.matchAll(/^\s*([a-z_]+):\s*\d{3},/gm)].map((m) => m[1]);
+		expect(backend.length).toBeGreaterThan(0);
+		expect([...ERROR_CODES]).toEqual(backend);
+		expect(new Set(ERROR_CODES).size).toBe(ERROR_CODES.length);
+	});
+
+	it('gives every code a category', () => {
+		for (const code of ERROR_CODES) {
+			const failure = { _tag: 'BackendError', code } as unknown as ApiFailure;
+			expect(categorize(failure), code).toBeTypeOf('string');
+		}
 	});
 });
 

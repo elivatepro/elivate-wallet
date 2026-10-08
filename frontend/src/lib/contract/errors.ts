@@ -28,7 +28,28 @@ export const ERROR_CODES = [
 	'network_not_active',
 	'scope_exceeds_authority',
 	'permission_not_grantable',
-	'self_target_forbidden'
+	'self_target_forbidden',
+	'role_not_invitable',
+	'invitation_unavailable',
+	'invitation_exists',
+	'invitation_email_mismatch',
+	'email_unverified',
+	'no_wallet',
+	'target_not_eligible',
+	'currency_not_supported',
+	'allocation_policy_missing',
+	'policy_invalid',
+	'evidence_required',
+	'evidence_invalid',
+	'attempt_cancelled',
+	'insufficient_funds',
+	'bank_unknown',
+	'account_not_found',
+	'provider_unavailable',
+	'payout_lookup_expired',
+	'payout_name_mismatch',
+	'payout_account_exists',
+	'payout_account_unusable'
 ] as const;
 
 export const ErrorCode = Schema.Literals(ERROR_CODES);
@@ -111,6 +132,9 @@ export function categorize(error: ApiFailure): FailureCategory {
 				case 'scope_exceeds_authority':
 				case 'self_target_forbidden':
 				case 'permission_not_grantable':
+				case 'role_not_invitable':
+				case 'invitation_email_mismatch':
+				case 'email_unverified':
 					return 'authorization';
 				case 'conflict':
 				case 'idempotency_conflict':
@@ -120,12 +144,31 @@ export function categorize(error: ApiFailure): FailureCategory {
 				case 'network_not_active':
 				case 'hierarchy_invalid':
 				case 'role_office_mismatch':
+				case 'invitation_exists':
+				case 'no_wallet':
+				case 'target_not_eligible':
+				case 'allocation_policy_missing':
+				case 'attempt_cancelled':
+				case 'insufficient_funds':
+				case 'payout_lookup_expired':
+				case 'payout_account_exists':
+				case 'payout_account_unusable':
 					return 'conflict';
+				case 'currency_not_supported':
+				case 'policy_invalid':
+				case 'evidence_required':
+				case 'evidence_invalid':
+				case 'bank_unknown':
+				case 'account_not_found':
+				case 'payout_name_mismatch':
+					return 'validation';
 				case 'not_found':
+				case 'invitation_unavailable':
 					return 'not_found';
 				case 'rate_limited':
 					return 'throttled';
 				case 'internal_error':
+				case 'provider_unavailable':
 					return 'server';
 			}
 	}

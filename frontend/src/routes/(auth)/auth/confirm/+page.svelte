@@ -1,12 +1,13 @@
-<!-- Email-link landing: one Continue button (POST). Composition follows Paper "Check your inbox". -->
+<!-- Email-link landing: one Continue button (POST). Paper "App — Screens v3" G01. -->
 <script lang="ts">
-	import MailCheck from '@lucide/svelte/icons/mail-check';
 	import AuthHeading from '#lib/ui/auth/AuthHeading.svelte';
 	import PrimaryButton from '#lib/ui/auth/PrimaryButton.svelte';
+	import { useRoot } from '#lib/ui/root.svelte.js';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 	let busy = $state(false);
+	useRoot('confirm-email');
 	const isReset = $derived(data.type === 'magiclink');
 </script>
 
@@ -15,7 +16,6 @@
 </svelte:head>
 
 <AuthHeading
-	icon={MailCheck}
 	eyebrow={isReset ? 'Reset PIN' : 'Verify email'}
 	title={isReset ? 'Reset your PIN' : 'Confirm your email'}
 	lead="Press Continue to finish on this device."

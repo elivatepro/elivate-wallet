@@ -1,4 +1,4 @@
-<!-- New PIN after the emailed reset link. Built from the "Enter your PIN" composition. -->
+<!-- New PIN after the emailed reset link. Paper "App — Screens v3" G08. -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import AltLink from '#lib/ui/auth/AltLink.svelte';
@@ -6,10 +6,12 @@
 	import FormAlert from '#lib/ui/auth/FormAlert.svelte';
 	import PinField from '#lib/ui/auth/PinField.svelte';
 	import PrimaryButton from '#lib/ui/auth/PrimaryButton.svelte';
+	import { useRoot } from '#lib/ui/root.svelte.js';
 	import type { PageProps } from './$types';
 
 	let { form }: PageProps = $props();
 	let busy = $state(false);
+	useRoot('pin-new', 'md');
 </script>
 
 <svelte:head><title>Choose a new PIN · Elivate Wallet</title></svelte:head>

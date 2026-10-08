@@ -50,8 +50,8 @@ test('sign-up → email confirm → PIN setup → workspace picker → shell, th
 	await createNetworkFor(email, PASSWORD, PIN, 'Sunrise Test Network');
 	await page.goto('/workspaces');
 	await expect(page).toHaveURL(/\/app$/);
-	await expect(page.getByText('Sunrise Test Network')).toBeVisible();
-	await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
+	await expect(page.getByText('Sunrise Test Network').filter({ visible: true })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'No money in yet' })).toBeVisible();
 	// No token or membership id in any URL.
 	expect(page.url()).not.toMatch(/token|membership|[0-9a-f]{8}-[0-9a-f]{4}/i);
 
@@ -74,7 +74,7 @@ test('sign-up → email confirm → PIN setup → workspace picker → shell, th
 	await page.getByLabel('PIN', { exact: true }).fill(PIN);
 	await page.getByRole('button', { name: 'Verify' }).click();
 	await expect(page).toHaveURL(/\/app$/);
-	await expect(page.getByText('Sunrise Test Network')).toBeVisible();
+	await expect(page.getByText('Sunrise Test Network').filter({ visible: true })).toBeVisible();
 });
 
 test('sign-in keeps one generic message for wrong credentials (W-01)', async ({ page }) => {
