@@ -3,7 +3,8 @@
 // unknown outcome is recovered with the same key after a reload (F-03).
 // Local stack only, synthetic data.
 
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import {
 	completeIdentityAndProfile,
 	confirmLinkFor,

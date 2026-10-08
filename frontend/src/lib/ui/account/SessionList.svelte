@@ -10,6 +10,7 @@
 	import Tablet from '@lucide/svelte/icons/tablet';
 	import type { SessionSummary } from '#lib/contract/security.js';
 	import { activityLabel, describeDevice } from '#lib/devices.js';
+	import RootDialog from './RootDialog.svelte';
 
 	let {
 		sessions,
@@ -31,8 +32,25 @@
 	} = $props();
 
 	const others = $derived(sessions.filter((s) => !s.current).length);
+	/** Paper "App — Screens v4" Z07: confirm first; no PIN (owner decision 2026-10-08). */
+	let confirming = $state(false);
+	const askAllOthers = () => (confirming = true);
 	const icons = { phone: Smartphone, tablet: Tablet, laptop: Laptop } as const;
 </script>
+
+<RootDialog
+	bind:open={confirming}
+	pose="dialog-sign-out"
+	title={others === 1 ? 'Sign out 1 other device?' : `Sign out ${others} other devices?`}
+	summary="This device stays signed in"
+	confirmLabel="Sign out others"
+	tone="danger"
+	busy={busy !== null}
+	onConfirm={() => {
+		confirming = false;
+		onRevoke({ allOthers: true });
+	}}
+/>
 
 <section class="group" aria-labelledby="sessions-heading">
 	<h2 class="eyebrow" id="sessions-heading">{heading}</h2>
@@ -45,7 +63,7 @@
 					class="danger-pill"
 					disabled={disabled || busy !== null}
 					aria-busy={busy === 'all' ? 'true' : undefined}
-					onclick={() => onRevoke({ allOthers: true })}>{allOthersLabel}</button
+					onclick={askAllOthers}>{allOthersLabel}</button
 				>
 			{/if}
 		</div>
@@ -88,7 +106,7 @@
 			type="button"
 			class="danger-wide"
 			disabled={disabled || busy !== null}
-			onclick={() => onRevoke({ allOthers: true })}>{allOthersLabel}</button
+			onclick={askAllOthers}>{allOthersLabel}</button
 		>
 	{/if}
 </section>

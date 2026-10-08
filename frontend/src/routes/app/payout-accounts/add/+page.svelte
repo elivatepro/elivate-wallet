@@ -28,6 +28,7 @@
 	} from '#lib/payout.js';
 	import { ACCOUNT_NUMBER_PATTERN } from '#lib/contract/payout.js';
 	import { UUID_PATTERN } from '#lib/contract/common.js';
+	import { takeReplaceIntent, type ReplaceIntent } from '#lib/client/replace-intent.js';
 	import Field from '#lib/ui/auth/Field.svelte';
 	import FormAlert from '#lib/ui/auth/FormAlert.svelte';
 	import PinField from '#lib/ui/auth/PinField.svelte';
@@ -61,6 +62,12 @@
 	const replaces = $derived.by(() => {
 		const id = page.url.searchParams.get('replace');
 		return id && UUID_PATTERN.test(id) ? id.toLowerCase() : null;
+	});
+	/** Reason and PIN from the Z05 dialog (memory only, read once). */
+	let intent = $state<ReplaceIntent | null>(null);
+	$effect(() => {
+		if (replaces && !intent) intent = takeReplaceIntent(replaces);
+		if (intent && !reason) reason = intent.reason;
 	});
 
 	async function loadBanks() {
@@ -104,7 +111,9 @@
 		if (shell.state.kind !== 'ready' || !shell.canAct) return;
 		const data = new FormData(event.currentTarget as HTMLFormElement);
 		const accountNumber = cleanAccountNumber(String(data.get('accountNumber') ?? ''));
-		const pin = String(data.get('pin') ?? '') || undefined;
+		// The Z05 dialog's PIN opens the step-up for the first lookup; used once.
+		const pin = String(data.get('pin') ?? '') || intent?.pin || undefined;
+		if (intent?.pin) intent = { ...intent, pin: undefined };
 		const next: typeof errors = {};
 		if (!bankCode) next.bankCode = 'Choose your bank.';
 		if (!ACCOUNT_NUMBER_PATTERN.test(accountNumber))
@@ -287,7 +296,8 @@
 				<NameCheck accountName={lookup.accountName} match={lookup.nameMatch} legalName={null} />
 				{#if !mismatch}
 					<form onsubmit={save} novalidate>
-						{#if replaces}
+						{#if replaces && !intent}
+							<!-- Only when the Z05 dialog's reason is missing (e.g. after a reload). -->
 							<div class="field">
 								<label for="reason">Why are you replacing it?</label>
 								<textarea

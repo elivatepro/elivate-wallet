@@ -2,7 +2,8 @@
 // join link, as a new person and as an existing account, and from the in-app
 // "Invitations for you" list. Local stack only, synthetic data.
 
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import {
 	completeIdentityAndProfile,
 	confirmLinkFor,

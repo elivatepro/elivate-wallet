@@ -1,7 +1,8 @@
 // Ledger-backed Home (W-07), the President's split editor (L01/L02) and the
 // NIN leader review loop (Blueprint 06). Local stack only, synthetic data.
 
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import {
 	completeIdentityAndProfile,
 	confirmLinkFor,

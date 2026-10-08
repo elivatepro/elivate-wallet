@@ -1,7 +1,9 @@
 <!--
-	Cloudflare Turnstile widget (Blueprint 10): managed mode, shown only when
-	Cloudflare needs an interaction ("interaction-only"), so most people never
-	see it. Rendered explicitly so it survives client-side navigation between
+	Cloudflare Turnstile widget (Blueprint 10). Invisible to people (owner
+	decision 2026-10-08): managed mode with "interaction-only", so nothing shows
+	unless Cloudflare needs an interaction or the check fails; then Cloudflare's
+	failed widget appears with "Run the security check again to …" and the
+	submit button is disabled (Paper "App — Screens v4" Z02). Rendered explicitly so it survives client-side navigation between
 	auth pages. It adds the hidden `cf-turnstile-response` field to the form;
 	the server action verifies it. Tokens are single-use: the form calls
 	reset() after every submission. No site key → nothing renders and the
@@ -48,17 +50,21 @@
 	let {
 		siteKey,
 		action,
-		theme = 'auto'
+		theme = 'auto',
+		retryLabel,
+		failed = $bindable(false)
 	}: {
 		siteKey: string | null;
 		action: 'sign-in' | 'sign-up' | 'forgot-password';
 		theme?: 'dark' | 'light' | 'auto';
+		/** Z02: "Run the security check again to {retryLabel}." */
+		retryLabel: string;
+		failed?: boolean;
 	} = $props();
 
 	let container: HTMLDivElement | undefined = $state();
 	let widgetId: string | null = null;
 	let api: TurnstileApi | null = null;
-	let failed = $state(false);
 
 	/** Fresh token after a submission (each token verifies once). */
 	export function reset(): void {
@@ -77,12 +83,15 @@
 					action,
 					theme,
 					appearance: 'interaction-only',
-					size: 'flexible',
+					size: 'normal',
 					'refresh-expired': 'auto',
 					'error-callback': () => {
 						failed = true;
 					},
 					callback: () => {
+						failed = false;
+					},
+					'expired-callback': () => {
 						failed = false;
 					}
 				});
@@ -101,13 +110,19 @@
 	<div class="turnstile" bind:this={container}></div>
 	<noscript><p class="note">Turn on JavaScript to complete the security check.</p></noscript>
 	{#if failed}
-		<p class="note" role="status">The security check didn’t load. Reload the page and try again.</p>
+		<p class="failed" role="alert">Run the security check again to {retryLabel}.</p>
 	{/if}
 {/if}
 
 <style>
 	.turnstile:empty {
 		display: none;
+	}
+
+	.failed {
+		color: var(--color-danger);
+		font-size: 13px;
+		line-height: 18px;
 	}
 
 	.note {

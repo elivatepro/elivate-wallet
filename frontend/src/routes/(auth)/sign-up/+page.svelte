@@ -13,6 +13,7 @@
 	let { data, form }: PageProps = $props();
 	let busy = $state(false);
 	let turnstile: Turnstile | undefined = $state();
+	let checkFailed = $state(false);
 </script>
 
 <svelte:head><title>Start your network · Elivate Wallet</title></svelte:head>
@@ -55,15 +56,17 @@
 			hint={`At least ${MIN_PASSWORD} characters.`}
 			error={form?.errors?.password}
 		/>
+		<Turnstile
+			bind:this={turnstile}
+			bind:failed={checkFailed}
+			siteKey={data.turnstileSiteKey}
+			action="sign-up"
+			retryLabel="create your account"
+			theme={data.theme === 'system' ? 'auto' : data.theme}
+		/>
 	</div>
-	<Turnstile
-		bind:this={turnstile}
-		siteKey={data.turnstileSiteKey}
-		action="sign-up"
-		theme={data.theme === 'system' ? 'auto' : data.theme}
-	/>
 	<div class="actions">
-		<PrimaryButton label="Create account" {busy} />
+		<PrimaryButton label="Create account" {busy} disabled={checkFailed} />
 		<AltLink prompt="Already with Elivate?" label="Sign in" href="/sign-in" />
 	</div>
 </form>

@@ -4,8 +4,7 @@
 // verified session changes its own password (supported Auth path, no API
 // route); then every other session of the account is signed out and the
 // person continues through the PIN gate like any sign-in.
-// Composition: Paper "Authentication v2" 09 Set password (reused; a recovery
-// variant is not drawn yet and waits on owner approval).
+// Composition: Paper "App — Screens v4" Z03 (owner approved 2026-10-08).
 
 import { fail, redirect } from '@sveltejs/kit';
 import { authFailureFrom } from '#lib/server/auth.js';

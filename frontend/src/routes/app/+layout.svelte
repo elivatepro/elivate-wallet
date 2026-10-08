@@ -61,7 +61,6 @@
 		// Blueprint 10 (Paper S03/S05 breadcrumbs); most specific first.
 		'/app/account/devices': 'Profile & security  /  Devices & sessions',
 		'/app/account/pin': 'Profile & security  /  Transaction PIN',
-		'/app/account/profile': 'Profile & security  /  Edit profile',
 		'/app/account': 'Profile & security',
 		'/app/payout-accounts': 'Payout accounts',
 		'/app/income': 'Record income',

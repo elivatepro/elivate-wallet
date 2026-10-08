@@ -14,6 +14,7 @@
 	let { data, form }: PageProps = $props();
 	let busy = $state(false);
 	let turnstile: Turnstile | undefined = $state();
+	let checkFailed = $state(false);
 
 	// Nobody is signed in here, so no cached wallet data may remain on this
 	// device (decision 36a: erased on sign-out).
@@ -60,15 +61,17 @@
 		>
 			{#snippet trailing()}<a class="forgot" href="/forgot-password">Forgot password?</a>{/snippet}
 		</Field>
+		<Turnstile
+			bind:this={turnstile}
+			bind:failed={checkFailed}
+			siteKey={data.turnstileSiteKey}
+			action="sign-in"
+			retryLabel="sign in"
+			theme={data.theme === 'system' ? 'auto' : data.theme}
+		/>
 	</div>
-	<Turnstile
-		bind:this={turnstile}
-		siteKey={data.turnstileSiteKey}
-		action="sign-in"
-		theme={data.theme === 'system' ? 'auto' : data.theme}
-	/>
 	<div class="actions">
-		<PrimaryButton label="Sign in" {busy} />
+		<PrimaryButton label="Sign in" {busy} disabled={checkFailed} />
 		<AltLink prompt="New to Elivate?" label="Start your network" href="/sign-up" />
 	</div>
 </form>

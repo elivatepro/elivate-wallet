@@ -2,7 +2,8 @@
 // email, change PIN, devices & sessions, Turnstile on the auth forms.
 // Local stack only (Mailpit), synthetic data.
 
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, stubTurnstile, test } from './fixtures';
 import { createClient } from '@supabase/supabase-js';
 import {
 	completeIdentityAndProfile,
@@ -123,6 +124,7 @@ test('Profile & security: change PIN, devices and profile edit', async ({ page, 
 
 	// A second device, signed in and unlocked.
 	const other = await browser.newContext();
+	await stubTurnstile(other);
 	const otherPage = await other.newPage();
 	await signIn(otherPage, member, PASSWORD, PIN);
 
@@ -156,17 +158,43 @@ test('Profile & security: change PIN, devices and profile edit', async ({ page, 
 		page.getByRole('heading', { name: /signed-in devices|Devices & sessions/ })
 	).toBeVisible();
 	await page.getByRole('button', { name: 'Sign out all others' }).first().click();
+	// Z07: confirm, no PIN.
+	const confirmOut = page.getByRole('dialog', { name: 'Sign out 1 other device?' });
+	await expect(confirmOut.getByText('This device stays signed in')).toBeVisible();
+	await confirmOut.getByRole('button', { name: 'Sign out others' }).click();
 	await expect(page.getByText('Signed out 1 device.')).toBeVisible();
 	await otherPage.goto('/workspaces');
 	await expect(otherPage).toHaveURL(/\/sign-in$/);
 	await other.close();
 
-	// Profile edit (stub until Paper): display name.
-	await page.goto('/app/account/profile');
-	await page.getByLabel('Display name').fill('Ada Test');
-	await page.getByRole('button', { name: 'Save changes' }).click();
-	await expect(page).toHaveURL(/\/app\/account$/);
-	await expect(page.getByText('Ada Test').first()).toBeVisible();
+	// Edit profile (Z04): display name and rank; the legal name is locked.
+	await page.goto('/app/account');
+	await page.getByRole('button', { name: 'Edit' }).click();
+	const edit = page.getByRole('dialog', { name: 'Edit profile' });
+	await expect(edit.getByText('From your NIN')).toBeVisible();
+	await edit.getByLabel('Display name').fill('Ada Test');
+	await edit.getByLabel('Rank').selectOption('Director');
+	await edit.getByRole('button', { name: 'Save changes' }).click();
+	await expect(edit).toHaveCount(0);
+	await expect(page.getByRole('heading', { level: 1, name: 'Ada Test' })).toBeVisible();
+	await expect(page.getByText('Director').first()).toBeVisible();
+
+	// Replace the payout account (Z05): reason + PIN, then the new lookup.
+	await page.goto('/app/payout-accounts');
+	await page.getByRole('button', { name: 'Options for Test Bank •• 6789' }).click();
+	await page.getByRole('menuitem', { name: 'Replace account' }).click();
+	const replace = page.getByRole('dialog', { name: 'Replace Test Bank •• 6789' });
+	await replace.getByLabel('Reason').fill('I closed this account with the bank');
+	await replace.getByLabel('Your PIN').fill(NEW_PIN);
+	await replace.getByRole('button', { name: 'Continue' }).click();
+	await expect(page.getByRole('heading', { name: 'Replace bank account' })).toBeVisible();
+	await page.getByLabel('Bank').selectOption('058');
+	await page.getByLabel('Account number').fill('1122334455');
+	await page.getByRole('button', { name: 'Check account' }).click();
+	await page.getByRole('button', { name: 'Replace account' }).click();
+	await expect(page).toHaveURL(/\/app\/payout-accounts$/);
+	await expect(page.getByText('Test Bank •• 4455').first()).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Options for Test Bank •• 6789' })).toHaveCount(0);
 
 	// The new PIN is the PIN now.
 	await signIn(page, member, PASSWORD, NEW_PIN);

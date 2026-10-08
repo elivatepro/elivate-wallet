@@ -16,6 +16,7 @@
 	let { data, form }: PageProps = $props();
 	let busy = $state(false);
 	let turnstile: Turnstile | undefined = $state();
+	let checkFailed = $state(false);
 </script>
 
 <svelte:head
@@ -62,12 +63,14 @@
 		/>
 		<Turnstile
 			bind:this={turnstile}
+			bind:failed={checkFailed}
 			siteKey={data.turnstileSiteKey}
 			action="forgot-password"
+			retryLabel="send reset instructions"
 			theme={data.theme === 'system' ? 'auto' : data.theme}
 		/>
 		<div class="actions">
-			<PrimaryButton label="Send reset instructions" {busy} />
+			<PrimaryButton label="Send reset instructions" {busy} disabled={checkFailed} />
 			<AltLink label="Back to sign in" href="/sign-in" />
 		</div>
 	</form>

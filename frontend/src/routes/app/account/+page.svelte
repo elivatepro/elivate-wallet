@@ -1,19 +1,25 @@
 <!--
 	Profile & security, Paper "App — Screens v1" B09 (desktop) / B10 (mobile):
 	identity hero, Profile card (Edit), Security card (Change PIN) and the
-	signed-in devices. Only fields the backend has are shown: no time zone
-	(not in the profile yet) and no password row (changing the password while
-	signed in is not in this slice; recovery is on the sign-in page). Read live,
-	never cached on device.
+	signed-in devices. Edit profile is the Paper "App — Screens v4" Z04 dialog
+	(owner approved 2026-10-08; no time zone, owner decision). No password row
+	(changing the password while signed in is not in this slice; recovery is on
+	the sign-in page). Read live, never cached on device.
 -->
 <script lang="ts">
 	import { getContext, onMount } from 'svelte';
 	import { Effect, Exit } from 'effect';
+	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
+	import Lock from '@lucide/svelte/icons/lock';
 	import { AccountRoutes, type AccountView } from '#lib/contract/account.js';
+	import { Profile, RANKS } from '#lib/contract/identity.js';
+	import { normalisePhone } from '#lib/phone.js';
+	import { newKey } from '#lib/client/api.js';
+	import RootDialog from '#lib/ui/account/RootDialog.svelte';
 	import { Revoked } from '#lib/contract/security.js';
 	import { sendAccountCommand } from '#lib/client/api.js';
-	import { failureOf, followGate, loadAccount } from '#lib/client/account.js';
+	import { failureOf, followGate, loadAccount, uploadPhoto } from '#lib/client/account.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { initials, maskPhone } from '#lib/devices.js';
 	import { ROLE_LABELS } from '#lib/labels.js';
@@ -61,6 +67,106 @@
 	onMount(() => {
 		void load();
 	});
+
+	// Edit profile (Z04): photo, display name, phone (locked when the NIN gave
+	// it), rank. Legal name and UID never change here.
+	let editing = $state(false);
+	let editBusy = $state(false);
+	let editError = $state<string | null>(null);
+	let fieldErrors = $state<{ displayName?: string; phone?: string; photo?: string }>({});
+	let photoPreview = $state<string | null>(null);
+	let editKey = newKey();
+	let editFor = '';
+	const phoneLocked = $derived(view?.profile.phoneSource === 'nin');
+
+	function openEdit() {
+		if (!view) return;
+		editError = null;
+		fieldErrors = {};
+		photoPreview = null;
+		editing = true;
+	}
+
+	function previewPhoto(event: Event) {
+		const file = (event.currentTarget as HTMLInputElement).files?.[0];
+		if (photoPreview) URL.revokeObjectURL(photoPreview);
+		photoPreview = file ? URL.createObjectURL(file) : null;
+	}
+
+	async function saveProfile({ form }: { form: FormData }) {
+		if (!view || !shell.online) return;
+		const displayRaw = String(form.get('displayName') ?? '').trim();
+		const phoneRaw = String(form.get('phone') ?? '');
+		const rank = String(form.get('rank') ?? '');
+		const photo = form.get('photo');
+		const errors: typeof fieldErrors = {};
+		if ([...displayRaw].length > 80) errors.displayName = 'Use at most 80 characters.';
+		const phone = phoneLocked ? null : phoneRaw.trim() ? normalisePhone(phoneRaw) : null;
+		if (!phoneLocked && phoneRaw.trim() && !phone) errors.phone = 'Enter a valid phone number.';
+		fieldErrors = errors;
+		editError = null;
+		if (Object.keys(errors).length) return;
+
+		const body: Record<string, unknown> = {};
+		const display = displayRaw === '' ? null : displayRaw;
+		if (display !== view.profile.displayName) body.displayName = display;
+		if (phone && phone !== view.profile.phone) body.phone = phone;
+		if ((RANKS as readonly string[]).includes(rank) && rank !== view.profile.rank) body.rank = rank;
+
+		editBusy = true;
+		if (photo instanceof File && photo.size > 0) {
+			const sent = await uploadPhoto(photo);
+			if (Exit.isFailure(sent)) {
+				editBusy = false;
+				const failure = failureOf(sent);
+				if (followGate(failure, SELF)) return;
+				fieldErrors = {
+					photo:
+						failure?._tag === 'BackendError' && failure.code === 'validation_error'
+							? failure.message
+							: 'We couldn’t upload the photo. Try again.'
+				};
+				return;
+			}
+		}
+		if (Object.keys(body).length > 0) {
+			// Same edit, same key (an unknown outcome is retried with it, W-00).
+			const fingerprint = JSON.stringify(body);
+			if (fingerprint !== editFor) {
+				editFor = fingerprint;
+				editKey = newKey();
+			}
+			const exit = await Effect.runPromiseExit(
+				sendAccountCommand(
+					AccountRoutes.editProfile.path,
+					'PATCH',
+					{ ...body, idempotencyKey: editKey },
+					Profile
+				)
+			);
+			if (Exit.isFailure(exit)) {
+				editBusy = false;
+				const failure = failureOf(exit);
+				if (followGate(failure, SELF)) return;
+				editFor = '';
+				if (failure?._tag === 'BackendError' && failure.code === 'validation_error') {
+					const field = String(failure.details.field ?? '');
+					fieldErrors =
+						field === 'phone'
+							? { phone: 'Enter a valid phone number.' }
+							: { displayName: 'Use 1–80 characters.' };
+					return;
+				}
+				editError = 'We couldn’t save your profile. Try again.';
+				return;
+			}
+		}
+		editBusy = false;
+		editing = false;
+		if (photoPreview) URL.revokeObjectURL(photoPreview);
+		photoPreview = null;
+		await load();
+	}
 
 	async function revoke(target: { sessionId: string } | { allOthers: true }) {
 		if (!shell.online) return;
@@ -126,15 +232,15 @@
 			<div class="card">
 				<div class="card-head">
 					<h2 class="card-title">Profile</h2>
-					<a class="link" href="/app/account/profile">Edit</a>
+					<button type="button" class="link" disabled={!view} onclick={openEdit}>Edit</button>
 				</div>
-				{#snippet row(label: string, value: string | null, href?: string)}
-					{#if href}
-						<a class="row" {href}>
+				{#snippet row(label: string, value: string | null, editable = false)}
+					{#if editable}
+						<button type="button" class="row" disabled={!view} onclick={openEdit}>
 							<span class="label">{label}</span>
 							<span class="value">{value ?? 'Not set'}</span>
 							<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
-						</a>
+						</button>
 					{:else}
 						<div class="row">
 							<span class="label">{label}</span>
@@ -142,10 +248,10 @@
 						</div>
 					{/if}
 				{/snippet}
-				{@render row('Display name', view?.profile.displayName ?? null, '/app/account/profile')}
+				{@render row('Display name', view?.profile.displayName ?? null, true)}
 				{@render row('Legal name', legalName ?? (view ? 'Not verified yet' : null))}
-				{@render row('Phone', maskPhone(view?.profile.phone ?? null), '/app/account/profile')}
-				{@render row('Rank', view?.profile.rank ?? null, '/app/account/profile')}
+				{@render row('Phone', maskPhone(view?.profile.phone ?? null), true)}
+				{@render row('Rank', view?.profile.rank ?? null, true)}
 				{@render row('Email', view?.email ?? null)}
 			</div>
 		</section>
@@ -190,6 +296,107 @@
 		/>
 	{/if}
 </div>
+
+{#if view}
+	{@const profile = view.profile}
+	<RootDialog
+		bind:open={editing}
+		pose="dialog-profile"
+		title="Edit profile"
+		summary="Your UID and legal name don’t change"
+		confirmLabel="Save changes"
+		busy={editBusy}
+		error={editError}
+		onConfirm={saveProfile}
+	>
+		{#snippet fields()}
+			<div class="photo-row">
+				<span class="edit-avatar" aria-hidden="true">
+					{#if photoPreview}<img src={photoPreview} alt="" />{:else if profile.hasPhoto}<img
+							src="/api/profile/photo"
+							alt=""
+						/>{:else}{initials(name) ?? ''}{/if}
+				</span>
+				<span class="photo-text">
+					<label class="photo-link" for="edit-photo">Change photo</label>
+					<span class="photo-hint">JPG, PNG or WebP</span>
+					{#if fieldErrors.photo}<span class="edit-error">{fieldErrors.photo}</span>{/if}
+				</span>
+				<input
+					id="edit-photo"
+					class="visually-hidden"
+					type="file"
+					name="photo"
+					accept="image/jpeg,image/png,image/webp"
+					onchange={previewPhoto}
+				/>
+			</div>
+			<div class="edit-field">
+				<label class="edit-label" for="edit-display">Display name</label>
+				<input
+					id="edit-display"
+					class="edit-input"
+					name="displayName"
+					maxlength="80"
+					autocomplete="off"
+					value={profile.displayName ?? ''}
+					aria-invalid={fieldErrors.displayName ? 'true' : undefined}
+				/>
+				{#if fieldErrors.displayName}<span class="edit-error">{fieldErrors.displayName}</span>{/if}
+			</div>
+			<div class="edit-field">
+				<span class="edit-label-row"
+					><span class="edit-label" id="edit-legal-label">Legal name</span><span class="edit-note"
+						>From your NIN</span
+					></span
+				>
+				<span class="edit-locked" role="group" aria-labelledby="edit-legal-label"
+					>{legalName ?? 'Not verified yet'}<Lock
+						size={16}
+						strokeWidth={2}
+						aria-hidden="true"
+					/></span
+				>
+			</div>
+			<div class="edit-pair">
+				<div class="edit-field">
+					{#if phoneLocked}
+						<span class="edit-label" id="edit-phone-label">Phone</span>
+						<span class="edit-locked" role="group" aria-labelledby="edit-phone-label"
+							>{maskPhone(profile.phone) ?? ''}<Lock
+								size={16}
+								strokeWidth={2}
+								aria-hidden="true"
+							/></span
+						>
+					{:else}
+						<label class="edit-label" for="edit-phone">Phone</label>
+						<input
+							id="edit-phone"
+							class="edit-input"
+							name="phone"
+							type="tel"
+							autocomplete="tel"
+							value={profile.phone ?? ''}
+							aria-invalid={fieldErrors.phone ? 'true' : undefined}
+						/>
+						{#if fieldErrors.phone}<span class="edit-error">{fieldErrors.phone}</span>{/if}
+					{/if}
+				</div>
+				<div class="edit-field">
+					<label class="edit-label" for="edit-rank">Rank</label>
+					<span class="edit-select">
+						<select id="edit-rank" name="rank" value={profile.rank ?? ''}>
+							{#if !profile.rank}<option value="" disabled>Choose your rank</option>{/if}
+							{#each RANKS as rank (rank)}<option value={rank}>{rank}</option>{/each}
+						</select>
+						<ChevronDown size={16} strokeWidth={2} aria-hidden="true" />
+					</span>
+				</div>
+			</div>
+		{/snippet}
+	</RootDialog>
+{/if}
 
 <style>
 	.page {
@@ -361,6 +568,180 @@
 		color: var(--color-accent-label);
 	}
 
+	button.row {
+		width: 100%;
+		border: 0;
+		background: transparent;
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
+	}
+
+	button.link {
+		border: 0;
+		background: transparent;
+		font: inherit;
+		cursor: pointer;
+	}
+
+	/* Z04 Edit profile fields. */
+	.photo-row {
+		display: flex;
+		align-items: center;
+		gap: 14px;
+	}
+
+	.edit-avatar {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+		width: 56px;
+		height: 56px;
+		overflow: clip;
+		border: 1px solid #5a3a2e;
+		border-radius: var(--radius-pill);
+		background: #3a251f;
+		color: var(--color-accent);
+		font-size: 18px;
+		font-weight: var(--font-weight-semibold);
+		line-height: 22px;
+	}
+
+	.edit-avatar img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.photo-text {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.photo-link {
+		color: var(--color-accent);
+		font-size: var(--text-14);
+		font-weight: var(--font-weight-medium);
+		line-height: 18px;
+		cursor: pointer;
+	}
+
+	.photo-row:focus-within .photo-link {
+		text-decoration: underline;
+	}
+
+	.photo-hint,
+	.edit-note {
+		color: #a9b0b3;
+		font-size: var(--text-12);
+		line-height: var(--leading-16);
+	}
+
+	.edit-field {
+		display: flex;
+		flex: 1 1 0%;
+		flex-direction: column;
+		gap: 8px;
+		min-width: 0;
+	}
+
+	.edit-pair {
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
+	}
+
+	.edit-label-row {
+		display: flex;
+		justify-content: space-between;
+	}
+
+	.edit-label {
+		color: #d5dadb;
+		font-size: var(--text-14);
+		font-weight: var(--font-weight-medium);
+		line-height: 18px;
+	}
+
+	:global([data-theme='light']) .edit-label {
+		color: var(--color-text);
+	}
+
+	.edit-input,
+	.edit-select select {
+		width: 100%;
+		height: 48px;
+		padding: 0 14px;
+		border: 1px solid #2a2f31;
+		border-radius: 14px;
+		background: #141718;
+		color: var(--color-text);
+		font: inherit;
+		font-size: 15px;
+		line-height: 18px;
+	}
+
+	:global([data-theme='light']) .edit-input,
+	:global([data-theme='light']) .edit-select select {
+		border-color: var(--color-border);
+		background: var(--color-raised);
+	}
+
+	.edit-input:focus,
+	.edit-select select:focus {
+		outline: none;
+		border-color: var(--color-accent);
+	}
+
+	.edit-input[aria-invalid='true'] {
+		border-color: var(--color-danger);
+	}
+
+	.edit-select {
+		position: relative;
+		display: block;
+	}
+
+	.edit-select select {
+		appearance: none;
+		padding-right: 40px;
+	}
+
+	.edit-select :global(svg) {
+		position: absolute;
+		top: 16px;
+		right: 14px;
+		color: #a9b0b3;
+		pointer-events: none;
+	}
+
+	.edit-locked {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+		height: 48px;
+		padding: 0 14px;
+		border: 1px dashed #343a3c;
+		border-radius: 14px;
+		color: #a9b0b3;
+		font-size: 15px;
+		line-height: 18px;
+	}
+
+	:global([data-theme='light']) .edit-locked {
+		border-color: var(--color-border);
+		color: var(--color-muted);
+	}
+
+	.edit-error {
+		color: var(--color-danger);
+		font-size: 13px;
+		line-height: 18px;
+	}
+
 	.notice {
 		color: var(--color-muted);
 		font-size: var(--text-14);
@@ -404,6 +785,11 @@
 		.eyebrow,
 		.row :global(.chev) {
 			display: none;
+		}
+
+		.edit-pair {
+			flex-direction: row;
+			gap: 12px;
 		}
 
 		.columns {
