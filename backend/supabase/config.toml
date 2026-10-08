@@ -446,3 +446,6 @@ verify_jwt = false
 
 [functions.ledger]
 verify_jwt = true
+
+[functions.payout]
+verify_jwt = true

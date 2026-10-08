@@ -12,6 +12,8 @@ export interface RenderedEmail {
 export interface RenderContext {
   /** Join link, built by the worker from the invitation's token id. */
   readonly joinUrl?: string;
+  /** App origin (APP_ORIGIN), for "Open Wallet" buttons. */
+  readonly appUrl?: string;
 }
 
 type Params = Readonly<Record<string, unknown>>;
@@ -80,7 +82,7 @@ function layout(
     readonly buttonLabel: string;
     readonly buttonUrl: string;
     readonly footnote: string;
-    readonly reference: string;
+    readonly reference?: string;
   },
 ): string {
   return `<!doctype html>
@@ -99,7 +101,11 @@ function layout(
 </td></tr></table>
 <p style="margin:24px 0 0;font-size:14px;line-height:20px;color:${muted};">${input.footnote}</p>
 </td></tr>
-<tr><td style="padding:16px 24px 32px;font-family:${font};font-size:12px;line-height:16px;color:${muted};">Reference <span style="font-family:'SFMono-Regular',Consolas,'Liberation Mono',monospace;color:${ink};">${input.reference}</span></td></tr>
+${
+    input.reference
+      ? `<tr><td style="padding:16px 24px 32px;font-family:${font};font-size:12px;line-height:16px;color:${muted};">Reference <span style="font-family:'SFMono-Regular',Consolas,'Liberation Mono',monospace;color:${ink};">${input.reference}</span></td></tr>`
+      : `<tr><td style="padding:0 0 32px;"></td></tr>`
+  }
 </table>
 </td></tr>
 </table>
@@ -147,11 +153,86 @@ function invitationIssued(params: Params, context: RenderContext): RenderedEmail
   return { subject, html, text };
 }
 
+/** "8 October 2026, 14:05 UTC". */
+function longDateTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) throw new TemplateError("template.param_invalid");
+  const time = date.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "UTC",
+  });
+  return `${longDate(iso)}, ${time} UTC`;
+}
+
+const payoutAlertCopy: Readonly<
+  Record<string, { subject: string; line: (bank: string, at: string) => string }>
+> = {
+  added: {
+    subject: "A payout account was added to your Wallet",
+    line: (bank, at) => `A ${bank} account was added to your Elivate Wallet on ${at}.`,
+  },
+  replaced: {
+    subject: "A payout account was replaced in your Wallet",
+    line: (bank, at) => `A ${bank} account replaced one of your payout accounts on ${at}.`,
+  },
+  deactivated: {
+    subject: "A payout account was removed from your Wallet",
+    line: (bank, at) => `Your ${bank} payout account was removed on ${at}.`,
+  },
+  primary_changed: {
+    subject: "Your main payout account changed",
+    line: (bank, at) => `Your ${bank} account became your main payout account on ${at}.`,
+  },
+  name_mismatch: {
+    subject: "A payout account needs your attention",
+    line: (bank, at) =>
+      `On ${at} we found that the name on your ${bank} account doesn't match the name on your NIN, so it can't receive withdrawals.`,
+  },
+};
+
+/** W-17 holder alert: bank name, what changed and when; never account digits. */
+function payoutAccountAlert(params: Params, context: RenderContext): RenderedEmail {
+  onlyParams(params, ["action", "bankName", "at"]);
+  const copy = payoutAlertCopy[param(params, "action", 40)];
+  if (!copy) throw new TemplateError("template.param_invalid");
+  const bank = param(params, "bankName", 100);
+  const at = longDateTime(param(params, "at", 40));
+  const appUrl = context.appUrl;
+  if (!appUrl || !/^https?:\/\/[^\s"'<>#?]+$/.test(appUrl)) {
+    throw new TemplateError("template.link_missing");
+  }
+  const footnote = params.action === "name_mismatch"
+    ? "Update your bank record or NIN, or add another account. Account numbers are never sent by email."
+    : "If this wasn't you, reset your PIN and contact Elivate support straight away. Account numbers are never sent by email.";
+
+  const subject = oneLine(copy.subject, 200);
+  const html = layout({
+    headline: escapeHtml(copy.subject),
+    line: copy.line(escapeHtml(bank), escapeHtml(at)),
+    buttonLabel: "Open Wallet",
+    buttonUrl: escapeHtml(appUrl),
+    footnote: escapeHtml(footnote),
+  });
+  const text = [
+    copy.subject,
+    "",
+    copy.line(bank, at),
+    "",
+    `Open Wallet: ${appUrl}`,
+    "",
+    footnote,
+  ].join("\n");
+  return { subject, html, text };
+}
+
 type Renderer = (params: Params, context: RenderContext) => RenderedEmail;
 
 /** Template key → version → renderer. Must match outbox.templates rows. */
 const registry: Readonly<Record<string, Readonly<Record<number, Renderer>>>> = {
   "invitation.issued": { 1: invitationIssued },
+  "payout_account.alert": { 1: payoutAccountAlert },
 };
 
 export function renderEmail(

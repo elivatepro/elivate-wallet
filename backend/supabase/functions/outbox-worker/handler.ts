@@ -132,6 +132,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
         ? undefined
         : joinLink(email.appOrigin, await email.token(item.tokenId));
       const rendered = renderEmail(item.template, item.version, item.params, {
+        appUrl: email.appOrigin,
         ...(joinUrl ? { joinUrl } : {}),
       });
       outcome = await email.transport.send({
