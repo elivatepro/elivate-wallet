@@ -1,0 +1,133 @@
+# Member app: full build plan and owner decisions (2026-10-08)
+
+The owner asked for every pending member-facing backend and frontend piece to be built
+before the Admin app. This file records the decisions given on 2026-10-08 that unblock that
+build, the scope, and how the work is run. Where a decision changes the product pack, the
+build updates the affected contract line (`00-product.md` U-table, `01-domain-rules.md`,
+`02-workflows.md`) in the slice that implements it.
+
+## Owner decisions (2026-10-08)
+
+### Money movement
+- **Withdrawal limits (U-07):** none at launch. Any amount up to the available balance of a
+  withdrawable pocket; the approver's judgment is the control. Keep limits easy to add later
+  as a setting, but do not invent values.
+- **Payout receipt check (W-11):** AI check plus human review. OpenAI reads the payout receipt
+  (amount, beneficiary name, bank, date, reference) and flags mismatches. An independent
+  Financial Evidence Reviewer always decides. One correction, then independent review, as in
+  W-11. Secret `OPENAI_API_KEY` (value in the repo-root `.env`; copy it into the dev Supabase
+  secrets without printing it).
+- **Currency conversion (W-12):** build it. A permitted leader records the rate actually used,
+  with a receipt as evidence; no automatic rate tolerance or reference-rate check.
+- **Adjustments (W-14):** reason, PIN and at least one evidence file, always. The member is
+  notified.
+- **Authority for conversion and adjustments:** granted to the President Team by default
+  through role permissions; Presidents may grant them to other roles in the role-permission
+  editor.
+- **Kill switches:** deferred until the Admin app. Do not build switches now.
+
+### Billing (W-19, U-03, U-13)
+- **Activation:** a new network starts a **7-day free trial**, then must pay.
+- **One trial per founder account**, ever. Further networks must pay before activation.
+- **Trial cap:** the smallest band (up to 400 users); everything else works, real money
+  included.
+- **Paid plans:** the 3 launch bands only (up to 400 = ₦700,000/yr, up to 1,000 =
+  ₦1,000,000/yr, 1,001+ = ₦1,500,000/yr). Bands 4–6 stay U-13.
+- **Seat cap:** when a network reaches its cap, new members are blocked until the Billing
+  Owner upgrades and pays the prorated difference (fills `org.check_seat_capacity`).
+- **Renewal:** suspend at expiry, no grace period. Reminder emails before expiry are fine.
+- **Suspended network (trial or year ended unpaid):** members keep read-only access to their
+  own money; no new income, withdrawals, transfers, conversions or adjustments. Leaders and
+  the Billing Owner can still pay to reactivate.
+- **VAT:** prices include VAT. Send a receipt email with an Elivate reference; no separate tax
+  invoice.
+- **Paystack:** test mode on dev. Webhook URL (give this to Paystack):
+  `https://crljnkdwkxkwgvhxfrbl.supabase.co/functions/v1/billing/paystack/webhook`.
+  So the build must create an Edge Function named `billing` with route
+  `POST /paystack/webhook`, `verify_jwt = false`, validating the raw-body HMAC SHA-512
+  signature with `PAYSTACK_SECRET_KEY` (already set) and deduplicating events.
+
+### Notifications and email (U-11)
+- **Bell:** one in-app item for every email event sent to the person, plus "needs your action"
+  items (approvals, reviews). Read/unread per item; kept 90 days.
+- **Emails:** all Paper "Emails — Transactional v2" M-series for money events (income posted;
+  withdrawal submitted, awaiting approval, approved, not approved, cancelled, completed;
+  payout correction required; evidence review assigned; pocket move done/declined; adjustment
+  posted; transaction reversed; returned funds; statement ready), plus the B-series billing
+  and the relevant T-series emails. Build each from its Paper artboard with the shared layout
+  (`backend/supabase/functions/_shared/email/layout.ts`).
+- **Support email:** `support@elivatewallet.com` (owner-designated; shown as "Contact support"
+  and in email footers). Confirm with the owner that the inbox exists before relying on it.
+- **Support widget:** Chatwoot Cloud (`app.chatwoot.com`) now. `CHATWOOT_ACCESS_TOKEN` is in
+  the repo-root `.env`. Use the API to find (or create) the website inbox and its widget
+  token. Share only UID, network name and current screen; never evidence, bank, PIN or token
+  data (W-21).
+
+### Accounts, auth and security
+- **Forgot password:** yes. Supabase recovery email → `/auth/confirm` (token_hash, POST
+  Continue) → set a new password → PIN as usual. Update the Recovery Auth template's link to
+  the token_hash form and re-apply templates.
+- **Suspended accounts (U-08):** keep today's behaviour: the blocked "account unavailable"
+  screen only. (Ended memberships and suspended networks keep read-only own money, as decided
+  earlier.)
+- **Turnstile:** build now on sign-in, sign-up and forgot-password. The agent creates the
+  Turnstile widget for `app.elivatewallet.com` itself through Cloudflare and stores the keys
+  as Worker secrets (`TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`); verify server-side.
+
+### Deferred (do not build now)
+- Workspace requests (U-04). Founders create networks directly; invitations only.
+- White-label custom domains (U-05). Network branding (logo, colour, name) is in scope.
+- Kill switches and feature flags (with the Admin app).
+- The Admin app itself.
+
+### Backups (U-06)
+- Build **restore requests** (W-24 statuses, `RST` reference, requester notified; Elivate
+  reviews and runs restores later in the Admin app) and an on-demand **signed full-network
+  export download** for Presidents. Scheduled cloud destinations stay deferred.
+
+### Statements (W-18)
+- PDF (Paper "Statements & reports v1") and CSV, generated server-side; long ones run as jobs
+  and send "statement ready".
+
+## Design rule for screens Paper doesn't have
+
+**Design in Paper first.** For any member screen with no Paper composition, an agent drafts
+it in the `Elivate Wallet` Paper file (Emberlit tokens, existing Root poses only, synthetic
+data), and the owner approves it before it is built. Batch these drafts so approvals happen
+in a few rounds rather than one at a time. Screens with Paper designs are built directly.
+
+## Shipping rule
+
+Agents open one PR per slice. When CI is green, merge and deploy to **dev** (migrations with
+`supabase db push --linked`, changed Edge Functions, `pnpm exec wrangler deploy` in
+`frontend/`), then smoke-test. Never `supabase config push`; Auth settings change only through
+the Management API for the specific fields. Production stays off-limits.
+
+## Scope (from the 2026-10-08 gap analysis)
+
+Build order follows P-02. Each slice gets an owner-visible blueprint in `docs/blueprints/`,
+then backend (migration, `api.*`, Edge routes, pgTAP, Deno tests), then frontend (routes,
+BFF `/api/*`, e2e).
+
+1. **Org management UI** (backend done): offices tree and lifecycle, members and membership
+   lifecycle, President Team, role-permission editor, access grants, evidence reviewers,
+   office totals, President audit log. Add close-office and role change (end + new
+   membership) to the backend.
+2. **Money groundwork:** unknown-outcome recovery for commands (F-03), activity list with
+   search/status filters and transaction detail, managed wallets and leadership dashboard.
+3. **Income recording UI** (backend done).
+4. **Withdrawals and payouts:** request/approve/reject/cancel, payout recording with reveal,
+   OpenAI receipt check, one correction, evidence review queue (W-09–W-11, W-13).
+5. **Pocket transfers, returned funds, adjustments, reversals, conversion** (W-12, W-14–W-16).
+6. **Statements and reports** (W-18), PDF + CSV.
+7. **Billing:** founder network setup, 7-day trial, plan picker, Paystack checkout and webhook,
+   activation, seat cap and upgrade, expiry suspension, receipts (W-19).
+8. **Notifications:** bell backend and UI, all M/B/T outbox templates.
+9. **Account and security:** sessions/devices, change PIN, profile edit, forgot password,
+   Turnstile, payout-account replace.
+10. **Workspace settings:** network branding (W-20), Chatwoot support, support email, restore
+    requests and full-network export (W-24), 404/no-access/paused screens, ⌘K search.
+
+Slices 1–3 and 9 can run in parallel now. Withdrawals (4) and transfers/corrections (5) share
+the ledger reservations and must be sequenced or carefully split. Billing (7) and
+notifications (8) are independent of the money slices. Statements (6) come after 4–5.
