@@ -13,6 +13,7 @@
 	import Bell from '@lucide/svelte/icons/bell';
 	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
+	import Download from '@lucide/svelte/icons/download';
 	import EyeOff from '@lucide/svelte/icons/eye-off';
 	import House from '@lucide/svelte/icons/house';
 	import IdCard from '@lucide/svelte/icons/id-card';
@@ -56,6 +57,7 @@
 	/** Navigation hint only; every command is still authorized by the backend. */
 	const TITLES: Record<string, string> = {
 		'/app/payout-accounts': 'Payout accounts',
+		'/app/income': 'Record income',
 		'/app/invitations': 'Invitations',
 		'/app/split': 'Pockets & split',
 		'/app/reviews': 'NIN reviews',
@@ -73,7 +75,7 @@
 		shell.state.kind === 'ready' &&
 		(shell.state.view.capabilities?.permissions ?? []).includes(permission);
 	/** Pushed pages (mobile Notifications) have their own nav bar and no tabs. */
-	const pushed = $derived(path.startsWith('/app/notifications'));
+	const pushed = $derived(path.startsWith('/app/notifications') || path.startsWith('/app/income'));
 	const tabMore = $derived(path.startsWith('/app/more'));
 	/** Only Home needs workspace data; More and Notifications keep their controls. */
 	const needsData = $derived(path === '/app');
@@ -138,6 +140,15 @@
 			>
 				<Landmark size={18} strokeWidth={1.5} aria-hidden="true" /><span>Payout accounts</span>
 			</a>
+			{#if can('record_income')}
+				<a
+					class="side-item"
+					href="/app/income"
+					aria-current={path.startsWith('/app/income') ? 'page' : undefined}
+				>
+					<Download size={18} strokeWidth={1.5} aria-hidden="true" /><span>Record income</span>
+				</a>
+			{/if}
 			{#if can('invite_members')}
 				<a
 					class="side-item"
