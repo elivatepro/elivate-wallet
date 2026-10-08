@@ -6,6 +6,7 @@
 import { fail, redirect, type RequestEvent } from '@sveltejs/kit';
 import { Effect, Exit } from 'effect';
 import { IDEMPOTENCY_KEY_PATTERN, UUID_PATTERN } from '#lib/contract/common.js';
+import { pathForGateCode } from '#lib/gate.js';
 import { isSelectable, type Workspace } from '#lib/contract/org.js';
 import { InvitationsApi, OrgApi } from '#lib/server/apis.js';
 import type { VerifiedSession } from '#lib/server/auth.js';
@@ -32,8 +33,13 @@ const listWorkspaces = (event: RequestEvent, session: VerifiedSession) =>
 		})
 	);
 
-const listInvitations = (event: RequestEvent, session: VerifiedSession) =>
-	callOrRedirect(
+/**
+ * Pending invitations for this person. A failure here must not block opening an
+ * existing workspace: gate/auth failures still redirect, anything else hides
+ * the list.
+ */
+async function listInvitations(event: RequestEvent, session: VerifiedSession) {
+	const exit = await runApi(
 		event,
 		session,
 		Effect.gen(function* () {
@@ -41,6 +47,14 @@ const listInvitations = (event: RequestEvent, session: VerifiedSession) =>
 			return yield* api.mine;
 		})
 	);
+	if (Exit.isSuccess(exit)) return exit.value;
+	const failure = failureOf(exit);
+	const gate = failure._tag === 'BackendError' && pathForGateCode(failure.code);
+	if (gate || (failure._tag === 'TransportError' && failure.status === 401)) {
+		redirectForFailure(failure);
+	}
+	return [];
+}
 
 /** One key per accept attempt; a failed post hands the same key back for the retry. */
 const newIdempotencyKey = () => crypto.randomUUID().replaceAll('-', '');

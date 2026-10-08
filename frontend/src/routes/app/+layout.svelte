@@ -51,6 +51,8 @@
 	/** Pushed pages (mobile Notifications) have their own nav bar and no tabs. */
 	const pushed = $derived(path.startsWith('/app/notifications'));
 	const tabMore = $derived(path.startsWith('/app/more'));
+	/** Only Home needs workspace data; More and Notifications keep their controls. */
+	const needsData = $derived(path === '/app');
 
 	async function reloadForUpdate() {
 		const registration = await navigator.serviceWorker?.getRegistration();
@@ -241,7 +243,7 @@
 				</div>
 			{/if}
 
-			{#if shell.state.kind === 'error'}
+			{#if needsData && shell.state.kind === 'error'}
 				<RootHero
 					pose="load-error"
 					title="We couldn’t load your workspace"
@@ -255,7 +257,7 @@
 						</p>
 					{/if}
 				</div>
-			{:else if shell.state.kind === 'offline' && !shell.state.summary}
+			{:else if needsData && shell.state.kind === 'offline' && !shell.state.summary}
 				<RootHero
 					pose="offline-empty"
 					title="You’re offline"
@@ -968,6 +970,20 @@
 
 	:global([data-theme='light'] .segment[data-state='checked']) {
 		background: var(--color-surface);
+	}
+
+	@media (prefers-color-scheme: light) {
+		:global([data-theme='system'] .segmented) {
+			background: var(--color-raised);
+		}
+
+		:global([data-theme='system'] .segment[data-state='checked']) {
+			background: var(--color-surface);
+		}
+
+		:global([data-theme='system'] .pop-divider) {
+			background: var(--color-border);
+		}
 	}
 
 	/* ── Desktop ───────────────────────────────────────────────────── */
