@@ -420,3 +420,6 @@ enabled = true
 
 [functions.security]
 verify_jwt = true
+
+[functions.org]
+verify_jwt = true

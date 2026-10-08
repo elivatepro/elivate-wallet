@@ -33,7 +33,7 @@ Common acceptance: no duplicate dispatch from reactivity, accessible busy/field/
 **Required behavior:**
 1. Public founder signup says Start your network. Supabase creates/verifies account identity; it does not create President authority merely because a role was selected.
 2. After verified account ownership, guide founder through approved tenant setup/configurable operational questions. Protected self-service/President controls are not editable role choices. Specific reviewers are assigned after active tenant membership exists.
-3. Production tenant activation must satisfy U-03/approved enrollment contract. Development one-time setup-code bootstrap is not unrestricted production onboarding or evidence of paid purchase.
+3. **Owner decision (2026-10-08):** the founding President Team Member creates their network themselves and chooses a plan and pays during setup; the network stays pending until payment activates it. Production tenant activation must satisfy U-03/approved enrollment contract. Development one-time setup-code bootstrap is not unrestricted production onboarding or evidence of paid purchase.
 4. Returning users use sign-in; recovery/password reset validates the supported Auth continuation and local redirect target. Preserve invitation continuation when applicable.
 5. Identity verification binds proper verified identity to permanent account UID; profile/rank changes do not replace it. Provider/NIN method and exact UID format require U-02. Do not claim a preview's NIN state is verified identity.
 6. Resume incomplete onboarding without repeating durable identity, membership or payment operations. Collect information progressively; do not force unnecessary fields upfront.
@@ -106,6 +106,13 @@ Invitation lifecycle is distinct from membership. An expired token cannot leave 
 - Changing an office's leader **replaces** the leader: the outgoing leader's leadership membership for that office ends, and the incoming leader receives a new active leadership membership for it (ending any membership they held in that same office). Other memberships, the wallet and all financial provenance are untouched. If the outgoing leader should stay in the network, that is a separate add-membership action.
 - A reason is mandatory to move, suspend or end a membership and to change a leader; it is recorded with actor and time.
 - Office money views and reports show the **total for the office and everything below it** (full descendant subtree), per currency, never mixing currencies.
+
+**Owner decisions (2026-10-08):**
+- Offices have no fixed chain. An office sits at the top of the tenant or under an office of a strictly higher kind (World Team > Director > Team Leader). A President Team Member can later place an office (with its subtree) under a new higher office, for example a World Team added above an existing Team Leader office. Reason and step-up required; money provenance is unchanged and subtree views follow the current tree.
+- Ordinary `member` memberships may sit in any office kind.
+- An office may have several leaders: every active membership holding the office kind's leader role is a leader, and an active office keeps at least one. Leaders can be added, or replaced one-for-one under the replacement rule above; the last leader cannot be ended or moved.
+- Only President Team Members add or remove President Team Members, with reason and step-up; at least one always remains.
+- Moving, suspending and ending a membership require step-up (the PIN) in addition to the reason.
 
 Add membership preserves another active relationship; move ends the old and creates/activates the destination while preserving history. Suspend affects that specific relationship; end means belonging ceased. Track actor/reason/time and invalidate authorization caches. One role/membership and one primary membership/tenant must remain consistent. Reorganization does not rewrite origin on old money/evidence or create a second wallet.
 

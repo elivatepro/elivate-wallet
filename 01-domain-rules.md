@@ -12,7 +12,7 @@ These rules govern every protected read, command, background job, and retry. Fro
 | Public UID | Permanent human-readable account identifier for support/lookup, statements and references. Email/phone is editable contact information, not identity. Format remains U-02. |
 | Verified identity | Proper/legal identity bound to the stable account/UID; not an editable display name or an AI guess. |
 | Tenant | One network/organization; subscription, configuration, branding, and top-level isolation boundary. |
-| Office | Tenant-owned `world_team`, `director`, or `team_leader` hierarchy node; parent and child must share the tenant and permitted hierarchy. No cycles. |
+| Office | Tenant-owned `world_team`, `director`, or `team_leader` hierarchy node; parent and child must share the tenant, and a parent must be of a strictly higher kind (or none; owner decision 2026-10-08, W-05). No cycles. |
 | Membership | Genuine belonging to a tenant/office with one exact fixed role; may coexist with other memberships. One primary membership per tenant. |
 | Invitation | Separate pending/redemption object; a token is neither an authenticated identity nor an active membership. |
 | Wallet | Account-owned global financial container, at most one per eligible user, never one per tenant/membership. President membership alone creates none. |
