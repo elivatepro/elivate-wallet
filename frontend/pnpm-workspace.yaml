@@ -1,0 +1,14 @@
+allowBuilds:
+  esbuild: true
+  workerd: true
+minimumReleaseAgeExclude:
+  - '@supabase/auth-js@2.117.3'
+  - '@supabase/functions-js@2.117.3'
+  - '@supabase/postgrest-js@2.117.3'
+  - '@supabase/realtime-js@2.117.3'
+  - '@supabase/storage-js@2.117.3'
+  - '@supabase/supabase-js@2.117.3'
+  - effect@4.0.2
+  - '@playwright/test@1.64.0'
+  - playwright-core@1.64.0
+  - playwright@1.64.0

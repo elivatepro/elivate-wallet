@@ -1,0 +1,14 @@
+# Cloudflare Workers static assets: headers for files served without the
+# Worker (the prerendered app shell, static files). Server-rendered pages get
+# their headers and nonce CSP from hooks.server.ts / the Kit config.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  X-Frame-Options: DENY
+
+/app
+  Cache-Control: no-cache
+
+/service-worker.js
+  Cache-Control: no-cache
