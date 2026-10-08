@@ -100,7 +100,9 @@ erDiagram
 
 No caching in this slice: every call resolves live, so revocations take effect on the next request, including retries. `authz_version` is bumped on every membership/rule/policy change, ready for caching later.
 
-Selected workspace narrowing (A-02): a leadership action from workspace W must target W's subtree, or be allowed by a matching explicit grant for that exact permission.
+Selected workspace narrowing (A-02): a leadership action from workspace W must target W's subtree, or be allowed by a matching explicit grant for that exact permission. Self-service rows are narrowed the same way: a person's own-wallet actions come from a workspace whose role allows them, so the President workspace never shows them (P-03). Reviewer assignments count only within the reviewer's own office subtree (President Team reviewers: the whole network).
+
+Lock order for membership changes: people (sorted) → office tree → tenant/office rows (`FOR NO KEY UPDATE`) → membership rows.
 
 ### B4. Commands (`api.*`) and routes (`org` function)
 

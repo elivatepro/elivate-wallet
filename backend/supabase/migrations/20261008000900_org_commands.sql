@@ -140,6 +140,17 @@ begin
 end;
 $$;
 
+-- Lock order for every membership change: people (sorted) → office tree →
+-- tenant/office rows (FOR NO KEY UPDATE, so foreign-key checks never wait) →
+-- membership rows.
+create function org.lock_people(p_tenant_id uuid, p_user_ids uuid[])
+returns void
+language sql
+set search_path = ''
+as $$
+  select org.lock_person(p_tenant_id, u) from (select distinct unnest(p_user_ids) as u order by 1) people;
+$$;
+
 -- ── Networks ──────────────────────────────────────────────────────────────
 
 create function api.start_network(
@@ -446,6 +457,8 @@ begin
     return replayed;
   end if;
 
+  perform org.lock_people(workspace.tenant_id,
+    array(select identity.account_by_uid(u) from unnest(clean_uids) u));
   perform org.lock_tree(workspace.tenant_id);
   insert into org.offices (tenant_id, parent_office_id, office_type, name, created_by)
   values (workspace.tenant_id, p_parent_office_id, p_type::org.office_type, clean_name, p_user_id)
@@ -550,7 +563,7 @@ begin
   end if;
 
   perform org.lock_tree(workspace.tenant_id);
-  select * into office from org.offices where id = office.id for update;
+  select * into office from org.offices where id = office.id for no key update;
   if office.parent_office_id is not distinct from p_parent_office_id then
     return identity.store_result(p_user_id, p_idempotency_key, 'place_office', request,
       jsonb_build_object('officeId', office.id, 'parentOfficeId', p_parent_office_id, 'changed', false));
@@ -608,7 +621,8 @@ begin
     return replayed;
   end if;
 
-  perform 1 from org.offices where id = office.id for update;
+  perform org.lock_people(workspace.tenant_id, array[leader_user_id]);
+  perform 1 from org.offices where id = office.id for no key update;
   leader := org.create_membership(workspace.tenant_id, office.id, leader_user_id, org.leader_role(office.office_type), p_user_id);
   perform org.bump_authz_version(workspace.tenant_id);
   perform audit.record_tenant(workspace.tenant_id, p_user_id, 'office.leader_added', 'membership', leader.id::text, clean_reason,
@@ -670,7 +684,8 @@ begin
     return replayed;
   end if;
 
-  perform 1 from org.offices where id = office.id for update;
+  perform org.lock_people(workspace.tenant_id, array[outgoing.user_id, incoming_user_id]);
+  perform 1 from org.offices where id = office.id for no key update;
   select * into outgoing from org.memberships where id = outgoing.id for update;
   if outgoing.status = 'ended' or outgoing.role <> org.leader_role(office.office_type) then
     perform identity.fail('conflict', jsonb_build_object('reason', 'not_a_current_leader'));
@@ -733,6 +748,7 @@ begin
     return replayed;
   end if;
 
+  perform org.lock_people(workspace.tenant_id, array[member_user_id]);
   created := org.create_membership(workspace.tenant_id, office.id, member_user_id, 'member', p_user_id);
   perform org.bump_authz_version(workspace.tenant_id);
   perform audit.record_tenant(workspace.tenant_id, p_user_id, 'membership.added', 'membership', created.id::text,
@@ -784,7 +800,8 @@ begin
     return replayed;
   end if;
 
-  perform 1 from org.offices where id in (target.office_id, destination.id) order by id for update;
+  perform org.lock_people(workspace.tenant_id, array[target.user_id]);
+  perform 1 from org.offices where id in (target.office_id, destination.id) order by id for no key update;
   select * into target from org.memberships where id = target.id for update;
   if target.status <> 'active' then
     perform identity.fail('conflict', jsonb_build_object('reason', 'membership_not_active'));
@@ -841,10 +858,11 @@ language plpgsql
 set search_path = ''
 as $$
 begin
+  perform org.lock_people(p_target.tenant_id, array[p_target.user_id]);
   if p_target.office_id is null then
-    perform 1 from org.tenants where id = p_target.tenant_id for update;
+    perform 1 from org.tenants where id = p_target.tenant_id for no key update;
   else
-    perform 1 from org.offices where id = p_target.office_id for update;
+    perform 1 from org.offices where id = p_target.office_id for no key update;
   end if;
 end;
 $$;
@@ -1011,7 +1029,8 @@ begin
     return replayed;
   end if;
 
-  perform 1 from org.tenants where id = workspace.tenant_id for update;
+  perform org.lock_people(workspace.tenant_id, array[president_user_id]);
+  perform 1 from org.tenants where id = workspace.tenant_id for no key update;
   created := org.create_membership(workspace.tenant_id, null, president_user_id, 'president_team_member', p_user_id);
   perform org.bump_authz_version(workspace.tenant_id);
   perform audit.record_tenant(workspace.tenant_id, p_user_id, 'president.added', 'membership', created.id::text, clean_reason,
