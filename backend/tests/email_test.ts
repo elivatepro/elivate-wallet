@@ -67,9 +67,11 @@ const params = {
   expiresAt: "2026-10-15T09:00:00Z",
 };
 const joinUrl = `https://app.elivatewallet.com/join#t=${"T".repeat(43)}`;
+const appUrl = "https://app.elivatewallet.com";
+const context = { joinUrl, appUrl };
 
-Deno.test("invitation email escapes names and follows P-06 copy", () => {
-  const email = renderEmail("invitation.issued", 1, params, { joinUrl });
+Deno.test("invitation email escapes names and follows the Paper A02 layout", () => {
+  const email = renderEmail("invitation.issued", 1, params, context);
   assertEquals(
     email.subject,
     `You're invited to join Lagos <script>alert("x")</script> & Co on Elivate Wallet`,
@@ -77,40 +79,48 @@ Deno.test("invitation email escapes names and follows P-06 copy", () => {
   assert(!email.html.includes("<script>"));
   assert(email.html.includes("Lagos &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; Co"));
   assert(email.html.includes("invited you to join as Team Leader."));
-  assert(email.html.includes(">Join</a>"));
+  assert(email.html.includes(">Accept invitation</a>"));
+  assert(email.html.includes("Team A · Team Leader"));
   assert(email.html.includes("INV-7K3M-9QP2"));
   assert(email.html.includes("15 October 2026"));
-  assert(email.html.includes("#FF7F4F"), "coral hero band");
+  assert(email.html.includes("#FF7F4F"), "coral button");
+  assert(email.html.includes(`${appUrl}/email/root-invitation.png`), "Root pose from the app");
+  assert(email.html.includes(`${appUrl}/email/hero.jpg`), "hero band");
+  assert(email.html.includes("Powered by Elivate Wallet"));
   assert(email.html.includes(`href="${joinUrl}"`));
   assertEquals((email.html.match(/<a /g) ?? []).length, 1, "one button");
 });
 
 Deno.test("invitation email has a plain-text part", () => {
-  const email = renderEmail("invitation.issued", 1, params, { joinUrl });
-  assert(email.text.includes(`Join: ${joinUrl}`));
+  const email = renderEmail("invitation.issued", 1, params, context);
+  assert(email.text.includes(`Accept invitation: ${joinUrl}`));
   assert(email.text.includes("Reference INV-7K3M-9QP2"));
   assert(!/<(a|p|h1|table)[ >]/.test(email.text), "no HTML in the text part");
 });
 
 Deno.test("subjects never carry line breaks", () => {
-  const email = renderEmail("invitation.issued", 1, { ...params, network: "Lagos\r\nBcc: x" }, {
-    joinUrl,
-  });
+  const email = renderEmail(
+    "invitation.issued",
+    1,
+    { ...params, network: "Lagos\r\nBcc: x" },
+    context,
+  );
   assert(!/[\r\n]/.test(email.subject));
 });
 
 Deno.test("only allowed params render; missing link or unknown template fails", () => {
   assertThrows(
-    () => renderEmail("invitation.issued", 1, { ...params, pin: "1234" }, { joinUrl }),
+    () => renderEmail("invitation.issued", 1, { ...params, pin: "1234" }, context),
     TemplateError,
   );
-  assertThrows(() => renderEmail("invitation.issued", 1, params), TemplateError);
+  assertThrows(() => renderEmail("invitation.issued", 1, params, { appUrl }), TemplateError);
+  assertThrows(() => renderEmail("invitation.issued", 1, params, { joinUrl }), TemplateError);
   assertThrows(
-    () => renderEmail("invitation.issued", 1, params, { joinUrl: "javascript:alert(1)" }),
+    () => renderEmail("invitation.issued", 1, params, { appUrl, joinUrl: "javascript:alert(1)" }),
     TemplateError,
   );
-  assertThrows(() => renderEmail("invitation.issued", 2, params, { joinUrl }), TemplateError);
-  assertThrows(() => renderEmail("nope", 1, params, { joinUrl }), TemplateError);
+  assertThrows(() => renderEmail("invitation.issued", 2, params, context), TemplateError);
+  assertThrows(() => renderEmail("nope", 1, params, context), TemplateError);
 });
 
 // ── Cloudflare adapter (17), fake transport only ──
