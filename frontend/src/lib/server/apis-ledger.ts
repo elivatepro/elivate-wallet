@@ -1,6 +1,7 @@
-// LedgerApi (Blueprint 04): own wallet, own activity, the network's split and
-// the President's split change (reason + step-up). Reads retry; the command
-// never does (the caller keeps its idempotency key).
+// LedgerApi (Blueprints 04 and 08): own wallet, own activity and transaction
+// detail, the network's split and the President's split change (reason +
+// step-up), managed wallets, the leadership overview and the unknown-outcome
+// lookup. Reads retry; the command never does (the caller keeps its key).
 
 import { Context, Effect, Layer, Schedule } from 'effect';
 import { isRetryableRead } from '#lib/contract/errors.js';
@@ -8,11 +9,28 @@ import {
 	Activity,
 	Allocation,
 	AllocationVersions,
+	CommandOutcome,
+	LeadershipOverview,
 	LedgerRoutes,
+	ManagedWallet,
+	ManagedWalletPage,
+	TransactionDetail,
 	Wallet,
+	type ActivityQuery,
 	type Allocation as AllocationType
 } from '#lib/contract/ledger.js';
 import { EdgeTransport, type EdgeFailure } from './edge';
+
+/** Only the keys that were set, as strings (the Edge rejects unknown or empty ones). */
+export function activityParams(
+	query: Readonly<Record<string, string | number | undefined>>
+): Record<string, string> {
+	const params: Record<string, string> = {};
+	for (const [key, value] of Object.entries(query)) {
+		if (value !== undefined && value !== null && value !== '') params[key] = String(value);
+	}
+	return params;
+}
 
 const readPolicy = {
 	times: 2,
@@ -29,10 +47,34 @@ export interface SplitInput {
 
 export interface LedgerApiShape {
 	readonly wallet: Effect.Effect<typeof Wallet.Type, EdgeFailure>;
-	readonly activity: (query: {
-		tenantId?: string;
-		limit?: number;
-	}) => Effect.Effect<typeof Activity.Type, EdgeFailure>;
+	readonly activity: (query: ActivityQuery) => Effect.Effect<typeof Activity.Type, EdgeFailure>;
+	readonly transaction: (id: string) => Effect.Effect<TransactionDetail, EdgeFailure>;
+	readonly commandOutcome: (
+		idempotencyKey: string,
+		command: string | null
+	) => Effect.Effect<CommandOutcome, EdgeFailure>;
+	readonly overview: (
+		membershipId: string,
+		tz: string | null
+	) => Effect.Effect<LeadershipOverview, EdgeFailure>;
+	readonly managedWallets: (
+		membershipId: string,
+		query: { q?: string; cursor?: string; officeId?: string }
+	) => Effect.Effect<ManagedWalletPage, EdgeFailure>;
+	readonly managedWallet: (
+		membershipId: string,
+		walletId: string
+	) => Effect.Effect<ManagedWallet, EdgeFailure>;
+	readonly managedActivity: (
+		membershipId: string,
+		walletId: string,
+		query: ActivityQuery
+	) => Effect.Effect<typeof Activity.Type, EdgeFailure>;
+	readonly managedTransaction: (
+		membershipId: string,
+		walletId: string,
+		id: string
+	) => Effect.Effect<TransactionDetail, EdgeFailure>;
 	readonly allocation: (membershipId: string) => Effect.Effect<AllocationType, EdgeFailure>;
 	readonly versions: (
 		membershipId: string
@@ -52,14 +94,66 @@ export const LedgerApiLive = Layer.effect(
 		const fn = 'ledger' as const;
 		return {
 			wallet: edge.call({ fn, route: LedgerRoutes.wallet }, Wallet).pipe(Effect.retry(readPolicy)),
-			activity: (query) => {
-				const params: Record<string, string> = {};
-				if (query.tenantId) params.tenantId = query.tenantId;
-				if (query.limit) params.limit = String(query.limit);
-				return edge
-					.call({ fn, route: LedgerRoutes.activity, query: params }, Activity)
-					.pipe(Effect.retry(readPolicy));
-			},
+			activity: (query) =>
+				edge
+					.call({ fn, route: LedgerRoutes.activity, query: activityParams(query) }, Activity)
+					.pipe(Effect.retry(readPolicy)),
+			transaction: (id) =>
+				edge
+					.call({ fn, route: LedgerRoutes.transaction(id) }, TransactionDetail)
+					.pipe(Effect.retry(readPolicy)),
+			// A read, but never retried on its own: the caller decides when to ask again.
+			commandOutcome: (idempotencyKey, command) =>
+				edge.call(
+					{
+						fn,
+						route: LedgerRoutes.commandOutcome,
+						query: command ? { idempotencyKey, command } : { idempotencyKey }
+					},
+					CommandOutcome
+				),
+			overview: (membershipId, tz) =>
+				edge
+					.call(
+						{ fn, route: LedgerRoutes.overview, membershipId, query: tz ? { tz } : {} },
+						LeadershipOverview
+					)
+					.pipe(Effect.retry(readPolicy)),
+			managedWallets: (membershipId, query) =>
+				edge
+					.call(
+						{
+							fn,
+							route: LedgerRoutes.managedWallets,
+							membershipId,
+							query: activityParams(query)
+						},
+						ManagedWalletPage
+					)
+					.pipe(Effect.retry(readPolicy)),
+			managedWallet: (membershipId, walletId) =>
+				edge
+					.call({ fn, route: LedgerRoutes.managedWallet(walletId), membershipId }, ManagedWallet)
+					.pipe(Effect.retry(readPolicy)),
+			managedActivity: (membershipId, walletId, query) =>
+				edge
+					.call(
+						{
+							fn,
+							route: LedgerRoutes.managedActivity(walletId),
+							membershipId,
+							query: activityParams(query)
+						},
+						Activity
+					)
+					.pipe(Effect.retry(readPolicy)),
+			managedTransaction: (membershipId, walletId, id) =>
+				edge
+					.call(
+						{ fn, route: LedgerRoutes.managedTransaction(walletId, id), membershipId },
+						TransactionDetail
+					)
+					.pipe(Effect.retry(readPolicy)),
 			allocation: (membershipId) =>
 				edge
 					.call({ fn, route: LedgerRoutes.allocation, membershipId }, Allocation)

@@ -39,7 +39,10 @@ export type RootPose =
 	| 'dialog-replace'
 	| 'dialog-remove'
 	| 'dialog-sign-out'
-	| 'dialog-profile';
+	| 'dialog-profile'
+	// Paper "App — Screens v1" B16/B16d (pocket watch) and T04 (clipboard).
+	| 'checking'
+	| 'team';
 
 /** Rendered Root size on mobile gate screens (Paper: 120×160, 150×200, 180×240). */
 export type RootSize = 'sm' | 'md' | 'lg';
@@ -88,7 +91,9 @@ export const ROOT_HEIGHTS: Record<RootPose, number> = {
 	'dialog-replace': 525,
 	'dialog-remove': 525,
 	'dialog-sign-out': 525,
-	'dialog-profile': 525
+	'dialog-profile': 525,
+	checking: 525,
+	team: 525
 };
 
 export const rootSrc = (pose: RootPose) => `/root/${pose}.webp`;

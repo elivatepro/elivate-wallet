@@ -129,7 +129,10 @@ export function sweepExpired(store: KeyValueStore, now: number = Date.now()): vo
 /** Removes every cached entry and the remembered scope (sign-out). */
 export function purgeAll(store: KeyValueStore): void {
 	for (const key of store.keys()) {
-		if (key.startsWith(PREFIX) || key === LAST_SCOPE_KEY) store.removeItem(key);
+		// Pending command attempts (#lib/recovery, ew:attempt:) go with the cache.
+		if (key.startsWith(PREFIX) || key.startsWith('ew:attempt:') || key === LAST_SCOPE_KEY) {
+			store.removeItem(key);
+		}
 	}
 }
 
