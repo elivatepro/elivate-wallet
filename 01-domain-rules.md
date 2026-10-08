@@ -172,6 +172,7 @@ Debit adjustments and reversals recheck current availability at posting rather t
 - Timeout, disconnect, reload or cancellation after dispatch is **outcome unknown**, not proof of rollback. Preserve the same key/payload and recover authoritatively. Never replace an uncertain financial attempt with a fresh key just to dismiss the UI error.
 - User cancellation of a network task is not domain cancellation. Use the trusted cancellation command; it must serialize against posting/transition and return the real result.
 - Client button disabling is useful UX, not idempotency or concurrency protection.
+- **Built 2026-10-08 (Blueprint 08):** the per-actor outcome lookup takes the same key lock as replay and returns only the attempt's fate (committed / cancelled / not found) and public reference; full results come only from a same-key replay under current authority. Browser recovery metadata is the key, command, workspace, time, a non-secret summary and the body without PIN/password/token/full account number, kept on the device for at most 24 h and erased at sign-out.
 
 ## E-01 — Financial evidence and trusted Storage
 
