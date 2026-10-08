@@ -21,8 +21,10 @@ select ok(
   not exists (
     select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname in ('ledger', 'finance', 'evidence') and p.prosecdef
+      and not (p.prorettype = 'trigger'::regtype and n.nspname = 'ledger'
+               and p.proname in ('check_journal_balanced', 'check_transaction_complete', 'check_policy_lines'))
   ),
-  'only api functions run as definer'
+  'only api functions run as definer (plus the three commit-time ledger checks)'
 );
 select ok(
   not exists (
