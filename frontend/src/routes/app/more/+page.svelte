@@ -13,6 +13,7 @@
 	import MailPlus from '@lucide/svelte/icons/mail-plus';
 	import PieChart from '@lucide/svelte/icons/chart-pie';
 	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
+	import Download from '@lucide/svelte/icons/download';
 	import EyeOff from '@lucide/svelte/icons/eye-off';
 	import LogOut from '@lucide/svelte/icons/log-out';
 	import Moon from '@lucide/svelte/icons/moon';
@@ -86,6 +87,13 @@
 			<span class="label">Payout accounts</span>
 			<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
 		</a>
+		{#if can('record_income')}
+			<a class="row" href="/app/income">
+				<Download size={20} strokeWidth={1.8} aria-hidden="true" />
+				<span class="label">Record income</span>
+				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
+			</a>
+		{/if}
 		<a class="row" href="/app/split">
 			<PieChart size={20} strokeWidth={1.8} aria-hidden="true" />
 			<span class="label">Pockets &amp; split</span>
