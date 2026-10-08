@@ -182,3 +182,21 @@ Deno.test("logs carry the route pattern, never ids", async () => {
   assertEquals(JSON.stringify(logs).includes(membershipId), false);
   assertEquals(JSON.stringify(logs).includes(actor.userId), false);
 });
+
+Deno.test("names and reasons follow the database lengths", async () => {
+  const { handler, calls } = setup();
+  const end = (reason: string) =>
+    request("POST", `/memberships/${membershipId}/end`, { reason, idempotencyKey: key });
+  const rename = (name: string) =>
+    request("PATCH", `/offices/${officeId}`, { name, idempotencyKey: key });
+  const network = (name: string, shortName: string) =>
+    request("POST", "/networks", { name, shortName, idempotencyKey: key }, {});
+  for (const r of [end("ab"), end("  ab  "), rename("A"), rename(" A "), network("L", "LGN")]) {
+    assertEquals((await handler(r)).status, 400);
+  }
+  assertEquals(calls.length, 0);
+  for (const r of [end("abc"), rename("Ab"), network("Lagos", "L")]) {
+    assertEquals((await handler(r)).status, 200);
+  }
+  assertEquals(calls.length, 3);
+});

@@ -13,7 +13,10 @@ const actor: Actor = {
   sessionId: "00000000-0000-0000-0000-00000000a0a1",
 };
 
-function setup(rpcResult: RpcResult = { data: { gate: "ready" }, error: null }) {
+function setup(
+  rpcResult: RpcResult = { data: { gate: "ready" }, error: null },
+  { sendFails = false } = {},
+) {
   const calls: { fn: string; args: Record<string, unknown> }[] = [];
   const logs: LogEntry[] = [];
   const resets: string[] = [];
@@ -26,7 +29,7 @@ function setup(rpcResult: RpcResult = { data: { gate: "ready" }, error: null }) 
     pinHmac: (pin) => Promise.resolve(`hmac(${pin})`),
     sendResetLink: (userId) => {
       resets.push(userId);
-      return Promise.resolve();
+      return sendFails ? Promise.reject(new Error("smtp down")) : Promise.resolve();
     },
     log: (entry) => logs.push(entry),
     allowedOrigins: ["https://app.elivatewallet.com"],
@@ -128,6 +131,28 @@ Deno.test("reset request emails the link after recording the request", async () 
   assertEquals(resets, [actor.userId]);
 });
 
+Deno.test("a failed reset email releases the cooldown and says no email went out", async () => {
+  const { handler, calls } = setup({ data: { expiresAt: "x" }, error: null }, { sendFails: true });
+  const response = await handler(request("POST", "/pin/reset/request", {}));
+  const body = await response.json();
+  assertEquals(response.status, 500);
+  assertEquals(body.error.code, "internal_error");
+  assertEquals(body.error.retryable, true);
+  assertEquals(body.error.details.emailSent, false);
+  assertEquals(calls.map((c) => c.fn), ["request_pin_reset", "cancel_pin_reset"]);
+  assertEquals(calls[1]?.args.p_user_id, actor.userId);
+  assertFalse(JSON.stringify(body).includes("smtp"));
+});
+
+Deno.test("non-object database results are internal errors", async () => {
+  for (const data of [null, "ready", 1]) {
+    const { handler } = setup({ data, error: null });
+    const response = await handler(request("GET", "/state"));
+    assertEquals(response.status, 500);
+    assertEquals((await response.json()).error.code, "internal_error");
+  }
+});
+
 Deno.test("session revoke needs exactly one of sessionId or allOthers", async () => {
   const { handler } = setup();
   assertEquals((await handler(request("POST", "/sessions/revoke", {}))).status, 400);
@@ -154,13 +179,50 @@ Deno.test("status change validates UID, status, reason and idempotency key", asy
   assertEquals((await handler(request("POST", "/admin/accounts/status", ok))).status, 200);
   assertEquals(calls[0]?.args.p_target_uid, "EW-48213");
   for (
-    const bad of [{ ...ok, status: "closed" }, { ...ok, reason: " " }, {
-      ...ok,
-      idempotencyKey: "short",
-    }, { ...ok, targetUid: "48213" }]
+    const bad of [
+      { ...ok, status: "closed" },
+      { ...ok, reason: " " },
+      {
+        ...ok,
+        idempotencyKey: "short",
+      },
+      { ...ok, targetUid: "48213" },
+      { ...ok, reason: "ab" },
+      { ...ok, reason: "  ab  " },
+      {
+        ...ok,
+        reason: "x".repeat(501),
+      },
+    ]
   ) {
     assertEquals((await handler(request("POST", "/admin/accounts/status", bad))).status, 400);
   }
+});
+
+Deno.test("reason length counts trimmed characters like the database", async () => {
+  const { handler, calls } = setup();
+  const body = (reason: string) => ({
+    targetUid: "EW-48213",
+    reason,
+    idempotencyKey: "key-0000000000000001",
+  });
+  assertEquals(
+    (await handler(request("POST", "/admin/admins/grant", body("  abc  ")))).status,
+    200,
+  );
+  assertEquals(
+    (await handler(request("POST", "/admin/admins/grant", body("é".repeat(500))))).status,
+    200,
+  );
+  assertEquals(
+    (await handler(request("POST", "/admin/admins/grant", body("😀".repeat(500))))).status,
+    200,
+  );
+  assertEquals(
+    (await handler(request("POST", "/admin/admins/grant", body("😀".repeat(501))))).status,
+    400,
+  );
+  assertEquals(calls.length, 3);
 });
 
 Deno.test("logs carry no PIN, token or user identifiers", async () => {

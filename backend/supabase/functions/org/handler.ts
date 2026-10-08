@@ -232,7 +232,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       const body = await v.readBody(c.request, ["name", "shortName", "idempotencyKey"]);
       return call("start_network", {
         ...commandArgs(c),
-        p_name: v.text(body, "name", 100),
+        p_name: v.name(body),
         p_short_name: v.text(body, "shortName", 30),
         p_idempotency_key: v.idempotencyKey(body),
       });
@@ -243,7 +243,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       return call("activate_tenant", {
         ...commandArgs(c),
         p_tenant_id: c.params.id,
-        p_reason: v.text(body, "reason", 500),
+        p_reason: v.reason(body),
         p_idempotency_key: v.idempotencyKey(body),
       });
     }),
@@ -281,7 +281,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       return call("create_office", {
         ...commandInWorkspace(c),
         p_type: oneOf(v.text(body, "type", 20), "type", ["world_team", "director", "team_leader"]),
-        p_name: v.text(body, "name", 100),
+        p_name: v.name(body),
         p_parent_office_id: optionalUuid(body, "parentOfficeId"),
         p_leader_uids: uidList(body, "leaderUids"),
         p_idempotency_key: v.idempotencyKey(body),
@@ -293,7 +293,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       return call("rename_office", {
         ...commandInWorkspace(c),
         p_office_id: c.params.id,
-        p_name: v.text(body, "name", 100),
+        p_name: v.name(body),
         p_idempotency_key: v.idempotencyKey(body),
       });
     }),
@@ -307,7 +307,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
         ...commandInWorkspace(c),
         p_office_id: c.params.id,
         p_parent_office_id: optionalUuid(body, "parentOfficeId"),
-        p_reason: v.text(body, "reason", 500),
+        p_reason: v.reason(body),
         p_idempotency_key: v.idempotencyKey(body),
       });
     }),
@@ -318,7 +318,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
         ...commandInWorkspace(c),
         p_office_id: c.params.id,
         p_leader_uid: v.uid(body, "leaderUid"),
-        p_reason: v.text(body, "reason", 500),
+        p_reason: v.reason(body),
         p_idempotency_key: v.idempotencyKey(body),
       });
     }),
@@ -335,7 +335,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
         p_office_id: c.params.id,
         p_outgoing_membership_id: v.uuid(body, "outgoingMembershipId"),
         p_incoming_uid: v.uid(body, "incomingUid"),
-        p_reason: v.text(body, "reason", 500),
+        p_reason: v.reason(body),
         p_idempotency_key: v.idempotencyKey(body),
       });
     }),
@@ -368,7 +368,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
         ...commandInWorkspace(c),
         p_target_membership_id: c.params.id,
         p_to_office_id: v.uuid(body, "toOfficeId"),
-        p_reason: v.text(body, "reason", 500),
+        p_reason: v.reason(body),
         p_idempotency_key: v.idempotencyKey(body),
       });
     }),
@@ -381,7 +381,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       return call("end_membership", {
         ...commandInWorkspace(c),
         p_target_membership_id: c.params.id,
-        p_reason: v.text(body, "reason", 500),
+        p_reason: v.reason(body),
         p_idempotency_key: v.idempotencyKey(body),
       });
     }),
@@ -391,7 +391,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       return call("add_president", {
         ...commandInWorkspace(c),
         p_member_uid: v.uid(body, "memberUid"),
-        p_reason: v.text(body, "reason", 500),
+        p_reason: v.reason(body),
         p_idempotency_key: v.idempotencyKey(body),
       });
     }),
@@ -401,7 +401,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       return call("remove_president", {
         ...commandInWorkspace(c),
         p_target_membership_id: c.params.id,
-        p_reason: v.text(body, "reason", 500),
+        p_reason: v.reason(body),
         p_idempotency_key: v.idempotencyKey(body),
       });
     }),
@@ -427,7 +427,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
         p_role: oneOf(v.text(body, "role", 30), "role", roles),
         p_permission_key: v.text(body, "permission", 60),
         p_allowed: body.allowed,
-        p_reason: v.text(body, "reason", 500),
+        p_reason: v.reason(body),
         p_idempotency_key: v.idempotencyKey(body),
       });
     }),
@@ -447,7 +447,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
         ...commandInWorkspace(c),
         p_subject_uid: v.uid(body, "subjectUid"),
         p_rules: rules(body),
-        p_reason: v.text(body, "reason", 500),
+        p_reason: v.reason(body),
         p_idempotency_key: v.idempotencyKey(body),
       });
     }),
@@ -457,7 +457,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       return call("revoke_access_assignment", {
         ...commandInWorkspace(c),
         p_assignment_id: c.params.id,
-        p_reason: v.text(body, "reason", 500),
+        p_reason: v.reason(body),
         p_idempotency_key: v.idempotencyKey(body),
       });
     }),
@@ -472,7 +472,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       return call("assign_reviewer", {
         ...commandInWorkspace(c),
         p_target_membership_id: v.uuid(body, "membershipId"),
-        p_reason: v.text(body, "reason", 500),
+        p_reason: v.reason(body),
         p_idempotency_key: v.idempotencyKey(body),
       });
     }),
@@ -482,7 +482,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       return call("end_reviewer", {
         ...commandInWorkspace(c),
         p_assignment_id: c.params.id,
-        p_reason: v.text(body, "reason", 500),
+        p_reason: v.reason(body),
         p_idempotency_key: v.idempotencyKey(body),
       });
     }),
@@ -503,7 +503,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       ...commandInWorkspace(c),
       p_target_membership_id: c.params.id,
       p_status: status,
-      p_reason: v.text(body, "reason", 500),
+      p_reason: v.reason(body),
       p_idempotency_key: v.idempotencyKey(body),
     });
   }

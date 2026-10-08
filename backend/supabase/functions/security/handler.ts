@@ -65,6 +65,10 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       }
       throw new Error(`rpc ${fn} failed`);
     }
+    // Every command returns a JSON object or array; anything else is contract drift.
+    if (typeof data !== "object" || data === null) {
+      throw new Error(`rpc ${fn} returned an unexpected result`);
+    }
     return data;
   }
 
@@ -99,7 +103,14 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
     "POST /pin/reset/request": async (request, actor, requestId) => {
       await v.readBody(request, []);
       const result = await call("request_pin_reset", base(actor, requestId));
-      await deps.sendResetLink(actor.userId);
+      try {
+        await deps.sendResetLink(actor.userId);
+      } catch {
+        // No email went out: withdraw the request so the 60-second cooldown
+        // does not block an immediate retry, and say so explicitly.
+        await call("cancel_pin_reset", base(actor, requestId)).catch(() => undefined);
+        throw new ApiError("internal_error", { emailSent: false });
+      }
       return result;
     },
 
@@ -137,7 +148,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
         ...base(actor, requestId),
         p_target_uid: v.uid(body, "targetUid"),
         p_status: status,
-        p_reason: v.text(body, "reason", 500),
+        p_reason: v.reason(body),
         p_idempotency_key: v.idempotencyKey(body),
       });
     },
@@ -153,7 +164,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
     return call(fn, {
       ...base(actor, requestId),
       p_target_uid: v.uid(body, "targetUid"),
-      p_reason: v.text(body, "reason", 500),
+      p_reason: v.reason(body),
       p_idempotency_key: v.idempotencyKey(body),
     });
   }
