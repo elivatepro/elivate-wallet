@@ -39,6 +39,13 @@ export const errorStatus = {
   evidence_invalid: 422,
   attempt_cancelled: 409,
   insufficient_funds: 409,
+  bank_unknown: 422,
+  account_not_found: 422,
+  provider_unavailable: 503,
+  payout_lookup_expired: 409,
+  payout_name_mismatch: 422,
+  payout_account_exists: 409,
+  payout_account_unusable: 409,
 } as const;
 
 export type ErrorCode = keyof typeof errorStatus;
@@ -82,7 +89,20 @@ const messages: Record<ErrorCode, string> = {
   evidence_invalid: "A receipt can't be used.",
   attempt_cancelled: "This attempt was cancelled.",
   insufficient_funds: "There isn't enough available in this pocket.",
+  bank_unknown: "Choose a bank from the list.",
+  account_not_found: "No account with that number was found at this bank.",
+  provider_unavailable: "Bank lookup isn't available right now. Try again shortly.",
+  payout_lookup_expired: "This account check has expired. Look the account up again.",
+  payout_name_mismatch: "The name on this bank account doesn't match the name on your NIN.",
+  payout_account_exists: "You've already saved this bank account.",
+  payout_account_unusable: "This bank account can't receive withdrawals right now.",
 };
+
+const retryableCodes: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
+  "internal_error",
+  "rate_limited",
+  "provider_unavailable",
+]);
 
 export type Details = Readonly<Record<string, unknown>>;
 
@@ -129,7 +149,7 @@ export function failure(
     error: {
       code,
       message: messages[code],
-      retryable: code === "internal_error" || code === "rate_limited",
+      retryable: retryableCodes.has(code),
       details,
     },
     requestId,
