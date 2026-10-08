@@ -135,10 +135,7 @@ export const SecurityApiLive = Layer.effect(
 				.call({ fn: 'security', route: SecurityRoutes.sessions }, Sessions)
 				.pipe(Effect.retry(readPolicy)),
 			revokeSessions: (input) =>
-				edge.call(
-					{ fn: 'security', route: SecurityRoutes.sessionsRevoke, body: input },
-					Revoked
-				),
+				edge.call({ fn: 'security', route: SecurityRoutes.sessionsRevoke, body: input }, Revoked),
 			changePin: (input) =>
 				(Schema.is(Pin)(input.currentPin)
 					? validate(PinSetRequest, { pin: input.pin, pinConfirm: input.pinConfirm })

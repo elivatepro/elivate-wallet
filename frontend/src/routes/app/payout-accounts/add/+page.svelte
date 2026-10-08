@@ -297,8 +297,7 @@
 									maxlength="500"
 									bind:value={reason}
 									aria-invalid={errors.reason ? 'true' : undefined}
-									aria-describedby={errors.reason ? 'reason-error' : undefined}
-								></textarea>
+									aria-describedby={errors.reason ? 'reason-error' : undefined}></textarea>
 								{#if errors.reason}<p class="error" id="reason-error">{errors.reason}</p>{/if}
 							</div>
 						{/if}

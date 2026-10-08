@@ -41,7 +41,12 @@ describe('verifyTurnstile', () => {
 
 	it('posts secret, token and IP to siteverify and accepts success', async () => {
 		const { fetch, calls } = fakeFetch({ success: true, action: 'sign-up' });
-		const outcome = await verifyTurnstile({ secret: 's3cret', fetch }, form('tok'), 'sign-up', '1.2.3.4');
+		const outcome = await verifyTurnstile(
+			{ secret: 's3cret', fetch },
+			form('tok'),
+			'sign-up',
+			'1.2.3.4'
+		);
 		expect(outcome).toEqual({ ok: true });
 		expect(calls[0]?.url).toBe(SITEVERIFY_URL);
 		expect(calls[0]?.body.get('secret')).toBe('s3cret');
@@ -51,23 +56,23 @@ describe('verifyTurnstile', () => {
 
 	it('rejects failures and tokens minted for another form', async () => {
 		const failed = fakeFetch({ success: false, 'error-codes': ['invalid-input-response'] });
-		expect(await verifyTurnstile({ secret: 's', fetch: failed.fetch }, form('t'), 'sign-in', null)).toEqual(
-			{ ok: false, reason: 'rejected' }
-		);
+		expect(
+			await verifyTurnstile({ secret: 's', fetch: failed.fetch }, form('t'), 'sign-in', null)
+		).toEqual({ ok: false, reason: 'rejected' });
 		const other = fakeFetch({ success: true, action: 'sign-up' });
-		expect(await verifyTurnstile({ secret: 's', fetch: other.fetch }, form('t'), 'sign-in', null)).toEqual(
-			{ ok: false, reason: 'rejected' }
-		);
+		expect(
+			await verifyTurnstile({ secret: 's', fetch: other.fetch }, form('t'), 'sign-in', null)
+		).toEqual({ ok: false, reason: 'rejected' });
 	});
 
 	it('treats an unreachable or malformed siteverify as unavailable', async () => {
 		const down = fakeFetch({}, 500);
-		expect(await verifyTurnstile({ secret: 's', fetch: down.fetch }, form('t'), 'sign-in', null)).toEqual(
-			{ ok: false, reason: 'unavailable' }
-		);
+		expect(
+			await verifyTurnstile({ secret: 's', fetch: down.fetch }, form('t'), 'sign-in', null)
+		).toEqual({ ok: false, reason: 'unavailable' });
 		const odd = fakeFetch({ success: 'yes' });
-		expect(await verifyTurnstile({ secret: 's', fetch: odd.fetch }, form('t'), 'sign-in', null)).toEqual(
-			{ ok: false, reason: 'unavailable' }
-		);
+		expect(
+			await verifyTurnstile({ secret: 's', fetch: odd.fetch }, form('t'), 'sign-in', null)
+		).toEqual({ ok: false, reason: 'unavailable' });
 	});
 });

@@ -101,3 +101,20 @@ export function sendCommand<S extends Schema.ConstraintDecoder<unknown>>(
 }
 
 export const newKey = () => crypto.randomUUID().replaceAll('-', '');
+
+/**
+ * An account-level same-origin command (Blueprint 10: sessions, PIN change,
+ * profile). No workspace echo: these do not depend on the selected workspace.
+ * Never retried.
+ */
+export function sendAccountCommand<S extends Schema.ConstraintDecoder<unknown>>(
+	path: string,
+	method: 'POST' | 'PATCH',
+	body: unknown,
+	schema: S
+): Effect.Effect<S['Type'], ApiFailure> {
+	return requestJson(
+		{ fetch, url: path, method, route: `${method} ${path}`, body, timeoutMs: COMMAND_TIMEOUT_MS },
+		schema
+	);
+}
