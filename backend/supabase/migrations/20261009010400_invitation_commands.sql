@@ -550,18 +550,22 @@ begin
     return replayed;
   end if;
 
-  -- Already accepted by this person (e.g. another device): same result.
-  if invitation.status = 'accepted' then
+  perform org.lock_person(invitation.tenant_id, p_user_id);
+  perform 1 from org.offices where id = invitation.office_id for no key update;
+  select * into invitation from org.invitations where id = invitation.id for update;
+
+  -- Already accepted by this person (another device, possibly at the same
+  -- moment): the same result, checked under the lock.
+  if invitation.status = 'accepted' and invitation.accepted_user_id = p_user_id then
     return identity.store_result(p_user_id, p_idempotency_key, 'accept_invitation', request,
       (select jsonb_build_object('invitationId', invitation.id, 'membershipId', m.id, 'tenantId', m.tenant_id,
          'officeId', m.office_id, 'role', m.role, 'isPrimary', m.is_primary)
        from org.memberships m where m.id = invitation.accepted_membership_id));
   end if;
-
-  perform org.lock_person(invitation.tenant_id, p_user_id);
-  perform 1 from org.offices where id = invitation.office_id for no key update;
-  select * into invitation from org.invitations where id = invitation.id for update;
+  -- Re-validated under the lock; a link replaced by a concurrent reissue no
+  -- longer works.
   if org.invitation_effective_status(invitation) <> 'pending'
+    or (p_token_digest is not null and invitation.token_digest <> org.token_digest(p_token_digest))
     or (select status from org.tenants where id = invitation.tenant_id) <> 'active'
     or (select status from org.offices where id = invitation.office_id) <> 'active' then
     perform identity.fail('invitation_unavailable');

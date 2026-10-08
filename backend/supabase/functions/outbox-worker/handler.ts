@@ -47,7 +47,17 @@ export interface Deps {
   log(entry: WorkerLogEntry): void;
   readonly batchSize?: number;
   readonly maxBatches?: number;
+  /** Stop claiming new batches after this long (ms). */
+  readonly timeBudgetMs?: number;
 }
+
+/**
+ * Lease sizing: emails in a batch are sent one after another, each bounded by
+ * the transport timeout (15 s). 5 × 15 s = 75 s stays inside the 120 s lease,
+ * so a later run never re-claims an email this run is still about to send.
+ */
+const defaultBatchSize = 5;
+const leaseSeconds = 120;
 
 interface Claimed {
   readonly eventId: string;
@@ -101,8 +111,9 @@ function parseClaimed(data: unknown): Claimed[] {
 }
 
 export function createHandler(deps: Deps): (request: Request) => Promise<Response> {
-  const batchSize = deps.batchSize ?? 25;
-  const maxBatches = deps.maxBatches ?? 4;
+  const batchSize = deps.batchSize ?? defaultBatchSize;
+  const maxBatches = deps.maxBatches ?? 8;
+  const timeBudgetMs = deps.timeBudgetMs ?? 40_000;
 
   async function call(fn: string, args: Record<string, unknown>): Promise<unknown> {
     const { data, error } = await deps.rpc(fn, args);
@@ -206,12 +217,12 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
 
       const counts: Record<string, number> = {};
       let claimed = 0;
-      for (let batch = 0; batch < maxBatches; batch++) {
+      for (let batch = 0; batch < maxBatches && Date.now() - started < timeBudgetMs; batch++) {
         const items = parseClaimed(
           await call("outbox_claim", {
             p_worker_id: deps.workerId,
             p_batch_size: batchSize,
-            p_lease_seconds: 60,
+            p_lease_seconds: leaseSeconds,
           }),
         );
         claimed += items.length;

@@ -120,6 +120,9 @@ Deno.test("processes claimed batches and reports each event", async () => {
       `https://app.elivatewallet.com/join#t=${tokenFor("20000000-0000-0000-0000-000000000001")}`,
     ),
   );
+  const claim = calls.find((c) => c.fn === "outbox_claim");
+  assertEquals(claim?.args.p_batch_size, 2);
+  assertEquals(claim?.args.p_lease_seconds, 120, "lease covers a whole batch of sequential sends");
   const completes = calls.filter((c) => c.fn === "outbox_complete");
   assertEquals(completes.length, 3);
   assertEquals(completes[0]?.args.p_lease_token, "10000000-0000-0000-0000-000000000001");
@@ -175,4 +178,27 @@ Deno.test("only POST to the worker path is served", async () => {
     }),
   );
   assertEquals(get.status, 404);
+});
+
+Deno.test("no new batch is claimed once the time budget is spent", async () => {
+  const { handler, calls } = setup({ claims: [[item(1)]] });
+  const budgeted = createHandler({
+    rpc: (fn, args) => {
+      calls.push({ fn, args });
+      return Promise.resolve({ data: { expiredInvitations: 0 }, error: null });
+    },
+    workerSecret: secret,
+    email: {
+      transport: { send: () => Promise.reject(new Error("must not send")) },
+      token: () => Promise.resolve("x"),
+      appOrigin: "https://app.elivatewallet.com",
+    },
+    workerId: "test-worker",
+    log: () => {},
+    timeBudgetMs: 0,
+  });
+  assert(handler);
+  const body = await (await budgeted(run())).json();
+  assertEquals(body.data.claimed, 0);
+  assertEquals(calls.map((c) => c.fn), ["outbox_run_maintenance"]);
 });
