@@ -2,7 +2,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import { Effect, Exit } from 'effect';
 import { SecurityApi } from '#lib/server/apis.js';
 import { authFailureFrom } from '#lib/server/auth.js';
-import { clearWorkspace } from '#lib/server/cookies.js';
+import { clearWorkspace, readJoinToken } from '#lib/server/cookies.js';
 import { failureOf, redirectForFailure } from '#lib/server/flow.js';
 import { runApi } from '#lib/server/request.js';
 import { GATE_PATHS } from '#lib/gate.js';
@@ -45,6 +45,8 @@ export const actions: Actions = {
 			})
 		);
 		if (Exit.isFailure(exit)) redirectForFailure(failureOf(exit));
+		// An invitation link opened in this browser continues after sign-in (W-02 step 5).
+		if (readJoinToken(event.cookies)) redirect(303, '/join');
 		redirect(303, GATE_PATHS[exit.value.gate]);
 	}
 };

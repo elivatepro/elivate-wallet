@@ -15,3 +15,13 @@ export const TENANT_STATUS_LABELS: Record<TenantStatus, string | null> = {
 	suspended: 'Network suspended',
 	deactivated: 'Network deactivated'
 };
+
+/**
+ * Before the person proves the address, the join page shows it masked (Paper
+ * "Authentication v2" 08): first character, five dots, then the domain.
+ */
+export function maskEmail(email: string): string {
+	const at = email.lastIndexOf('@');
+	if (at < 1) return '•••••';
+	return `${email[0]}•••••${email.slice(at)}`;
+}

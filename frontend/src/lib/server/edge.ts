@@ -37,8 +37,11 @@ export class EdgeTransport extends Context.Service<EdgeTransport, EdgeTransportS
 export interface EdgeTransportOptions {
 	readonly supabaseUrl: string;
 	readonly publishableKey: string;
-	/** The signed-in user's access token (already verified by the caller). */
-	readonly accessToken: string;
+	/**
+	 * The signed-in user's access token (already verified by the caller), or
+	 * null for the public invitation routes (preview, verify-email).
+	 */
+	readonly accessToken: string | null;
 	readonly fetch: typeof globalThis.fetch;
 	readonly signal?: AbortSignal;
 }
@@ -48,10 +51,8 @@ export function makeEdgeTransport(options: EdgeTransportOptions): EdgeTransportS
 		call: (call, schema) => {
 			const url = new URL(`/functions/v1/${call.fn}${call.route.path}`, options.supabaseUrl);
 			for (const [key, value] of Object.entries(call.query ?? {})) url.searchParams.set(key, value);
-			const headers: Record<string, string> = {
-				authorization: `Bearer ${options.accessToken}`,
-				apikey: options.publishableKey
-			};
+			const headers: Record<string, string> = { apikey: options.publishableKey };
+			if (options.accessToken) headers.authorization = `Bearer ${options.accessToken}`;
 			if (call.membershipId) headers['x-membership'] = call.membershipId;
 			return requestJson(
 				{
