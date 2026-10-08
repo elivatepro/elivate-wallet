@@ -64,7 +64,7 @@
 	<AuthHeading
 		eyebrow="Step 2 · Under review"
 		title="Your leader is reviewing it"
-		lead="We’ve asked your leaders to check your NIN. Come back here once it’s done."
+		lead="We’ve asked your leaders to check your NIN. We’ll email you once they decide."
 	/>
 	<SummaryCard
 		rows={[

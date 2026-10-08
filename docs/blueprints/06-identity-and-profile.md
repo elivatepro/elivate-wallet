@@ -13,7 +13,7 @@ Status: **owner instructed "build everything now" (2026-10-08)**; decisions belo
 7. **Photos live in Cloudflare R2** (owner decision), in a private bucket. The app server (Cloudflare Worker) stores the image and serves it only to the signed-in owner. The database keeps only the object key.
 
 ### Not in it
-- Review emails ("we'll email you"): the template and recipient rules are U-11. Status shows in the app; copy on the review screen must not promise an email until a template is approved.
+- Review emails ("we'll email you"): **done 2026-10-08 (owner request).** Paper "Emails — Transactional v2" A14b (confirmed) / A14c (not confirmed); outbox template `identity.nin_review_decided` v1 (params `decision`, `network`, optional `office`), enqueued by a trigger when a review leaves `pending` (leader or admin), sent to the reviewed person only. Never the NIN, its last 4, the typed name or the reviewer's reason (the app does not show the reason to the person either). The review screen says "We'll email you once they decide." Migration `20261009060100`.
 - Leaders seeing other people's photos (member lists): later.
 - Reviewer UI in the admin app (the admin app doesn't exist yet); API routes exist.
 - Re-verification or NIN change after locking: support only.
