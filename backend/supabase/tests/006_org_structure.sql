@@ -35,7 +35,7 @@ select 'tenant', (api.start_network(pg_temp.u(1), pg_temp.s(1), 'Lagos Network',
 
 select is((select status::text from org.tenants where id = pg_temp.id('tenant')), 'pending_payment', 'a new network awaits payment');
 select is((select role::text from org.memberships where user_id = pg_temp.u(1)), 'president_team_member', 'the founder is its first President Team Member');
-select is((select count(*)::int from authz.role_permissions where tenant_id = pg_temp.id('tenant')), 155, 'role policy seeded with the A-03 matrix (31 × 5)');
+select is((select count(*)::int from authz.role_permissions where tenant_id = pg_temp.id('tenant')), 160, 'role policy seeded with the A-03 matrix (32 × 5, incl. manage_allocation)');
 select throws_ok(
   $$ select api.start_network(pg_temp.u(1), pg_temp.s(1), 'Second', 'SEC', pg_temp.k()) $$,
   'P0001', 'conflict', 'one network awaiting payment per founder'
