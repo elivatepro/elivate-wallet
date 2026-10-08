@@ -7,6 +7,7 @@
 -->
 <script lang="ts">
 	import { getContext } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { Cause, Effect, Exit, Option } from 'effect';
 	import { DropdownMenu } from 'bits-ui';
 	import Check from '@lucide/svelte/icons/check';
@@ -17,6 +18,7 @@
 	import Landmark from '@lucide/svelte/icons/landmark';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Star from '@lucide/svelte/icons/star';
+	import Replace from '@lucide/svelte/icons/replace';
 	import Trash from '@lucide/svelte/icons/trash-2';
 	import X from '@lucide/svelte/icons/x';
 	import { PayoutAccountsView, payoutPrimaryPath, payoutRemovePath } from '#lib/contract/app.js';
@@ -249,6 +251,18 @@
 											<span class="menu-label">Make primary</span>
 										</DropdownMenu.Item>
 									{/if}
+									<!-- Replace (W-17): new lookup + reason + PIN. Undrawn in Paper; waits on approval. -->
+									<DropdownMenu.Item
+										class="menu-row"
+										disabled={!shell.canAct}
+										onSelect={() =>
+											setTimeout(() =>
+												goto(`/app/payout-accounts/add?replace=${account.payoutAccountId}`)
+											)}
+									>
+										<Replace size={16} strokeWidth={1.8} aria-hidden="true" />
+										<span class="menu-label">Replace account</span>
+									</DropdownMenu.Item>
 									<DropdownMenu.Item
 										class="menu-row danger"
 										disabled={!shell.canAct}

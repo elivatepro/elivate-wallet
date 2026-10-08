@@ -32,7 +32,10 @@ export type RootPose =
 	| 'onboard-profile'
 	| 'onboard-bank'
 	| 'onboard-stop'
-	| 'onboard-done';
+	| 'onboard-done'
+	| 'account-security'
+	| 'account-devices'
+	| 'account-pin-change';
 
 /** Rendered Root size on mobile gate screens (Paper: 120×160, 150×200, 180×240). */
 export type RootSize = 'sm' | 'md' | 'lg';
@@ -70,7 +73,12 @@ export const ROOT_HEIGHTS: Record<RootPose, number> = {
 	'onboard-profile': 525,
 	'onboard-bank': 525,
 	'onboard-stop': 525,
-	'onboard-done': 525
+	'onboard-done': 525,
+	// Paper "App — Screens v1" B09/B10 (Profile & security, padlock) and
+	// "App — Screens v2" S03/S04 (juggling devices), S05/S06 (shh, secret).
+	'account-security': 525,
+	'account-devices': 525,
+	'account-pin-change': 525
 };
 
 export const rootSrc = (pose: RootPose) => `/root/${pose}.webp`;

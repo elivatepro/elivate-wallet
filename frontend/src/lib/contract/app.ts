@@ -84,6 +84,8 @@ export type BanksView = typeof BanksView.Type;
 export const PayoutLookupCommand = Schema.Struct({
 	bankCode: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(20)),
 	accountNumber: Schema.String.check(Schema.isPattern(ACCOUNT_NUMBER_PATTERN)),
+	/** Replace (W-17, Blueprint 10): the active account the new one replaces. */
+	replacesPayoutAccountId: Schema.optionalKey(Uuid),
 	pin: OptionalPin,
 	idempotencyKey: IdempotencyKey
 });
@@ -92,6 +94,8 @@ export type PayoutLookupCommand = typeof PayoutLookupCommand.Type;
 /** POST /api/payout-accounts: explicit save of a resolved lookup (step-up). */
 export const PayoutConfirmCommand = Schema.Struct({
 	lookupId: Uuid,
+	/** Required (3–500 characters) only and always for a replacement (W-17 Q8). */
+	reason: Schema.optionalKey(Schema.String),
 	pin: OptionalPin,
 	idempotencyKey: IdempotencyKey
 });

@@ -4,10 +4,14 @@
 	number → lookup (PIN when step-up is needed) → resolved name with the NIN
 	check → explicit Save. A mismatch cannot be saved. The number lives only in
 	the input and the POST body; it is never cached, logged or put in a URL.
+	`?replace=<account id>` replaces an active account (W-17, Blueprint 10):
+	same lookup plus a reason on save. That variant is not drawn in Paper yet
+	(waiting on owner approval); it reuses this layout.
 -->
 <script lang="ts">
 	import { getContext } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { Cause, Effect, Exit, Option } from 'effect';
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 	import { AppRoutes, BanksView } from '#lib/contract/app.js';
@@ -23,6 +27,7 @@
 		pinProblem
 	} from '#lib/payout.js';
 	import { ACCOUNT_NUMBER_PATTERN } from '#lib/contract/payout.js';
+	import { UUID_PATTERN } from '#lib/contract/common.js';
 	import Field from '#lib/ui/auth/Field.svelte';
 	import FormAlert from '#lib/ui/auth/FormAlert.svelte';
 	import PinField from '#lib/ui/auth/PinField.svelte';
@@ -37,7 +42,10 @@
 	let lookup = $state<Lookup | null>(null);
 	let needPin = $state(false);
 	let busy = $state(false);
-	let errors = $state<{ bankCode?: string; accountNumber?: string; pin?: string }>({});
+	let errors = $state<{ bankCode?: string; accountNumber?: string; pin?: string; reason?: string }>(
+		{}
+	);
+	let reason = $state('');
 	let formError = $state<string | null>(null);
 	/** Bumped to remount the inputs (clears the number and PIN). */
 	let formId = $state(0);
@@ -49,6 +57,11 @@
 	let confirmKey = newKey();
 
 	const mismatch = $derived(lookup?.nameMatch === 'mismatched');
+	/** The account being replaced, when this is a replacement (never a number, only its id). */
+	const replaces = $derived.by(() => {
+		const id = page.url.searchParams.get('replace');
+		return id && UUID_PATTERN.test(id) ? id.toLowerCase() : null;
+	});
 
 	async function loadBanks() {
 		const exit = await Effect.runPromiseExit(getJson(AppRoutes.payoutBanks.path, BanksView));
@@ -112,7 +125,13 @@
 			sendCommand(
 				AppRoutes.payoutLookup.path,
 				'POST',
-				{ bankCode, accountNumber, ...(pin ? { pin } : {}), idempotencyKey: lookupKey },
+				{
+					bankCode,
+					accountNumber,
+					...(replaces ? { replacesPayoutAccountId: replaces } : {}),
+					...(pin ? { pin } : {}),
+					idempotencyKey: lookupKey
+				},
 				shell.state.view.workspace.membershipId,
 				Lookup
 			)
@@ -143,6 +162,12 @@
 			errors = { pin: 'Enter your 4-digit PIN.' };
 			return;
 		}
+		// Same rule as the backend: 3–500 characters after trimming (W-17 Q8).
+		const why = reason.trim();
+		if (replaces && ([...why].length < 3 || [...why].length > 500)) {
+			errors = { reason: 'Say why you’re replacing it (3–500 characters).' };
+			return;
+		}
 		errors = {};
 		formError = null;
 		busy = true;
@@ -150,7 +175,12 @@
 			sendCommand(
 				AppRoutes.payoutConfirm.path,
 				'POST',
-				{ lookupId: lookup.lookupId, ...(pin ? { pin } : {}), idempotencyKey: confirmKey },
+				{
+					lookupId: lookup.lookupId,
+					...(replaces ? { reason: why } : {}),
+					...(pin ? { pin } : {}),
+					idempotencyKey: confirmKey
+				},
 				shell.state.view.workspace.membershipId,
 				PayoutAccount
 			)
@@ -181,7 +211,10 @@
 	}
 </script>
 
-<svelte:head><title>Add bank account · Elivate Wallet</title></svelte:head>
+<svelte:head
+	><title>{replaces ? 'Replace bank account' : 'Add bank account'} · Elivate Wallet</title
+	></svelte:head
+>
 
 <div class="page">
 	<a class="back" href="/app/payout-accounts"
@@ -189,11 +222,15 @@
 	>
 	<section class="card" aria-labelledby="add-heading">
 		<header>
-			<h1 id="add-heading">{mismatch ? 'Name doesn’t match' : 'Add bank account'}</h1>
+			<h1 id="add-heading">
+				{mismatch ? 'Name doesn’t match' : replaces ? 'Replace bank account' : 'Add bank account'}
+			</h1>
 			<p>
 				{mismatch
 					? 'Payouts can only go to an account in your verified name.'
-					: 'A Naira account in your own name.'}
+					: replaces
+						? 'The old account stays in your history. The new one can receive withdrawals 24 hours after you save it.'
+						: 'A Naira account in your own name.'}
 			</p>
 		</header>
 
@@ -250,6 +287,21 @@
 				<NameCheck accountName={lookup.accountName} match={lookup.nameMatch} legalName={null} />
 				{#if !mismatch}
 					<form onsubmit={save} novalidate>
+						{#if replaces}
+							<div class="field">
+								<label for="reason">Why are you replacing it?</label>
+								<textarea
+									id="reason"
+									name="reason"
+									rows="3"
+									maxlength="500"
+									bind:value={reason}
+									aria-invalid={errors.reason ? 'true' : undefined}
+									aria-describedby={errors.reason ? 'reason-error' : undefined}
+								></textarea>
+								{#if errors.reason}<p class="error" id="reason-error">{errors.reason}</p>{/if}
+							</div>
+						{/if}
 						{#if needPin}
 							{#key pinTry}
 								<PinField
@@ -262,7 +314,11 @@
 							{/key}
 						{/if}
 						<PrimaryButton
-							label={lookup.nameMatch === 'matched' ? 'Save account' : 'Continue'}
+							label={replaces
+								? 'Replace account'
+								: lookup.nameMatch === 'matched'
+									? 'Save account'
+									: 'Continue'}
 							{busy}
 							disabled={!shell.canAct}
 						/>
@@ -339,6 +395,26 @@
 		font-size: var(--text-14);
 		font-weight: var(--font-weight-medium);
 		line-height: var(--leading-20);
+	}
+
+	textarea {
+		padding: 14px 16px;
+		border-radius: var(--radius-12);
+		border: 1px solid var(--auth-field-border);
+		background: var(--auth-field-bg);
+		color: var(--color-text);
+		font: inherit;
+		font-size: 15px;
+		resize: vertical;
+	}
+
+	textarea:focus {
+		outline: none;
+		border-color: var(--color-accent);
+	}
+
+	textarea[aria-invalid='true'] {
+		border-color: var(--color-danger);
 	}
 
 	select {

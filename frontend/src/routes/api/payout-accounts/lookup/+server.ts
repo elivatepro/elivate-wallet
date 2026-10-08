@@ -11,11 +11,12 @@ export const POST: RequestHandler = (event) =>
 	relayCommand(
 		event,
 		PayoutLookupCommand,
-		(membershipId, { bankCode, accountNumber, idempotencyKey }) =>
+		(membershipId, { bankCode, accountNumber, replacesPayoutAccountId, idempotencyKey }) =>
 			Effect.gen(function* () {
 				return yield* (yield* PayoutApi).lookup(membershipId, {
 					bankCode,
 					accountNumber,
+					...(replacesPayoutAccountId === undefined ? {} : { replacesPayoutAccountId }),
 					idempotencyKey
 				});
 			})
