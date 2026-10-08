@@ -85,10 +85,7 @@ test('President edits the split with reason and PIN (L01/L02)', async ({ page })
 		await page.getByRole('link', { name: 'Go to my wallet' }).click();
 	}
 	await page.goto('/workspaces?switch');
-	await page
-		.getByRole('button', { name: /Split Test Network/ })
-		.first()
-		.click();
+	await page.getByRole('button', { name: /Split Test Network.*President Team/ }).click();
 	await page.goto('/app/split');
 	await expect(page.getByLabel('Upkeep share of income, percent')).toHaveValue('25.00');
 	await page.getByLabel('Upkeep share of income, percent').fill('20.00');
@@ -131,10 +128,7 @@ test('a failed NIN goes to leader review; the President approves it', async ({ p
 		await page.getByRole('link', { name: 'Go to my wallet' }).click();
 	}
 	await page.goto('/workspaces?switch');
-	await page
-		.getByRole('button', { name: /Review Test Network/ })
-		.first()
-		.click();
+	await page.getByRole('button', { name: /Review Test Network.*President Team/ }).click();
 	await page.goto('/app/reviews');
 	await expect(page.getByText('Bola Ade')).toBeVisible();
 	await page.getByRole('button', { name: 'Approve' }).click();
