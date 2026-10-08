@@ -2,22 +2,22 @@
 
 Pack version: 1.1 · Compiled: 2026-10-04 · Companion files: `00-product.md`, `02-workflows.md`.
 
-These rules govern every protected read, command, background job, and retry. Frontend choice: **Svelte + TypeScript + Effect**. No rule moves financial truth or authorization into the browser. **The approved responsive visual system is recorded in `00-product.md` P-06; CSS framework and component-library choices remain open under U-12. Cloudflare Email Service is the selected outbound email provider.** No previous visual template or email provider is a fallback authority.
+These rules govern every protected read, command, background job, and retry. Frontend choice: **Svelte + TypeScript + Effect**. No rule moves financial truth or authorization into the browser. **The approved responsive visual system is recorded in `00-product.md` P-06; the frontend stack and styling implementation are recorded in P-04 (owner decision 2026-10-08). Cloudflare Email Service is the selected outbound email provider.** No previous visual template or email provider is a fallback authority.
 
 ## D-01 — Canonical entities and ownership
 
 | Entity | Contract |
 |---|---|
 | Account | Maps 1:1 to Supabase Auth identity; owns stable application identity, public UID, profile, and global security state. |
-| Public UID | Permanent human-readable account identifier for support/lookup, statements and references. Email/phone is editable contact information, not identity. Format remains U-02. |
+| Public UID | Permanent human-readable account identifier for support/lookup, statements and references. Email/phone is editable contact information, not identity. Format: see below (owner decision 2026-10-07). |
 | Verified identity | Proper/legal identity bound to the stable account/UID; not an editable display name or an AI guess. |
 | Tenant | One network/organization; subscription, configuration, branding, and top-level isolation boundary. |
 | Office | Tenant-owned `world_team`, `director`, or `team_leader` hierarchy node; parent and child must share the tenant, and a parent must be of a strictly higher kind (or none; owner decision 2026-10-08, W-05). No cycles. |
 | Membership | Genuine belonging to a tenant/office with one exact fixed role; may coexist with other memberships. One primary membership per tenant. |
 | Invitation | Separate pending/redemption object; a token is neither an authenticated identity nor an active membership. |
 | Wallet | Account-owned global financial container, at most one per eligible user, never one per tenant/membership. President membership alone creates none. |
-| Pocket definition | System-controlled logical category; definition/name is not an authoritative money field. |
-| Allocation policy | Tenant-level immutable percentage-policy version; one active version/tenant. No office/member overrides in initial 2.0. |
+| Pocket definition | Per-tenant logical category; its name is not an authoritative money field. **Owner decision (2026-10-08):** each network starts with Point Value, Business Investment, Personal Investment, Upkeep and Savings (in that display order) plus Debt. The President Team may rename, add and retire pockets (`manage_allocation`, A-03, W-23); Debt is fixed. A pocket can be retired only at zero balance in every currency. |
+| Allocation policy | Tenant-level immutable percentage-policy version; one active version/tenant. No office/member overrides in initial 2.0. **Owner decision (2026-10-08):** the default split (Point Value 40%, Business Investment 10%, Personal Investment 15%, Upkeep 25%, Savings 10%; precision 0.01%) is copied into each network at activation; the President Team changes it per network with reason and PIN, every change is a new version, and it applies to future income only. |
 | Member-value account | Wallet + originating tenant/membership context + currency + pocket. Same logical pocket may have several provenance segments. |
 | Journal | Immutable single-currency balanced accounting event. |
 | Financial transaction | Groups the journals/postings for one financial effect and carries domain/provenance links. |
@@ -110,6 +110,7 @@ Defaults seed a new tenant's exact-role policies atomically. They are not role-r
 | `reverse_transaction` | 0 | 0 | 0 | 0 | 1 | yes | no | tenant | no |
 | `transfer_presidency` | 0 | 0 | 0 | 0 | 1 | yes | no | tenant | no |
 | `deactivate_tenant` | 0 | 0 | 0 | 0 | 1 | yes | no | tenant | no |
+| `manage_allocation` | 0 | 0 | 0 | 0 | 1 | yes | no | tenant | no |
 | `review_financial_evidence` | 0 | 0 | 0 | 0 | 1* | no | yes* | assignment | no |
 
 Special interpretation:
@@ -118,6 +119,7 @@ Special interpretation:
 - `review_financial_evidence`: the matrix lists P as default, but actual review authority/routing is the President-controlled specific-person reviewer assignment. No presidency, role choice, generic routing list or financial-operation permission substitutes for current designated assignment. Self-review is forbidden. Do not create independently administered routing and review-authority systems.
 - Office-scoped defaults still use tenant-wide President scope where applicable and the target-based resolver. “Own wallet=no” is the leadership self-target guard, not a denial of separately eligible self-service.
 - Tenant configuration and workspace-request approval require explicit trusted capabilities; this source matrix does not settle their exact additional wire keys. Use reviewed existing contracts or U-04/U-09 rather than inventing a catalog entry.
+- `manage_allocation` (owner decision 2026-10-08): the tenant's pocket catalogue and allocation percentages (rename, add and retire pockets; change the split). Protected and President-only, so the catalogue now has 32 rows. Every change needs reason and step-up, creates a new policy version and applies to future income only. Elivate platform admins may view versions but do not edit them.
 - Retired names: `grant_cross_access` → `manage_access_rules`; `view_financial_reports` → `view_scoped_financial_reports`; `export_reports` → `export_scoped_reports`.
 
 ## A-04 — Self-service, approval and evidence-review separation
@@ -136,6 +138,7 @@ Evidence review is different: reviewer must be specifically assigned, active in 
 - Adjustments always require step-up. Reversal requires step-up, mandatory reason and explicit high-risk confirmation. Presidency transfer/tenant deactivation require fresh per-action confirmation even inside a current window; confirmations are action/target/session-bound and consumed atomically.
 - Financial step-up can depend on operation and configured amount thresholds; tenants may tighten, not weaken system minimums. Thresholds and PIN use are not guessed (U-02/U-07).
 - **Owner decision (2026-10-07):** in-app step-up confirmation for high-risk actions (Billing Owner change, role/access changes, account-status changes, kill switches and other actions listed above) uses the person's 4-digit transaction PIN, not an authenticator-app code. **Owner decision (2026-10-07):** 5 wrong PIN attempts lock the PIN; the person resets it through a link sent to their account email (Supabase-issued, single-use), then sets a new 4-digit PIN. Changing the account email is not self-service: the person contacts support. A PIN reset revokes any open step-up window. **Owner decision (2026-10-08):** the PIN is stored only as bcrypt over an HMAC of the PIN keyed with a server-side secret (never in the database or client); verification happens server-side; a 4-digit PIN is protected by attempt limits, not by the hash. After 5 wrong attempts the PIN stays locked until the email reset completes; there is no automatic time-based unlock. **Owner decision (2026-10-08):** a signed-in session asks for the PIN again after 15 minutes of inactivity; the password session lasts up to 7 days.
+- **Owner decisions (2026-10-08):** the PIN (step-up, five-minute window) is required to record income (W-08), to invite someone into a leader role and to add or replace an office leader (W-03, W-05), to change pockets or the allocation split (`manage_allocation`), and before a payout-account lookup (W-17).
 - Do not add MFA to every upload/read solely because another workflow requires it. Follow the exact approved endpoint contract.
 
 ## F-01 — Ledger, money and provenance
@@ -144,10 +147,10 @@ Evidence review is different: reviewer must be specifically assigned, active in 
 2. Every ledger account/journal has one currency; postings in each journal sum exactly to zero. A multi-currency transaction groups separately balanced journals atomically, never sums different currencies to claim balance.
 3. Member-value accounts are provenance/currency/pocket segmented. System External Inflow/Outflow, FX Clearing and adjustment accounts are bookkeeping counter-accounts, not user balances or claims of custody.
 4. PostgreSQL exact `numeric` owns money. No authoritative `real`, `double precision`, JavaScript `Number`, `parseFloat` or binary floating-point calculation. API and Effect/Svelte layers preserve decimal strings or approved exact decimal types; rates/weights also remain exact.
-5. Supported scales/rounding are explicit. Allocation weights sum exactly 100%; smallest-unit remainders are deterministic and never lost. If exact policy/tie-breaks are not in approved repository contracts, resolve U-01/U-07 before choosing them.
+5. Supported scales/rounding are explicit. Allocation weights sum exactly 100%; smallest-unit remainders are deterministic and never lost. **Owner decision (2026-10-08):** NGN and USD both use 2 decimal places; allocation percentages have 0.01% precision; allocation uses the largest-remainder method, ties broken by pocket display order. Other currencies need a new decision (U-07).
 6. Policy changes create immutable versions and affect future commands only. Income/adjustment retain exact lines and policy snapshot; reversal negates original lines, not current percentages.
 7. Ledger history is financial truth. Projections may be optimized but update consistently with postings; no independent mutable pocket balance is authoritative.
-8. Ordinary pockets remain non-negative. Debt alone may be negative; transfer/adjustment credit-to-Debt rules prevent positive Debt as specified in those workflows. Do not use Debt as automatic shortfall balancing.
+8. Ordinary pockets remain non-negative. Debt alone may be negative; transfer/adjustment credit-to-Debt rules prevent positive Debt as specified in those workflows. Do not use Debt as automatic shortfall balancing. **Owner decision (2026-10-08):** ordinary pockets send and receive and are withdrawable; Debt receives transfers only up to zero, is never a transfer source, is never withdrawn and never receives income.
 9. Actor/scope provenance is server-derived and preserved. Aggregate views can sum authorized compatible currencies for presentation; commands never silently pool contexts/pockets.
 
 ## F-02 — Atomicity, reservations and concurrency
@@ -230,7 +233,7 @@ Plans are immutable/versioned/provider-neutral. Base tiers differ primarily by c
 
 Approved user-facing settings: Team display/name/short name, support name/email/phone, locale/timezone, one primary logo, optional square icon and light/dark variants, controlled team-color options whose actual presets/values will be decided with styling, short Team Slogan and optional HTTPS support URL.
 
-End-user customization remains controlled, not arbitrary CSS/fonts/colors or per-office branding. This is a tenant-governance limit, not a choice of the application's styling framework or component library; implementation choices remain open under U-12, while the approved visual system is in `00-product.md` P-06. No currency/formatting/help-link/module/workflow preference editor in this wave. Optional support URL does not authorize public anonymous configuration. One verified active tenant-provided white-label domain is an optional paid entitlement, not automatic activation.
+End-user customization remains controlled, not arbitrary CSS/fonts/colors or per-office branding. This is a tenant-governance limit, not a choice of the application's styling framework or component library; those are recorded in `00-product.md` P-04 and the approved visual system in P-06. No currency/formatting/help-link/module/workflow preference editor in this wave. Optional support URL does not authorize public anonymous configuration. One verified active tenant-provided white-label domain is an optional paid entitlement, not automatic activation.
 
 Every change creates an immutable revision; rollback creates another revision. Explicit configuration authority, trusted context, validation, idempotency and step-up are required; member reads return safe presentation fields, authorized leadership reads scoped configuration. Billing Owner does not automatically administer it. Ordinary Members cannot edit shared brand colors; their personal light/dark choice remains.
 
@@ -260,7 +263,7 @@ These conventions implement this pack; they introduce no new financial semantics
 - Cancel stale reads on unmount/context change and prevent late responses overwriting new context. Cancelling execution after write dispatch does not cancel the domain event (F-03).
 - Keep service-role/provider/worker credentials server-only. Strip tokens, PINs, full accounts, identity details, evidence and sensitive values from Effect spans/logs and analytics. Logging is not permission to disclose domain internals.
 - Do not create an independent in-browser ledger, client authority cache, or parallel frontend financial algorithm. Tests exercise typed failure mapping and recovery as well as UI state.
-- Exact Effect/Svelte versions, runtime adapter, and optional modules are pinned through a reviewed implementation decision (U-10); do not generate code against a guessed library API/version.
+- Effect/SvelteKit versions and the runtime adapter are pinned by the owner decision of 2026-10-08 (`00-product.md` P-04); optional modules still need a reviewed implementation decision. Do not generate code against a guessed library API/version.
 
 ## T-03 — Outbox, integration jobs and operations
 
@@ -268,7 +271,7 @@ Financial/noncritical follow-up events are captured with the business commit and
 
 Cloudflare Email Sending is the selected outbound provider, not merely inbound Email Routing. Use a server-only Workers binding, REST API or SMTP adapter compatible with the actual job runtime. Configure the sending domain in Cloudflare DNS with provider-required authentication records, scoped credentials and recipient-sending capability; ordinary customer delivery requires the appropriate paid plan. Do not choose a second email provider or declare delivery configured before these prerequisites are verified.
 
-Application email uses durable outbox/delivery state. Supabase Auth still issues and validates verification/recovery/invitation tokens: wire its email delivery to Cloudflare using supported SMTP or a reviewed Auth-email hook/adapter, and validate templates/callbacks and real delivery. Do not replace Supabase authentication semantics, enqueue a second duplicate Auth email path, or claim an application outbox alone configures Auth email. Provider acceptance and actual delivery are distinct; report only known results.
+Application email uses durable outbox/delivery state. **Owner decision (2026-10-08):** invitations are application email (the application's own invitation token and `INV` reference, sent through the Cloudflare REST API from the outbox), not Supabase Auth invites; see W-21. Supabase Auth still issues and validates its own verification/recovery tokens: wire its email delivery to Cloudflare using supported SMTP or a reviewed Auth-email hook/adapter, and validate templates/callbacks and real delivery. Do not replace Supabase authentication semantics, enqueue a second duplicate Auth email path, or claim an application outbox alone configures Auth email. Provider acceptance and actual delivery are distinct; report only known results.
 
 Outbox events are immutable. Mutable delivery state, append-only attempts and operator requeues are separate. Delivery is at least once with short leases, expired-lease recovery, deterministic bounded retry, dead-letter status and a new delivery cycle for explicit requeue. Use stable downstream `outbox:<event-id>` idempotency where supported; do not promise exactly-once external delivery.
 
