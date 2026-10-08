@@ -30,6 +30,15 @@ export const errorStatus = {
   invitation_exists: 409,
   invitation_email_mismatch: 403,
   email_unverified: 403,
+  no_wallet: 409,
+  target_not_eligible: 409,
+  currency_not_supported: 422,
+  allocation_policy_missing: 409,
+  policy_invalid: 422,
+  evidence_required: 422,
+  evidence_invalid: 422,
+  attempt_cancelled: 409,
+  insufficient_funds: 409,
 } as const;
 
 export type ErrorCode = keyof typeof errorStatus;
@@ -64,6 +73,15 @@ const messages: Record<ErrorCode, string> = {
   invitation_exists: "This person already has a pending invitation for that office and role.",
   invitation_email_mismatch: "This invitation was sent to a different email address.",
   email_unverified: "Verify your email address to continue.",
+  no_wallet: "This account has no wallet.",
+  target_not_eligible: "Income can't be recorded for this membership.",
+  currency_not_supported: "This currency isn't supported.",
+  allocation_policy_missing: "This network has no pocket split yet.",
+  policy_invalid: "The pockets and percentages aren't valid.",
+  evidence_required: "Attach at least one receipt.",
+  evidence_invalid: "A receipt can't be used.",
+  attempt_cancelled: "This attempt was cancelled.",
+  insufficient_funds: "There isn't enough available in this pocket.",
 };
 
 export type Details = Readonly<Record<string, unknown>>;

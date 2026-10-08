@@ -188,7 +188,6 @@ select ledger.seed_allocation(t.id, t.activated_by) from org.tenants t where t.a
 create function ledger.allocate(p_policy_id uuid, p_currency text, p_amount numeric)
 returns table (pocket_id uuid, basis_points int, amount numeric)
 language plpgsql
-stable
 set search_path = ''
 as $$
 #variable_conflict use_column

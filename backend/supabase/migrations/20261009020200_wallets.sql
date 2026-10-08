@@ -54,7 +54,6 @@ $$;
 create function ledger.require_wallet(p_user_id uuid)
 returns uuid
 language plpgsql
-stable
 set search_path = ''
 as $$
 declare

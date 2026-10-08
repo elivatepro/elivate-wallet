@@ -43,7 +43,6 @@ for each row execute function audit.reject_change();
 create function ledger.currency_scale(p_currency text)
 returns smallint
 language plpgsql
-stable
 set search_path = ''
 as $$
 declare
@@ -72,7 +71,6 @@ $$;
 create function ledger.parse_amount(p_amount text, p_currency text, p_field text)
 returns numeric
 language plpgsql
-stable
 set search_path = ''
 as $$
 declare

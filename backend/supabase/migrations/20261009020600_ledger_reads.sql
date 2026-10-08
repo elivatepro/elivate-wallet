@@ -154,7 +154,6 @@ $$;
 create function ledger.date_filter(p_value text, p_field text)
 returns date
 language plpgsql
-stable
 set search_path = ''
 as $$
 begin
@@ -189,7 +188,6 @@ create function ledger.activity(
 )
 returns jsonb
 language plpgsql
-stable
 set search_path = ''
 as $$
 declare
@@ -496,7 +494,6 @@ $$;
 create function ledger.require_managed_accounts(p_user_id uuid, p_workspace org.memberships, p_wallet_id uuid)
 returns uuid[]
 language plpgsql
-stable
 set search_path = ''
 as $$
 declare
