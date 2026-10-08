@@ -22,7 +22,7 @@ const key = "key-0000000000000001";
 const pdf = new TextEncoder().encode("%PDF-1.7 receipt");
 
 async function sha256(bytes: Uint8Array): Promise<string> {
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(bytes)));
   return Array.from(digest, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
