@@ -78,7 +78,19 @@ export const Allocation = Schema.Struct({
 });
 export type Allocation = typeof Allocation.Type;
 
+export const AllocationVersion = Schema.Struct({
+	policyId: Uuid,
+	version: Schema.Int,
+	source: Schema.String,
+	createdAt: IsoDateTime,
+	pockets: Schema.Array(SplitLine),
+	reason: Schema.NullOr(Schema.String)
+});
+export type AllocationVersion = typeof AllocationVersion.Type;
+export const AllocationVersions = Schema.Struct({ items: Schema.Array(AllocationVersion) });
+
 export const LedgerRoutes = {
+	versions: { method: 'GET', path: '/allocation/versions' },
 	wallet: { method: 'GET', path: '/me/wallet' },
 	activity: { method: 'GET', path: '/me/activity' },
 	allocation: { method: 'GET', path: '/allocation' },

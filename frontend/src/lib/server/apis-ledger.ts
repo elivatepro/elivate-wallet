@@ -7,6 +7,7 @@ import { isRetryableRead } from '#lib/contract/errors.js';
 import {
 	Activity,
 	Allocation,
+	AllocationVersions,
 	LedgerRoutes,
 	Wallet,
 	type Allocation as AllocationType
@@ -33,6 +34,9 @@ export interface LedgerApiShape {
 		limit?: number;
 	}) => Effect.Effect<typeof Activity.Type, EdgeFailure>;
 	readonly allocation: (membershipId: string) => Effect.Effect<AllocationType, EdgeFailure>;
+	readonly versions: (
+		membershipId: string
+	) => Effect.Effect<typeof AllocationVersions.Type, EdgeFailure>;
 	readonly setAllocation: (
 		membershipId: string,
 		input: SplitInput
@@ -59,6 +63,10 @@ export const LedgerApiLive = Layer.effect(
 			allocation: (membershipId) =>
 				edge
 					.call({ fn, route: LedgerRoutes.allocation, membershipId }, Allocation)
+					.pipe(Effect.retry(readPolicy)),
+			versions: (membershipId) =>
+				edge
+					.call({ fn, route: LedgerRoutes.versions, membershipId }, AllocationVersions)
 					.pipe(Effect.retry(readPolicy)),
 			setAllocation: (membershipId, input) =>
 				edge.call({ fn, route: LedgerRoutes.setAllocation, body: input, membershipId }, Allocation)

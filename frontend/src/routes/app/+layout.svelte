@@ -15,6 +15,9 @@
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import EyeOff from '@lucide/svelte/icons/eye-off';
 	import House from '@lucide/svelte/icons/house';
+	import Landmark from '@lucide/svelte/icons/landmark';
+	import MailPlus from '@lucide/svelte/icons/mail-plus';
+	import PieChart from '@lucide/svelte/icons/chart-pie';
 	import LogOut from '@lucide/svelte/icons/log-out';
 	import RotateCw from '@lucide/svelte/icons/rotate-cw';
 	import UserRound from '@lucide/svelte/icons/user-round';
@@ -49,6 +52,10 @@
 	const uid = $derived(shell.state.kind === 'ready' ? shell.state.view.state.uid : null);
 	const person = $derived(shell.state.kind === 'ready' ? shell.state.view.profile : null);
 	const path = $derived(page.url.pathname);
+	/** Navigation hint only; every command is still authorized by the backend. */
+	const can = (permission: string) =>
+		shell.state.kind === 'ready' &&
+		(shell.state.view.capabilities?.permissions ?? []).includes(permission);
 	/** Pushed pages (mobile Notifications) have their own nav bar and no tabs. */
 	const pushed = $derived(path.startsWith('/app/notifications'));
 	const tabMore = $derived(path.startsWith('/app/more'));
@@ -107,6 +114,29 @@
 		<nav class="side-nav">
 			<a class="side-item" href="/app" aria-current={path === '/app' ? 'page' : undefined}>
 				<House size={18} strokeWidth={1.5} aria-hidden="true" /><span>Home</span>
+			</a>
+			<a
+				class="side-item"
+				href="/app/payout-accounts"
+				aria-current={path.startsWith('/app/payout-accounts') ? 'page' : undefined}
+			>
+				<Landmark size={18} strokeWidth={1.5} aria-hidden="true" /><span>Payout accounts</span>
+			</a>
+			{#if can('invite_members')}
+				<a
+					class="side-item"
+					href="/app/invitations"
+					aria-current={path.startsWith('/app/invitations') ? 'page' : undefined}
+				>
+					<MailPlus size={18} strokeWidth={1.5} aria-hidden="true" /><span>Invitations</span>
+				</a>
+			{/if}
+			<a
+				class="side-item"
+				href="/app/split"
+				aria-current={path.startsWith('/app/split') ? 'page' : undefined}
+			>
+				<PieChart size={18} strokeWidth={1.5} aria-hidden="true" /><span>Pockets &amp; split</span>
 			</a>
 		</nav>
 		<div class="side-footer"><span class="version">v2.0</span></div>

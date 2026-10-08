@@ -3,7 +3,9 @@
 // the Edge Functions.
 
 import { Schema } from 'effect';
-import { ActivityItem, WalletNetwork } from './ledger';
+import { ActivityItem, Allocation, AllocationVersion, WalletNetwork } from './ledger';
+import { IdempotencyKey } from './invitations';
+import { PIN_PATTERN, Uuid } from './common';
 import { Capabilities, Workspace } from './org';
 import { SecurityState } from './security';
 
@@ -33,7 +35,36 @@ export const HomeView = Schema.Struct({
 });
 export type HomeView = typeof HomeView.Type;
 
+/** GET /api/split: the network's live split and its history (L01). */
+export const SplitView = Schema.Struct({
+	allocation: Allocation,
+	versions: Schema.Array(AllocationVersion),
+	canEdit: Schema.Boolean
+});
+export type SplitView = typeof SplitView.Type;
+
+/** The optional PIN typed in a confirm dialog (step-up, A-05). */
+export const OptionalPin = Schema.optionalKey(Schema.String.check(Schema.isPattern(PIN_PATTERN)));
+
+/** PUT /api/split (L02): reason + PIN dialog. */
+export const SplitCommand = Schema.Struct({
+	expectedVersion: Schema.Int,
+	pockets: Schema.Array(
+		Schema.Struct({
+			pocketId: Schema.NullOr(Uuid),
+			name: Schema.String,
+			basisPoints: Schema.Int
+		})
+	),
+	reason: Schema.String,
+	pin: OptionalPin,
+	idempotencyKey: IdempotencyKey
+});
+export type SplitCommand = typeof SplitCommand.Type;
+
 export const AppRoutes = {
+	split: { method: 'GET', path: '/api/split' },
+	saveSplit: { method: 'PUT', path: '/api/split' },
 	session: { method: 'GET', path: '/api/session' },
 	home: { method: 'GET', path: '/api/home' }
 } as const;

@@ -2,10 +2,10 @@
 // only from same-origin JSON endpoints and validates every response with the
 // same Effect Schemas the server uses. No token ever reaches this code.
 
-import { Effect, Schedule } from 'effect';
+import { Effect, Schedule, type Schema } from 'effect';
 import { AppRoutes, HomeView, SessionView } from '#lib/contract/app.js';
 import { isRetryableRead, type ApiFailure } from '#lib/contract/errors.js';
-import { READ_TIMEOUT_MS, requestJson } from '#lib/contract/transport.js';
+import { COMMAND_TIMEOUT_MS, READ_TIMEOUT_MS, requestJson } from '#lib/contract/transport.js';
 
 export function loadSession(
 	fetcher: typeof fetch,
@@ -54,3 +54,50 @@ export function loadHome(
 		})
 	);
 }
+
+const readRetry = {
+	times: 2,
+	while: (e: ApiFailure) =>
+		isRetryableRead(e) && !(e._tag === 'TransportError' && e.reason === 'network'),
+	schedule: Schedule.exponential('300 millis').pipe(Schedule.jittered)
+};
+
+/** A same-origin read, validated with its schema. */
+export function getJson<S extends Schema.ConstraintDecoder<unknown>>(
+	path: string,
+	schema: S,
+	signal?: AbortSignal
+): Effect.Effect<S['Type'], ApiFailure> {
+	return requestJson(
+		{ fetch, url: path, method: 'GET', route: `GET ${path}`, timeoutMs: READ_TIMEOUT_MS, signal },
+		schema
+	).pipe(Effect.retry(readRetry));
+}
+
+/**
+ * A same-origin command. Carries the workspace it was rendered for
+ * (X-EW-Workspace, plan §5.8) and is never retried: on an unknown outcome
+ * the caller resubmits with the same idempotency key.
+ */
+export function sendCommand<S extends Schema.ConstraintDecoder<unknown>>(
+	path: string,
+	method: 'POST' | 'PUT' | 'PATCH',
+	body: unknown,
+	workspaceId: string,
+	schema: S
+): Effect.Effect<S['Type'], ApiFailure> {
+	return requestJson(
+		{
+			fetch,
+			url: path,
+			method,
+			route: `${method} ${path}`,
+			headers: { 'x-ew-workspace': workspaceId },
+			body,
+			timeoutMs: COMMAND_TIMEOUT_MS
+		},
+		schema
+	);
+}
+
+export const newKey = () => crypto.randomUUID().replaceAll('-', '');
