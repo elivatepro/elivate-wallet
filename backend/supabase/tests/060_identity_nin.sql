@@ -2,7 +2,7 @@
 -- leader review authority and decisions.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(42);
+select plan(46);
 
 create function pg_temp.u(n int) returns uuid language sql immutable as
   $$ select ('10000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
@@ -147,6 +147,21 @@ select is(api.my_profile(pg_temp.u(6), pg_temp.s(6))->'identity'->'review'->>'st
   'the person sees the rejection');
 select lives_ok($$ select api.request_nin_review(pg_temp.u(6), pg_temp.s(6), pg_temp.m(6, pg_temp.id('W2')),
   pg_temp.fp(6), '4321', 'Tunde', null, 'Bello', pg_temp.k()) $$, 'a new request after a rejection');
+
+-- ── Outcome email (Paper A14b/A14c) ──
+select is((select params->>'decision' from outbox.events
+  where template = 'identity.nin_review_decided' and aggregate_id = pg_temp.id('r5')
+    and recipient_user_id = pg_temp.u(5)), 'approved', 'the approval emails the person');
+select is((select params->>'decision' from outbox.events
+  where template = 'identity.nin_review_decided' and aggregate_id = pg_temp.id('r6')
+    and recipient_user_id = pg_temp.u(6)), 'rejected', 'the rejection emails the person');
+select is((select count(*)::int from outbox.events where template = 'identity.nin_review_decided'), 2,
+  'one email per decision; refused decisions and new requests send none');
+select ok(not exists (
+  select 1 from outbox.events where template = 'identity.nin_review_decided'
+    and (params - array['decision', 'network', 'office'] <> '{}'::jsonb
+      or params::text ~ '(Bola|Tunde|Bello|1234|4321|Checked|unreadable)')
+), 'only decision, network and office: no name, NIN digits or reason');
 
 select * from finish();
 rollback;
