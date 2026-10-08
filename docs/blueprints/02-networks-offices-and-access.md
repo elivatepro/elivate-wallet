@@ -1,6 +1,6 @@
 # Blueprint 02 — Networks, offices, memberships and access
 
-Status: **draft for owner review (2026-10-08)**. Contract: D-01, D-02, A-01–A-05, W-05, W-06, D-10 (seat counting only, see "Not in it"), D-11 (audit log), T-01, T-04. Builds on Blueprint 01 (accounts, UID, PIN gate, step-up, references, idempotency).
+Status: **draft for owner review (2026-10-08)**; owner answered Q1–Q6 on 2026-10-08 (recorded below and in W-05). Contract: D-01, D-02, A-01–A-05, W-05, W-06, D-10 (seat counting only, see "Not in it"), D-11 (audit log), T-01, T-04. Builds on Blueprint 01 (accounts, UID, PIN gate, step-up, references, idempotency).
 
 Part A is for the owner: what this slice does, in plain language. Part B is the exact build spec that migrations, functions and tests are written from.
 
@@ -9,10 +9,10 @@ Part A is for the owner: what this slice does, in plain language. Part B is the 
 ## Part A — What this slice does
 
 ### What's in it
-1. **Networks.** A network (tenant) is one organization: its own people, offices and settings, fully separated from every other network. Until Paystack checkout is built, an Elivate admin creates a network and names its President (see Q1).
-2. **Offices in three levels.** World Team → Director → Team Leader. Every office belongs to exactly one network and sits under the right kind of parent; loops are impossible. President Team Members create offices of every type, and every office gets a leader when it's created.
-3. **Memberships.** A membership says "this person belongs to this office with this one role". A person can hold several (for example a Director in one office and a member somewhere else). One of them is their main (primary) membership in that network.
-4. **Membership changes, each with a reason:** add, move (ends the old one and starts the new one), suspend, reactivate, end, and change an office's leader (the old leader's membership ends, the new leader's starts). History is kept; nothing is deleted, and no money record changes.
+1. **Networks.** A network (tenant) is one organization: its own people, offices and settings, fully separated from every other network. A signed-in person starts their own network and becomes its first President Team Member. The network waits as "awaiting payment" until the plan is paid; the plan choice and Paystack payment are built in the billing slice. Until then, an Elivate admin can activate a network (for development and the pilot).
+2. **Offices.** Three kinds, from highest to lowest: World Team, Director, Team Leader. An office can sit at the top of the network or under any higher kind of office, so a Team Leader office can exist on its own and later be placed under a new World Team or Director office. Loops are impossible. President Team Members create and re-place offices, and every office gets at least one leader when it's created.
+3. **Memberships.** A membership says "this person belongs to this office with this one role". Members can sit in any office. A person can hold several memberships (for example a Director in one office and a member somewhere else). One of them is their main (primary) membership in that network.
+4. **Membership changes, each with a reason and PIN:** move (ends the old one and starts the new one), suspend, reactivate and end. Adding a membership needs neither. Offices can have several leaders: leaders are added and removed, or one is replaced by another (the outgoing leader's membership ends, the incoming leader's starts). An office always keeps at least one leader. History is kept; nothing is deleted, and no money record changes.
 5. **Permissions.** Each network starts with the approved default permissions for the five roles (the A-03 table). A leader's permissions cover their office **and everything below it**. A President Team Member's cover the whole network.
 6. **Network permission settings.** The President can switch configurable permissions on or off per role. Protected ones (like "view own wallet") can't be changed.
 7. **Special access (grants and denies).** A leader with "manage access rules" can give or block a specific permission for a specific person, for the whole network, an office and everything below it, or one member. A deny always beats a grant, and a grant beats the role default. Grants can expire; denies stay until someone lifts them. A reason is required for each. You can only hand out access inside what you control yourself.
@@ -28,15 +28,15 @@ Part A is for the owner: what this slice does, in plain language. Part B is the 
 - The onboarding wizard (needs the NIN provider, U-02).
 - Billing Owner, network branding and settings (W-19, W-20).
 
-### Decisions I need from you
-| # | Question | My recommendation |
+### Owner decisions (2026-10-08)
+| # | Question | Decision |
 |---|---|---|
-| Q1 | How does a network get created before Paystack checkout exists (U-03)? | **An Elivate admin creates it** in the admin app, naming the network and its first President by UID, with a reason and PIN. Paystack checkout replaces this for real customers later. |
-| Q2 | Can offices skip a level, for example a Director office directly under the network or a Team Leader office under a World Team office? | **No. Strictly World Team → Director → Team Leader**, as the old backend did. Simple to read and report on. |
-| Q3 | Where do ordinary Members sit? | **Only in Team Leader offices** (old backend rule). A Director who also wants members directly under them creates a Team Leader office for that. |
-| Q4 | How many leaders per office? | **Exactly one leader per office.** World Team offices may also hold extra World Team Members who aren't the leader. Director and Team Leader offices have only their one leader in that role. |
-| Q5 | Who can add or remove President Team Members? | **Only President Team Members, with reason and PIN.** The network must always keep at least one. |
-| Q6 | Do move, suspend and end membership also need the PIN (they already need a reason)? | **Yes.** They change who can see and move money; the PIN is quick. Adding a membership doesn't need it. |
+| Q1 | How is a network created? | **The President Team Member creates it themselves, choosing a plan and paying during setup.** This slice builds the self-service creation (network starts `pending_payment`); plan choice and Paystack activation come in the billing slice. Until then an Elivate admin can activate a network, with a reason and PIN. |
+| Q2 | Fixed office levels? | **No fixed chain.** An office's parent must be a higher kind (World Team > Director > Team Leader) or none. A Team Leader office can come first and later be placed under a new World Team or Director office. |
+| Q3 | Where do ordinary Members sit? | **In any office.** |
+| Q4 | How many leaders per office? | **Several.** Every membership holding the office's leader role (World Team Member, Director or Team Leader matching the office kind) is a leader. At least one at all times. |
+| Q5 | Who adds or removes President Team Members? | **Only President Team Members, with reason and PIN;** at least one always remains. |
+| Q6 | PIN for move, suspend and end membership? | **Yes**, in addition to the reason. |
 
 ---
 
@@ -65,10 +65,11 @@ erDiagram
 
 | Table | Key columns | Rules |
 |---|---|---|
-| `org.tenants` | `id`, `name`, `short_name`, `status` (`active`/`suspended`/`deactivated`), `authz_version`, `created_by`, `created_at` | Status here is security status; commercial status is separate (D-10). |
-| `org.offices` | `id`, `tenant_id`, `parent_office_id`, `office_type` (`world_team`/`director`/`team_leader`), `name`, `status` (`active`/`closed`) | Composite FK keeps parent in the same tenant. Parent type per Q2; only `world_team` has no parent. A leader membership is created in the same command. |
-| `org.office_closure` | `tenant_id`, `ancestor_id`, `descendant_id`, `depth` | Includes self (depth 0). Maintained **incrementally** on office insert (hierarchy is fixed per Q2; offices aren't re-parented in this slice) under a per-tenant advisory lock. |
-| `org.memberships` | `id`, `tenant_id`, `office_id` (null only for `president_team_member`), `user_id`, `role`, `is_leader`, `is_primary`, `status` (`active`/`suspended`/`ended`), `started_at`, `ended_at`, `ended_reason`, `replaced_by_id` | Role matches office type (Q3). Unique: one non-ended membership per (tenant, user, office, role); one primary per (tenant, user) among non-ended; one active leader per office (Q4). `ended_at` set iff `ended`. |
+| `org.tenants` | `id`, `name`, `short_name`, `status` (`pending_payment`/`active`/`suspended`/`deactivated`), `authz_version`, `created_by`, `created_at`, `activated_at`, `activated_by`, `activation_source` (`admin`/`payment`) | Status here is security/lifecycle status; commercial status is separate (D-10). While `pending_payment` only the founder sees it and no offices or memberships can be added. One `pending_payment` network per founder at a time. |
+| `org.offices` | `id`, `tenant_id`, `parent_office_id`, `office_type` (`world_team`/`director`/`team_leader`), `name`, `status` (`active`/`closed`) | Composite FK keeps parent in the same tenant. Parent null, or of a strictly higher kind (Q2); never itself or a descendant. At least one leader membership is created in the same command. |
+| `org.office_closure` | `tenant_id`, `ancestor_id`, `descendant_id`, `depth` | Includes self (depth 0). Maintained **incrementally** under a per-tenant advisory lock: insert adds the new office's rows; re-placing an office deletes the links between its subtree and its old ancestors and adds links to the new ones in the same transaction. |
+| `org.office_moves` | `id`, `tenant_id`, `office_id`, `from_parent_id`, `to_parent_id`, `reason`, `actor_user_id`, `at` | Append-only history of re-placements. |
+| `org.memberships` | `id`, `tenant_id`, `office_id` (null only for `president_team_member`), `user_id`, `role`, `is_primary`, `status` (`active`/`suspended`/`ended`), `started_at`, `ended_at`, `ended_reason`, `replaced_by_id` | `member` fits any office; `world_team_member`/`director`/`team_leader` only the matching office kind, and holding it makes the person a leader of that office (Q3, Q4). Unique: one non-ended membership per (tenant, user, office, role); one primary per (tenant, user) among non-ended. An active office keeps ≥ 1 active leader. `ended_at` set iff `ended`. |
 | `org.membership_events` | `id`, `tenant_id`, `membership_id`, `action`, `from_status`, `to_status`, `reason`, `actor_user_id`, `at` | Append-only. |
 | `authz.permission_catalog` | `key`, `protected`, `grantable`, `scope` (`self`/`office`/`tenant`/`assignment`), `wallet_holder_baseline`, `can_target_own_wallet`, `step_up` | Exactly the 31 A-03 rows; immutable after seeding. |
 | `authz.default_role_permissions` | `role`, `permission_key`, `allowed` | The A-03 matrix. |
@@ -107,18 +108,22 @@ All writes take `idempotencyKey`; replay re-runs `authz.decide` before returning
 
 | Route | Command | Permission / actor | Notes |
 |---|---|---|---|
-| `POST /admin/tenants` | `api.create_tenant` | platform admin · R · S | `name`, `shortName`, `presidentUid`. Creates tenant, seeds role policy, President Team membership (primary). Q1 |
+| `POST /org/networks` | `api.start_network` | any account at gate `ready` | `name`, `shortName`. Creates tenant `pending_payment`, seeds role policy, founder's President Team membership (primary). Q1 |
+| `POST /admin/tenants/{id}/activate` | `api.activate_tenant` | platform admin · R · S | `pending_payment` → `active` (`activation_source = admin`). The billing slice adds the payment path. |
 | `GET /org/workspaces` | `api.my_workspaces` | self | My non-ended memberships with tenant, office and role. |
 | `GET /org/capabilities` | `api.my_capabilities` | self, in `X-Membership` | Permission keys allowed in that workspace (safe list, no internals). |
 | `GET /org/offices` | `api.list_offices` | any active member of tenant | Visible offices (own subtree; President: all), filter by type/name/status, cursor paging. |
-| `POST /org/offices` | `api.create_office` | President Team | `type`, `name`, `parentOfficeId`, `leaderUid`. Creates office + leader membership. |
+| `POST /org/offices` | `api.create_office` | President Team | `type`, `name`, `parentOfficeId?`, `leaderUids[]` (≥ 1). Creates office + leader memberships. |
 | `PATCH /org/offices/{id}` | `api.rename_office` | `manage_members` over office | Name only. |
-| `POST /org/offices/{id}/leader` | `api.change_office_leader` | `manage_members` over office · R · S | Replacement semantics (W-05). |
+| `POST /org/offices/{id}/place` | `api.place_office` | President Team · R · S | `parentOfficeId` or null. Moves the office and its whole subtree (Q2). Money provenance is untouched; subtree totals follow the current tree. |
+| `POST /org/offices/{id}/leaders` | `api.add_office_leader` | `manage_members` over office · R · S | Adds a leader membership. |
+| `POST /org/offices/{id}/leaders/replace` | `api.replace_office_leader` | `manage_members` over office · R · S | Outgoing leader's membership ends, incoming starts (W-05). |
+| `POST /org/offices/{id}/leaders/{membershipId}/end` | `api.end_membership` | `end_membership` · R · S | Refused for the office's last active leader (`last_leader`); use replace. |
 | `GET /org/members` | `api.list_members` | `manage_members` or `view_managed_wallets` over office | Filter by office (subtree), role, status; cursor paging. |
-| `POST /org/memberships` | `api.add_membership` | `manage_members` over target office | `userUid`, `officeId`, `role`. Not leader roles (use leader change); not President (Q5). |
+| `POST /org/memberships` | `api.add_membership` | `manage_members` over target office | `userUid`, `officeId`. Role `member` only (leaders via the leader routes, Presidents via Q5). |
 | `POST /org/memberships/{id}/move` | `api.move_membership` | `move_membership` over both offices · R · S | Ends old, creates new, primary carried over. |
 | `POST /org/memberships/{id}/suspend` · `/reactivate` | `api.set_membership_status` | `suspend_membership` · R · S | Not the network's last active President Team membership. |
-| `POST /org/memberships/{id}/end` | `api.end_membership` | `end_membership` · R · S | Same last-President guard. Leaders: use leader change. |
+| `POST /org/memberships/{id}/end` | `api.end_membership` | `end_membership` · R · S | Same last-President and last-leader guards. |
 | `POST /org/presidents` · `DELETE` | `api.add_president` · `api.remove_president` | President Team · R · S | Q5; keeps ≥ 1. |
 | `GET /org/role-permissions` | `api.list_role_permissions` | President Team | Matrix with protected flags. |
 | `PUT /org/role-permissions` | `api.set_role_permission` | `manage_role_permissions` · R · S | Non-protected rows only. |
@@ -138,17 +143,20 @@ Same envelope and codes as Blueprint 01 B5. New codes:
 | `role_office_mismatch` | 422 | Role doesn't fit the office type (Q3) |
 | `membership_exists` | 409 | Same person/office/role already non-ended |
 | `last_president` | 409 | Would leave no active President Team Member |
+| `last_leader` | 409 | Would leave an active office with no active leader |
+| `network_not_active` | 409 | Network is `pending_payment`, suspended or deactivated |
 | `scope_exceeds_authority` | 403 | Access rule beyond your own scope |
 | `permission_not_grantable` | 422 | Protected or non-grantable permission |
 | `self_target_forbidden` | 403 | Leadership action on your own wallet/membership |
 
 ### B6. Tests (written first, must all pass in CI)
 pgTAP:
-1. Office levels: valid chain works; wrong parent type, cross-tenant parent and parentless non-World-Team are rejected. Closure rows correct after inserts; concurrent inserts in one tenant don't corrupt closure.
-2. Role/office matching (Q3); one leader per office (Q4); one primary per tenant; unique non-ended membership.
+1. Offices: any kind at the top works; parent of equal or lower kind, cross-tenant parent, and placing under itself or a descendant are rejected. Closure rows correct after inserts and after re-placing a subtree (insert a World Team above an existing Team Leader office; its members become covered by the World Team's leaders). Concurrent writes in one tenant don't corrupt closure.
+2. Members in any office kind; leader roles only in matching kind (Q3); several leaders per office, last one can't be ended or moved (Q4); one primary per tenant; unique non-ended membership.
+2a. `start_network` creates a `pending_payment` network the founder alone sees; offices and memberships are refused until active; a second pending network for the same founder is refused; admin activation needs reason + step-up.
 3. Primary handover on end/move; ending all memberships leaves account (and later wallet) intact.
 4. Move: old `ended` with reason, new `active`, history row for both; financial provenance untouched (asserted again in ledger slice).
-5. Leader change replaces leadership; the outgoing person's other memberships are untouched.
+5. Leader replace ends the outgoing leadership and starts the incoming; the outgoing person's other memberships are untouched.
 6. Last President Team member can't be suspended, ended or removed.
 7. Tenant creation seeds exactly the A-03 matrix (31 × 5); protected rows can't be edited; non-protected edit changes decisions immediately.
 8. Resolver matrix: each A-03 office permission for each role at own office, descendant office, sibling office and other tenant (allow/allow/deny/deny); President allowed tenant-wide; nothing across tenants.
