@@ -59,18 +59,21 @@ test('member Home shows the posted income split across pockets', async ({ page }
 
 	await recordIncome(founder, member, '1000.00');
 	await page.reload();
-	await expect(page.getByRole('region', { name: 'Balance' }).getByText('₦1,000.00')).toBeVisible();
+	await expect(
+		page.getByRole('region', { name: 'Balance' }).getByText('₦1,000.00', { exact: true })
+	).toBeVisible();
 	await expect(page.getByText('Posted ₦1,000.00')).toBeVisible();
 	await expect(page.getByText('Reserved ₦0.00')).toBeVisible();
 	// Default split 40 / 10 / 15 / 25 / 10 (U-01).
-	await expect(page.getByText('₦400.00')).toBeVisible();
+	await expect(page.getByText('₦400.00', { exact: true })).toBeVisible();
 	await expect(page.getByText('40.00% of income')).toBeVisible();
 	await expect(page.getByText('+₦1,000.00')).toBeVisible();
 	await expectAccessible(page);
 
 	// Hide amounts masks every figure.
 	await page.getByRole('button', { name: 'Hide amounts' }).click();
-	await expect(page.getByText('₦1,000.00')).toHaveCount(0);
+	await expect(page.getByText('₦1,000.00', { exact: true })).toHaveCount(0);
+	await expect(page.getByText('₦••••••', { exact: true }).first()).toBeVisible();
 	await page.getByRole('button', { name: 'Show amounts' }).click();
 });
 
