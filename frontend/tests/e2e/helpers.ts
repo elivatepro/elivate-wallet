@@ -283,3 +283,10 @@ begin
 end $$`);
 	await api.close();
 }
+
+/** An account's public UID, read from the LOCAL database (setup only). */
+export function uidOf(email: string): string {
+	return localSql(
+		`select a.uid from identity.accounts a join auth.users u on u.id = a.user_id where u.email = '${email.replaceAll("'", "''")}'`
+	);
+}
