@@ -34,6 +34,7 @@ async function verifyPin(page: Page) {
 	await expect(page).toHaveURL(/\/pin(\?.*)?$/);
 	await page.getByLabel('PIN', { exact: true }).fill(PIN);
 	await page.getByRole('button', { name: 'Verify' }).click();
+	await expect(page).not.toHaveURL(/\/pin(\?.*)?$/);
 }
 
 test('new person: join link → verify email → password → accept → PIN → home', async ({ page }) => {
@@ -76,7 +77,9 @@ test('new person: join link → verify email → password → accept → PIN →
 	await page.getByLabel('Repeat PIN').fill(PIN);
 	await page.getByRole('button', { name: 'Save PIN' }).click();
 	await expect(page).toHaveURL(/\/app$/);
-	await expect(page.getByText('Harbor Test Network').filter({ visible: true })).toBeVisible();
+	await expect(
+		page.getByRole('button', { name: 'Harbor Test Network: switch workspace' })
+	).toBeVisible();
 	expect(page.url()).not.toMatch(/token|#t=|[0-9a-f]{8}-[0-9a-f]{4}/i);
 
 	// 6. The link is used up.
@@ -107,7 +110,9 @@ test('existing account: join link → sign in → PIN → accept → home', asyn
 	await expect(page.getByRole('heading', { name: 'Accept your invitation' })).toBeVisible();
 	await page.getByRole('button', { name: 'Accept invitation' }).click();
 	await expect(page).toHaveURL(/\/app$/);
-	await expect(page.getByText('Delta Test Network').filter({ visible: true })).toBeVisible();
+	await expect(
+		page.getByRole('button', { name: 'Delta Test Network: switch workspace' })
+	).toBeVisible();
 });
 
 test('signed in as someone else: the invitation is refused, nothing joins', async ({ page }) => {
@@ -142,7 +147,9 @@ test('in-app list: "Invitations for you" → Accept → home', async ({ page }) 
 	await expectAccessible(page);
 	await page.getByRole('button', { name: 'Accept invitation to Maple Test Network' }).click();
 	await expect(page).toHaveURL(/\/app$/);
-	await expect(page.getByText('Maple Test Network').filter({ visible: true })).toBeVisible();
+	await expect(
+		page.getByRole('button', { name: 'Maple Test Network: switch workspace' })
+	).toBeVisible();
 
 	// Accepted invitations leave the list.
 	await page.goto('/workspaces?switch');
@@ -173,6 +180,8 @@ test.describe('320 px, both themes', () => {
 			await expect(page.getByRole('heading', { name: 'Confirm your email' })).toBeVisible();
 			await expectNoHorizontalScroll(page);
 			await expectAccessible(page);
+			// A different link opened later replaces the pending one (full load, as from email).
+			await page.goto('about:blank');
 			await page.goto('/join#t=unknown');
 			await expect(page.getByRole('heading', { name: 'Invitation unavailable' })).toBeVisible();
 			await expectNoHorizontalScroll(page);

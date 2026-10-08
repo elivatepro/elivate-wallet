@@ -30,17 +30,18 @@
 	const sent = $derived(data.mode === 'verify' && !!form && 'sent' in form && form.sent);
 
 	onMount(() => {
-		if (data.mode !== 'claim' || form) return;
+		if (form) return;
 		// Read the link secret from the fragment, then drop it from the address
-		// bar and history before anything else happens.
+		// bar and history before anything else happens. A link opened while
+		// another one is pending replaces it.
 		const token = new URLSearchParams(location.hash.slice(1)).get('t');
-		history.replaceState(history.state, '', location.pathname);
-		if (!token || !claimForm || !tokenInput) {
+		if (location.hash) history.replaceState(history.state, '', location.pathname);
+		if (token && claimForm && tokenInput) {
+			tokenInput.value = token;
+			claimForm.requestSubmit();
+		} else if (data.mode === 'claim') {
 			missingToken = true;
-			return;
 		}
-		tokenInput.value = token;
-		claimForm.requestSubmit();
 	});
 
 	const submitting = () => {
@@ -70,6 +71,10 @@
 	<title>{title} · Elivate Wallet</title>
 </svelte:head>
 
+<form method="POST" action="?/claim" bind:this={claimForm} hidden>
+	<input type="hidden" name="token" bind:this={tokenInput} />
+</form>
+
 {#if unavailable}
 	<AuthHeading
 		icon={Unlink}
@@ -85,9 +90,6 @@
 	<SignOutLink label="Use another account" />
 {:else if data.mode === 'claim'}
 	<AuthHeading eyebrow="Invitation" {title} />
-	<form method="POST" action="?/claim" bind:this={claimForm} hidden>
-		<input type="hidden" name="token" bind:this={tokenInput} />
-	</form>
 	<noscript><p class="note">Turn on JavaScript to open this invitation.</p></noscript>
 {:else if data.mode === 'verify' && sent}
 	<AuthHeading
