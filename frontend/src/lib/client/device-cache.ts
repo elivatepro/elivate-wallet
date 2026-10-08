@@ -14,7 +14,8 @@ export type CacheKind = (typeof CACHE_KINDS)[number];
 export const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 const PREFIX = 'ew:cache:v1:';
-const LAST_SCOPE_KEY = 'ew:scope:v1';
+export const SCOPE_KEY = 'ew:scope:v1';
+const LAST_SCOPE_KEY = SCOPE_KEY;
 
 export interface CacheScope {
 	/** Permanent UID of the signed-in person (not a secret). */

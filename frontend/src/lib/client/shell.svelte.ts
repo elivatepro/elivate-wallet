@@ -13,6 +13,7 @@ import {
 	lastScope,
 	readCache,
 	rememberScope,
+	SCOPE_KEY,
 	sweepExpired,
 	writeCache,
 	type CacheScope
@@ -54,7 +55,11 @@ export class Shell {
 
 	start(): () => void {
 		this.online = navigator.onLine;
-		this.hideAmounts = localStorage.getItem(HIDE_AMOUNTS_KEY) === '1';
+		try {
+			this.hideAmounts = localStorage.getItem(HIDE_AMOUNTS_KEY) === '1';
+		} catch {
+			this.hideAmounts = false; // storage blocked: keep the default
+		}
 		const store = browserStore();
 		if (store) sweepExpired(store);
 		const onOnline = () => {
@@ -65,13 +70,23 @@ export class Shell {
 			this.online = false;
 			this.#showOffline();
 		};
+		// Sign-out in another tab erases the remembered scope; this tab must not
+		// keep showing that person's workspace (36a).
+		const onStorage = (event: StorageEvent) => {
+			if (event.key === null || (event.key === SCOPE_KEY && event.newValue === null)) {
+				this.state = { kind: 'loading' };
+				go(SIGN_IN_PATH);
+			}
+		};
 		window.addEventListener('online', onOnline);
 		window.addEventListener('offline', onOffline);
+		window.addEventListener('storage', onStorage);
 		void this.load();
 		return () => {
 			this.#controller?.abort();
 			window.removeEventListener('online', onOnline);
 			window.removeEventListener('offline', onOffline);
+			window.removeEventListener('storage', onStorage);
 		};
 	}
 

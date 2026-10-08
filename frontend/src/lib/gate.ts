@@ -40,6 +40,6 @@ export function safeNext(value: string | null | undefined): string | null {
 	if (!value || !value.startsWith('/') || value.startsWith('//') || value.includes('\\')) {
 		return null;
 	}
-	if (value.length > 200) return null;
+	if (value.length > 400) return null;
 	return value;
 }

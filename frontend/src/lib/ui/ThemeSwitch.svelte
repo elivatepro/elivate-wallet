@@ -15,7 +15,8 @@
 	const labels: Record<Theme, string> = { dark: 'Dark', light: 'Light', system: 'System' };
 	const order: Theme[] = ['dark', 'light', 'system'];
 	const nextTheme = $derived(order[(order.indexOf(theme) + 1) % order.length] ?? 'dark');
-	const next = $derived(page.url.pathname);
+	// Keep the query: /auth/confirm needs its token_hash and type after a theme change.
+	const next = $derived(page.url.pathname + page.url.search);
 </script>
 
 <form method="POST" action="/theme" class="theme">

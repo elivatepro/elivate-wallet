@@ -16,7 +16,7 @@
 	import { purgeAllDeviceData, staleLabel } from '#lib/client/device-cache.js';
 	import { Shell } from '#lib/client/shell.svelte.js';
 	import { ROLE_LABELS } from '#lib/labels.js';
-	import { parseTheme } from '#lib/theme.js';
+	import { parseTheme, THEMES, type Theme } from '#lib/theme.js';
 	import type { LayoutProps } from './$types';
 
 	let { children }: LayoutProps = $props();
@@ -28,7 +28,7 @@
 
 	onMount(() => {
 		// The prerendered shell ships with the default theme; follow the cookie.
-		const theme = parseTheme(document.cookie.match(/(?:^|; )ew_theme=([^;]+)/)?.[1]);
+		theme = parseTheme(document.cookie.match(/(?:^|; )ew_theme=([^;]+)/)?.[1]);
 		document.documentElement.dataset.theme = theme;
 		return shell.start();
 	});
@@ -41,6 +41,17 @@
 		const registration = await navigator.serviceWorker?.getRegistration();
 		registration?.waiting?.postMessage({ type: 'SKIP_WAITING' });
 		window.location.reload();
+	}
+
+	let theme: Theme = $state('dark');
+	const themeLabels: Record<Theme, string> = { dark: 'Dark', light: 'Light', system: 'System' };
+
+	// Same non-sensitive cookie the server-rendered pages read (W-01 theme choice).
+	function setTheme(value: string) {
+		theme = parseTheme(value);
+		document.documentElement.dataset.theme = theme;
+		const secure = location.protocol === 'https:' ? '; Secure' : '';
+		document.cookie = `ew_theme=${theme}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`;
 	}
 
 	function signOut() {
@@ -116,6 +127,17 @@
 									<span>Hide amounts</span><span class="check">{checked ? 'On' : 'Off'}</span>
 								{/snippet}
 							</DropdownMenu.CheckboxItem>
+							<DropdownMenu.RadioGroup value={theme} onValueChange={setTheme} aria-label="Theme">
+								{#each THEMES as option (option)}
+									<DropdownMenu.RadioItem class="menu-item" value={option}>
+										{#snippet children({ checked })}
+											<span>{themeLabels[option]} theme</span><span class="check"
+												>{checked ? 'On' : ''}</span
+											>
+										{/snippet}
+									</DropdownMenu.RadioItem>
+								{/each}
+							</DropdownMenu.RadioGroup>
 							<DropdownMenu.Item class="menu-item" disabled={!shell.online} onSelect={signOut}>
 								Sign out
 							</DropdownMenu.Item>

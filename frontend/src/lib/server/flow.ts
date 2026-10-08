@@ -35,6 +35,12 @@ export function redirectForFailure(failure: EdgeFailure): never {
 		if (path) redirect(303, path);
 	}
 	if (failure._tag === 'TransportError' && failure.status === 401) redirect(303, SIGN_IN_PATH);
+	if (failure._tag === 'ContractViolation') {
+		// Route pattern + backend requestId only (plan §5.9).
+		console.error(
+			JSON.stringify({ route: failure.route, requestId: failure.requestId, contract: 'violation' })
+		);
+	}
 	error(503, 'Wallet is unavailable right now. Try again shortly.');
 }
 
