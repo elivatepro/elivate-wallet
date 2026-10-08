@@ -49,7 +49,10 @@ export const ERROR_CODES = [
 	'payout_lookup_expired',
 	'payout_name_mismatch',
 	'payout_account_exists',
-	'payout_account_unusable'
+	'payout_account_unusable',
+	'nin_not_verified',
+	'nin_in_use',
+	'nin_review_required'
 ] as const;
 
 export const ErrorCode = Schema.Literals(ERROR_CODES);
