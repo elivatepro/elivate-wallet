@@ -91,3 +91,74 @@ export function uid(body: Body, field: string): string {
   }
   return value.trim().toUpperCase();
 }
+
+/** A decimal amount as a string, never a JSON number; the database checks scale and sign. */
+export function decimal(body: Body, field: string): string {
+  const value = body[field];
+  if (
+    typeof value !== "string" || !/^[0-9]{1,20}(\.[0-9]{1,18})?$/.test(value)
+  ) {
+    throw new ApiError("validation_error", { field });
+  }
+  return value;
+}
+
+export function currency(body: Body, field: string): string {
+  const value = body[field];
+  if (typeof value !== "string" || !/^[A-Z]{3}$/.test(value)) {
+    throw new ApiError("validation_error", { field });
+  }
+  return value;
+}
+
+/** A calendar date `YYYY-MM-DD` that exists. */
+export function date(body: Body, field: string): string {
+  const value = body[field];
+  if (
+    typeof value !== "string" || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value)
+  ) {
+    throw new ApiError("validation_error", { field });
+  }
+  const parsed = new Date(`${value}T00:00:00Z`);
+  if (
+    Number.isNaN(parsed.getTime()) ||
+    parsed.toISOString().slice(0, 10) !== value
+  ) {
+    throw new ApiError("validation_error", { field });
+  }
+  return value;
+}
+
+export function integer(
+  body: Body,
+  field: string,
+  min: number,
+  max: number,
+): number {
+  const value = body[field];
+  if (
+    typeof value !== "number" || !Number.isInteger(value) || value < min ||
+    value > max
+  ) {
+    throw new ApiError("validation_error", { field });
+  }
+  return value;
+}
+
+/** Distinct UUIDs, lower-cased, between `min` and `max` of them. */
+export function uuidList(
+  body: Body,
+  field: string,
+  min: number,
+  max: number,
+): string[] {
+  const value = body[field];
+  if (!Array.isArray(value) || value.length < min || value.length > max) {
+    throw new ApiError("validation_error", { field });
+  }
+  const ids = value.map((_, i) => uuid(value as unknown as Body, String(i)));
+  if (new Set(ids).size !== ids.length) {
+    throw new ApiError("validation_error", { field });
+  }
+  return ids;
+}

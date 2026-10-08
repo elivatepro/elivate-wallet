@@ -443,3 +443,6 @@ verify_jwt = false
 # Called by pg_cron/pg_net with OUTBOX_WORKER_SECRET, never a user JWT.
 [functions.outbox-worker]
 verify_jwt = false
+
+[functions.ledger]
+verify_jwt = true
