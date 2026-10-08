@@ -144,7 +144,7 @@ function optionalUuid(body: v.Body, field: string): string | null {
 }
 
 function optionalReason(body: v.Body): string | null {
-  return body.reason === null || body.reason === undefined ? null : v.text(body, "reason", 500);
+  return body.reason === null || body.reason === undefined ? null : v.reason(body);
 }
 
 function asObject(value: unknown): Json {
@@ -293,7 +293,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       return call("deactivate_payout_account", {
         ...commandInWorkspace(c),
         p_payout_account_id: c.params.id,
-        p_reason: v.text(body, "reason", 500),
+        p_reason: v.reason(body),
         p_idempotency_key: v.idempotencyKey(body),
       });
     }),

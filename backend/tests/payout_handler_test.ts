@@ -306,6 +306,10 @@ Deno.test("primary and deactivate routes pass the path id", async () => {
     request("POST", `/accounts/${accountId}/deactivate`, { idempotencyKey: key }),
   );
   assertEquals(noReason.status, 400);
+  const shortReason = await handler(
+    request("POST", `/accounts/${accountId}/deactivate`, { reason: " ab ", idempotencyKey: key }),
+  );
+  assertEquals(shortReason.status, 400);
   await handler(
     request("POST", `/accounts/${accountId}/deactivate`, { reason: "Closed", idempotencyKey: key }),
   );
