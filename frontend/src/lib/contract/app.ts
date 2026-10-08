@@ -3,6 +3,7 @@
 // the Edge Functions.
 
 import { Schema } from 'effect';
+import { ActivityItem, WalletNetwork } from './ledger';
 import { Capabilities, Workspace } from './org';
 import { SecurityState } from './security';
 
@@ -18,6 +19,21 @@ export const SessionView = Schema.Struct({
 });
 export type SessionView = typeof SessionView.Type;
 
+/**
+ * GET /api/home: the selected network's slice of the person's own wallet
+ * (W-07), its latest activity and the split percentages. `network` is null
+ * when the person has no wallet here (e.g. President Team only).
+ */
+export const HomeView = Schema.Struct({
+	network: Schema.NullOr(WalletNetwork),
+	activity: Schema.Array(ActivityItem),
+	split: Schema.NullOr(
+		Schema.Array(Schema.Struct({ pocketId: Schema.String, percent: Schema.String }))
+	)
+});
+export type HomeView = typeof HomeView.Type;
+
 export const AppRoutes = {
-	session: { method: 'GET', path: '/api/session' }
+	session: { method: 'GET', path: '/api/session' },
+	home: { method: 'GET', path: '/api/home' }
 } as const;

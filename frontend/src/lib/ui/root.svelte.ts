@@ -19,6 +19,7 @@ export type RootPose =
 	| 'load-error'
 	| 'notifications'
 	| 'home-empty'
+	| 'home'
 	| 'onboard-welcome'
 	| 'onboard-pin'
 	| 'onboard-verifying'
@@ -50,6 +51,8 @@ export const ROOT_HEIGHTS: Record<RootPose, number> = {
 	'load-error': 523,
 	notifications: 520,
 	'home-empty': 520,
+	// Paper "App — Screens v3" H04/H06 balance card (Root on the coin stack).
+	home: 525,
 	// Paper "Onboarding — Invited member" · Root — Onboarding poses.
 	'onboard-welcome': 525,
 	'onboard-pin': 525,

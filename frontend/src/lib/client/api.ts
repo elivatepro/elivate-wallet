@@ -3,7 +3,7 @@
 // same Effect Schemas the server uses. No token ever reaches this code.
 
 import { Effect, Schedule } from 'effect';
-import { AppRoutes, SessionView } from '#lib/contract/app.js';
+import { AppRoutes, HomeView, SessionView } from '#lib/contract/app.js';
 import { isRetryableRead, type ApiFailure } from '#lib/contract/errors.js';
 import { READ_TIMEOUT_MS, requestJson } from '#lib/contract/transport.js';
 
@@ -21,6 +21,30 @@ export function loadSession(
 			signal
 		},
 		SessionView
+	).pipe(
+		Effect.retry({
+			times: 2,
+			while: (e: ApiFailure) =>
+				isRetryableRead(e) && !(e._tag === 'TransportError' && e.reason === 'network'),
+			schedule: Schedule.exponential('300 millis').pipe(Schedule.jittered)
+		})
+	);
+}
+
+export function loadHome(
+	fetcher: typeof fetch,
+	signal?: AbortSignal
+): Effect.Effect<HomeView, ApiFailure> {
+	return requestJson(
+		{
+			fetch: fetcher,
+			url: AppRoutes.home.path,
+			method: AppRoutes.home.method,
+			route: `${AppRoutes.home.method} ${AppRoutes.home.path}`,
+			timeoutMs: READ_TIMEOUT_MS,
+			signal
+		},
+		HomeView
 	).pipe(
 		Effect.retry({
 			times: 2,

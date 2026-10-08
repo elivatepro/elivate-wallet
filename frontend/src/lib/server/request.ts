@@ -13,11 +13,13 @@ import {
 	SecurityApiLive
 } from './apis';
 import { IdentityApi, IdentityApiLive, PayoutApi, PayoutApiLive } from './apis-identity';
+import { LedgerApi, LedgerApiLive } from './apis-ledger';
 import type { VerifiedSession } from './auth';
 import { EdgeTransportLive, type EdgeFailure } from './edge';
 import { requireConfig } from './config';
 
-export type ApiServices = SecurityApi | OrgApi | InvitationsApi | IdentityApi | PayoutApi;
+export type ApiServices =
+	SecurityApi | OrgApi | InvitationsApi | IdentityApi | PayoutApi | LedgerApi;
 
 /**
  * `session` null runs without a bearer token: only the public invitation
@@ -42,7 +44,8 @@ export function runApi<A>(
 		OrgApiLive,
 		InvitationsApiLive,
 		IdentityApiLive,
-		PayoutApiLive
+		PayoutApiLive,
+		LedgerApiLive
 	).pipe(Layer.provide(edge));
 	return Effect.runPromiseExit(program.pipe(Effect.provide(layer)));
 }
