@@ -6,11 +6,13 @@
 	import Field from '#lib/ui/auth/Field.svelte';
 	import FormAlert from '#lib/ui/auth/FormAlert.svelte';
 	import PrimaryButton from '#lib/ui/auth/PrimaryButton.svelte';
+	import Turnstile from '#lib/ui/auth/Turnstile.svelte';
 	import { MIN_PASSWORD } from '../credentials';
 	import type { PageProps } from './$types';
 
-	let { form }: PageProps = $props();
+	let { data, form }: PageProps = $props();
 	let busy = $state(false);
+	let turnstile: Turnstile | undefined = $state();
 </script>
 
 <svelte:head><title>Start your network · Elivate Wallet</title></svelte:head>
@@ -25,6 +27,8 @@
 		return async ({ update }) => {
 			await update({ reset: false });
 			busy = false;
+			// Each Turnstile token verifies once; get a fresh one for a retry.
+			turnstile?.reset();
 		};
 	}}
 >
@@ -52,6 +56,12 @@
 			error={form?.errors?.password}
 		/>
 	</div>
+	<Turnstile
+		bind:this={turnstile}
+		siteKey={data.turnstileSiteKey}
+		action="sign-up"
+		theme={data.theme === 'system' ? 'auto' : data.theme}
+	/>
 	<div class="actions">
 		<PrimaryButton label="Create account" {busy} />
 		<AltLink prompt="Already with Elivate?" label="Sign in" href="/sign-in" />

@@ -1,5 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { authFailureFrom } from '#lib/server/auth.js';
+import { humanCheck, turnstileSiteKey } from '#lib/server/human-check.js';
+import { turnstileMessage } from '#lib/server/turnstile.js';
 import { authMessage, MIN_PASSWORD, readCredentials } from '../credentials';
 import type { CredentialErrors } from '../credentials';
 import type { Actions, PageServerLoad } from './$types';
@@ -8,16 +10,25 @@ const weak = (): CredentialErrors => ({ password: authMessage('weak_password', '
 
 export const load: PageServerLoad = async ({ locals }) => {
 	if (await locals.session()) redirect(303, '/workspaces');
-	return {};
+	return { turnstileSiteKey: turnstileSiteKey() };
 };
 
 export const actions: Actions = {
 	default: async (event) => {
-		const credentials = readCredentials(await event.request.formData());
+		const form = await event.request.formData();
+		const credentials = readCredentials(form);
 		if (!credentials.ok) return fail(400, { email: credentials.email, errors: credentials.errors });
 		const { email, password } = credentials;
 		if (password.length < MIN_PASSWORD) {
 			return fail(400, { email, errors: weak() });
+		}
+		// Turnstile before Auth creates anything or sends email (Blueprint 10).
+		const human = await humanCheck(event, form, 'sign-up');
+		if (!human.ok) {
+			return fail(human.reason === 'unavailable' ? 503 : 400, {
+				email,
+				message: turnstileMessage(human)
+			});
 		}
 
 		const { error } = await event.locals.supabase().auth.signUp({
