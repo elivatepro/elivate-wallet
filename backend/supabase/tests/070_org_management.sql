@@ -2,7 +2,7 @@
 -- detail reads, member search, list_offices leaders, privileges.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(60);
+select plan(59);
 
 create function pg_temp.u(n int) returns uuid language sql immutable as
   $$ select ('10000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
