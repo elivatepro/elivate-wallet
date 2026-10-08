@@ -1046,8 +1046,8 @@
 			width: 180px;
 		}
 
-		.c-sent,
-		.c-activity {
+		.rows .c-sent,
+		.rows .c-activity {
 			color: var(--color-text);
 			font-size: 13px;
 			line-height: 16px;
