@@ -8,6 +8,7 @@
 	import { getContext } from 'svelte';
 	import Bell from '@lucide/svelte/icons/bell';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
+	import IdCard from '@lucide/svelte/icons/id-card';
 	import Landmark from '@lucide/svelte/icons/landmark';
 	import MailPlus from '@lucide/svelte/icons/mail-plus';
 	import PieChart from '@lucide/svelte/icons/chart-pie';
@@ -89,6 +90,13 @@
 			<span class="label">Pockets &amp; split</span>
 			<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
 		</a>
+		{#if summary?.role === 'president_team_member' || summary?.role === 'world_team_member'}
+			<a class="row" href="/app/reviews">
+				<IdCard size={20} strokeWidth={1.8} aria-hidden="true" />
+				<span class="label">NIN reviews</span>
+				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
+			</a>
+		{/if}
 		{#if can('invite_members')}
 			<a class="row" href="/app/invitations">
 				<MailPlus size={20} strokeWidth={1.8} aria-hidden="true" />

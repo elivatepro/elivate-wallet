@@ -62,6 +62,15 @@ export const SplitCommand = Schema.Struct({
 });
 export type SplitCommand = typeof SplitCommand.Type;
 
+/** POST /api/nin-reviews/:id (Blueprint 06): approve or reject with reason + PIN. */
+export const ReviewDecisionCommand = Schema.Struct({
+	decision: Schema.Literals(['approve', 'reject']),
+	reason: Schema.String,
+	pin: OptionalPin,
+	idempotencyKey: IdempotencyKey
+});
+export type ReviewDecisionCommand = typeof ReviewDecisionCommand.Type;
+
 export const AppRoutes = {
 	split: { method: 'GET', path: '/api/split' },
 	saveSplit: { method: 'PUT', path: '/api/split' },

@@ -15,6 +15,7 @@
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import EyeOff from '@lucide/svelte/icons/eye-off';
 	import House from '@lucide/svelte/icons/house';
+	import IdCard from '@lucide/svelte/icons/id-card';
 	import Landmark from '@lucide/svelte/icons/landmark';
 	import MailPlus from '@lucide/svelte/icons/mail-plus';
 	import PieChart from '@lucide/svelte/icons/chart-pie';
@@ -53,6 +54,10 @@
 	const person = $derived(shell.state.kind === 'ready' ? shell.state.view.profile : null);
 	const path = $derived(page.url.pathname);
 	/** Navigation hint only; every command is still authorized by the backend. */
+	/** Blueprint 06 Q4 reviewers (the backend re-checks each review). */
+	const reviewer = $derived(
+		summary?.role === 'president_team_member' || summary?.role === 'world_team_member'
+	);
 	const can = (permission: string) =>
 		shell.state.kind === 'ready' &&
 		(shell.state.view.capabilities?.permissions ?? []).includes(permission);
@@ -129,6 +134,15 @@
 					aria-current={path.startsWith('/app/invitations') ? 'page' : undefined}
 				>
 					<MailPlus size={18} strokeWidth={1.5} aria-hidden="true" /><span>Invitations</span>
+				</a>
+			{/if}
+			{#if reviewer}
+				<a
+					class="side-item"
+					href="/app/reviews"
+					aria-current={path.startsWith('/app/reviews') ? 'page' : undefined}
+				>
+					<IdCard size={18} strokeWidth={1.5} aria-hidden="true" /><span>NIN reviews</span>
 				</a>
 			{/if}
 			<a
