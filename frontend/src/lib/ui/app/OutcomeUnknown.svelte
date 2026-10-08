@@ -8,8 +8,7 @@
 	and are listed as waiting on Paper approval (Blueprint 08).
 -->
 <script lang="ts">
-	import type { Schema } from 'effect';
-	import type { CommandAttempt } from '#lib/client/command-attempt.svelte.js';
+	import type { AttemptControls } from '#lib/client/command-attempt.svelte.js';
 	import { attemptLabel } from '#lib/recovery.js';
 	import RootImage from '#lib/ui/RootImage.svelte';
 
@@ -20,7 +19,7 @@
 		backLabel = 'Back to Home',
 		onResolved
 	}: {
-		attempt: CommandAttempt<Schema.ConstraintDecoder<unknown>>;
+		attempt: AttemptControls;
 		/** "withdrawal", "income"... used in the copy. */
 		noun?: string;
 		backHref?: string;

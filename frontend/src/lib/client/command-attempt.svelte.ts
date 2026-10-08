@@ -47,6 +47,14 @@ export type AttemptState<A> =
 			readonly resolution: Resolution;
 	  };
 
+/** What the recovery screen needs from any CommandAttempt (OutcomeUnknown.svelte). */
+export interface AttemptControls {
+	readonly state: AttemptState<unknown>;
+	check(): Promise<unknown>;
+	resend(options?: { pin?: string }): Promise<unknown>;
+	reset(): void;
+}
+
 export interface CommandAttemptOptions<S extends Schema.ConstraintDecoder<unknown>> {
 	readonly command: string;
 	readonly path: string;
@@ -83,7 +91,9 @@ const outcomePath = (key: string, command: string) =>
 const failureOf = <A>(exit: Exit.Exit<A, ApiFailure>): ApiFailure | undefined =>
 	Exit.isFailure(exit) ? Option.getOrUndefined(Cause.findErrorOption(exit.cause)) : undefined;
 
-export class CommandAttempt<S extends Schema.ConstraintDecoder<unknown>> {
+export class CommandAttempt<
+	S extends Schema.ConstraintDecoder<unknown>
+> implements AttemptControls {
 	state: AttemptState<S['Type']> = $state({ kind: 'idle' });
 	#key = newKey();
 	/** The exact body sent with the current key (memory only; includes no PIN). */

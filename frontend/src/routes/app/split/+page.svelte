@@ -15,8 +15,9 @@
 	import { SplitView } from '#lib/contract/app.js';
 	import { Allocation, type Allocation as AllocationType } from '#lib/contract/ledger.js';
 	import type { ApiFailure } from '#lib/contract/errors.js';
-	import { getJson, newKey, sendCommand } from '#lib/client/api.js';
-	import { isUnknownOutcome } from '#lib/recovery.js';
+	import { getJson, newKey } from '#lib/client/api.js';
+	import { CommandAttempt } from '#lib/client/command-attempt.svelte.js';
+	import OutcomeUnknown from '#lib/ui/app/OutcomeUnknown.svelte';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import ConfirmDialog from '#lib/ui/app/ConfirmDialog.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
@@ -46,7 +47,53 @@
 	let dialogError = $state<string | null>(null);
 	let pinError = $state<string | null>(null);
 	let saved = $state(false);
-	let commandKey = newKey();
+	/** Shared F-03 runner: same key until a definitive answer (Blueprint 08). */
+	const attempt = new CommandAttempt({
+		command: 'set_allocation',
+		path: '/api/split',
+		method: 'PUT',
+		schema: Allocation,
+		scope: () =>
+			shell.state.kind === 'ready'
+				? { uid: shell.state.view.state.uid, workspaceId: shell.state.view.workspace.membershipId }
+				: null
+	});
+	let restored = false;
+	$effect(() => {
+		if (shell.state.kind === 'ready' && !restored) {
+			restored = true;
+			void attempt.restore();
+		}
+	});
+	const recovering = $derived(
+		attempt.state.kind === 'unknown' ||
+			attempt.state.kind === 'checking' ||
+			attempt.state.kind === 'resolved'
+	);
+	$effect(() => {
+		if (attempt.state.kind === 'done') void afterSave();
+	});
+	// "Send again" after the PIN window closed: ask for the PIN in the dialog.
+	$effect(() => {
+		const s = attempt.state;
+		if (
+			s.kind === 'failed' &&
+			!dialogOpen &&
+			s.failure._tag === 'BackendError' &&
+			s.failure.code === 'step_up_required'
+		) {
+			dialogOpen = true;
+			pinError = 'Enter your PIN to confirm.';
+		}
+	});
+
+	async function afterSave() {
+		attempt.reset();
+		dialogOpen = false;
+		saved = true;
+		view = null;
+		await load();
+	}
 
 	const toRows = (a: AllocationType): Row[] =>
 		a.pockets.map((p) => ({
@@ -141,24 +188,20 @@
 				name: r.name.trim(),
 				basisPoints: basisPoints(r.percent) ?? 0
 			})),
-			reason,
-			...(pin ? { pin } : {}),
-			idempotencyKey: commandKey
+			reason
 		};
-		const exit = await Effect.runPromiseExit(
-			sendCommand('/api/split', 'PUT', body, shell.state.view.workspace.membershipId, Allocation)
-		);
+		const state = await attempt.send(shell.state.view.workspace.membershipId, body, {
+			pin,
+			summary: 'split change'
+		});
 		busy = false;
-		if (Exit.isSuccess(exit)) {
+		if (state.kind === 'done') return;
+		if (state.kind !== 'failed') {
 			dialogOpen = false;
-			commandKey = newKey();
-			saved = true;
-			view = null;
-			await load();
 			return;
 		}
-		const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
-		if (failure?._tag === 'BackendError') {
+		const failure: ApiFailure = state.failure;
+		if (failure._tag === 'BackendError') {
 			if (failure.code === 'step_up_required')
 				return void (pinError = 'Enter your PIN to confirm.');
 			if (failure.code === 'pin_incorrect') {
@@ -169,15 +212,24 @@
 			}
 			if (failure.code === 'pin_locked') return void window.location.assign('/pin/locked');
 		}
-		// Unknown outcome keeps the same key for the retry (W-00, #lib/recovery); a refusal gets a new one.
-		if (!isUnknownOutcome(failure)) commandKey = newKey();
 		dialogError = message(failure);
 	}
 </script>
 
 <svelte:head><title>Pockets &amp; split · Elivate Wallet</title></svelte:head>
 
-{#if !view && !loadError}
+{#if recovering}
+	<OutcomeUnknown
+		{attempt}
+		noun="split change"
+		backHref="/app/split"
+		backLabel="Back to the split"
+		onResolved={() => {
+			view = null;
+			void load();
+		}}
+	/>
+{:else if !view && !loadError}
 	<div class="skeleton" aria-hidden="true"></div>
 	<p class="visually-hidden" role="status">Loading the split</p>
 {:else if loadError || !view}
