@@ -244,6 +244,17 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
+# LOCAL ONLY (decision 38): token_hash links to the app's /auth/confirm page,
+# which shows a Continue button and verifies on POST. The hosted projects'
+# templates are edited separately by the owner; never `supabase config push`.
+[auth.email.template.confirmation]
+subject = "Confirm your Elivate Wallet email"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.magic_link]
+subject = "Reset your Elivate Wallet PIN"
+content_path = "./supabase/templates/magic_link.html"
+
 # Uncomment to customize email template
 # [auth.email.template.invite]
 # subject = "You have been invited"

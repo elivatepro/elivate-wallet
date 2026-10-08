@@ -1,0 +1,18 @@
+// Cloudflare Workers config (decision 37). Nothing deploys from this repo yet:
+// the owner sets the preview origin and production route later (decision 50).
+// SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY are set per environment at deploy
+// time (see .env.example); no values live in Git.
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "elivate-wallet-app",
+	"compatibility_date": "2026-10-08",
+	"compatibility_flags": ["nodejs_compat"],
+	"main": ".svelte-kit/cloudflare/_worker.js",
+	"assets": {
+		"binding": "ASSETS",
+		"directory": ".svelte-kit/cloudflare"
+	},
+	"observability": { "enabled": true },
+	"workers_dev": false,
+	"preview_urls": false
+}

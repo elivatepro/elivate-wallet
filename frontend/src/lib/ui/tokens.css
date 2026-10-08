@@ -1,0 +1,180 @@
+/*
+ * Emberlit tokens. Values are copied from the Paper file "Elivate Wallet"
+ * (design tokens, read 2026-10-08, token hash 3a2f6a35) and match P-06.
+ * Auth-surface values come from the adopted "Authentication v2" page
+ * (get_jsx exports), not from screenshots.
+ */
+
+:root {
+	--font-sans: 'Lexend Variable', 'Lexend', system-ui, sans-serif;
+	--font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+	--text-12: 12px;
+	--text-14: 14px;
+	--text-16: 16px;
+	--text-20: 20px;
+	--text-24: 24px;
+	--text-32: 32px;
+	--text-40: 40px;
+	--leading-16: 16px;
+	--leading-20: 20px;
+	--leading-24: 24px;
+	--leading-28: 28px;
+	--leading-32: 32px;
+	--leading-40: 40px;
+	--leading-48: 48px;
+	--font-weight-regular: 400;
+	--font-weight-medium: 500;
+	--font-weight-semibold: 600;
+	--font-weight-bold: 700;
+	--tracking-label: 0.04em;
+	--tracking-display: -0.02em;
+	--tracking-normal: 0em;
+
+	--spacing-1: 4px;
+	--spacing-2: 8px;
+	--spacing-3: 12px;
+	--spacing-4: 16px;
+	--spacing-6: 24px;
+	--spacing-8: 32px;
+	--spacing-12: 48px;
+
+	--radius-8: 8px;
+	--radius-12: 12px;
+	--radius-16: 16px;
+	--radius-24: 24px;
+	--radius-pill: 999px;
+
+	--opacity-muted: 68%;
+	--opacity-disabled: 42%;
+	--opacity-overlay: 68%;
+
+	--container-mobile: 390px;
+	--container-content: 1200px;
+	--container-sidebar: 248px;
+
+	--hit-min: 44px;
+
+	/* The Elivate mark is never recolored. */
+	--color-brand: #ff7f4f;
+	--color-accent: #ff7f4f;
+	--color-accent-strong: #b74725;
+
+	/* Primary action (Authentication v2): coral gradient pill, dark ink. */
+	--button-primary-bg: linear-gradient(
+		in oklab 135deg,
+		oklab(78.2% 0.097 0.093) 0%,
+		oklab(73.5% 0.128 0.109) 55%,
+		oklab(68.2% 0.142 0.112) 100%
+	);
+	--button-primary-ink: #14100e;
+	--button-primary-chip-arrow: #ff9a6e;
+}
+
+/* Dark is the default theme (P-06). */
+:root,
+[data-theme='dark'] {
+	color-scheme: dark;
+	--color-canvas: #111314;
+	--color-surface: #1a1d1e;
+	--color-raised: #232728;
+	--color-border: #343a3c;
+	--color-text: #f2f4f4;
+	--color-muted: #a9b0b3;
+	--color-success: #43c48b;
+	--color-warning: #f2b85e;
+	--color-danger: #f57875;
+	--color-info: #82b8e8;
+	--color-accent-subtle: #3a251f;
+	--color-accent-text: #ff9872;
+	--color-accent-label: #ffb08f;
+
+	/* Auth surface (Authentication v2 · dark) */
+	--auth-canvas: #0c0e0f;
+	--auth-label: #d7dcdd;
+	--auth-body: #b9c0c2;
+	--auth-placeholder: #8f989b;
+	--auth-field-bg: #0a0c0d8c;
+	--auth-field-border: #ffffff1a;
+	--auth-chip-bg: #0c0e0f73;
+	--auth-chip-border: #ffffff1f;
+	--auth-fade: oklab(16.2% -0.003 -0.003);
+	--auth-grain-blend: overlay;
+	--auth-grain-opacity: 0.2;
+	--auth-link-underline: #ff7f4fb3;
+	--auth-button-shadow: #ffffff59 0px 1px 0px inset, #ff7f4f8c 0px 12px 32px -8px;
+	--auth-bg-mobile: url('/auth-bg/mobile-dark.jpg');
+	--auth-bg-desktop: url('/auth-bg/desktop-dark.jpg');
+	--focus-ring: #ff7f4f;
+}
+
+[data-theme='light'] {
+	color-scheme: light;
+	--color-canvas: #f7f6f3;
+	--color-surface: #ffffff;
+	--color-raised: #eef0f1;
+	--color-border: #d8ddde;
+	--color-text: #212628;
+	--color-muted: #5e686b;
+	--color-success: #167d55;
+	--color-warning: #8a5c00;
+	--color-danger: #b4433c;
+	--color-info: #245d85;
+	--color-accent-subtle: #fff0ea;
+	--color-accent-text: #b74725;
+	--color-accent-label: #b74725;
+
+	/* Auth surface (Authentication v2 · light) */
+	--auth-canvas: #f7f6f3;
+	--auth-label: #2f3639;
+	--auth-body: #5e686b;
+	--auth-placeholder: #6b7477;
+	--auth-field-bg: #ffffff;
+	--auth-field-border: #d8ddde;
+	--auth-chip-bg: #ffffff99;
+	--auth-chip-border: #21262824;
+	--auth-fade: oklab(97.3% -0.0001 0.004);
+	--auth-grain-blend: multiply;
+	--auth-grain-opacity: 0.15;
+	--auth-link-underline: #b74725;
+	--auth-button-shadow: #ffffff66 0px 1px 0px inset, #b7472573 0px 12px 28px -10px;
+	--auth-bg-mobile: url('/auth-bg/mobile-light.jpg');
+	/* No desktop light background is drawn; the mobile one is used, covered. */
+	--auth-bg-desktop: url('/auth-bg/mobile-light.jpg');
+	--focus-ring: #b74725;
+}
+
+@media (prefers-color-scheme: light) {
+	[data-theme='system'] {
+		color-scheme: light;
+		--color-canvas: #f7f6f3;
+		--color-surface: #ffffff;
+		--color-raised: #eef0f1;
+		--color-border: #d8ddde;
+		--color-text: #212628;
+		--color-muted: #5e686b;
+		--color-success: #167d55;
+		--color-warning: #8a5c00;
+		--color-danger: #b4433c;
+		--color-info: #245d85;
+		--color-accent-subtle: #fff0ea;
+		--color-accent-text: #b74725;
+		--color-accent-label: #b74725;
+		--auth-canvas: #f7f6f3;
+		--auth-label: #2f3639;
+		--auth-body: #5e686b;
+		--auth-placeholder: #6b7477;
+		--auth-field-bg: #ffffff;
+		--auth-field-border: #d8ddde;
+		--auth-chip-bg: #ffffff99;
+		--auth-chip-border: #21262824;
+		--auth-fade: oklab(97.3% -0.0001 0.004);
+		--auth-grain-blend: multiply;
+		--auth-grain-opacity: 0.15;
+		--auth-link-underline: #b74725;
+		--auth-button-shadow: #ffffff66 0px 1px 0px inset, #b7472573 0px 12px 28px -10px;
+		--auth-bg-mobile: url('/auth-bg/mobile-light.jpg');
+		--auth-bg-desktop: url('/auth-bg/mobile-light.jpg');
+		--focus-ring: #b74725;
+	}
+}
