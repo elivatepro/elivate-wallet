@@ -9,7 +9,7 @@ const encoder = new TextEncoder();
 /** A link token as it appears in `#t=` (43 base64url characters). */
 export const tokenPattern = /^[A-Za-z0-9_-]{43}$/;
 
-function hexToBytes(hex: string): Uint8Array {
+function hexToBytes(hex: string) {
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
   return bytes;
