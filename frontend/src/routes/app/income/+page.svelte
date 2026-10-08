@@ -332,6 +332,14 @@
 			busy = false;
 			const failure = failureOf(exit);
 			if (askPin(failure)) return;
+			if (failure?._tag === 'BackendError' && failure.code === 'rate_limited') {
+				// Ten open uploads per attempt key: start a fresh attempt (nothing was
+				// dispatched with this key) so the next try uploads under a new one.
+				commandKey = newKey();
+				for (const r of receipts) r.evidenceId = null;
+				dialogError = 'Too many upload tries for this attempt. Try again.';
+				return;
+			}
 			// An upload is not money: any failure here is safe to retry.
 			if (fieldOfFailure(failure) === 'receipts' || isEvidenceRefusal(failure)) {
 				dialogError = `“${receipt.file.name}” isn’t a readable PDF, JPEG or PNG. Replace it and try again.`;
