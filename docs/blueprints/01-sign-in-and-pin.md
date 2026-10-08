@@ -22,7 +22,7 @@ Part A is for the owner: what this slice does, in plain language. Part B is the 
 ### Not in it (later slices or still open)
 - Teams/offices, invitations and the onboarding wizard → Blueprint 02 (invitations, `INV` codes).
 - NIN identity check: the provider is still undecided (U-02).
-- Branded emails through Cloudflare: until that's wired up, Supabase's built-in sender is used in development only.
+- Branded email templates. Supabase Auth emails already send through Cloudflare SMTP on the development project (switched 2026-10-08); external delivery is not yet confirmed by a real sign-up.
 - The platform-admin app screens.
 
 ### Decisions I need from you
