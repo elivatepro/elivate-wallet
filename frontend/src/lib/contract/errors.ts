@@ -156,6 +156,8 @@ export function categorize(error: ApiFailure): FailureCategory {
 				case 'payout_lookup_expired':
 				case 'payout_account_exists':
 				case 'payout_account_unusable':
+				case 'nin_in_use':
+				case 'nin_review_required':
 					return 'conflict';
 				case 'currency_not_supported':
 				case 'policy_invalid':
@@ -164,6 +166,7 @@ export function categorize(error: ApiFailure): FailureCategory {
 				case 'bank_unknown':
 				case 'account_not_found':
 				case 'payout_name_mismatch':
+				case 'nin_not_verified':
 					return 'validation';
 				case 'not_found':
 				case 'invitation_unavailable':
