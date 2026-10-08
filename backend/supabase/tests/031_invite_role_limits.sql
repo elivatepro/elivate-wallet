@@ -3,7 +3,7 @@
 -- accounts, and replays re-checking authority.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(27);
+select plan(25);
 
 create function pg_temp.u(n int) returns uuid language sql immutable as
   $$ select ('10000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
@@ -121,18 +121,9 @@ select lives_ok(
   'any current leader above can revoke an invitation they did not send (Q10)'
 );
 
--- ── Restricted accounts and the strictly-below helper ──
+-- ── Restricted accounts ──
 update identity.accounts set status = 'restricted' where user_id = pg_temp.u(2);
 select throws_ok($$ select pg_temp.inv(2, 'W', 'T', 'member', null) $$, 'P0001', 'authorization_denied', 'restricted accounts cannot invite');
-select ok(
-  org.is_strictly_below((select m from org.memberships m where id = pg_temp.m(3, pg_temp.id('D'))), pg_temp.id('T'))
-  and not org.is_strictly_below((select m from org.memberships m where id = pg_temp.m(3, pg_temp.id('D'))), pg_temp.id('D')),
-  'strictly below: a descendant yes, the own office no'
-);
-select ok(
-  not org.is_strictly_below((select m from org.memberships m where id = pg_temp.m(6, pg_temp.id('D'))), pg_temp.id('T')),
-  'a plain member seat is never a leadership'
-);
 
 select * from finish();
 rollback;

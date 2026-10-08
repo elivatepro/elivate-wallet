@@ -1,5 +1,5 @@
--- Blueprint 03 — cross-track hooks on membership creation, the shared
--- "strictly below" leader rule, and the `invitation` audit target.
+-- Blueprint 03 — cross-track hooks on membership creation and the
+-- `invitation` audit target.
 
 -- Wallet hook (Track B, Blueprint 04 fills it). Created only if absent, never
 -- with `create or replace`, so a later slice's body is never overwritten.
@@ -88,26 +88,6 @@ begin
   perform org.on_membership_created(created);
   return created;
 end;
-$$;
-
--- Owner decision 1 (2026-10-08): leader roles are given only into offices
--- strictly below the actor's own office. The selected workspace must be a
--- leadership (not a plain member seat) whose office is a strict ancestor of
--- the target office; the President Team may act on any office.
-create function org.is_strictly_below(p_workspace org.memberships, p_office_id uuid)
-returns boolean
-language sql
-stable
-set search_path = ''
-as $$
-  select case
-    when p_workspace.role = 'president_team_member' then true
-    when p_workspace.role = 'member' or p_workspace.office_id is null then false
-    else exists (
-      select 1 from org.office_closure c
-      where c.ancestor_id = p_workspace.office_id and c.descendant_id = p_office_id and c.depth >= 1
-    )
-  end;
 $$;
 
 -- Tenant audit targets: the union of every slice's values so far.

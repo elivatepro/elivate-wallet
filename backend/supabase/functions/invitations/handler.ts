@@ -168,7 +168,7 @@ function linkToken(body: v.Body): string {
 }
 
 function optionalReason(body: v.Body): string | null {
-  return body.reason === undefined || body.reason === null ? null : v.text(body, "reason", 500);
+  return body.reason === undefined || body.reason === null ? null : v.reason(body);
 }
 
 export function createHandler(deps: Deps): (request: Request) => Promise<Response> {
@@ -265,7 +265,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       return call("revoke_invitation", {
         ...commandInWorkspace(c),
         p_invitation_id: c.params.id,
-        p_reason: v.text(body, "reason", 500),
+        p_reason: v.reason(body),
         p_idempotency_key: v.idempotencyKey(body),
       });
     }),

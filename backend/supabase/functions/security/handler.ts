@@ -196,7 +196,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       return call("outbox_requeue", {
         ...base(actor, requestId),
         p_event_id: id,
-        p_reason: v.text(body, "reason", 500),
+        p_reason: v.reason(body),
         p_idempotency_key: v.idempotencyKey(body),
       });
     },

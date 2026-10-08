@@ -191,9 +191,11 @@ end;
 $$;
 
 -- Owner decision 1 (2026-10-08), invite-role matrix B. Members: any
--- `invite_members` holder within scope. Leader roles: additionally only into
--- offices strictly below the selected workspace's office (President Team: any).
--- President Team Member is never invitable.
+-- `invite_members` holder within scope. Leader roles: additionally only from a
+-- leadership workspace (not a plain member seat) and only into offices
+-- strictly below its office (org.require_below_own_office, shared with the
+-- leader commands; President Team: any office). President Team Member is
+-- never invitable.
 create function org.require_invite_authority(
   p_actor_user_id uuid,
   p_workspace org.memberships,
@@ -212,8 +214,15 @@ begin
     perform identity.fail('role_office_mismatch');
   end if;
   perform authz.require(p_actor_user_id, 'invite_members', p_workspace.tenant_id, p_office.id, null, p_workspace.id);
-  if p_role <> 'member' and not org.is_strictly_below(p_workspace, p_office.id) then
-    perform identity.fail('role_not_invitable');
+  if p_role <> 'member' then
+    if p_workspace.role = 'member' then
+      perform identity.fail('role_not_invitable');
+    end if;
+    begin
+      perform org.require_below_own_office(p_workspace, p_office.id);
+    exception when sqlstate 'P0001' then
+      perform identity.fail('role_not_invitable');
+    end;
   end if;
 end;
 $$;
