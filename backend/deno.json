@@ -10,6 +10,14 @@
     "fmt:check": "deno fmt --check src tests supabase/functions",
     "lint": "deno lint src tests supabase/functions",
     "test": "deno test tests",
-    "check": "deno task fmt:check && deno task lint && deno task test"
+    "check": "deno task fmt:check && deno task lint && deno task typecheck && deno task test",
+    "typecheck": "deno check supabase/functions/**/*.ts tests/**/*.ts"
+  },
+  "fmt": {
+    "lineWidth": 100
+  },
+  "imports": {
+    "@std/assert": "jsr:@std/assert@1.0.13",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.117.3"
   }
 }

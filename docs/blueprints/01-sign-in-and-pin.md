@@ -1,6 +1,6 @@
 # Blueprint 01 — Accounts, sign-in and PIN
 
-Status: **draft for owner approval** (2026-10-08). Contract: W-01, W-22, A-01, A-05, D-01, D-02, T-01, T-03.
+Status: **approved by owner 2026-10-08** (Q1: 15-minute inactivity PIN re-entry plus PIN for sensitive actions; Q2: 8 characters, Supabase's recommended minimum; Q3: first admin is the owner-named email, created by a one-time operation, never stored in Git). Contract: W-01, W-22, A-01, A-05, D-01, D-02, T-01, T-03.
 
 Part A is for the owner: what this slice does, in plain language. Part B is the exact build spec that migrations, functions and tests are written from.
 
@@ -22,7 +22,7 @@ Part A is for the owner: what this slice does, in plain language. Part B is the 
 ### Not in it (later slices or still open)
 - Teams/offices, invitations and the onboarding wizard → Blueprint 02 (invitations, `INV` codes).
 - NIN identity check: the provider is still undecided (U-02).
-- Branded emails through Cloudflare: until that's wired up, Supabase's built-in sender is used in development only.
+- Branded email templates. Supabase Auth emails already send through Cloudflare SMTP on the development project (switched 2026-10-08); external delivery is not yet confirmed by a real sign-up.
 - The platform-admin app screens.
 
 ### Decisions I need from you
@@ -132,9 +132,10 @@ Failure: `{ "ok": false, "error": { "code": "…", "message": "…", "retryable"
 | `not_found` | 404 | Target not found or not visible |
 | `idempotency_conflict` | 409 | Same key, different payload |
 | `conflict` | 409 | State changed (e.g. reset already used) |
+| `rate_limited` | 429 | PIN reset requested again within 60 seconds |
 | `internal_error` | 500 | Anything else (logged with `requestId`, redacted) |
 
-Logs: `requestId`, route, code, latency, `user_id` hash prefix. Never PIN, HMAC, hash, JWT, email or IP.
+Logs: `requestId`, route, status, code, latency. Never user or session IDs, PIN, HMAC, hash, JWT, email or IP.
 
 ### B6. Configuration
 - `config.toml`: email confirmations on (done); minimum password length per Q2; sessions per Q1; `redirectTo` allowlist `https://app.elivatewallet.com`, `https://admin.elivatewallet.com`, local dev origin.
