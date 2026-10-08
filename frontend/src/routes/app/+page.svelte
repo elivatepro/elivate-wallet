@@ -1,46 +1,38 @@
 <!--
-	Home placeholder (M1). Truthful empty state until the ledger slice exists:
-	no balances, no demo values (P-06, W-00).
+	Home, Paper "App — Screens v3" H09 (no income yet). Truthful until the ledger
+	reads are wired: no balances, no demo values (P-06, W-00).
 -->
 <script lang="ts">
 	import { getContext } from 'svelte';
 	import type { Shell } from '#lib/client/shell.svelte.js';
+	import RootHero from '#lib/ui/app/RootHero.svelte';
 
 	const shell = getContext<Shell>('shell');
 </script>
 
-<section class="home" aria-busy={shell.state.kind === 'loading'}>
-	{#if shell.state.kind === 'loading'}
-		<div class="skeleton" aria-hidden="true"></div>
-		<p class="visually-hidden">Loading your workspace</p>
-	{:else}
-		<h1>Home</h1>
-		<p>Your wallet will appear here once income is recorded in this workspace.</p>
-	{/if}
-</section>
+{#if shell.state.kind === 'loading'}
+	<div class="skeleton" aria-hidden="true"></div>
+	<p class="visually-hidden" role="status">Loading your workspace</p>
+{:else}
+	<RootHero
+		pose="home-empty"
+		title="No money in yet"
+		lead="Your pockets fill up when income is recorded."
+		compact
+	/>
+{/if}
 
 <style>
-	.home {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-		max-width: 560px;
-	}
-
-	h1 {
-		font-size: var(--text-32);
-		font-weight: var(--font-weight-bold);
-		line-height: var(--leading-40);
-		letter-spacing: var(--tracking-display);
-	}
-
-	p {
-		color: var(--color-muted);
-	}
-
 	.skeleton {
-		height: 120px;
-		border-radius: var(--radius-16);
+		height: 300px;
+		border-radius: 22px;
 		background: var(--color-surface);
+	}
+
+	@media (min-width: 1024px) {
+		.skeleton {
+			height: 220px;
+			border-radius: var(--radius-24);
+		}
 	}
 </style>

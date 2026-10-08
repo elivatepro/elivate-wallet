@@ -2,13 +2,19 @@
 	Auth/onboarding frame from Paper "Authentication v2": GrainGradient background,
 	grain overlay, brand row with theme control; mobile stacks content at the
 	bottom over a faded background, desktop floats a 460 px glass panel right.
+	Gate screens that call useRoot() get the "App — Screens v3" G-layout: Root
+	above the heading on mobile, Root on the left and a 500 px panel on desktop.
 -->
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import type { Theme } from '#lib/theme.js';
 	import ThemeSwitch from '#lib/ui/ThemeSwitch.svelte';
+	import RootImage from '#lib/ui/RootImage.svelte';
+	import { provideRootStage } from '#lib/ui/root.svelte.js';
 
 	let { theme, children }: { theme: Theme; children: Snippet } = $props();
+
+	const stage = provideRootStage();
 </script>
 
 <div class="auth">
@@ -26,6 +32,16 @@
 			<div class="panel">
 				{@render children()}
 			</div>
+			{#if stage.pose}
+				<div class="stage" data-size={stage.size}>
+					<RootImage
+						pose={stage.pose}
+						sizes="(min-width: 1024px) 390px, 180px"
+						class="stage-root"
+						eager
+					/>
+				</div>
+			{/if}
 		</main>
 	</div>
 </div>
@@ -125,6 +141,38 @@
 		margin-inline: auto;
 	}
 
+	/* Gate screens with Root (Paper "App — Screens v3" G01–G12). */
+	.content:has(.stage) {
+		gap: 28px;
+	}
+
+	.stage {
+		order: -1;
+		display: flex;
+		justify-content: center;
+	}
+
+	.stage :global(.stage-root) {
+		width: 180px;
+		height: 240px;
+	}
+
+	.stage[data-size='md'] :global(.stage-root) {
+		width: 150px;
+		height: 200px;
+	}
+
+	.stage[data-size='sm'] :global(.stage-root) {
+		width: 120px;
+		height: 160px;
+	}
+
+	.content:has(.stage) :global(.lead) {
+		color: var(--color-muted);
+		font-size: 15px;
+		line-height: 22px;
+	}
+
 	@media (min-width: 1024px) {
 		.bg {
 			height: 100%;
@@ -176,6 +224,45 @@
 				#ffffff0f 0px 1px 0px inset,
 				#00000099 0px 40px 80px -20px;
 			backdrop-filter: blur(28px);
+		}
+
+		.frame:has(.stage) {
+			padding-bottom: 48px;
+		}
+
+		.content:has(.stage) {
+			justify-content: space-between;
+			gap: 0;
+		}
+
+		.stage {
+			flex: 1 1 0%;
+			align-self: stretch;
+			align-items: center;
+		}
+
+		.stage :global(.stage-root),
+		.stage[data-size] :global(.stage-root) {
+			width: 390px;
+			height: 520px;
+		}
+
+		.content:has(.stage) .panel {
+			width: 500px;
+			gap: 28px;
+			padding: 40px 64px 48px;
+			border-radius: 28px;
+		}
+
+		.content:has(.stage) :global(h1) {
+			font-size: var(--text-32);
+			line-height: 36px;
+		}
+
+		.content:has(.stage) :global(.lead) {
+			color: var(--auth-body);
+			font-size: var(--text-16);
+			line-height: var(--leading-24);
 		}
 
 		:global([data-theme='light']) .panel {

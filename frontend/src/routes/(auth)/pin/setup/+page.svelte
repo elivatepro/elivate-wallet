@@ -1,17 +1,16 @@
-<!--
-	First PIN (W-01/W-22). Not drawn on its own in Paper; built from the
-	"Enter your PIN" composition with a confirmation field.
--->
+<!-- First PIN (W-01/W-22). Paper "App — Screens v3" G04. -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import AuthHeading from '#lib/ui/auth/AuthHeading.svelte';
 	import PinField from '#lib/ui/auth/PinField.svelte';
 	import PrimaryButton from '#lib/ui/auth/PrimaryButton.svelte';
 	import SignOutLink from '#lib/ui/auth/SignOutLink.svelte';
+	import { useRoot } from '#lib/ui/root.svelte.js';
 	import type { PageProps } from './$types';
 
 	let { form }: PageProps = $props();
 	let busy = $state(false);
+	useRoot('pin-create', 'md');
 </script>
 
 <svelte:head><title>Create your PIN · Elivate Wallet</title></svelte:head>
@@ -52,7 +51,7 @@
 	</div>
 	<PrimaryButton label="Save PIN" {busy} />
 </form>
-<SignOutLink />
+<SignOutLink tight />
 
 <style>
 	form,

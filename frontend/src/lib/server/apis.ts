@@ -5,6 +5,13 @@
 
 import { Context, Effect, Layer, Schedule, Schema } from 'effect';
 import { BackendError, isRetryableRead } from '#lib/contract/errors.js';
+import {
+	AcceptedInvitation,
+	AcceptInvitationRequest,
+	InvitationRoutes,
+	MyInvitations,
+	type MyInvitation
+} from '#lib/contract/invitations.js';
 import { Capabilities, OrgRoutes, Workspaces, type Workspace } from '#lib/contract/org.js';
 import {
 	Pin,
@@ -119,6 +126,41 @@ export const OrgApiLive = Layer.effect(
 				edge
 					.call({ fn: 'org', route: OrgRoutes.capabilities, membershipId }, Capabilities)
 					.pipe(Effect.retry(readPolicy))
+		};
+	})
+);
+
+export interface InvitationsApiShape {
+	readonly mine: Effect.Effect<ReadonlyArray<MyInvitation>, EdgeFailure>;
+	/** Never retried: the caller keeps the idempotency key and resubmits (W-00). */
+	readonly accept: (input: {
+		invitationId: string;
+		idempotencyKey: string;
+	}) => Effect.Effect<AcceptedInvitation, EdgeFailure>;
+}
+
+export class InvitationsApi extends Context.Service<InvitationsApi, InvitationsApiShape>()(
+	'InvitationsApi'
+) {}
+
+export const InvitationsApiLive = Layer.effect(
+	InvitationsApi,
+	Effect.gen(function* () {
+		const edge = yield* EdgeTransport;
+		return {
+			mine: edge
+				.call({ fn: 'invitations', route: InvitationRoutes.mine }, MyInvitations)
+				.pipe(Effect.retry(readPolicy)),
+			accept: (input) =>
+				Schema.decodeUnknownEffect(AcceptInvitationRequest)(input).pipe(
+					Effect.mapError(() => localValidation('invitationId')),
+					Effect.flatMap((body) =>
+						edge.call(
+							{ fn: 'invitations', route: InvitationRoutes.accept, body },
+							AcceptedInvitation
+						)
+					)
+				)
 		};
 	})
 );
