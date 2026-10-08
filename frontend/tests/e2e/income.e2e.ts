@@ -141,11 +141,15 @@ test('an unknown outcome survives a reload and is recovered with the same key', 
 	const dialog = page.getByRole('dialog', { name: 'Post this income?' });
 	await dialog.getByLabel('Your PIN').fill(PIN);
 	await dialog.getByRole('button', { name: 'Post ₦2,500.50' }).click();
-	await expect(page.getByRole('heading', { name: 'We couldn’t confirm this income' })).toBeVisible();
+	await expect(
+		page.getByRole('heading', { name: 'We couldn’t confirm this income' })
+	).toBeVisible();
 	await page.unroute('**/api/income');
 
 	await page.reload();
-	await expect(page.getByRole('heading', { name: 'We couldn’t confirm this income' })).toBeVisible();
+	await expect(
+		page.getByRole('heading', { name: 'We couldn’t confirm this income' })
+	).toBeVisible();
 	await expect(page.getByText('₦2,500.50')).toBeVisible();
 	await page.getByRole('button', { name: 'Check again' }).click();
 	await expect(page.getByRole('heading', { name: 'Income posted' })).toBeVisible();

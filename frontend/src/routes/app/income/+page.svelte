@@ -112,10 +112,16 @@
 	let notice = $state<string | null>(null);
 
 	const ready = $derived(shell.state.kind === 'ready' ? shell.state : null);
-	const workspaceId = $derived(ready?.view.workspace.membershipId ?? null);
-	const scope = $derived<AttemptScope | null>(
+	const liveScope = $derived<AttemptScope | null>(
 		ready ? { uid: ready.view.state.uid, workspaceId: ready.view.workspace.membershipId } : null
 	);
+	/**
+	 * The person + workspace this page was opened for. Every command, upload and
+	 * stored attempt is bound to it; if the shell later switches (another tab),
+	 * the page reloads instead of sending an attempt under the wrong workspace.
+	 */
+	let scope = $state<AttemptScope | null>(null);
+	const workspaceId = $derived(scope?.workspaceId ?? null);
 	const allowed = $derived(
 		!!ready && (ready.view.capabilities?.permissions ?? []).includes('record_income')
 	);
@@ -171,8 +177,14 @@
 	}
 
 	$effect(() => {
-		if (shell.state.kind !== 'ready') return;
+		const live = liveScope;
+		if (!live) return;
 		untrack(() => {
+			if (!scope) scope = live;
+			else if (scope.uid !== live.uid || scope.workspaceId !== live.workspaceId) {
+				window.location.reload();
+				return;
+			}
 			if (!data && !loadError) void load();
 			// A stored attempt means an earlier dispatch never got an answer.
 			const store = browserAttemptStore();
@@ -291,7 +303,10 @@
 
 	// ── Pipeline: receipts, then the income ──
 	async function post({ pin }: { pin: string | undefined }) {
-		if (!workspaceId || !target || !amount || busy) return;
+		if (!workspaceId || !scope || !target || !amount || busy) return;
+		// Freeze what was confirmed; the form is locked while this runs.
+		const confirmedTarget = target;
+		const confirmed = buildRequest([]);
 		busy = true;
 		dialogError = null;
 		pinError = null;
@@ -302,8 +317,8 @@
 				uploadReceipt(
 					{
 						file: receipt.file,
-						targetMembershipId: target.membershipId,
-						idempotencyKey: commandKey,
+						targetMembershipId: confirmed.targetMembershipId,
+						idempotencyKey: confirmed.idempotencyKey,
 						...(pinLeft ? { pin: pinLeft } : {})
 					},
 					workspaceId
@@ -327,19 +342,28 @@
 			}
 			return;
 		}
-		const request = buildRequest(receipts.map((r) => r.evidenceId!));
+		const request: RecordIncomeInput = {
+			...confirmed,
+			evidenceIds: receipts.map((r) => r.evidenceId!)
+		};
 		const next: IncomeAttempt = {
 			savedAt: Date.now(),
 			target: {
-				name: target.person?.name ?? null,
-				uid: target.person?.uid ?? '',
-				officeName: target.officeName
+				name: confirmedTarget.person?.name ?? null,
+				uid: confirmedTarget.person?.uid ?? '',
+				officeName: confirmedTarget.officeName
 			},
 			request
 		};
-		attempt = next;
+		// No durable copy, no dispatch: an unanswered post must stay recoverable (F-03).
 		const store = browserAttemptStore();
-		if (store && scope) saveAttempt(store, scope, next);
+		if (!store || !saveAttempt(store, scope, next)) {
+			busy = false;
+			dialogError =
+				'This browser can’t keep a safe copy of the attempt (storage is full or blocked), so nothing was sent. Free up storage or use another browser.';
+			return;
+		}
+		attempt = next;
 		await dispatch(request, pinLeft);
 	}
 
@@ -395,22 +419,27 @@
 			askPin(failure);
 			return;
 		}
-		// A refusal: nothing posted. The stored attempt has served its purpose.
-		forgetAttempt();
 		if (failure?._tag === 'BackendError' && failure.code === 'attempt_cancelled') {
 			restart('That attempt was cancelled. Nothing was posted.');
 			return;
 		}
+		if (phase === 'unknown') {
+			// Session, workspace, permission and input checks run before the backend
+			// looks the attempt up, so a refusal here doesn't prove it didn't post.
+			// Stay locked: Check again later, or cancel it (the cancel answers with
+			// the posted income if there is one).
+			recheckOpen = false;
+			dialogError = incomeMessage(failure);
+			return;
+		}
+		// The first dispatch of a fresh key was refused: nothing posted.
+		forgetAttempt();
 		if (isEvidenceRefusal(failure)) {
 			// Expired or rejected receipts: upload them again under a fresh key.
 			commandKey = newKey();
 			for (const r of receipts) r.evidenceId = null;
 		}
 		const field = fieldOfFailure(failure);
-		if (phase === 'unknown') {
-			restoreDraft(request);
-			phase = 'form';
-		}
 		postOpen = false;
 		recheckOpen = false;
 		if (field) errors = { ...errors, [field]: incomeMessage(failure) };
@@ -458,8 +487,6 @@
 		if (!attempt) return;
 		dialogError = null;
 		pinError = null;
-		const store = browserAttemptStore();
-		if (store && scope) saveAttempt(store, scope, attempt);
 		await dispatch(attempt.request, pin);
 	}
 
@@ -645,246 +672,250 @@
 	</section>
 {:else}
 	<form class="body" onsubmit={openPost} novalidate>
-		<div class="form-card">
-			{#if notice}<p class="notice" role="status">{notice}</p>{/if}
-			{#if formError}<FormAlert message={formError} />{/if}
+		<fieldset class="lock" disabled={busy}>
+			<div class="form-card">
+				{#if notice}<p class="notice" role="status">{notice}</p>{/if}
+				{#if formError}<FormAlert message={formError} />{/if}
 
-			<MemberPicker
-				{targets}
-				bind:selected={target}
-				hasMore={!!nextCursor}
-				{loadingMore}
-				error={errors.target}
-				onLoadMore={loadMore}
-				onChange={onTargetChange}
-			/>
+				<MemberPicker
+					{targets}
+					bind:selected={target}
+					hasMore={!!nextCursor}
+					{loadingMore}
+					error={errors.target}
+					onLoadMore={loadMore}
+					onChange={onTargetChange}
+				/>
 
-			<div class="money">
-				<div class="currency-wrap">
-					<label class="label" for="income-currency">Currency</label>
-					<select
-						id="income-currency"
-						class="currency"
-						bind:value={currency}
-						onchange={onCurrencyChange}
-					>
-						{#each currencies as option (option.code)}
-							<option value={option.code}>{option.code}</option>
-						{/each}
-					</select>
-				</div>
-				<div class="amount-wrap">
-					<label class="label amount-label" for="income-amount">Amount received</label>
-					<input
-						id="income-amount"
-						class="amount"
-						inputmode="decimal"
-						autocomplete="off"
-						placeholder={`${currencySymbol(currency)}0.00`}
-						bind:value={amountText}
-						onblur={formatAmountField}
-						aria-invalid={errors.amount ? 'true' : undefined}
-						aria-describedby={errors.amount ? 'amount-error' : undefined}
-					/>
-				</div>
-			</div>
-			{#if errors.amount}<p class="error" id="amount-error">{errors.amount}</p>{/if}
-
-			<div class="pair">
-				<div class="box" class:bad={!!errors.source}>
-					<label class="label" for="income-source">Source</label>
-					<input
-						id="income-source"
-						class="input"
-						maxlength="100"
-						autocomplete="off"
-						placeholder="Where it came from"
-						bind:value={source}
-						aria-invalid={errors.source ? 'true' : undefined}
-						aria-describedby={errors.source ? 'source-error' : undefined}
-					/>
-				</div>
-				<div class="box" class:bad={!!errors.receivedOn}>
-					<label class="label" for="income-date">Date received</label>
-					<input
-						id="income-date"
-						class="input"
-						type="date"
-						max={today}
-						bind:value={receivedOn}
-						aria-invalid={errors.receivedOn ? 'true' : undefined}
-						aria-describedby={errors.receivedOn ? 'date-error' : undefined}
-					/>
-				</div>
-			</div>
-			{#if errors.source}<p class="error" id="source-error">{errors.source}</p>{/if}
-			{#if errors.receivedOn}<p class="error" id="date-error">{errors.receivedOn}</p>{/if}
-
-			<div class="group">
-				<div class="group-head">
-					<span class="label" id="receipt-label">Receipt</span>
-					<span class="hint">Required</span>
-				</div>
-				{#each receipts as receipt (receipt.key)}
-					<div class="receipt" class:uploaded={!!receipt.evidenceId}>
-						<span class="receipt-icon" aria-hidden="true"
-							><FileText size={20} strokeWidth={1.8} /></span
+				<div class="money">
+					<div class="currency-wrap">
+						<label class="label" for="income-currency">Currency</label>
+						<select
+							id="income-currency"
+							class="currency"
+							bind:value={currency}
+							onchange={onCurrencyChange}
 						>
-						<span class="receipt-text">
-							<span class="receipt-name">{receipt.file.name}</span>
-							<span class="receipt-state"
-								>{receipt.evidenceId ? 'Uploaded' : 'Ready to upload'} · {formatSize(
-									receipt.file.size
-								)}</span
-							>
-						</span>
-						{#if receipts.length === 1}
-							<button
-								type="button"
-								class="receipt-action"
-								onclick={() => pickFiles(receipt.key)}
-								aria-label={`Replace ${receipt.file.name}`}>Replace</button
-							>
-						{:else}
-							<button
-								type="button"
-								class="receipt-action"
-								onclick={() => removeReceipt(receipt.key)}
-								aria-label={`Remove ${receipt.file.name}`}>Remove</button
-							>
-						{/if}
+							{#each currencies as option (option.code)}
+								<option value={option.code}>{option.code}</option>
+							{/each}
+						</select>
 					</div>
-				{/each}
-				{#if receipts.length < RECEIPT_MAX_FILES}
-					<button
-						type="button"
-						class="add-receipt"
-						class:bad={!!errors.receipts}
-						aria-describedby={errors.receipts ? 'receipt-error' : 'receipt-help'}
-						onclick={() => pickFiles(null)}
-					>
-						<Plus size={18} strokeWidth={2} aria-hidden="true" />
-						{receipts.length === 0 ? 'Add receipt' : 'Add another receipt'}
-					</button>
-					<span class="hint" id="receipt-help">PDF, JPEG or PNG, up to 10 MB each. Up to 5.</span>
-				{/if}
-				{#if errors.receipts}<p class="error" id="receipt-error">{errors.receipts}</p>{/if}
-			</div>
-
-			<div class="group">
-				<label class="label" for="income-notes">Notes (optional)</label>
-				<textarea
-					id="income-notes"
-					class="notes"
-					maxlength="1000"
-					placeholder="Anything they should know?"
-					bind:value={notes}></textarea>
-				{#if errors.notes}<p class="error">{errors.notes}</p>{/if}
-			</div>
-
-			<details
-				class="more"
-				open={!!(providerReference || feeText || errors.fee || errors.providerReference)}
-			>
-				<summary>More details (optional)</summary>
-				<div class="more-body">
-					<div class="group">
-						<label class="label" for="income-reference">Provider reference</label>
+					<div class="amount-wrap">
+						<label class="label amount-label" for="income-amount">Amount received</label>
 						<input
-							id="income-reference"
-							class="input plain"
-							maxlength="100"
-							autocomplete="off"
-							bind:value={providerReference}
-						/>
-						{#if errors.providerReference}<p class="error">{errors.providerReference}</p>{/if}
-					</div>
-					<div class="group">
-						<label class="label" for="income-fee">Fee charged ({currency})</label>
-						<input
-							id="income-fee"
-							class="input plain"
+							id="income-amount"
+							class="amount"
 							inputmode="decimal"
 							autocomplete="off"
-							bind:value={feeText}
-							aria-describedby="fee-help"
+							placeholder={`${currencySymbol(currency)}0.00`}
+							bind:value={amountText}
+							onblur={formatAmountField}
+							aria-invalid={errors.amount ? 'true' : undefined}
+							aria-describedby={errors.amount ? 'amount-error' : undefined}
 						/>
-						<span class="hint" id="fee-help">Recorded only. It isn’t taken off the amount.</span>
-						{#if errors.fee}<p class="error">{errors.fee}</p>{/if}
 					</div>
 				</div>
-			</details>
+				{#if errors.amount}<p class="error" id="amount-error">{errors.amount}</p>{/if}
 
-			<!-- Mobile split preview (T05). -->
-			<div class="split-mobile">
-				<div class="split-head">
-					<span class="eyebrow">Split preview</span>
-					<span class="split-ratio"
-						>{lines.map((l) => shortPercent(l.basisPoints)).join(' / ')}</span
-					>
+				<div class="pair">
+					<div class="box" class:bad={!!errors.source}>
+						<label class="label" for="income-source">Source</label>
+						<input
+							id="income-source"
+							class="input"
+							maxlength="100"
+							autocomplete="off"
+							placeholder="Where it came from"
+							bind:value={source}
+							aria-invalid={errors.source ? 'true' : undefined}
+							aria-describedby={errors.source ? 'source-error' : undefined}
+						/>
+					</div>
+					<div class="box" class:bad={!!errors.receivedOn}>
+						<label class="label" for="income-date">Date received</label>
+						<input
+							id="income-date"
+							class="input"
+							type="date"
+							max={today}
+							bind:value={receivedOn}
+							aria-invalid={errors.receivedOn ? 'true' : undefined}
+							aria-describedby={errors.receivedOn ? 'date-error' : undefined}
+						/>
+					</div>
 				</div>
-				<div class="bar" aria-hidden="true">
-					{#each lines as line, i (line.pocketId)}
-						{#if line.basisPoints > 0}<span
-								style:flex-grow={line.basisPoints}
-								style:background={pocketColor(i)}
-							></span>{/if}
+				{#if errors.source}<p class="error" id="source-error">{errors.source}</p>{/if}
+				{#if errors.receivedOn}<p class="error" id="date-error">{errors.receivedOn}</p>{/if}
+
+				<div class="group">
+					<div class="group-head">
+						<span class="label" id="receipt-label">Receipt</span>
+						<span class="hint">Required</span>
+					</div>
+					{#each receipts as receipt (receipt.key)}
+						<div class="receipt" class:uploaded={!!receipt.evidenceId}>
+							<span class="receipt-icon" aria-hidden="true"
+								><FileText size={20} strokeWidth={1.8} /></span
+							>
+							<span class="receipt-text">
+								<span class="receipt-name">{receipt.file.name}</span>
+								<span class="receipt-state"
+									>{receipt.evidenceId ? 'Uploaded' : 'Ready to upload'} · {formatSize(
+										receipt.file.size
+									)}</span
+								>
+							</span>
+							{#if receipts.length === 1}
+								<button
+									type="button"
+									class="receipt-action"
+									onclick={() => pickFiles(receipt.key)}
+									aria-label={`Replace ${receipt.file.name}`}>Replace</button
+								>
+							{:else}
+								<button
+									type="button"
+									class="receipt-action"
+									onclick={() => removeReceipt(receipt.key)}
+									aria-label={`Remove ${receipt.file.name}`}>Remove</button
+								>
+							{/if}
+						</div>
 					{/each}
+					{#if receipts.length < RECEIPT_MAX_FILES}
+						<button
+							type="button"
+							class="add-receipt"
+							class:bad={!!errors.receipts}
+							aria-describedby={errors.receipts ? 'receipt-error' : 'receipt-help'}
+							onclick={() => pickFiles(null)}
+						>
+							<Plus size={18} strokeWidth={2} aria-hidden="true" />
+							{receipts.length === 0 ? 'Add receipt' : 'Add another receipt'}
+						</button>
+						<span class="hint" id="receipt-help">PDF, JPEG or PNG, up to 10 MB each. Up to 5.</span>
+					{/if}
+					{#if errors.receipts}<p class="error" id="receipt-error">{errors.receipts}</p>{/if}
 				</div>
-				<ul class="split-grid">
-					{#each preview ?? lines.map((l) => ({ ...l, amount: null })) as line (line.pocketId)}
-						<li>
-							<span class="split-name">{line.name}</span>
-							<span class="split-amount"
+
+				<div class="group">
+					<label class="label" for="income-notes">Notes (optional)</label>
+					<textarea
+						id="income-notes"
+						class="notes"
+						maxlength="1000"
+						placeholder="Anything they should know?"
+						bind:value={notes}></textarea>
+					{#if errors.notes}<p class="error">{errors.notes}</p>{/if}
+				</div>
+
+				<details
+					class="more"
+					open={!!(providerReference || feeText || errors.fee || errors.providerReference)}
+				>
+					<summary>More details (optional)</summary>
+					<div class="more-body">
+						<div class="group">
+							<label class="label" for="income-reference">Provider reference</label>
+							<input
+								id="income-reference"
+								class="input plain"
+								maxlength="100"
+								autocomplete="off"
+								bind:value={providerReference}
+							/>
+							{#if errors.providerReference}<p class="error">{errors.providerReference}</p>{/if}
+						</div>
+						<div class="group">
+							<label class="label" for="income-fee">Fee charged ({currency})</label>
+							<input
+								id="income-fee"
+								class="input plain"
+								inputmode="decimal"
+								autocomplete="off"
+								bind:value={feeText}
+								aria-describedby="fee-help"
+							/>
+							<span class="hint" id="fee-help">Recorded only. It isn’t taken off the amount.</span>
+							{#if errors.fee}<p class="error">{errors.fee}</p>{/if}
+						</div>
+					</div>
+				</details>
+
+				<!-- Mobile split preview (T05). -->
+				<div class="split-mobile">
+					<div class="split-head">
+						<span class="eyebrow">Split preview</span>
+						<span class="split-ratio"
+							>{lines.map((l) => shortPercent(l.basisPoints)).join(' / ')}</span
+						>
+					</div>
+					<div class="bar" aria-hidden="true">
+						{#each lines as line, i (line.pocketId)}
+							{#if line.basisPoints > 0}<span
+									style:flex-grow={line.basisPoints}
+									style:background={pocketColor(i)}
+								></span>{/if}
+						{/each}
+					</div>
+					<ul class="split-grid">
+						{#each preview ?? lines.map((l) => ({ ...l, amount: null })) as line (line.pocketId)}
+							<li>
+								<span class="split-name">{line.name}</span>
+								<span class="split-amount"
+									>{line.amount !== null ? formatMoney(line.amount, currency) : '—'}</span
+								>
+							</li>
+						{/each}
+					</ul>
+				</div>
+
+				<button type="submit" class="post post-mobile" disabled={!shell.canAct}
+					>{mobilePostLabel}</button
+				>
+			</div>
+
+			<!-- Desktop preview (T02). -->
+			<aside class="preview" aria-label="What they will receive">
+				<div class="preview-head">
+					<span class="eyebrow"
+						>{firstName ? `${firstName} will receive` : 'They will receive'}</span
+					>
+					<span class="preview-amount">+{formatMoney(amount ?? '0.00', currency)}</span>
+					<span class="preview-sub">Split by {tenantName}’s current policy</span>
+				</div>
+				<div class="preview-lines">
+					<div class="bar" aria-hidden="true">
+						{#each lines as line, i (line.pocketId)}
+							{#if line.basisPoints > 0}<span
+									style:flex-grow={line.basisPoints}
+									style:background={pocketColor(i)}
+								></span>{/if}
+						{/each}
+					</div>
+					{#each preview ?? lines.map((l) => ({ ...l, amount: null })) as line, i (line.pocketId)}
+						<div class="line">
+							<span class="line-name"
+								><span class="dot" style:background={pocketColor(i)} aria-hidden="true"
+								></span>{line.name}
+								· {shortPercent(line.basisPoints)}%</span
+							>
+							<span class="line-amount"
 								>{line.amount !== null ? formatMoney(line.amount, currency) : '—'}</span
 							>
-						</li>
-					{/each}
-				</ul>
-			</div>
-
-			<button type="submit" class="post post-mobile" disabled={!shell.canAct}
-				>{mobilePostLabel}</button
-			>
-		</div>
-
-		<!-- Desktop preview (T02). -->
-		<aside class="preview" aria-label="What they will receive">
-			<div class="preview-head">
-				<span class="eyebrow">{firstName ? `${firstName} will receive` : 'They will receive'}</span>
-				<span class="preview-amount">+{formatMoney(amount ?? '0.00', currency)}</span>
-				<span class="preview-sub">Split by {tenantName}’s current policy</span>
-			</div>
-			<div class="preview-lines">
-				<div class="bar" aria-hidden="true">
-					{#each lines as line, i (line.pocketId)}
-						{#if line.basisPoints > 0}<span
-								style:flex-grow={line.basisPoints}
-								style:background={pocketColor(i)}
-							></span>{/if}
+						</div>
 					{/each}
 				</div>
-				{#each preview ?? lines.map((l) => ({ ...l, amount: null })) as line, i (line.pocketId)}
-					<div class="line">
-						<span class="line-name"
-							><span class="dot" style:background={pocketColor(i)} aria-hidden="true"
-							></span>{line.name}
-							· {shortPercent(line.basisPoints)}%</span
-						>
-						<span class="line-amount"
-							>{line.amount !== null ? formatMoney(line.amount, currency) : '—'}</span
-						>
-					</div>
-				{/each}
-			</div>
-			<div class="preview-foot">
-				<p class="final">
-					Posting is final and lands in {firstName ?? 'their'}{firstName ? '’s' : ''} wallet immediately.
-					To fix a mistake later, the President reverses it and you record it again.
-				</p>
-				<button type="submit" class="post" disabled={!shell.canAct}>{postLabel}</button>
-			</div>
-		</aside>
+				<div class="preview-foot">
+					<p class="final">
+						Posting is final and lands in {firstName ?? 'their'}{firstName ? '’s' : ''} wallet immediately.
+						To fix a mistake later, the President reverses it and you record it again.
+					</p>
+					<button type="submit" class="post" disabled={!shell.canAct}>{postLabel}</button>
+				</div>
+			</aside>
+		</fieldset>
 	</form>
 {/if}
 
@@ -959,6 +990,14 @@
 		flex-direction: column;
 		gap: 24px;
 		padding: 8px 20px calc(24px + env(safe-area-inset-bottom));
+	}
+
+	.lock {
+		display: contents;
+		min-width: 0;
+		margin: 0;
+		padding: 0;
+		border: 0;
 	}
 
 	.form-card {

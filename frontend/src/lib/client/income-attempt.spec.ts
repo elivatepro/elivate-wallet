@@ -57,4 +57,16 @@ describe('income attempt store (F-03)', () => {
 		expect(loadAttempt(store, alice, now)).toBeNull();
 		expect(store.keys()).toHaveLength(0);
 	});
+
+	it('reports when the device cannot keep the attempt', () => {
+		const full = {
+			getItem: () => null,
+			setItem: () => {
+				throw new Error('QuotaExceededError');
+			},
+			removeItem: () => {}
+		};
+		expect(saveAttempt(full, alice, attempt)).toBe(false);
+		expect(saveAttempt(new MemoryStore(), alice, attempt)).toBe(true);
+	});
 });

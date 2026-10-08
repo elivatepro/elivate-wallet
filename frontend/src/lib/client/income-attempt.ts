@@ -43,17 +43,22 @@ export interface AttemptScope {
 const keyFor = (scope: AttemptScope) =>
 	`${ATTEMPT_PREFIX}${encodeURIComponent(scope.uid)}:${encodeURIComponent(scope.workspaceId)}`;
 
+/**
+ * Stores the attempt and reads it back. False when the device can't keep it
+ * (quota, privacy mode): the caller must not dispatch money it couldn't recover.
+ */
 export function saveAttempt(
 	store: AttemptStore,
 	scope: AttemptScope,
 	attempt: IncomeAttempt
-): void {
+): boolean {
 	// Encoding through the schema drops anything it doesn't name (e.g. a PIN).
 	const text = JSON.stringify(Schema.encodeSync(IncomeAttempt)(attempt));
 	try {
 		store.setItem(keyFor(scope), text);
+		return store.getItem(keyFor(scope)) === text;
 	} catch {
-		// Quota or privacy mode: the screen still holds the attempt in memory.
+		return false;
 	}
 }
 
