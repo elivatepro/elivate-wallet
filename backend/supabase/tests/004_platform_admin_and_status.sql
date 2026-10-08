@@ -35,7 +35,7 @@ select throws_ok(
 select throws_ok(
   $$ select api.set_account_status('00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-00000000d0a1',
        (select admin_uid from uids), 'suspended', 'Self test', 'key-0000000000000002') $$,
-  'P0001', 'authorization_denied', 'admins cannot change their own status'
+  'P0001', 'self_target_forbidden', 'admins cannot change their own status'
 );
 
 update identity.session_pin_proofs set verified_at = now() - interval '6 minutes'

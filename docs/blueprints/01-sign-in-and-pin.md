@@ -37,7 +37,7 @@ Part A is for the owner: what this slice does, in plain language. Part B is the 
 ## Part B — Build spec
 
 ### B1. Layout
-- Schemas: `identity` (accounts, profiles, PIN, sessions, admins, status), `audit` (security events), `refs` (public references), `api` (the only functions Edge Functions call; executable by `service_role` only). None are exposed through the public Data API; clients never call Postgres directly in this slice.
+- Schemas: `identity` (accounts, profiles, PIN, sessions, admins, status), `audit` (security events), `refs` (public references), `api` (the only functions Edge Functions call; executable by `service_role` only). `identity`, `audit` and `refs` are never exposed through the Data API. `api` is listed in `config.toml` `[api] schemas` because the Edge Functions call it with `service.schema("api").rpc(...)`; every `api.*` function is revoked from `anon`/`authenticated`, so clients still never call Postgres directly.
 - Edge Function `security` (one function, several routes) is the only transport. It verifies the JWT, takes `user_id` and `session_id` from the verified token (never from the body), computes the PIN HMAC with the secret `PIN_HMAC_SECRET`, and calls one `api.*` command.
 - Every `api.*` function is `SECURITY DEFINER` with `search_path = ''`, revoked from `public/anon/authenticated`, granted to `service_role` only.
 
@@ -90,24 +90,28 @@ Session gate, evaluated by `identity.session_gate(user_id, session_id)` for ever
 | `pin_required` | PIN set, this session has no proof, or proof idle > Q1 timeout | Verify PIN, request reset, sign out |
 | `pin_locked` | Locked | Request reset, sign out |
 | `ready` | Proof present and active | Everything the person's authority allows |
-| `step_up` | `ready` and `now() - verified_at < 5 min` | Sensitive actions |
-| `account_blocked` | Status suspended/deactivated | Status message only |
+
+`gate` only ever takes these four values. Step-up is not a gate value: `GET /security/state` returns `stepUpExpiresAt` (proof `verified_at` + 5 minutes, or null), and step-up commands fail with `step_up_required` when it has passed. A suspended or deactivated account is not a gate value either: every gated call fails with the error `account_blocked`.
 
 The PIN proof is per Auth session. A new PIN entry replaces `verified_at` (opening a new 5-minute window); retries of a command never touch it. The window is anchored to `verified_at`, not to activity.
 
 ### B4. Commands (`api.*`) and routes (`security` function)
+
+All routes live under the `security` function: `/functions/v1/security/...`. The admin routes are `/functions/v1/security/admin/...` (the same function, not a separate one).
+
+Text inputs are validated at the Edge with the same rule as the database (`_shared/validate.ts`): length counted in characters after trimming spaces, like Postgres `length(btrim(value))`; reasons 3–500.
 
 | Route | Command | Input | Checks | Result |
 |---|---|---|---|---|
 | `GET /security/state` | `api.security_state` | — | valid session | gate, attempts left, step-up expiry, UID |
 | `POST /security/pin/set` | `api.set_pin` | `pin`, `pinConfirm` | gate `pin_setup_required`; `^[0-9]{4}$`; match | proof row created (gate → `ready`) |
 | `POST /security/pin/verify` | `api.verify_pin` | `pin` | not locked; row lock on credential | ok → proof; wrong → `pin_incorrect` + `attemptsRemaining`; 5th → `pin_locked` |
-| `POST /security/pin/reset/request` | `api.request_pin_reset` | — | valid password session | creates request; Auth sends magic link to the account email (`redirectTo` allowlisted) |
+| `POST /security/pin/reset/request` | `api.request_pin_reset` | — | valid password session; one request per 60 s (`rate_limited`) | creates request; Auth sends magic link to the account email (`redirectTo` allowlisted). If the email can't be sent, the Edge calls `api.cancel_pin_reset` (withdraws the request and its 60 s cooldown, audits `pin.reset_email_failed`) and answers `internal_error` (retryable) with `details.emailSent: false`, so an immediate retry works |
 | `POST /security/pin/reset/complete` | `api.complete_pin_reset` | `pin`, `pinConfirm` | session `amr` includes `otp`/`magiclink` issued after the request; request pending, unexpired | new hash, unlock, consume request, **delete all proofs for user**, new proof for this session |
 | `GET /security/sessions` | `api.list_sessions` | — | gate `ready` | id, created, last active, user agent, current flag (no IP shown) |
-| `POST /security/sessions/revoke` | `api.revoke_session` | `sessionId` \| `others` | gate `ready`; own sessions only | Auth sessions deleted; proofs cascade |
-| `POST /admin/accounts/status` | `api.set_account_status` | `targetUid`, `status`, `reason`, `idempotencyKey` | actor platform admin; gate `step_up`; reason 3–500 chars; not self | change row + audit; suspended/deactivated → target's proofs deleted |
-| `POST /admin/admins/grant` · `/revoke` | `api.grant_platform_admin` · `api.revoke_platform_admin` | `targetUid`, `reason`, `idempotencyKey` | actor admin; `step_up`; can't revoke last admin | row + audit |
+| `POST /security/sessions/revoke` | `api.revoke_sessions` | exactly one of `sessionId` or `allOthers: true` | gate `ready`; own sessions only | Auth sessions deleted; proofs cascade |
+| `POST /security/admin/accounts/status` | `api.set_account_status` | `targetUid`, `status`, `reason`, `idempotencyKey` | actor platform admin; step-up; reason 3–500 chars; not self (`self_target_forbidden`) | change row + audit; suspended/deactivated → target's proofs deleted |
+| `POST /security/admin/admins/grant` · `/security/admin/admins/revoke` | `api.grant_platform_admin` · `api.revoke_platform_admin` | `targetUid`, `reason`, `idempotencyKey` | actor admin; step-up; can't revoke last admin | row + audit |
 
 PIN hashing: Edge computes `hex(HMAC-SHA256(PIN_HMAC_SECRET, pin))`; Postgres stores `crypt(hmac, gen_salt('bf', 10))` and compares with `crypt(hmac, pin_hash)`. The raw PIN never reaches Postgres, logs or responses. `key_version` allows rotating the secret.
 
@@ -129,6 +133,7 @@ Failure: `{ "ok": false, "error": { "code": "…", "message": "…", "retryable"
 | `step_up_required` | 403 | Needs a PIN within 5 minutes |
 | `account_blocked` | 403 | Suspended/deactivated |
 | `authorization_denied` | 403 | Not allowed |
+| `self_target_forbidden` | 403 | An admin changing their own account status (the same code `org` uses; since migration `20261009000100`, previously `authorization_denied` with `reason: self_target`) |
 | `not_found` | 404 | Target not found or not visible |
 | `idempotency_conflict` | 409 | Same key, different payload |
 | `conflict` | 409 | State changed (e.g. reset already used) |
@@ -152,7 +157,7 @@ pgTAP:
 6. Reset: without request → denied; with request but password-only session → denied; with magic-link session → new PIN works, old doesn't, all other sessions' proofs gone; second use → `conflict`.
 7. Session A's proof does not satisfy session B (same user).
 8. Revoking a session removes its proof.
-9. Status change: non-admin denied; admin without step-up → `step_up_required`; missing reason → `validation_error`; self-target denied; replay same key → same result, no duplicate event; same key, different payload → `idempotency_conflict`; suspended target's proofs deleted and gate → `account_blocked`.
+9. Status change: non-admin denied; admin without step-up → `step_up_required`; missing reason → `validation_error`; self-target → `self_target_forbidden`; replay same key → same result, no duplicate event; same key, different payload → `idempotency_conflict`; suspended target's proofs deleted and gate → `account_blocked`.
 10. Last admin cannot be revoked; grant/revoke need reasons.
 11. `anon`/`authenticated` cannot execute any `api.*` or read any `identity`/`audit`/`refs` table.
 12. Audit rows can't be updated or deleted; no column contains PIN/HMAC values.

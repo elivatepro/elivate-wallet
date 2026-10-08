@@ -18,7 +18,7 @@ Authentication v2 · Onboarding — Invited member · App — Screens v1 · App 
 - Don't invent features, permissions or numbers the contract doesn't have; flag them instead.
 
 ## Backlog (all designed 2026-10-07)
-1. ~~Offices: list, create office, office detail (President).~~ Done 2026-10-07 on App — Screens v2 (O01–O09); poses Org tree / Building block / Keys. Open: confirm World Team can't be created (type picker shows Directorate/Team office only); whether a leader is required at creation; meaning of "manage classifications" (W-05); held column = office's own memberships, not subtree rollup (Rename/Change-leader dialogs now O10–O13).
+1. ~~Offices: list, create office, office detail (President).~~ Done 2026-10-07 on App — Screens v2 (O01–O09); poses Org tree / Building block / Keys. Open: confirm World Team can't be created (type picker shows Directorate/Team office only); whether a leader is required at creation; meaning of "manage classifications" (W-05); member counts roll up over the subtree (owner 2026-10-08, decision 53; backend `list_offices` now returns the rolled-up count) (Rename/Change-leader dialogs now O10–O13).
 2–10. Done 2026-10-07 on App — Screens v2 (desktop + mobile): R01–R14 Roles & access / reviewers / member detail + suspend/move/end; W01–W10 my withdrawals, cancel, approve pocket move, returned funds (+ sent); B01–B08 billing owner, plan change, Paystack confirmed / still confirming; S01–S06 MFA, devices & sessions, change PIN; V01–V04 restore request (+ sent); X01–X08 404, no access, session expired, withdrawals paused; K01–K02 quick search; O10–O13 rename office, change leader.
 
 ## Responsive pass — done 2026-10-07
@@ -29,7 +29,7 @@ Page "Admin — Screens v1": A01–A16 (sign-in + MFA, overview, global search, 
 
 ## Owner answers (2026-10-07)
 - All platform admins can do everything (U-09 matrix dropped; recorded in 00-product P-09).
-- Pocket names Main / Savings / Giving stay for now.
+- ~~Pocket names Main / Savings / Giving stay for now.~~ Superseded 2026-10-08: Point Value, Business Investment, Personal Investment, Upkeep, Savings + Debt, editable per network by the President Team (01 D-01).
 - Step-up = 4-digit transaction PIN, not an authenticator code (recorded in 01 A-05). Applied to B01/B02, A09b/A10, A11b.
 - Plans: 6 bands, none smaller than "up to 400" (recorded in 01 D-10); caps/prices of the extra bands pending.
 
@@ -74,3 +74,12 @@ Still open:
 - "Yes by PT" read as World Team creatable by President Team AND leader required.
 
 Tidy-ups done: S09d background Root hidden; S04 mobile duplicate title replaced with "3 signed-in devices".
+
+## Owner decisions (2026-10-08) that affect Paper
+Recorded in the contract; the screens below are not redrawn yet (design work needs its own go-ahead).
+- `Authentication v2` is adopted; the old `Authentication` page is archive only (P-06).
+- Onboarding order is now verify email → accept invitation → set PIN → bank account (W-02). The Onboarding — Invited member wizard follows the 2026-10-05 order (PIN after the bank step) and needs reordering.
+- Bank step: name match against the NIN name (same words any order, missing middle name/initial ok, titles ignored, no spelling tolerance); mismatch blocks saving; "identity check pending" state before the NIN exists; 24-hour cooling-off after add/replace except the first account (W-17). Not drawn.
+- In-app "Invitations for you" list, invitation resend (fresh link, max 5) and revoke-with-reason (W-03). Not drawn.
+- Pockets and allocation split editable by the President Team, with reason + PIN (`manage_allocation`, W-23). Not drawn.
+- Offline: "Last updated HH:MM · offline" stale label, "Hide amounts" switch, iOS "Add to Home Screen" hint, update prompt (W-25). Not drawn.

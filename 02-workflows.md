@@ -2,7 +2,7 @@
 
 Pack version: 1.1 · Compiled: 2026-10-04
 
-Target frontend: **Svelte + TypeScript + Effect**. Read `00-product.md` and applicable rules in `01-domain-rules.md` first. A workflow's UI does not confer backend authority. All protected initial requests/retries use A-01–A-05; all money uses F-01–F-03; all uploads use E-01. Use existing reviewed wire contracts, not invented endpoint/error names. The approved Emberlit visual system and initial authentication compositions are documented in Paper; framework/template choices and unshown route layouts remain open under U-12. **Cloudflare Email Service** handles outbound email; preserve Supabase Auth and durable delivery boundaries.
+Target frontend: **Svelte + TypeScript + Effect**. Read `00-product.md` and applicable rules in `01-domain-rules.md` first. A workflow's UI does not confer backend authority. All protected initial requests/retries use A-01–A-05; all money uses F-01–F-03; all uploads use E-01. Use existing reviewed wire contracts, not invented endpoint/error names. The approved Emberlit visual system and the adopted `Authentication v2` compositions are documented in Paper; the frontend stack is decided in `00-product.md` P-04 (2026-10-08) and only unshown route layouts remain open under U-12. **Cloudflare Email Service** handles outbound email; preserve Supabase Auth and durable delivery boundaries.
 
 ## W-00 — Shared interaction, failure and recovery contract
 
@@ -39,7 +39,7 @@ Common acceptance: no duplicate dispatch from reactivity, accessible busy/field/
 6. Resume incomplete onboarding without repeating durable identity, membership or payment operations. Collect information progressively; do not force unnecessary fields upfront.
 7. PIN enrollment, bank account and appropriate first-use onboarding remain required capabilities but use approved policies, not guessed PIN length/hash/thresholds.
 
-**Auth UI:** Initial desktop/mobile sign-in, founder sign-up, verification/recovery notices, invitation verification, verified-session password setup, unavailable-invitation response, and generic sign-in error compositions are documented on the Paper `Authentication` page. Preserve concise headings/labels/actions, password visibility, Light/Dark/System capability, keyboard accessibility, responsive behavior and native POST even before JavaScript hydration. The screens do not select the identity provider or settle U-02's NIN/UID policy. Verification/recovery/invitation emails must use the configured Cloudflare sending integration while Supabase retains token authority. Founder confirmation guidance must not falsely promise a new account or delivered email. The approved public signup duplicate notice may use Supabase's explicit `user_already_exists`/empty-identities result; do not add a privileged existence lookup. Missing/malformed/error responses remain errors.
+**Auth UI:** Initial desktop/mobile sign-in, founder sign-up, verification/recovery notices, invitation verification, verified-session password setup, unavailable-invitation response, and generic sign-in error compositions are documented on the Paper `Authentication v2` page (adopted over the earlier `Authentication` page, owner decision 2026-10-08). Preserve concise headings/labels/actions, password visibility, Light/Dark/System capability, keyboard accessibility, responsive behavior and native POST even before JavaScript hydration. The screens do not select the identity provider or settle U-02's NIN/UID policy. Verification/recovery emails (Supabase Auth through Cloudflare SMTP) and invitation emails (application email through the Cloudflare REST API, W-21) use the configured Cloudflare sending integration; Supabase retains Auth token authority. Founder confirmation guidance must not falsely promise a new account or delivered email. The approved public signup duplicate notice may use Supabase's explicit `user_already_exists`/empty-identities result; do not add a privileged existence lookup. Missing/malformed/error responses remain errors. **Owner decision (2026-10-08):** Auth email links carry a `token_hash` and open a Continue page that submits by POST, so no bearer token sits in a URL and email scanners cannot consume the link. Editing the development project's Auth email templates is not approved yet; it comes with the first real sign-up.
 
 **Acceptance:**
 - Signup/account selection alone cannot assign a role, office, entitlement or verified identity.
@@ -59,7 +59,11 @@ Common acceptance: no duplicate dispatch from reactivity, accessible busy/field/
 5. Existing-account sign-in remains available and preserves token continuation. A verified matching recipient using an older signup link can finish Set password and join through the same trusted acceptance.
 6. Complete only the approved role/office assignment, under current capacity, invitation, account and tenant checks.
 
-**First-use onboarding (owner decision, 2026-10-05):** After acceptance, an invited member completes a step-by-step wizard: (1) welcome showing the network, office and role bound by the invitation, with no role/office choice; (2) NIN verification, with retries and then a request for their leader to review, during which onboarding waits on a review screen; (3) confirmation of the details locked from the verified NIN record: legal name and, only when returned, phone number; (4) profile: required uploaded photo, phone entered manually when NIN did not return one, and a self-declared rank chosen on a scroll wheel with haptic feedback (Member, Distributor, Manager, Senior Manager, Executive Manager, Director, Emerald Director, Sapphire Director, Ruby Director 1–5, Diamond Director); (5) NGN payout bank account with account-name lookup, which must match the verified NIN name or saving is blocked with an explanation; (6) 4-digit transaction PIN with confirmation; (7) completion into member home. MFA is set up later from settings. Rank is self-declared presentation data and grants no role, permission or authority. NIN provider, retry limits and review mechanics remain U-02.
+**Onboarding order (owner decision 2026-10-08, superseding the 2026-10-05 order):** verify email → accept the invitation → set the PIN → add the bank account. Acceptance is allowed while the session gate is still `pin_setup_required` (the person has no PIN yet); every later step needs the PIN, and the bank-account lookup needs a PIN step-up (W-17).
+
+**First-use onboarding (owner decision 2026-10-05, reordered 2026-10-08):** After acceptance, an invited member completes a step-by-step wizard: (1) welcome showing the network, office and role bound by the invitation, with no role/office choice; (2) 4-digit PIN with confirmation; (3) NIN verification, with retries and then a request for their leader to review, during which onboarding waits on a review screen; (4) confirmation of the details locked from the verified NIN record: legal name and, only when returned, phone number; (5) profile: required uploaded photo, phone entered manually when NIN did not return one, and a self-declared rank chosen on a scroll wheel with haptic feedback (Member, Distributor, Manager, Senior Manager, Executive Manager, Director, Emerald Director, Sapphire Director, Ruby Director 1–5, Diamond Director); (6) NGN payout bank account with account-name lookup, checked against the verified NIN name under the W-17 name-match rule; (7) completion into member home. There is no authenticator app (A-05). Rank is self-declared presentation data and grants no role, permission or authority. NIN provider, retry limits and review mechanics remain U-02.
+
+**NIN name match (owner decisions 2026-10-08):** the bank's resolved account name matches the verified NIN name when it has the same words in any order; a missing middle name or a middle initial is accepted; leading titles are ignored; there is no spelling tolerance. On a mismatch saving is blocked and the person fixes the bank record or their NIN. If the NIN is not verified yet (for example while a leader review is pending), the account is saved as "identity check pending" and is usable; it is re-checked automatically when the NIN lands.
 
 **Privacy/recovery:** Invalid/expired/revoked tokens have one unavailable response; no account-existence/password-presence flags. Token pages/responses prevent caching/referrer leakage. Same-browser/cross-browser email continuation must use supported configured templates and verified sessions.
 
@@ -71,9 +75,17 @@ Common acceptance: no duplicate dispatch from reactivity, accessible busy/field/
 
 **Input:** Intended recipient/resource, permitted role, intended office, approved expiration/usage policy. Server derives actor/tenant/office authority; invitation role and office types must match.
 
-**Behavior:** Validate target placement and delegation limits; create durable invitation with inviter/redemption tracking and safe token/code/link delivery. Link/code expiry, usage limits and revocation are authoritative. Deliver outbound email through the supported Cloudflare Email Sending adapter/durable mechanism. Supabase-issued Auth invitations must preserve its supported token/SMTP-or-hook integration rather than duplicate sending. Delivery failure is not acceptance. Acceptance rechecks identity, invitation state, capacity and intended role/context and creates/activates membership atomically. QR invitations are future convenience, not a separate authority model.
+**Behavior:** Validate target placement and delegation limits; create durable invitation with inviter/redemption tracking and safe token/code/link delivery. Link/code expiry, usage limits and revocation are authoritative. Deliver outbound email through the supported Cloudflare Email Sending adapter/durable mechanism (W-21); invitations are application email, never Supabase Auth invites. Delivery failure is not acceptance. Acceptance rechecks identity, invitation state, capacity and intended role/context and creates/activates membership atomically. QR invitations are future convenience, not a separate authority model.
 
 Invitation lifecycle is distinct from membership. An expired token cannot leave an active or perpetually invited membership. Keep revoked/accepted historical records rather than erase audit history.
+
+**Owner decisions (2026-10-08):**
+- **Who may invite whom:** `member` invitations by any `invite_members` holder within their scope. Leader roles (`team_leader`, `director`, `world_team_member`) only into offices strictly **below** the inviter's own office, with reason and PIN; the President Team may invite leaders into any office. A President Team Member is never invited; they are added through W-05.
+- **Lifetime:** an invitation link lasts 7 days.
+- **Resend:** issues a fresh link; the old link stops working immediately and the 7 days restart. At most 5 reissues per invitation and 1 per minute. Expired or revoked invitations cannot be reissued.
+- **Revoke:** a reason (3–500 characters) is required.
+- **Inviter loses their role:** pending invitations stay. Acceptance re-checks that the office is still active and the role still fits it.
+- **Joining:** through the emailed link, or from an in-app "Invitations for you" list shown to a signed-in person whose verified email matches the invitation.
 
 **Acceptance:** No unrelated presidency can invite into selected tenant. Concurrent acceptance/use-limit/capacity races cannot duplicate a membership or exceed seats. Repeated invitation actions follow their stable command contract; failure messages distinguish authorization from duplicate/conflict. Development three-identity restrictions are not copied into production.
 
@@ -113,6 +125,7 @@ Invitation lifecycle is distinct from membership. An expired token cannot leave 
 - An office may have several leaders: every active membership holding the office kind's leader role is a leader, and an active office keeps at least one. Leaders can be added, or replaced one-for-one under the replacement rule above; the last leader cannot be ended or moved.
 - Only President Team Members add or remove President Team Members, with reason and step-up; at least one always remains.
 - Moving, suspending and ending a membership require step-up (the PIN) in addition to the reason.
+- Adding or replacing an office leader follows the W-03 invitation rule: leaders are placed only in offices strictly below the actor's own office (the President Team: any office), so a Team Leader cannot add or replace a co-leader of their own office. Office member counts roll up over the office's whole subtree (distinct people), like office money.
 
 Add membership preserves another active relationship; move ends the old and creates/activates the destination while preserving history. Suspend affects that specific relationship; end means belonging ceased. Track actor/reason/time and invalidate authorization caches. One role/membership and one primary membership/tenant must remain consistent. Reorganization does not rewrite origin on old money/evidence or create a second wallet.
 
@@ -140,7 +153,9 @@ Workspace-request approval delegation is separate from evidence-review assignmen
 
 **Leadership:** President dashboard prioritizes finances then member insights. Other dashboards show only authorized managed resources. Use actual aggregate safe read models—not sums over truncated recent rows—to compute totals. Distinguish memberships from distinct users and label counts accurately. Keep currencies separate; excluded/denied scope cannot contribute silently to a total.
 
-**Pockets:** One selected NGN/USD context where supported, clear balances and transfer entry, and navigable detail/transfer/review/result steps. Exact charts, cards, route presentation and visual composition are undecided. Actual catalog/pocket directions come from approved backend configuration, not A/B samples.
+**Pockets:** One selected NGN/USD context where supported, clear balances and transfer entry, and navigable detail/transfer/review/result steps. Exact charts, cards, route presentation and visual composition are undecided. **Owner decisions (2026-10-08):** each network's pockets come from its own catalogue (default Point Value, Business Investment, Personal Investment, Upkeep, Savings, in that display order, plus Debt; 01 D-01). Ordinary pockets send and receive, are withdrawable and never go below zero; Debt may be negative, receives transfers only up to zero, is never a source and is never withdrawn (01 F-01).
+
+**Visibility (owner decisions 2026-10-08):** a person can always see their own money, read-only, even after leaving a network or while it is suspended. Money recorded under an office that is later closed stays visible to the President Team and the leaders above it; the close-office command comes later.
 
 **Activity:** Chronological records with signed currency amounts, explicit durable status, search and Money in/Money out controls, plus currency/status/pocket/date filters. Mobile/desktop composition and control styling will be decided later. Detail shows type/from/to/date/reference and correction links, without a redundant visible Transaction heading. Follow authorized cursor pagination including equal-timestamp tie-breaks.
 
@@ -160,6 +175,13 @@ Workspace-request approval delegation is separate from evidence-review assignmen
 5. Success is `posted`. No separate income approval or durable financial pending state is introduced. Failed validation/authorization posts nothing.
 
 Store exact allocated lines/policy and structured facts separately from receipts. Upstream evidence supports the point value enters Wallet; do not model every prior provider movement automatically.
+
+**Owner decisions (2026-10-08):**
+- **Fields:** amount, currency (NGN or USD, both 2 decimal places), source (free text), date received, optional provider reference, optional notes and an optional fee. The fee is recorded only and never deducted.
+- **Receipts:** PDF, JPEG or PNG, at most 10 MB each, 1–5 per income. Uploads not used by an income expire after 2 hours.
+- **PIN:** recording income needs step-up (the PIN within the five-minute window).
+- **Allocation:** the network's active policy version (W-23), largest-remainder method with ties broken by pocket display order (01 F-01). Income never goes into Debt.
+- **Refused targets:** income is refused for suspended or ended memberships and for suspended or deactivated accounts; it is allowed for restricted accounts.
 
 **Recovery:** Keep attempt ID before dispatch. Unknown outcome cannot start a replacement attempt. Approved cancellation serializes against posting and either recovers the committed result under current authority or permanently cancels the unposted attempt. Clean up expired unposted uploads safely.
 
@@ -243,7 +265,7 @@ Submission atomically creates request + exact reservation; it posts no withdrawa
 
 Before approval, **wallet holder or initiating actor** may cancel; authorized approver may reject. Release hold with no journal. A non-owner with both initiation/approval permissions can do both on the same transfer. Multiple open transfers are allowed when reservations are sufficient.
 
-**Directions:** Debt cannot be source. It may receive only enough to reach zero; excess remains source, never positive Debt. Other pocket flags are protected catalogue configuration, not invented behavior. Cross-currency/provenance is excluded.
+**Directions:** Debt cannot be source. It may receive only enough to reach zero; excess remains source, never positive Debt. Ordinary pockets both send and receive (owner decision 2026-10-08, 01 F-01). Cross-currency/provenance is excluded.
 
 **UI:** Leadership review of pocket transfers lives in the **Transfers** module, separate from the withdrawal queue (Notion main spec 2026-10-03; tenant configuration 2026-10-04). On mobile the leadership bottom-bar tab is **Approvals**, with Transfers and Withdrawals as its two segments. Source/destination/amount → review → authoritative result, with accessible navigation between steps. Full-screen versus inline/dialog presentation and styling are undecided. Pending/unknown result retains amount and route; do not describe reservation as final balance change.
 
@@ -297,15 +319,21 @@ Verify/one correction/independent review; no ledger until verified/cleared. Post
 
 **Data:** Country/currency/rail, institution code/name, account number or secure provider reference, resolved name, verification state/method/source, times, primary/lifecycle and replacement links. Ownership uses stable account/wallet, not email/profile name.
 
-**NUBAN path:** Current owned active wallet/context + fresh step-up precedes exact bank-code/account-number provider lookup. Preserve leading zeros and actual provider resolved name; do not enforce legacy profile-name matching or permissive fallback. Store immutable actor/wallet/context/bank/account-bound proof valid **15 minutes**. Explicit name confirmation atomically creates/verifies owned pending account; never auto-sets primary or posts funds. Expired unconfirmed proof is terminal under lock; confirmed same-key result stays recoverable after proof expiry under current authorization.
+**NUBAN path:** Current owned active wallet/context + fresh step-up precedes exact bank-code/account-number provider lookup (Paystack Resolve Account Number, banks from the Paystack bank list; owner decision 2026-10-08). Preserve leading zeros and actual provider resolved name; do not use legacy profile-name matching or a permissive fallback. The resolved name must match the verified NIN name under the W-02 name-match rule; a mismatch blocks saving, and an account saved before the NIN exists is "identity check pending", usable, and re-checked automatically when the NIN lands. Store immutable actor/wallet/context/bank/account-bound proof valid **15 minutes**. Explicit name confirmation atomically creates/verifies owned pending account; never auto-sets primary or posts funds. Expired unconfirmed proof is terminal under lock; confirmed same-key result stays recoverable after proof expiry under current authorization.
 
-**Manual/provider-neutral:** Explicit unsupported/international manual additions remain pending until approved verification; do not label them machine-verified. Account verification method and status are separate. Select for Withdrawal only if current policy permits it.
+**Manual/provider-neutral:** Deferred (owner decision 2026-10-08): only Nigerian NUBAN accounts can be added for now. When foreign/manual accounts are built, they remain pending until approved verification and are never labelled machine-verified. Account verification method and status are separate. Select for Withdrawal only if current policy permits it.
+
+**Owner decisions (2026-10-08):**
+- **Storage:** the account number is stored encrypted, with an HMAC fingerprint for matching and the last 4 digits for display.
+- **Limits:** 10 lookups per hour and 30 per day per person; at most 5 active accounts per person. Two people may save the same account.
+- **Reasons:** replacing or removing an account needs a reason (3–500 characters).
+- **Cooling-off (new rule):** an account that was just added or replaced cannot receive a withdrawal for 24 hours. A person's first account is exempt.
 
 **Lifecycle:** Multiple accounts; at most one primary per supported currency/rail. Verified account-number change creates new verified replacement and preserves old record. Deactivate/replace never modifies submitted withdrawal snapshots. Show masked numbers ordinarily; owner/exact authorized payout needs use narrow audited reveal.
 
 Successful sensitive changes generate internal audit/security events and approved after-commit holder alerts; delivery failure does not undo change.
 
-**Acceptance:** Lookup isn't confirmation; confirmation isn't primary selection. Wrong actor/proof/account/context, expired unconfirmed proof and duplicate races fail. Unknown confirmation remains bound to original key. Snapshot destination survives replacement. Full numbers stay out of analytics/logs/notifications.
+**Acceptance:** Lookup isn't confirmation; confirmation isn't primary selection. Wrong actor/proof/account/context, expired unconfirmed proof and duplicate races fail. Unknown confirmation remains bound to original key. Snapshot destination survives replacement. Full numbers stay out of analytics/logs/notifications. A NIN-name mismatch cannot be saved, lookups past the hourly/daily limit fail, and a non-first account inside its 24-hour cooling-off cannot receive a withdrawal.
 
 ## W-18 — Reports, transaction exports and statements
 
@@ -361,9 +389,16 @@ Chatwoot is the support integration. Share only reviewed permitted UID/team/curr
 
 **Documentation:** Searchable, role/context-aware getting-started, wallet/pockets, transactions/statements, network/governance, yearly billing, customization, backup/security and troubleshooting help. Contextual help may open where needed; routine financial UI does not gain verbose explanatory subtitles. `docs.elivatewallet.com` is a proposed destination requiring provisioning, not a live guarantee.
 
-**Communications:** **Cloudflare Email Service / Email Sending is the chosen outbound email sender** for Auth verification/recovery/invitations and approved income/withdrawal/security/subscription/account email alerts. Use its server-only Workers binding, REST API or SMTP through a reviewed adapter; inbound Email Routing is not a substitute for arbitrary-recipient outbound sending. Domain onboarding/authentication, least-privilege credentials and required paid-plan access must be verified (T-03/U-11).
+**Communications:** **Cloudflare Email Service / Email Sending is the chosen outbound email sender** for Auth verification/recovery email, invitations and approved income/withdrawal/security/subscription/account email alerts. Use its server-only Workers binding, REST API or SMTP through a reviewed adapter; inbound Email Routing is not a substitute for arbitrary-recipient outbound sending. Domain onboarding/authentication, least-privilege credentials and required paid-plan access must be verified (T-03/U-11).
 
 Application follow-ups run through T-03 after durable commit; missing provider configuration means pending/failed delivery, not rolled-back money. Connect Supabase Auth emails to Cloudflare through supported SMTP or a reviewed Auth-email hook, retaining Supabase token issuance/validation and callback/template semantics. Auth delivery and application outbox delivery are distinct paths; do not send both for the same Auth event. Sender addresses, recipient/template/consent and delivery-status handling are U-11 where unspecified. A successful send API response does not by itself prove inbox delivery.
+
+**Owner decisions (2026-10-08):**
+- **Two paths, never both for one event.** Supabase Auth sends only its own verification emails (sign-up email confirmation and the PIN-reset sign-in link, both proving email ownership) through Cloudflare SMTP. Invitations and every other application email are sent by the application through the Cloudflare Email Sending **REST API** from the durable outbox; Supabase Auth invites are not used.
+- **Credentials:** the REST API uses its own Email-Sending-only API token, separate from the Auth SMTP token, one per environment.
+- **Worker:** pg_cron runs every minute and calls a worker Edge Function through pg_net; the worker secret is kept in Vault.
+- **Sender:** `noreply@elivatewallet.com`, name "Elivate Wallet", no reply-to, in production. Development moves to `noreply@dev.elivatewallet.com` once that subdomain is onboarded in Cloudflare Email Sending; until then it may use the main domain.
+- **Invitation email:** subject "You're invited to join <Network> on Elivate Wallet", using the P-06 email layout.
 
 **Acceptance:** No context mixing, invalid URL or private anonymous branding disclosure. Cloudflare email retry uses stable downstream identity where supported and preserves attempt history; avoid duplicate sends after uncertain outcomes. Verify Auth confirmation/recovery/invitation links and actual external-recipient delivery separately from application-job execution. The approved in-app notification bell does not replace necessary review queues or security delivery, and must show only real durable events, never fake entries.
 
@@ -375,7 +410,7 @@ Application follow-ups run through T-03 after durable commit; missing provider c
 
 **Security:** No authenticator app (owner decision 2026-10-07). Every user's 4-digit PIN is asked for after the password at every sign-in and for step-up; see A-05. Display the actual verified-window state. PIN reset is by email link; account email changes go through support.
 
-Transaction PIN is required product scope. Attempt limit (5), lockout and email reset follow A-05; storage is U-02. Account email changes go through support, not self-service (owner decision 2026-10-07). PIN does not replace authorization or MFA unless explicitly approved.
+Transaction PIN is required product scope. Attempt limit (5), lockout, email reset and storage follow A-05. Account email changes go through support, not self-service (owner decision 2026-10-07). PIN does not replace authorization or MFA unless explicitly approved.
 
 **Devices/sessions:** Show authorized active sessions/device information, approximate location/last activity where appropriate, suspicious login history, sign out one or all others. Revocation invalidates applicable elevated proof and action state; current-session/global invalidation follows supported Auth semantics.
 
@@ -391,7 +426,7 @@ Transaction PIN is required product scope. Attempt limit (5), lockout and email 
 
 **Audit:** Immutable internal events record actor/action/target/time, safe before/after, reason, request/session correlation and linked objects. No full accounts, credentials, evidence bodies or private resolver metadata in general messages. Owner decision (2026-10-06): the tenant President gets a read-only, tenant-scoped Audit log showing these same safe fields; it never exposes platform/admin events, other tenants or raw backend controls. The personal notification bell remains separate (P-05); private admin audit is not removed.
 
-**Controls:** Centralize approved supported currencies, limits, allocation versions, features, maintenance/security settings and backup/subscription policies. Feature flags can roll out to tenants/roles/pilots/percentages/plans, but never grant permission or skip ledger/evidence/entitlement controls. Independent kill switches for withdrawals, transfers, remittance, conversion, income and future payouts stop relevant new operations without erasing existing state or breaking safe resolution/history.
+**Controls:** Centralize approved supported currencies, limits, features, maintenance/security settings and backup/subscription policies. **Owner decision (2026-10-08):** allocation versions (pockets and split) are per network and edited by that network's President Team through the protected `manage_allocation` permission (01 A-03), not by Elivate admins; platform admins may view the versions. Feature flags can roll out to tenants/roles/pilots/percentages/plans, but never grant permission or skip ledger/evidence/entitlement controls. Independent kill switches for withdrawals, transfers, remittance, conversion, income and future payouts stop relevant new operations without erasing existing state or breaking safe resolution/history.
 
 **Acceptance:** Tenant presidency can't administer global accounts/flags/secrets. Kill switch behavior preserves reservations and unknown-result recovery under reviewed policy. Sensitive config requires audit/step-up. Analytics/session replay masks financial/identity/account/evidence/PIN data. No hardcoded operational value quietly substitutes for an unresolved policy.
 
@@ -415,6 +450,8 @@ Daily/weekly/monthly and Drive/OneDrive/Dropbox/S3-compatible/download are candi
 
 **PWA:** Installable Svelte app shell, icons/splash, safe areas, touch behavior, network state, update/version detection and new-version prompts. Offline shell may render, but financial data is explicitly stale/unverified and money movement is not silently queued offline. Do not cache sensitive Auth/token/evidence/financial responses indiscriminately.
 
+**Offline data rule (owner decision 2026-10-08):** the app is an installable PWA (manifest, icons, splash, an iOS "Add to Home Screen" hint) with an update prompt on a new version. The last-loaded read-only data (balances, history, offices, members) may be cached on the device per user and workspace for at most 7 days, clearly labelled stale ("Last updated HH:MM · offline"), erased on sign-out and never shown under another workspace. Bank/account numbers, evidence files, tokens and Auth responses are never cached. A "Hide amounts" switch is available. All commands are disabled offline and never queued (W-00).
+
 **Mobile readiness:** Stable versioned backend contracts, deep/universal/app links, mobile-compatible Auth, safe credential-storage plan, device/push architecture, minimum-supported version and feature rollout. The new frontend choice supersedes React-specific packaging assumptions. Native framework/package/timing and device biometric step-up are U-10/future decisions; do not declare Capacitor or React Native selected from older notes.
 
 **Acceptance:** Network drops during write enter same-key recovery (W-00), never reissue under a new key on reconnect. App update preserves safe unresolved identifiers and does not discard domain reservations. 320px keyboard/focus/safe-area/contrast/motion and desktop parity pass. Backend upgrades don't assume every future installed client updates immediately.
@@ -425,7 +462,7 @@ Paystack DVA, automated member bank payouts, payout webhooks/transfer automation
 
 Future discovery covers provider account ownership, inbound remittance mapping, recipients/account verification, KYC/fees/settlement, webhook authentication/deduplication, failures/reversals, limits and reconciliation matched/missing/duplicate/mismatched records. Do not ship these based on a backlog paragraph.
 
-This does **not** defer Paystack subscription purchases in W-19 or the selected NUBAN/OpenAI adapters in W-17/W-10. Billing money, external wallet payments and internal ledger truth are distinct.
+This does **not** defer Paystack subscription purchases in W-19, the selected account-name lookup in W-17 (Paystack Resolve Account Number) or the OpenAI adapter in W-10. Billing money, external wallet payments and internal ledger truth are distinct.
 
 ## W-27 — Release-wide acceptance checklist
 
@@ -434,7 +471,7 @@ Before declaring the application complete:
 - Relevant workflow acceptance checks and T-04 regressions pass on realistic nonempty safe fixtures, including external-failure and uncertain-outcome scenarios.
 - End-to-end test covers income/evidence/allocation → owner request/reservation → scoped approval → external payout assertion → strict verification or independent review → immutable completion/history/export consistency.
 - Transfers, conversion reservation migration, adjustment evidence/no-reservation, protected reversal and partial returns each prove their distinct accounting/state boundaries.
-- No old implementation maker/checker, cross-workspace money transfer, NGN-only withdrawal, one-open-request, hardcoded reviewer or mutable-balance rule is imported without approval.
+- No old implementation maker/checker, cross-workspace money transfer, one-open-request, hardcoded reviewer or mutable-balance rule is imported without approval. (NGN-only withdrawal is approved in W-09, owner decision 2026-10-05.)
 - All required live forms/reads are connected and capability-derived; previews are isolated. Empty queue/read success doesn't prove real provider success or production readiness. Visual acceptance follows the approved Emberlit system and the Paper designs; unshown route compositions remain open under U-12.
 - Svelte/Effect adapter tests, exact-money transports, authorization/RLS, new-database replay, generated drift, logs/privacy, build/runtime deployment, accessibility and hosted checks pass. Final visual acceptance is checked against the approved Emberlit system and Paper auth designs when the frontend is implemented; old screenshots/templates cannot satisfy it by assumption.
 - Provider secrets/configuration, templates/callbacks, backups/restore, performance/load and operational alerts/kill switches are verified for the actual target environment.

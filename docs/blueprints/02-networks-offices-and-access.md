@@ -44,8 +44,8 @@ Part A is for the owner: what this slice does, in plain language. Part B is the 
 
 ### B1. Layout
 - New private schemas: `org` (networks, offices, closure, memberships), `authz` (catalog, role policies, access rules, reviewer assignments, confirmations, resolver). Same rules as slice 01: not exposed via the Data API, privileged functions `SECURITY DEFINER` with `search_path = ''`, executable by `service_role` only through `api.*`.
-- New Edge Function `org` (one function, several routes), same envelope, JWT handling and logging rules as `security`. Every route first passes the slice 01 session gate (`ready`, or `step_up` where marked).
-- Selected workspace: the client sends `X-Membership: <membership id>`. The server checks it is the actor's own active membership in an active network and office (A-02). It is context only and never a permission.
+- New Edge Function `org` (one function, several routes), same envelope, JWT handling and logging rules as `security`. Every route first passes the slice 01 session gate (`ready`, plus step-up where marked S). Routes live under `/functions/v1/org/...`; the admin route is `/functions/v1/org/admin/...` (the same function).
+- Selected workspace: the client sends `X-Membership: <membership id>`. The server (`authz.require_workspace`) checks it is the actor's own active membership in an active office (A-02). It is context only and never a permission. As built, a membership in a network still awaiting payment (`pending_payment`) is accepted as a workspace so the founder can select it; every organizational read and change then requires an active network and fails with `network_not_active`. A-02's wording ("active tenant") versus this founder case is an open question for the owner; the code is unchanged until it is answered.
 
 ### B2. Data
 
@@ -106,22 +106,27 @@ Lock order for membership changes: people (sorted) → office tree → tenant/of
 
 ### B4. Commands (`api.*`) and routes (`org` function)
 
-All writes take `idempotencyKey`; replay re-runs `authz.decide` before returning the stored result, for **every** command (fixes legacy bug a). `R` = reason required (3–500 chars). `S` = step-up required.
+All writes take `idempotencyKey`; replay re-runs `authz.decide` before returning the stored result, for **every** command (fixes legacy bug a). `R` = reason required (3–500 chars). `S` = step-up required. Names are 2–100 characters and short names 1–30; the Edge checks text the same way as the database (characters after trimming spaces).
+
+Transport notes:
+- Path ids must be UUIDs. A non-UUID id doesn't match any route, so it returns `404 not_found` (not `validation_error`); clients should treat it as a bad link, not a missing record.
+- `DELETE /org/presidents/{id}` and `DELETE /org/reviewers/{id}` take a JSON body (`reason`, `idempotencyKey`). That is valid HTTP, but some proxies and clients drop DELETE bodies; the server-side frontend uses `fetch`, which keeps them. Future native clients must send the body too.
+- No route returns the signed-in person's own profile (name) yet; `GET /security/state` returns only the UID. The W-22 profile route is a later slice.
 
 | Route | Command | Permission / actor | Notes |
 |---|---|---|---|
 | `POST /org/networks` | `api.start_network` | any account at gate `ready` | `name`, `shortName`. Creates tenant `pending_payment`, seeds role policy, founder's President Team membership (primary). Q1 |
-| `POST /admin/tenants/{id}/activate` | `api.activate_tenant` | platform admin · R · S | `pending_payment` → `active` (`activation_source = admin`). The billing slice adds the payment path. |
+| `POST /org/admin/tenants/{id}/activate` | `api.activate_tenant` | platform admin · R · S | `pending_payment` → `active` (`activation_source = admin`). The billing slice adds the payment path. |
 | `GET /org/workspaces` | `api.my_workspaces` | self | My non-ended memberships with tenant, office and role. |
 | `GET /org/capabilities` | `api.my_capabilities` | self, in `X-Membership` | Permission keys allowed in that workspace (safe list, no internals). |
-| `GET /org/offices` | `api.list_offices` | any active member of tenant | Visible offices (own subtree; President: all), filter by type/name/status, cursor paging. |
+| `GET /org/offices` | `api.list_offices` | any active member of tenant | Visible offices (own subtree; President: all), filter by type/name/status, cursor paging. `memberCount` = distinct people with an active membership anywhere in the office's subtree (owner decision 53, 2026-10-08); `leaderCount` = the office's own active leaders. |
 | `POST /org/offices` | `api.create_office` | President Team | `type`, `name`, `parentOfficeId?`, `leaderUids[]` (≥ 1). Creates office + leader memberships. |
 | `PATCH /org/offices/{id}` | `api.rename_office` | `manage_members` over office | Name only. |
 | `POST /org/offices/{id}/place` | `api.place_office` | President Team · R · S | `parentOfficeId` or null. Moves the office and its whole subtree (Q2). Money provenance is untouched; subtree totals follow the current tree. |
-| `POST /org/offices/{id}/leaders` | `api.add_office_leader` | `manage_members` over office · R · S | Adds a leader membership. |
-| `POST /org/offices/{id}/leaders/replace` | `api.replace_office_leader` | `manage_members` over office · R · S | Outgoing leader's membership ends, incoming starts (W-05). |
+| `POST /org/offices/{id}/leaders` | `api.add_office_leader` | `manage_members` over office, and the office strictly below the actor's own office (President Team: any office) · R · S | `leaderUid`. Adds a leader membership. A leader cannot add a co-leader to their own office (owner decision 1, 2026-10-08). |
+| `POST /org/offices/{id}/leaders/replace` | `api.replace_office_leader` | `manage_members` over office, and the office strictly below the actor's own office (President Team: any office) · R · S | `outgoingMembershipId`, `incomingUid`. Outgoing leader's membership ends, incoming starts (W-05). |
 | `GET /org/members` | `api.list_members` | `manage_members` or `view_managed_wallets` over office | Filter by office (subtree), role, status; cursor paging. |
-| `POST /org/memberships` | `api.add_membership` | `manage_members` over target office | `userUid`, `officeId`. Role `member` only (leaders via the leader routes, Presidents via Q5). |
+| `POST /org/memberships` | `api.add_membership` | `manage_members` over target office | `memberUid`, `officeId`. Role `member` only (leaders via the leader routes, Presidents via Q5). |
 | `POST /org/memberships/{id}/move` | `api.move_membership` | `move_membership` over both offices · R · S | Ends old, creates new, primary carried over. |
 | `POST /org/memberships/{id}/suspend` · `/reactivate` | `api.set_membership_status` | `suspend_membership` · R · S | Not the network's last active President Team membership. |
 | `POST /org/memberships/{id}/end` | `api.end_membership` | `end_membership` · R · S | Same last-President guard; ending an office's last active leader is refused (`last_leader`), use replace. |
@@ -148,7 +153,7 @@ Same envelope and codes as Blueprint 01 B5. New codes:
 | `network_not_active` | 409 | Network is `pending_payment`, suspended or deactivated |
 | `scope_exceeds_authority` | 403 | Access rule beyond your own scope |
 | `permission_not_grantable` | 422 | Protected or non-grantable permission |
-| `self_target_forbidden` | 403 | Leadership action on your own wallet/membership |
+| `self_target_forbidden` | 403 | Leadership action on your own wallet/membership (also used by `security` for an admin's own account status) |
 
 ### B6. Tests (written first, must all pass in CI)
 pgTAP:

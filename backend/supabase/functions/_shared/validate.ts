@@ -42,12 +42,27 @@ export function matchingPins(body: Body): string {
   return first;
 }
 
-export function text(body: Body, field: string, max: number): string {
+/**
+ * Text whose length, counted like Postgres `length(btrim(value))` (characters,
+ * spaces trimmed), is between `min` and `max`. Matches the database rules, so
+ * the Edge never accepts what Postgres rejects or the reverse.
+ */
+export function text(body: Body, field: string, max: number, min = 1): string {
   const value = body[field];
-  if (typeof value !== "string" || value.trim().length === 0 || value.length > max) {
-    throw new ApiError("validation_error", { field });
-  }
+  if (typeof value !== "string") throw new ApiError("validation_error", { field });
+  const length = [...value.replace(/^ +| +$/g, "")].length;
+  if (length < min || length > max) throw new ApiError("validation_error", { field });
   return value;
+}
+
+/** A reason for a protected change: 3–500 characters (identity.require_reason). */
+export function reason(body: Body, field = "reason"): string {
+  return text(body, field, 500, 3);
+}
+
+/** A network or office name: 2–100 characters (org.require_text). */
+export function name(body: Body, field = "name"): string {
+  return text(body, field, 100, 2);
 }
 
 export function uuid(body: Body, field: string): string {
