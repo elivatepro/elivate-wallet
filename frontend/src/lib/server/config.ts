@@ -2,7 +2,8 @@ import {
 	SUPABASE_PUBLISHABLE_KEY,
 	SUPABASE_URL,
 	TURNSTILE_SECRET_KEY,
-	TURNSTILE_SITE_KEY
+	TURNSTILE_SITE_KEY,
+	TURNSTILE_SITEVERIFY_URL
 } from '$app/env/private';
 
 export interface ServerConfig {
@@ -21,6 +22,15 @@ export function requireConfig(): ServerConfig {
  * Turnstile keys (Blueprint 10). Either may be missing: the page then renders
  * no widget and the action refuses (verifyTurnstile fails closed).
  */
-export function turnstileConfig(): { siteKey: string | null; secret: string | undefined } {
-	return { siteKey: TURNSTILE_SITE_KEY ?? null, secret: TURNSTILE_SECRET_KEY };
+export function turnstileConfig(): {
+	siteKey: string | null;
+	secret: string | undefined;
+	/** Loopback stand-in for local e2e only (env.ts refuses anything else). */
+	url: string | undefined;
+} {
+	return {
+		siteKey: TURNSTILE_SITE_KEY ?? null,
+		secret: TURNSTILE_SECRET_KEY,
+		url: TURNSTILE_SITEVERIFY_URL
+	};
 }

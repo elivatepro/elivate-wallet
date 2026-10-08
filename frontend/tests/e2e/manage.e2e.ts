@@ -8,6 +8,7 @@ import {
 	createConfirmedAccount,
 	expectAccessible,
 	inviteMember,
+	humanReady,
 	uniqueEmail
 } from './helpers';
 
@@ -21,6 +22,7 @@ async function signInAs(page: Page, email: string) {
 	await page.goto('/sign-in');
 	await page.getByLabel('Email address').fill(email);
 	await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
+	await humanReady(page);
 	await page.getByRole('button', { name: 'Sign in' }).click();
 	await page.getByLabel('PIN', { exact: true }).fill(PIN);
 	await page.getByRole('button', { name: 'Verify' }).click();

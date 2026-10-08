@@ -11,9 +11,35 @@ import { turnstileMessage } from '#lib/server/turnstile.js';
 import { authMessage, readCredentials } from '../credentials';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ locals }) => {
-	// Signed-in people skip the form; the gate page decides where they belong.
-	if (await locals.session()) redirect(303, '/workspaces');
+export const load: PageServerLoad = async (event) => {
+	const session = await event.locals.session();
+	if (session) {
+		// Signed-in people skip the form; the gate page decides where they belong.
+		// A session signed out from another device (Blueprint 10) still has a
+		// validly signed token in its cookie: the backend refuses it, so forget
+		// it here instead of bouncing between this page and /workspaces.
+		const exit = await runApi(
+			event,
+			session,
+			Effect.gen(function* () {
+				return yield* (yield* SecurityApi).state;
+			})
+		);
+		const failure = Exit.isFailure(exit) ? failureOf(exit) : null;
+		const signedOut =
+			failure !== null &&
+			((failure._tag === 'BackendError' && failure.code === 'authentication_required') ||
+				(failure._tag === 'TransportError' && failure.status === 401));
+		if (!signedOut) redirect(303, '/workspaces');
+		await event.locals
+			.supabase()
+			.auth.signOut({ scope: 'local' })
+			.catch(() => undefined);
+		for (const { name } of event.cookies.getAll()) {
+			if (name.startsWith('ew-auth')) event.cookies.delete(name, { path: '/' });
+		}
+		clearWorkspace(event.cookies);
+	}
 	return { turnstileSiteKey: turnstileSiteKey() };
 };
 

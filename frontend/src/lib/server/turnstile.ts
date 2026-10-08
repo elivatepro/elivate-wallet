@@ -30,6 +30,8 @@ export type TurnstileOutcome =
 export interface TurnstileConfig {
 	readonly secret: string | undefined;
 	readonly fetch: typeof globalThis.fetch;
+	/** Defaults to Cloudflare's siteverify. */
+	readonly url?: string | undefined;
 }
 
 export async function verifyTurnstile(
@@ -52,7 +54,7 @@ export async function verifyTurnstile(
 
 	let parsed: typeof SiteverifyResponse.Type;
 	try {
-		const response = await config.fetch(SITEVERIFY_URL, {
+		const response = await config.fetch(config.url ?? SITEVERIFY_URL, {
 			method: 'POST',
 			body,
 			signal: AbortSignal.timeout(8_000),

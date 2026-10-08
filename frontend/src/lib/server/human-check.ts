@@ -11,8 +11,9 @@ export function humanCheck(
 	form: FormData,
 	action: TurnstileAction
 ): Promise<TurnstileOutcome> {
+	const config = turnstileConfig();
 	return verifyTurnstile(
-		{ secret: turnstileConfig().secret, fetch: event.fetch },
+		{ secret: config.secret, fetch: event.fetch, url: config.url },
 		form,
 		action,
 		event.request.headers.get('cf-connecting-ip')

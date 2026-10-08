@@ -10,6 +10,7 @@ import {
 	expectAccessible,
 	expectNoHorizontalScroll,
 	inviteMember,
+	humanReady,
 	uniqueEmail
 } from './helpers';
 
@@ -28,6 +29,7 @@ async function signIn(page: Page, email: string, password = PASSWORD) {
 	await page.goto('/sign-in');
 	await page.getByLabel('Email address').fill(email);
 	await page.getByLabel('Password', { exact: true }).fill(password);
+	await humanReady(page);
 	await page.getByRole('button', { name: 'Sign in' }).click();
 }
 

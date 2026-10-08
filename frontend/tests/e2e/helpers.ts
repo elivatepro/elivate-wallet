@@ -283,3 +283,14 @@ begin
 end $$`);
 	await api.close();
 }
+
+/**
+ * Waits until the Turnstile widget has produced its token (Blueprint 10).
+ * Local runs use Cloudflare's always-pass test keys, so this is quick, but a
+ * submit before the token exists is (correctly) refused by the server.
+ */
+export async function humanReady(page: Page) {
+	await expect(page.locator('input[name="cf-turnstile-response"]')).not.toHaveValue('', {
+		timeout: 15_000
+	});
+}
