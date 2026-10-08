@@ -123,7 +123,8 @@
 	}
 	const groupOpen = new SvelteMap<string, boolean>([['Own wallet', false]]);
 	const isOpen = (title: string) => groupOpen.get(title) ?? true;
-	const groupOn = (keys: readonly string[], role: Role) => keys.filter((k) => cell(role, k).allowed).length;
+	const groupOn = (keys: readonly string[], role: Role) =>
+		keys.filter((k) => cell(role, k).allowed).length;
 	const groupLocked = (keys: readonly string[]) =>
 		keys.filter((k) => !view?.rolePermissions?.find((r) => r.permission === k)?.editable).length;
 	let mobileRole = $state<Role>('team_leader');
@@ -138,7 +139,7 @@
 	const save = new OrgCommand();
 	let saveOpen = $state(false);
 	/** One key per change, kept while the outcome is unknown (W-00). */
-	const changeKeys = new Map<string, string>();
+	const changeKeys = new SvelteMap<string, string>();
 
 	async function submitSave({ reason, pin }: { reason: string; pin: string | undefined }) {
 		if (!workspace) return;
@@ -179,9 +180,9 @@
 	/** Grantable: editable, office- or tenant-scoped (A-03); the backend re-checks. */
 	const grantable = $derived(
 		view?.rolePermissions
-			? [...new Set(view.rolePermissions.filter((r) => r.editable).map((r) => r.permission))].filter(
-					(k) => scopeOf[k] !== 'self' && scopeOf[k] !== 'assignment'
-				)
+			? [
+					...new Set(view.rolePermissions.filter((r) => r.editable).map((r) => r.permission))
+				].filter((k) => scopeOf[k] !== 'self' && scopeOf[k] !== 'assignment')
 			: PERMISSION_GROUPS.filter((g) => ['Money', 'Reports', 'People'].includes(g.title)).flatMap(
 					(g) => g.keys
 				)
@@ -217,7 +218,8 @@
 
 	async function submitGrant({ reason, pin }: { reason: string; pin: string | undefined }) {
 		if (!workspace) return;
-		const starts = startsOn && startsOn > today() ? new Date(`${startsOn}T00:00:00`).toISOString() : null;
+		const starts =
+			startsOn && startsOn > today() ? new Date(`${startsOn}T00:00:00`).toISOString() : null;
 		const expires =
 			ruleEffect === 'allow' && expiresOn ? new Date(`${expiresOn}T23:59:59`).toISOString() : null;
 		const rules = grantPermissions.map((permission) => ({
@@ -430,12 +432,20 @@
 	<div class="o-toolbar">
 		<div class="o-tabs" role="group" aria-label="Section">
 			{#if view?.rolePermissions}
-				<button type="button" class="o-tab" aria-pressed={tab === 'roles'} onclick={() => (tab = 'roles')}
+				<button
+					type="button"
+					class="o-tab"
+					aria-pressed={tab === 'roles'}
+					onclick={() => (tab = 'roles')}
 					><span class="o-wide">Role permissions</span><span class="o-narrow">Roles</span></button
 				>
 			{/if}
 			{#if view?.assignments}
-				<button type="button" class="o-tab" aria-pressed={tab === 'access'} onclick={() => (tab = 'access')}
+				<button
+					type="button"
+					class="o-tab"
+					aria-pressed={tab === 'access'}
+					onclick={() => (tab = 'access')}
 					>Cross-access<span class="o-wide">&nbsp;· {activeAssignments.length}</span></button
 				>
 			{/if}
@@ -445,19 +455,22 @@
 					class="o-tab"
 					aria-pressed={tab === 'reviewers'}
 					onclick={() => (tab = 'reviewers')}
-					><span class="o-wide">Evidence reviewers&nbsp;· {reviewerCount}</span><span class="o-narrow"
-						>Reviewers</span
+					><span class="o-wide">Evidence reviewers&nbsp;· {reviewerCount}</span><span
+						class="o-narrow">Reviewers</span
 					></button
 				>
 			{/if}
 		</div>
 		<span class="spacer o-wide"></span>
 		{#if tab === 'reviewers'}
-			<span class="legend o-wide"><Ban size={14} strokeWidth={1.8} aria-hidden="true" />Never reviews their own</span>
+			<span class="legend o-wide"
+				><Ban size={14} strokeWidth={1.8} aria-hidden="true" />Never reviews their own</span
+			>
 		{:else if tab === 'roles'}
 			<span class="legend o-wide"
 				><Lock size={13} strokeWidth={1.8} aria-hidden="true" />Protected
-				<span class="switch demo" aria-hidden="true"><span class="knob"></span></span>Configurable</span
+				<span class="switch demo" aria-hidden="true"><span class="knob"></span></span
+				>Configurable</span
 			>
 		{/if}
 		{#if view?.isPresident}
@@ -466,7 +479,9 @@
 	</div>
 
 	{#if notice}
-		<p class="o-notice" role="status"><Check size={16} strokeWidth={2} aria-hidden="true" />{notice}</p>
+		<p class="o-notice" role="status">
+			<Check size={16} strokeWidth={2} aria-hidden="true" />{notice}
+		</p>
 	{/if}
 
 	{#if !view && !loadError}
@@ -494,20 +509,23 @@
 					onclick={() => groupOpen.set(group.title, !isOpen(group.title))}
 				>
 					<span class="group-title">{group.title}</span>
-					<span class="o-sub"
-						>{group.keys.length}{locked ? ` · ${locked} protected` : ''}</span
-					>
+					<span class="o-sub">{group.keys.length}{locked ? ` · ${locked} protected` : ''}</span>
 					<span class="spacer"></span>
-					{#if isOpen(group.title)}<ChevronDown size={16} strokeWidth={1.5} aria-hidden="true" />{:else}<ChevronRight
+					{#if isOpen(group.title)}<ChevronDown
 							size={16}
 							strokeWidth={1.5}
 							aria-hidden="true"
-						/>{/if}
+						/>{:else}<ChevronRight size={16} strokeWidth={1.5} aria-hidden="true" />{/if}
 				</button>
 				{#if isOpen(group.title)}
 					{#each group.keys as key (key)}
-						<div class="perm-row" class:dirty={ROLE_ORDER.some((r) => pending.has(cellKey(r, key)))}>
-							<span class="o-grow perm-name" class:muted={groupLocked([key]) > 0}>{permissionLabel(key)}</span>
+						<div
+							class="perm-row"
+							class:dirty={ROLE_ORDER.some((r) => pending.has(cellKey(r, key)))}
+						>
+							<span class="o-grow perm-name" class:muted={groupLocked([key]) > 0}
+								>{permissionLabel(key)}</span
+							>
 							<span class="c-scope o-sub">{scopeLabel(key)}</span>
 							{#each ROLE_ORDER as role (role)}
 								<span class="c-role">{@render toggleCell(role, key)}</span>
@@ -532,8 +550,11 @@
 		<div class="o-narrow-block mobile-roles">
 			<div class="chips" role="group" aria-label="Role">
 				{#each ROLE_ORDER as role (role)}
-					<button type="button" class="chip" aria-pressed={mobileRole === role} onclick={() => (mobileRole = role)}
-						>{ROLE_LABELS[role]}</button
+					<button
+						type="button"
+						class="chip"
+						aria-pressed={mobileRole === role}
+						onclick={() => (mobileRole = role)}>{ROLE_LABELS[role]}</button
 					>
 				{/each}
 			</div>
@@ -554,11 +575,11 @@
 									: ''}</span
 							>
 						</span>
-						{#if isOpen(group.title)}<ChevronDown size={16} strokeWidth={1.5} aria-hidden="true" />{:else}<ChevronRight
+						{#if isOpen(group.title)}<ChevronDown
 								size={16}
 								strokeWidth={1.5}
 								aria-hidden="true"
-							/>{/if}
+							/>{:else}<ChevronRight size={16} strokeWidth={1.5} aria-hidden="true" />{/if}
 					</button>
 					{#if isOpen(group.title)}
 						{#each group.keys as key (key)}
@@ -575,10 +596,13 @@
 		{#if pending.size > 0}
 			<div class="savebar" role="region" aria-label="Unsaved changes">
 				<span class="dot" aria-hidden="true"></span>
-				<span class="save-count">{pending.size} {pending.size === 1 ? 'unsaved change' : 'unsaved changes'}</span>
+				<span class="save-count"
+					>{pending.size} {pending.size === 1 ? 'unsaved change' : 'unsaved changes'}</span
+				>
 				<span class="o-sub o-wide save-what">{pendingSummary}{pending.size > 1 ? ' …' : ''}</span>
 				<span class="spacer"></span>
-				<button type="button" class="o-ghost o-wide" onclick={() => pending.clear()}>Discard</button>
+				<button type="button" class="o-ghost o-wide" onclick={() => pending.clear()}>Discard</button
+				>
 				<button
 					type="button"
 					class="o-primary"
@@ -605,15 +629,22 @@
 						<li class="o-row" class:revoked={!!assignment.revokedAt}>
 							<span class="o-avatar" aria-hidden="true">{initials(assignment.subject)}</span>
 							<span class="o-stack o-grow">
-								<span class="o-title">{personName(assignment.subject)}{assignment.revokedAt ? ' · revoked' : ''}</span>
+								<span class="o-title"
+									>{personName(assignment.subject)}{assignment.revokedAt ? ' · revoked' : ''}</span
+								>
 								<span class="o-sub">{ruleLine(assignment)}</span>
-								<span class="o-sub">“{assignment.reason}” · by {personName(assignment.createdBy)}</span>
+								<span class="o-sub"
+									>“{assignment.reason}” · by {personName(assignment.createdBy)}</span
+								>
 							</span>
 							<span class="c-when o-wide o-sub">{date(assignment.createdAt)}</span>
 							<span class="c-act">
 								{#if !assignment.revokedAt}
-									<button type="button" class="o-ghost small" disabled={!shell.canAct} onclick={() => askRevoke(assignment)}
-										>Revoke</button
+									<button
+										type="button"
+										class="o-ghost small"
+										disabled={!shell.canAct}
+										onclick={() => askRevoke(assignment)}>Revoke</button
 									>
 								{/if}
 							</span>
@@ -644,8 +675,11 @@
 						</span>
 						<span class="c-when o-wide cell-strong">{date(reviewer.assignedAt)}</span>
 						<span class="c-act">
-							<button type="button" class="o-ghost small" disabled={!shell.canAct} onclick={() => askRemove(reviewer)}
-								>Remove</button
+							<button
+								type="button"
+								class="o-ghost small"
+								disabled={!shell.canAct}
+								onclick={() => askRemove(reviewer)}>Remove</button
 							>
 						</span>
 					</li>
@@ -664,8 +698,11 @@
 						oninput={searchReviewers}
 					/>
 				</label>
-				<button type="button" class="o-primary" disabled={!reviewerPick || !shell.canAct} onclick={openAssign}
-					>Add</button
+				<button
+					type="button"
+					class="o-primary"
+					disabled={!reviewerPick || !shell.canAct}
+					onclick={openAssign}>Add</button
 				>
 			</div>
 			{#if reviewerResults.length > 0 && !reviewerPick}
@@ -677,7 +714,8 @@
 								<span class="o-stack">
 									<span class="o-title">{personName(result.person)}</span>
 									<span class="o-sub"
-										>{result.person?.uid ?? ''} · {ROLE_LABELS[result.role]} · {result.officeName ?? 'President Team'}</span
+										>{result.person?.uid ?? ''} · {ROLE_LABELS[result.role]} · {result.officeName ??
+											'President Team'}</span
 									>
 								</span>
 							</button>
@@ -767,21 +805,34 @@
 		<fieldset class="o-field bare">
 			<legend class="o-field-label">Effect</legend>
 			<div class="o-tabs seg">
-				<label class="o-tab"><input type="radio" name="effect" value="allow" bind:group={ruleEffect} /><span>Grant</span></label>
-				<label class="o-tab"><input type="radio" name="effect" value="deny" bind:group={ruleEffect} /><span>Deny</span></label>
+				<label class="o-tab"
+					><input type="radio" name="effect" value="allow" bind:group={ruleEffect} /><span
+						>Grant</span
+					></label
+				>
+				<label class="o-tab"
+					><input type="radio" name="effect" value="deny" bind:group={ruleEffect} /><span>Deny</span
+					></label
+				>
 			</div>
 		</fieldset>
 		<fieldset class="o-field bare">
 			<legend class="o-field-label">Scope</legend>
 			<div class="o-tabs seg">
 				<label class="o-tab"
-					><input type="radio" name="scope" value="tenant" bind:group={scopeType} /><span>Workspace</span></label
+					><input type="radio" name="scope" value="tenant" bind:group={scopeType} /><span
+						>Workspace</span
+					></label
 				>
 				<label class="o-tab"
-					><input type="radio" name="scope" value="office_subtree" bind:group={scopeType} /><span>Office</span></label
+					><input type="radio" name="scope" value="office_subtree" bind:group={scopeType} /><span
+						>Office</span
+					></label
 				>
 				<label class="o-tab"
-					><input type="radio" name="scope" value="member" bind:group={scopeType} /><span>Member</span></label
+					><input type="radio" name="scope" value="member" bind:group={scopeType} /><span
+						>Member</span
+					></label
 				>
 			</div>
 		</fieldset>
@@ -798,7 +849,12 @@
 	{:else if scopeType === 'member'}
 		<div class="o-field">
 			<label for="grant-member">Member (UID)</label>
-			<input id="grant-member" class="o-input o-mono" placeholder="EW-00000" bind:value={scopeUid} />
+			<input
+				id="grant-member"
+				class="o-input o-mono"
+				placeholder="EW-00000"
+				bind:value={scopeUid}
+			/>
 		</div>
 	{/if}
 	<div class="pair">
@@ -809,7 +865,13 @@
 		{#if ruleEffect === 'allow'}
 			<div class="o-field">
 				<label for="grant-expires">Expires <span class="o-sub">optional</span></label>
-				<input id="grant-expires" class="o-input" type="date" min={today()} bind:value={expiresOn} />
+				<input
+					id="grant-expires"
+					class="o-input"
+					type="date"
+					min={today()}
+					bind:value={expiresOn}
+				/>
 			</div>
 		{/if}
 	</div>
@@ -832,7 +894,9 @@
 	bind:open={assignOpen}
 	pose="reviewers"
 	title="Add reviewer"
-	subtitle={reviewerPick ? `${personName(reviewerPick.person)} · never their own operations` : undefined}
+	subtitle={reviewerPick
+		? `${personName(reviewerPick.person)} · never their own operations`
+		: undefined}
 	confirmLabel="Add reviewer"
 	mobileConfirmLabel="Add"
 	busy={assign.busy}

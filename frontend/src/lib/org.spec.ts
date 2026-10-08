@@ -13,7 +13,12 @@ import {
 	officeTree
 } from './org';
 
-const office = (id: string, name: string, type: OfficeRow['type'], parent: string | null): OfficeRow => ({
+const office = (
+	id: string,
+	name: string,
+	type: OfficeRow['type'],
+	parent: string | null
+): OfficeRow => ({
 	id,
 	name,
 	type,
@@ -26,7 +31,14 @@ const office = (id: string, name: string, type: OfficeRow['type'], parent: strin
 });
 
 const backend = (code: BackendError['code'], details: Record<string, unknown> = {}) =>
-	new BackendError({ status: 409, code, message: 'msg', retryable: false, details, requestId: 'r' });
+	new BackendError({
+		status: 409,
+		code,
+		message: 'msg',
+		retryable: false,
+		details,
+		requestId: 'r'
+	});
 
 describe('officeTree', () => {
 	it('orders depth-first with siblings by name', () => {

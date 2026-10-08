@@ -16,7 +16,13 @@
 	import { loadView, OrgCommand } from '#lib/client/org.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { formatMoney, hiddenMoney } from '#lib/money.js';
-	import { initials, LEADER_ROLE, OFFICE_TYPE_LABELS, personName, STATUS_LABELS } from '#lib/org.js';
+	import {
+		initials,
+		LEADER_ROLE,
+		OFFICE_TYPE_LABELS,
+		personName,
+		STATUS_LABELS
+	} from '#lib/org.js';
 	import { ROLE_LABELS } from '#lib/labels.js';
 	import OrgDialog from '#lib/ui/org/OrgDialog.svelte';
 	import OrgHero from '#lib/ui/org/OrgHero.svelte';
@@ -81,7 +87,12 @@
 	async function submitRename() {
 		if (!workspace) return;
 		if (
-			await rename.send(AppOrgRoutes.office(id), 'PATCH', { name: newName.trim() }, workspace.membershipId)
+			await rename.send(
+				AppOrgRoutes.office(id),
+				'PATCH',
+				{ name: newName.trim() },
+				workspace.membershipId
+			)
 		) {
 			renameOpen = false;
 			notice = 'Office renamed.';
@@ -177,7 +188,9 @@
 		</OrgHero>
 
 		{#if notice}
-			<p class="o-notice" role="status"><Check size={16} strokeWidth={2} aria-hidden="true" />{notice}</p>
+			<p class="o-notice" role="status">
+				<Check size={16} strokeWidth={2} aria-hidden="true" />{notice}
+			</p>
 		{/if}
 
 		<section class="o-card stats" aria-label="Totals">
@@ -203,7 +216,9 @@
 			<section class="o-card members" aria-labelledby="members-heading">
 				<header class="o-card-head">
 					<h2 id="members-heading">Members</h2>
-					<a class="o-link" href={`/app/members?officeId=${office.id}`}>See all {office.ownMemberCount}</a>
+					<a class="o-link" href={`/app/members?officeId=${office.id}`}
+						>See all {office.ownMemberCount}</a
+					>
 				</header>
 				{#if !view.members}
 					<p class="o-empty">Members aren’t available here.</p>
@@ -220,14 +235,21 @@
 									<span class="o-stack o-grow">
 										<span class="o-title">{personName(member.person)}</span>
 										<span class="o-sub"
-											>{member.emailMasked ? `${member.emailMasked} · ` : ''}{member.person?.uid ?? ''}</span
+											>{member.emailMasked ? `${member.emailMasked} · ` : ''}{member.person?.uid ??
+												''}</span
 										>
 									</span>
 									<span class="c-status o-wide">
-										<span class="o-pill" data-status={member.status}>{STATUS_LABELS[member.status]}</span>
+										<span class="o-pill" data-status={member.status}
+											>{STATUS_LABELS[member.status]}</span
+										>
 									</span>
-									<span class="c-since o-wide o-sub">{ROLE_LABELS[member.role]} · {joined(member.startedAt)}</span>
-									<span class="o-wide chev" aria-hidden="true"><ChevronRight size={16} strokeWidth={1.5} /></span>
+									<span class="c-since o-wide o-sub"
+										>{ROLE_LABELS[member.role]} · {joined(member.startedAt)}</span
+									>
+									<span class="o-wide chev" aria-hidden="true"
+										><ChevronRight size={16} strokeWidth={1.5} /></span
+									>
 								</a>
 							</li>
 						{/each}
@@ -258,7 +280,9 @@
 							{@const self = step.id === office.id}
 							<li class:self style:--indent={`${13 + i * 18}px`}>
 								<span class="dot" aria-hidden="true"></span>
-								{#if self}<span class="step-name">{step.name}</span><span class="o-sub">This office</span>
+								{#if self}<span class="step-name">{step.name}</span><span class="o-sub"
+										>This office</span
+									>
 								{:else}<a class="step-name" href={`/app/offices/${step.id}`}>{step.name}</a>{/if}
 							</li>
 						{/each}
@@ -284,7 +308,13 @@
 >
 	<div class="o-field">
 		<label for="rename-name">Office name</label>
-		<input id="rename-name" class="o-input" maxlength="100" autocomplete="off" bind:value={newName} />
+		<input
+			id="rename-name"
+			class="o-input"
+			maxlength="100"
+			autocomplete="off"
+			bind:value={newName}
+		/>
 	</div>
 </OrgDialog>
 

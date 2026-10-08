@@ -60,7 +60,8 @@ export function officeTree(offices: ReadonlyArray<OfficeRow>): TreeRow[] {
 	const ids = new Set(offices.map((o) => o.id));
 	const children = new Map<string | null, OfficeRow[]>();
 	for (const office of offices) {
-		const parent = office.parentOfficeId && ids.has(office.parentOfficeId) ? office.parentOfficeId : null;
+		const parent =
+			office.parentOfficeId && ids.has(office.parentOfficeId) ? office.parentOfficeId : null;
 		const list = children.get(parent) ?? [];
 		list.push(office);
 		children.set(parent, list);
@@ -342,10 +343,14 @@ export function describeOrgFailure(failure: ApiFailure | undefined): Outcome {
 		case 'conflict':
 			return {
 				kind: 'message',
-				text: CONFLICTS[String(details.reason)] ?? 'That changed in the meantime. Reload and try again.'
+				text:
+					CONFLICTS[String(details.reason)] ?? 'That changed in the meantime. Reload and try again.'
 			};
 		case 'last_leader':
-			return { kind: 'message', text: 'An office keeps at least one leader. Replace them instead.' };
+			return {
+				kind: 'message',
+				text: 'An office keeps at least one leader. Replace them instead.'
+			};
 		case 'last_president':
 			return { kind: 'message', text: 'The network keeps at least one President Team Member.' };
 		case 'membership_exists':

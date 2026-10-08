@@ -90,7 +90,8 @@
 					<RootImage {pose} class="org-dialog-root" sizes="140px" />
 					<span class="org-handle" aria-hidden="true"></span>
 					<Dialog.Title class="org-dialog-title">{title}</Dialog.Title>
-					{#if subtitle}<Dialog.Description class="org-dialog-sub">{subtitle}</Dialog.Description>{/if}
+					{#if subtitle}<Dialog.Description class="org-dialog-sub">{subtitle}</Dialog.Description
+						>{/if}
 				</header>
 				<div class="org-body">
 					{#if error || localError}<p class="org-dialog-error" role="alert">

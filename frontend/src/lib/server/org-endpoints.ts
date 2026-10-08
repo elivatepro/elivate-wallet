@@ -34,7 +34,8 @@ export function orgCommand<S extends Schema.ConstraintDecoder<{ pin?: string }>>
 ): Promise<Response> {
 	return relayCommand(event, schema, (membershipId, body) =>
 		Effect.gen(function* () {
-			const { pin: _pin, ...rest } = body as { pin?: string } & Record<string, unknown>;
+			const rest: Record<string, unknown> = { ...(body as Record<string, unknown>) };
+			delete rest.pin;
 			return yield* (yield* OrgAdminApi).command(route(body), rest, membershipId);
 		})
 	);

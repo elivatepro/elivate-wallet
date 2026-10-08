@@ -59,8 +59,8 @@
 		<a class="o-ghost" href="/app/offices">Back to offices</a>
 	{:else}
 		<p class="o-sub">
-			Only an office with no open offices under it and no members besides its leaders can close.
-			Its leaders’ memberships end and pending invitations are revoked.
+			Only an office with no open offices under it and no members besides its leaders can close. Its
+			leaders’ memberships end and pending invitations are revoked.
 		</p>
 		<form class="o-card o-card-pad" onsubmit={submit} novalidate>
 			{#if close.error}<p class="o-field-error" role="alert">{close.error}</p>{/if}
@@ -69,7 +69,9 @@
 				<textarea id="close-reason" class="o-input" maxlength="500" bind:value={reason}></textarea>
 			</div>
 			<PinField id="close-pin" name="pin" label="Your PIN" error={close.pinError} />
-			<button class="o-ghost danger" type="submit" disabled={close.busy || !shell.canAct}>Close office</button>
+			<button class="o-ghost danger" type="submit" disabled={close.busy || !shell.canAct}
+				>Close office</button
+			>
 		</form>
 	{/if}
 </div>

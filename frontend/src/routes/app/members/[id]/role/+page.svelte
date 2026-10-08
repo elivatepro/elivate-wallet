@@ -63,11 +63,15 @@
 	<a class="o-sub" href={`/app/members/${id}`}>Back to the member</a>
 	<h1>Change role</h1>
 	{#if done}
-		<p class="o-notice" role="status">Role changed. The old membership ended and a new one started.</p>
+		<p class="o-notice" role="status">
+			Role changed. The old membership ended and a new one started.
+		</p>
 		<a class="o-ghost" href="/app/members">Back to members</a>
 	{:else if member && target && member.actions.changeRole}
 		<p class="o-sub">
-			{personName(member.person)} · {member.office?.name}: {ROLE_LABELS[member.role]} → {ROLE_LABELS[target]}
+			{personName(member.person)} · {member.office?.name}: {ROLE_LABELS[member.role]} → {ROLE_LABELS[
+				target
+			]}
 		</p>
 		<form class="o-card o-card-pad" onsubmit={submit} novalidate>
 			{#if change.error}<p class="o-field-error" role="alert">{change.error}</p>{/if}

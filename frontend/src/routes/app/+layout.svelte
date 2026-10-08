@@ -11,6 +11,10 @@
 	import { DropdownMenu, Popover } from 'bits-ui';
 	import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
 	import Bell from '@lucide/svelte/icons/bell';
+	import Building from '@lucide/svelte/icons/building-2';
+	import FileText from '@lucide/svelte/icons/file-text';
+	import Shield from '@lucide/svelte/icons/shield';
+	import Users from '@lucide/svelte/icons/users';
 	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import EyeOff from '@lucide/svelte/icons/eye-off';
@@ -60,7 +64,11 @@
 		'/app/split': 'Pockets & split',
 		'/app/reviews': 'NIN reviews',
 		'/app/notifications': 'Notifications',
-		'/app/more': 'More'
+		'/app/more': 'More',
+		'/app/offices': 'Offices',
+		'/app/members': 'Members',
+		'/app/access': 'Roles & access',
+		'/app/audit': 'Audit log'
 	};
 	const pageTitle = $derived(
 		Object.entries(TITLES).find(([prefix]) => path.startsWith(prefix))?.[1] ?? 'Home'
@@ -72,6 +80,9 @@
 	const can = (permission: string) =>
 		shell.state.kind === 'ready' &&
 		(shell.state.view.capabilities?.permissions ?? []).includes(permission);
+	/** Org management entries (Blueprint 07); navigation hints only. */
+	const president = $derived(summary?.role === 'president_team_member');
+	const leads = $derived(president || can('manage_members') || can('view_managed_wallets'));
 	/** Pushed pages (mobile Notifications) have their own nav bar and no tabs. */
 	const pushed = $derived(path.startsWith('/app/notifications'));
 	const tabMore = $derived(path.startsWith('/app/more'));
@@ -163,6 +174,40 @@
 			>
 				<PieChart size={18} strokeWidth={1.5} aria-hidden="true" /><span>Pockets &amp; split</span>
 			</a>
+			{#if leads}
+				<a
+					class="side-item"
+					href="/app/offices"
+					aria-current={path.startsWith('/app/offices') ? 'page' : undefined}
+				>
+					<Building size={18} strokeWidth={1.5} aria-hidden="true" /><span>Offices</span>
+				</a>
+				<a
+					class="side-item"
+					href="/app/members"
+					aria-current={path.startsWith('/app/members') ? 'page' : undefined}
+				>
+					<Users size={18} strokeWidth={1.5} aria-hidden="true" /><span>Members</span>
+				</a>
+			{/if}
+			{#if president || can('manage_access_rules')}
+				<a
+					class="side-item"
+					href="/app/access"
+					aria-current={path.startsWith('/app/access') ? 'page' : undefined}
+				>
+					<Shield size={18} strokeWidth={1.5} aria-hidden="true" /><span>Roles &amp; access</span>
+				</a>
+			{/if}
+			{#if president}
+				<a
+					class="side-item"
+					href="/app/audit"
+					aria-current={path.startsWith('/app/audit') ? 'page' : undefined}
+				>
+					<FileText size={18} strokeWidth={1.5} aria-hidden="true" /><span>Audit log</span>
+				</a>
+			{/if}
 		</nav>
 		<div class="side-footer"><span class="version">v2.0</span></div>
 	</aside>

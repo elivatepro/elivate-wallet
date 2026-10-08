@@ -22,7 +22,7 @@
 	import { loadView, OrgCommand } from '#lib/client/org.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { formatMoney, hiddenMoney } from '#lib/money.js';
-	import { initials, OFFICE_TYPE_LABELS, personName, STATUS_LABELS } from '#lib/org.js';
+	import { OFFICE_TYPE_LABELS, personName, STATUS_LABELS } from '#lib/org.js';
 	import { ROLE_LABELS } from '#lib/labels.js';
 	import OrgDialog from '#lib/ui/org/OrgDialog.svelte';
 	import OrgHero from '#lib/ui/org/OrgHero.svelte';
@@ -56,9 +56,15 @@
 
 	const member = $derived(view?.member ?? null);
 	const place = $derived(member?.office?.name ?? 'President Team');
-	const leader = $derived(member?.officeLeaders.find((l) => l.person?.uid !== member?.person?.uid) ?? null);
+	const leader = $derived(
+		member?.officeLeaders.find((l) => l.person?.uid !== member?.person?.uid) ?? null
+	);
 	const anyAction = $derived(
-		!!member && (member.actions.suspend || member.actions.move || member.actions.end || member.actions.changeRole)
+		!!member &&
+			(member.actions.suspend ||
+				member.actions.move ||
+				member.actions.end ||
+				member.actions.changeRole)
 	);
 	const date = (iso: string) =>
 		new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(
@@ -102,12 +108,12 @@
 		await load();
 	}
 
-	const moveTargets = $derived(
-		(view?.offices ?? []).filter((o) => o.id !== member?.office?.id)
-	);
+	const moveTargets = $derived((view?.offices ?? []).filter((o) => o.id !== member?.office?.id));
 </script>
 
-<svelte:head><title>{member ? personName(member.person) : 'Member'} · Elivate Wallet</title></svelte:head>
+<svelte:head
+	><title>{member ? personName(member.person) : 'Member'} · Elivate Wallet</title></svelte:head
+>
 
 <div class="o-page">
 	<a class="back o-sub" href="/app/members">‹ Members</a>
@@ -139,32 +145,33 @@
 									{#if member.actions.suspend}
 										{#if member.status === 'suspended'}
 											<DropdownMenu.Item class="menu-row" onSelect={() => ask('reactivate')}>
-												<Play size={16} strokeWidth={1.8} aria-hidden="true" /><span class="menu-label"
-													>Reactivate membership</span
+												<Play size={16} strokeWidth={1.8} aria-hidden="true" /><span
+													class="menu-label">Reactivate membership</span
 												>
 											</DropdownMenu.Item>
 										{:else}
 											<DropdownMenu.Item class="menu-row" onSelect={() => ask('suspend')}>
-												<Pause size={16} strokeWidth={1.8} aria-hidden="true" /><span class="menu-label"
-													>Suspend membership</span
+												<Pause size={16} strokeWidth={1.8} aria-hidden="true" /><span
+													class="menu-label">Suspend membership</span
 												>
 											</DropdownMenu.Item>
 										{/if}
 									{/if}
 									{#if member.actions.move}
 										<DropdownMenu.Item class="menu-row" onSelect={() => ask('move')}>
-											<ArrowRight size={16} strokeWidth={1.8} aria-hidden="true" /><span class="menu-label"
-												>Move to another office</span
+											<ArrowRight size={16} strokeWidth={1.8} aria-hidden="true" /><span
+												class="menu-label">Move to another office</span
 											>
 										</DropdownMenu.Item>
 									{/if}
 									{#if member.actions.changeRole}
 										<DropdownMenu.Item
 											class="menu-row"
-											onSelect={() => window.location.assign(`/app/members/${member.membershipId}/role`)}
+											onSelect={() =>
+												window.location.assign(`/app/members/${member.membershipId}/role`)}
 										>
-											<UserCog size={16} strokeWidth={1.8} aria-hidden="true" /><span class="menu-label"
-												>Change role</span
+											<UserCog size={16} strokeWidth={1.8} aria-hidden="true" /><span
+												class="menu-label">Change role</span
 											>
 										</DropdownMenu.Item>
 									{/if}
@@ -173,8 +180,8 @@
 									<div class="pop-divider"></div>
 									<div class="menu-group">
 										<DropdownMenu.Item class="menu-row danger" onSelect={() => ask('end')}>
-											<CircleMinus size={16} strokeWidth={1.8} aria-hidden="true" /><span class="menu-label"
-												>End membership</span
+											<CircleMinus size={16} strokeWidth={1.8} aria-hidden="true" /><span
+												class="menu-label">End membership</span
 											>
 										</DropdownMenu.Item>
 									</div>
@@ -183,28 +190,42 @@
 						</DropdownMenu.Portal>
 					</DropdownMenu.Root>
 				{/if}
-				<span class="o-pill status-chip" data-status={member.status}>● {STATUS_LABELS[member.status]}</span>
+				<span class="o-pill status-chip" data-status={member.status}
+					>● {STATUS_LABELS[member.status]}</span
+				>
 			{/snippet}
 		</OrgHero>
 
 		{#if notice}
-			<p class="o-notice" role="status"><Check size={16} strokeWidth={2} aria-hidden="true" />{notice}</p>
+			<p class="o-notice" role="status">
+				<Check size={16} strokeWidth={2} aria-hidden="true" />{notice}
+			</p>
 		{/if}
 
 		<div class="grid">
 			<div class="main-col">
 				<section class="o-card facts" aria-label="Details">
 					<dl>
-						<div><dt>UID</dt><dd class="o-mono">{member.person?.uid ?? '—'}</dd></div>
-						<div><dt>Email</dt><dd>{member.emailMasked ?? '—'}</dd></div>
+						<div>
+							<dt>UID</dt>
+							<dd class="o-mono">{member.person?.uid ?? '—'}</dd>
+						</div>
+						<div>
+							<dt>Email</dt>
+							<dd>{member.emailMasked ?? '—'}</dd>
+						</div>
 						<div>
 							<dt>Office</dt>
 							<dd class="office-cell">
 								<span>{place}</span>
-								{#if leader}<span class="o-sub o-wide">Leader {personName(leader.person)}</span>{/if}
+								{#if leader}<span class="o-sub o-wide">Leader {personName(leader.person)}</span
+									>{/if}
 							</dd>
 						</div>
-						<div><dt>Role</dt><dd>{ROLE_LABELS[member.role]}{member.isPrimary ? ' · primary' : ''}</dd></div>
+						<div>
+							<dt>Role</dt>
+							<dd>{ROLE_LABELS[member.role]}{member.isPrimary ? ' · primary' : ''}</dd>
+						</div>
 						<div>
 							<dt>{member.status === 'ended' ? 'Ended' : 'Joined'}</dt>
 							<dd>{date(member.endedAt ?? member.startedAt)}</dd>
@@ -220,9 +241,15 @@
 						<ul class="o-rows">
 							{#each member.history as event, i (i)}
 								<li class="o-row">
-									<span class="o-icon-tile" aria-hidden="true"><Building size={16} strokeWidth={1.5} /></span>
+									<span class="o-icon-tile" aria-hidden="true"
+										><Building size={16} strokeWidth={1.5} /></span
+									>
 									<span class="o-stack o-grow">
-										<span class="o-title">{event.action === 'created' ? `Joined ${place}` : `Membership ${event.action}`}</span>
+										<span class="o-title"
+											>{event.action === 'created'
+												? `Joined ${place}`
+												: `Membership ${event.action}`}</span
+										>
 										<span class="o-sub">{date(event.at)} · by {personName(event.actor)}</span>
 									</span>
 								</li>
@@ -240,7 +267,9 @@
 							<div class="balance">
 								<span class="o-label o-mono">{balance.currency} balance</span>
 								<span class="big"
-									>{shell.hideAmounts ? hiddenMoney(balance.currency) : formatMoney(balance.posted, balance.currency)}</span
+									>{shell.hideAmounts
+										? hiddenMoney(balance.currency)
+										: formatMoney(balance.posted, balance.currency)}</span
 								>
 							</div>
 						{:else}
@@ -252,7 +281,9 @@
 					<h2 id="ms-heading" class="card-title">Memberships</h2>
 					{#each member.memberships as ms (ms.membershipId)}
 						<a class="ms" href={`/app/members/${ms.membershipId}`}>
-							<span class="o-icon-tile" aria-hidden="true"><Building size={16} strokeWidth={1.5} /></span>
+							<span class="o-icon-tile" aria-hidden="true"
+								><Building size={16} strokeWidth={1.5} /></span
+							>
 							<span class="o-stack o-grow">
 								<span class="o-title">{ms.officeName ?? 'President Team'}</span>
 								<span class="o-sub">{ROLE_LABELS[ms.role]}{ms.isPrimary ? ' · primary' : ''}</span>

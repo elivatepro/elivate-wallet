@@ -96,12 +96,16 @@
 	<OrgHero
 		id="members-heading"
 		pose={null}
-		title={loaded && !nextCursor ? `${items.length} ${items.length === 1 ? 'member' : 'members'}` : 'Members'}
+		title={loaded && !nextCursor
+			? `${items.length} ${items.length === 1 ? 'member' : 'members'}`
+			: 'Members'}
 		line={officeName ? `${officeName} and below` : null}
 	>
 		{#snippet actions()}
 			{#if canInvite}
-				<a class="hero-cta" href="/app/invitations"><Plus size={18} strokeWidth={2.2} aria-hidden="true" />Invite a member</a>
+				<a class="hero-cta" href="/app/invitations"
+					><Plus size={18} strokeWidth={2.2} aria-hidden="true" />Invite a member</a
+				>
 			{/if}
 		{/snippet}
 	</OrgHero>
@@ -116,7 +120,13 @@
 			<legend class="visually-hidden">Status</legend>
 			{#each FILTERS as filter (filter.value)}
 				<label class="o-tab">
-					<input type="radio" name="member-status" value={filter.value} bind:group={status} onchange={() => load()} />
+					<input
+						type="radio"
+						name="member-status"
+						value={filter.value}
+						bind:group={status}
+						onchange={() => load()}
+					/>
 					<span>{filter.label}</span>
 				</label>
 			{/each}
@@ -152,20 +162,25 @@
 							<span class="o-stack o-grow">
 								<span class="o-title">{personName(member.person)}</span>
 								<span class="o-sub o-wide"
-									>{member.emailMasked ? `${member.emailMasked} · ` : ''}{member.person?.uid ?? ''}</span
+									>{member.emailMasked ? `${member.emailMasked} · ` : ''}{member.person?.uid ??
+										''}</span
 								>
 								<span class="o-sub o-narrow"
 									>{STATUS_LABELS[member.status]} · {member.officeName ?? 'President Team'}</span
 								>
 							</span>
 							<span class="c-status o-wide"
-								><span class="o-pill" data-status={member.status}>{STATUS_LABELS[member.status]}</span></span
+								><span class="o-pill" data-status={member.status}
+									>{STATUS_LABELS[member.status]}</span
+								></span
 							>
 							<span class="c-joined o-wide">{joined(member.startedAt)}</span>
 							<span class="c-office o-wide"
 								>{member.officeName ?? 'President Team'} · {ROLE_LABELS[member.role]}</span
 							>
-							<span class="c-chev" aria-hidden="true"><ChevronRight size={16} strokeWidth={1.5} /></span>
+							<span class="c-chev" aria-hidden="true"
+								><ChevronRight size={16} strokeWidth={1.5} /></span
+							>
 						</a>
 					</li>
 				{/each}

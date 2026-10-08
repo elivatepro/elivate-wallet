@@ -183,8 +183,10 @@
 					<label class="o-tab">
 						<input type="radio" name="office-kind" value={tab.value} bind:group={kind} />
 						<span
-							>{tab.label}<span class="o-wide-inline"> · {counts[tab.value]}</span>{#if tab.value === 'all'}<span
-									class="o-narrow-inline"> · {counts.all}</span
+							>{tab.label}<span class="o-wide-inline">
+								· {counts[tab.value]}</span
+							>{#if tab.value === 'all'}<span class="o-narrow-inline">
+									· {counts.all}</span
 								>{/if}</span
 						>
 					</label>
@@ -192,11 +194,15 @@
 			{/each}
 		</fieldset>
 		<span class="spacer o-wide"></span>
-		<span class="o-wide"><CurrencySwitch currencies={['NGN', 'USD']} bind:currency size="sm" /></span>
+		<span class="o-wide"
+			><CurrencySwitch currencies={['NGN', 'USD']} bind:currency size="sm" /></span
+		>
 	</div>
 
 	{#if notice}
-		<p class="o-notice" role="status"><Check size={16} strokeWidth={2} aria-hidden="true" />{notice}</p>
+		<p class="o-notice" role="status">
+			<Check size={16} strokeWidth={2} aria-hidden="true" />{notice}
+		</p>
 	{/if}
 
 	{#if !view && !loadError}
@@ -221,7 +227,11 @@
 			<ul class="o-rows">
 				{#each rows as { office, depth } (office.id)}
 					<li>
-						<a class="o-row office" href={`/app/offices/${office.id}`} style:--depth={filtering ? 0 : depth}>
+						<a
+							class="o-row office"
+							href={`/app/offices/${office.id}`}
+							style:--depth={filtering ? 0 : depth}
+						>
 							<span class="o-grow cell">
 								<span class="o-icon-tile" class:top={depth === 0 && !filtering} aria-hidden="true"
 									><Building size={16} strokeWidth={1.5} /></span
@@ -243,7 +253,9 @@
 							</span>
 							<span class="c-members o-num o-wide">{office.memberCount}</span>
 							<span class="c-held o-money">{held(office)}</span>
-							<span class="c-chev o-wide" aria-hidden="true"><ChevronRight size={16} strokeWidth={1.5} /></span>
+							<span class="c-chev o-wide" aria-hidden="true"
+								><ChevronRight size={16} strokeWidth={1.5} /></span
+							>
 						</a>
 					</li>
 				{/each}
@@ -268,7 +280,13 @@
 >
 	<div class="o-field">
 		<label for="office-name">Office name</label>
-		<input id="office-name" class="o-input" maxlength="100" autocomplete="off" bind:value={newName} />
+		<input
+			id="office-name"
+			class="o-input"
+			maxlength="100"
+			autocomplete="off"
+			bind:value={newName}
+		/>
 	</div>
 	<fieldset class="o-field type-field">
 		<legend class="o-field-label">Type</legend>
