@@ -16,6 +16,7 @@
 	import { Allocation, type Allocation as AllocationType } from '#lib/contract/ledger.js';
 	import type { ApiFailure } from '#lib/contract/errors.js';
 	import { getJson, newKey, sendCommand } from '#lib/client/api.js';
+	import { isUnknownOutcome } from '#lib/recovery.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import ConfirmDialog from '#lib/ui/app/ConfirmDialog.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
@@ -168,8 +169,8 @@
 			}
 			if (failure.code === 'pin_locked') return void window.location.assign('/pin/locked');
 		}
-		// Unknown outcome keeps the same key for the retry (W-00); a refusal gets a new one.
-		if (failure?._tag === 'BackendError') commandKey = newKey();
+		// Unknown outcome keeps the same key for the retry (W-00, #lib/recovery); a refusal gets a new one.
+		if (!isUnknownOutcome(failure)) commandKey = newKey();
 		dialogError = message(failure);
 	}
 </script>

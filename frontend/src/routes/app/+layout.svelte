@@ -10,6 +10,7 @@
 	import { goto } from '$app/navigation';
 	import { page, updated } from '$app/state';
 	import { DropdownMenu, Popover } from 'bits-ui';
+	import Activity from '@lucide/svelte/icons/activity';
 	import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
 	import Bell from '@lucide/svelte/icons/bell';
 	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
@@ -18,6 +19,7 @@
 	import EyeOff from '@lucide/svelte/icons/eye-off';
 	import House from '@lucide/svelte/icons/house';
 	import IdCard from '@lucide/svelte/icons/id-card';
+	import LayoutGrid from '@lucide/svelte/icons/layout-grid';
 	import Landmark from '@lucide/svelte/icons/landmark';
 	import MailPlus from '@lucide/svelte/icons/mail-plus';
 	import PieChart from '@lucide/svelte/icons/chart-pie';
@@ -25,6 +27,7 @@
 	import RotateCw from '@lucide/svelte/icons/rotate-cw';
 	import UserRound from '@lucide/svelte/icons/user-round';
 	import UserCog from '@lucide/svelte/icons/user-cog';
+	import WalletIcon from '@lucide/svelte/icons/wallet';
 	import WifiOff from '@lucide/svelte/icons/wifi-off';
 	import { Appearance, THEME_LABELS } from '#lib/client/appearance.svelte.js';
 	import { purgeAllDeviceData, staleLabel } from '#lib/client/device-cache.js';
@@ -62,6 +65,9 @@
 		'/app/account/devices': 'Profile & security  /  Devices & sessions',
 		'/app/account/pin': 'Profile & security  /  Transaction PIN',
 		'/app/account': 'Profile & security',
+		'/app/activity': 'Activity',
+		'/app/team': 'Team overview',
+		'/app/wallets': 'Member wallets',
 		'/app/payout-accounts': 'Payout accounts',
 		'/app/income': 'Record income',
 		'/app/invitations': 'Invitations',
@@ -84,8 +90,11 @@
 	const pushed = $derived(
 		path.startsWith('/app/notifications') ||
 			path.startsWith('/app/income') ||
-			path.startsWith('/app/account')
+			path.startsWith('/app/account') ||
+			(path.startsWith('/app/activity') && page.url.searchParams.has('tx'))
 	);
+	/** Leadership views (W-07); the backend authorizes every read. */
+	const leader = $derived(can('view_managed_wallets') || can('view_scoped_financial_reports'));
 	const tabMore = $derived(path.startsWith('/app/more'));
 	/** Only Home needs workspace data; More and Notifications keep their controls. */
 	const needsData = $derived(path === '/app');
@@ -143,6 +152,29 @@
 			<a class="side-item" href="/app" aria-current={path === '/app' ? 'page' : undefined}>
 				<House size={18} strokeWidth={1.5} aria-hidden="true" /><span>Home</span>
 			</a>
+			<a
+				class="side-item"
+				href="/app/activity"
+				aria-current={path.startsWith('/app/activity') ? 'page' : undefined}
+			>
+				<Activity size={18} strokeWidth={1.5} aria-hidden="true" /><span>Activity</span>
+			</a>
+			{#if leader}
+				<a
+					class="side-item"
+					href="/app/team"
+					aria-current={path.startsWith('/app/team') ? 'page' : undefined}
+				>
+					<LayoutGrid size={18} strokeWidth={1.5} aria-hidden="true" /><span>Team overview</span>
+				</a>
+				<a
+					class="side-item"
+					href="/app/wallets"
+					aria-current={path.startsWith('/app/wallets') ? 'page' : undefined}
+				>
+					<WalletIcon size={18} strokeWidth={1.5} aria-hidden="true" /><span>Member wallets</span>
+				</a>
+			{/if}
 			<a
 				class="side-item"
 				href="/app/payout-accounts"
@@ -364,6 +396,30 @@
 						>Home</span
 					>
 				</a>
+				<a
+					class="tab"
+					href="/app/activity"
+					aria-current={path.startsWith('/app/activity') ? 'page' : undefined}
+				>
+					<Activity
+						size={20}
+						strokeWidth={path.startsWith('/app/activity') ? 2 : 1.8}
+						aria-hidden="true"
+					/><span>Activity</span>
+				</a>
+				{#if leader}
+					<a
+						class="tab"
+						href="/app/team"
+						aria-current={path.startsWith('/app/team') ? 'page' : undefined}
+					>
+						<LayoutGrid
+							size={20}
+							strokeWidth={path.startsWith('/app/team') ? 2 : 1.8}
+							aria-hidden="true"
+						/><span>Team</span>
+					</a>
+				{/if}
 				<a class="tab" href="/app/more" aria-current={tabMore ? 'page' : undefined}>
 					<Ellipsis size={20} strokeWidth={1.8} aria-hidden="true" /><span>More</span>
 				</a>

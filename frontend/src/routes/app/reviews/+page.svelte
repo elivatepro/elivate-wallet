@@ -12,6 +12,7 @@
 	import IdCard from '@lucide/svelte/icons/id-card';
 	import { PendingReviews, ReviewDecided, type PendingReview } from '#lib/contract/identity.js';
 	import { getJson, newKey, sendCommand } from '#lib/client/api.js';
+	import { isUnknownOutcome } from '#lib/recovery.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { ROLE_LABELS } from '#lib/labels.js';
 	import ConfirmDialog from '#lib/ui/app/ConfirmDialog.svelte';
@@ -93,7 +94,8 @@
 					: 'That PIN is incorrect.');
 			}
 			if (failure.code === 'pin_locked') return void window.location.assign('/pin/locked');
-			commandKey = newKey();
+			// A relayed 502 is an unknown outcome: keep the key (W-00, #lib/recovery).
+			if (!isUnknownOutcome(failure)) commandKey = newKey();
 			dialogError =
 				failure.code === 'nin_in_use'
 					? 'This NIN is already verified on another account.'

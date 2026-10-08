@@ -2,6 +2,7 @@
 // cooling-off, which actions a row offers, and the copy for backend outcomes.
 // Only masked numbers (last 4) ever pass through here.
 
+import { isUnknownOutcome } from './recovery';
 import type { ApiFailure } from '#lib/contract/errors.js';
 import type { PayoutAccount } from '#lib/contract/payout.js';
 
@@ -92,7 +93,9 @@ export function pinProblem(
 }
 
 /** A refusal gets a new idempotency key; an unknown outcome keeps it (W-00). */
-export const isRefusal = (failure: ApiFailure | undefined) => failure?._tag === 'BackendError';
+/** A definitive refusal (not an unknown outcome such as a relayed 502, #lib/recovery). */
+export const isRefusal = (failure: ApiFailure | undefined) =>
+	failure?._tag === 'BackendError' && !isUnknownOutcome(failure);
 
 export type PayoutAction = 'lookup' | 'confirm' | 'primary' | 'remove';
 

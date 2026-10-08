@@ -21,3 +21,20 @@ export function formatMoney(amount: string, currency: Currency, signed = false):
 }
 
 export const isZero = (amount: string) => !/[1-9]/.test(amount);
+
+/** Exact sum of decimal strings of one currency (BigInt on scaled units, never floats). */
+export function sumMoney(amounts: readonly string[]): string {
+	const scale = Math.max(0, ...amounts.map((a) => a.split('.')[1]?.length ?? 0));
+	let total = 0n;
+	for (const amount of amounts) {
+		const negative = amount.startsWith('-');
+		const [whole = '0', fraction = ''] = amount.replace(/^[-+]/, '').split('.');
+		const units = BigInt(whole + fraction.padEnd(scale, '0'));
+		total += negative ? -units : units;
+	}
+	const sign = total < 0n ? '-' : '';
+	const digits = (total < 0n ? -total : total).toString().padStart(scale + 1, '0');
+	return scale === 0
+		? `${sign}${digits}`
+		: `${sign}${digits.slice(0, -scale)}.${digits.slice(-scale)}`;
+}
