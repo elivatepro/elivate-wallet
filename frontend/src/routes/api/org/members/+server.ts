@@ -11,13 +11,16 @@ import type { RequestHandler } from './$types';
 const Query = Schema.Struct({
 	q: Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(100))),
 	status: Schema.optionalKey(Schema.Literals(['active', 'suspended', 'ended'])),
+	role: Schema.optionalKey(
+		Schema.Literals(['member', 'team_leader', 'director', 'world_team_member', 'president_team_member'])
+	),
 	officeId: Schema.optionalKey(Schema.String.check(Schema.isPattern(UUID_PATTERN))),
 	cursor: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(500)))
 });
 
 export const GET: RequestHandler = (event) => {
 	const raw: Record<string, string> = {};
-	for (const field of ['q', 'status', 'officeId', 'cursor'] as const) {
+	for (const field of ['q', 'status', 'role', 'officeId', 'cursor'] as const) {
 		const value = event.url.searchParams.get(field);
 		if (value !== null && value.trim() !== '') raw[field] = value.trim();
 	}
