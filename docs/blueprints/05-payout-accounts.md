@@ -213,6 +213,7 @@ pgTAP (files `050_`–`059_`, reserved for Track C so test file names never coll
 3. `052_payout_confirm.sql`: confirm creates a `verified` account, not primary; expired proof (15:01) → `payout_lookup_expired`; `mismatched` → `payout_name_mismatch`; another person's lookup → `not_found`; two concurrent confirms of one lookup create one account; same-key replay after expiry returns the stored result; replay after losing the permission (membership ended) → `authorization_denied`; duplicate active account → `payout_account_exists`.
 4. `053_payout_lifecycle.sql`: one primary per currency/rail; primary on unverified/mismatched refused; replace keeps the old row as `replaced`, carries primary, needs a reason; deactivate needs a reason, keeps the row, clears primary; no command edits another owner's account; account rows can't be deleted; identity columns can't be updated.
 5. `054_payout_eligibility.sql`: `eligible_destination` for each state (Q4-B: `identity_pending` usable; Q6: first account immediate, later ones after 24 h); `recheck_name_match` with a stub `identity.legal_name` turns a non-matching account `mismatched`, drops primary, writes audit and an outbox row; a snapshot copied before deactivation is unchanged afterwards (fixture stands in for the withdrawals table).
+6a. `056_payout_wallet_and_alerts.sql`: wallet link set and immutable; one alert per change (none for lookups), owner recipient, params exactly `action`/`bankName`/`at`, no digits in any payload.
 6. `055_payout_privileges.sql`: `anon`/`authenticated` can't use `payout` or execute `api.*` payout functions; RLS on every `payout` table; only `api.*` are definer; empty `search_path` everywhere; no audit row or outbox payload contains a 10-digit run.
 
 Deno (`backend/tests/`):
@@ -226,7 +227,7 @@ Migrations (reserved range `2026100903xxxx`):
 - `20261009030100_payout_schema.sql`: schema `payout`, enums, `banks`, `account_lookups`, `accounts`, guard triggers, RLS, indexes.
 - `20261009030200_payout_name_match.sql`: normaliser, `payout.name_match`, `identity.legal_name` stub, `payout.recheck_name_match`, `payout.eligible_destination`.
 - `20261009030300_payout_commands.sql`: all `api.*` in B4, grants to `service_role` only.
-- `20261009030400_payout_wallet_and_alerts.sql` (after slices 03 and 04 are on `main`): `wallet_id` columns and `ledger.require_wallet` calls, the `payout_account.alert` template row and `payout.alert_owner` through `outbox.enqueue_email`; plus the renderer in `_shared/email/templates.ts`.
+- `20261009030400_payout_wallet_and_alerts.sql`: `wallet_id` on proofs and accounts (set by a trigger from `ledger.require_wallet`, must equal the owner's wallet, never changes), `ledger.require_wallet` in the shared command gate, the `payout_account.alert` template row and `payout.alert_owner` through `outbox.enqueue_email`; the renderer in `_shared/email/templates.ts` (the worker passes `APP_ORIGIN` for the "Open Wallet" button; no reference row).
 
 Functions: `backend/supabase/functions/payout/{deno.json,index.ts,handler.ts}`, `_shared/name_lookup.ts`, `_shared/account_crypto.ts`; edits to `_shared/http.ts` (new codes, retryable rule) and `config.toml` (`[functions.payout] verify_jwt = true`); `.env.example` placeholders; CI deno check list if it enumerates functions.
 
