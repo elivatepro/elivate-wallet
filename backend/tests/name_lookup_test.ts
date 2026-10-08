@@ -1,6 +1,10 @@
 // Paystack adapter against a fake fetch. Paystack itself is never called.
 import { assert, assertEquals, assertThrows } from "@std/assert";
-import { paystackProvider, safeName } from "../supabase/functions/_shared/name_lookup.ts";
+import {
+  localTestOrigin,
+  paystackProvider,
+  safeName,
+} from "../supabase/functions/_shared/name_lookup.ts";
 
 const secret = "sk_test_" + "a1".repeat(20);
 
@@ -260,4 +264,15 @@ Deno.test("provider names are trimmed and bounded", () => {
   assertEquals(safeName(""), null);
   assertEquals(safeName(42), null);
   assertEquals(safeName("ADA\u0085OBI"), null);
+});
+
+Deno.test("test origin override is honoured for local hosts only", () => {
+  assertEquals(
+    localTestOrigin("http://host.docker.internal:54399/x"),
+    "http://host.docker.internal:54399",
+  );
+  assertEquals(localTestOrigin("http://127.0.0.1:1"), "http://127.0.0.1:1");
+  assertEquals(localTestOrigin("https://evil.example"), undefined);
+  assertEquals(localTestOrigin("not a url"), undefined);
+  assertEquals(localTestOrigin(undefined), undefined);
 });

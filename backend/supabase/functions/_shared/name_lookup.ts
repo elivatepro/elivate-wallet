@@ -33,6 +33,25 @@ const maxPages = 10;
 export interface PaystackOptions {
   readonly fetcher?: typeof fetch;
   readonly timeoutMs?: number;
+  /** Local test doubles only; see localTestOrigin(). */
+  readonly origin?: string;
+}
+
+/**
+ * Accepts an origin override only for local hosts (end-to-end tests against
+ * a fake provider), so a misconfigured deployment can never send lookups or
+ * the secret key anywhere but the real provider.
+ */
+export function localTestOrigin(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    return ["127.0.0.1", "localhost", "host.docker.internal"].includes(url.hostname)
+      ? url.origin
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 type Json = Record<string, unknown>;
@@ -112,6 +131,7 @@ export function paystackProvider(
   }
   const fetcher = options.fetcher ?? fetch;
   const timeoutMs = options.timeoutMs ?? 10_000;
+  const base = options.origin ?? origin;
 
   /** GET with a fixed origin, timeout, no redirects and a size cap. */
   async function get(
@@ -119,7 +139,7 @@ export function paystackProvider(
     params: Record<string, string>,
     signal?: AbortSignal,
   ): Promise<{ status: number; body: unknown; headers: Headers }> {
-    const url = new URL(path, origin);
+    const url = new URL(path, base);
     for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), timeoutMs);
