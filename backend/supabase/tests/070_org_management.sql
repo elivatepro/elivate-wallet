@@ -2,7 +2,7 @@
 -- detail reads, member search, list_offices leaders, privileges.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(56);
+select plan(60);
 
 create function pg_temp.u(n int) returns uuid language sql immutable as
   $$ select ('10000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
@@ -205,10 +205,18 @@ select throws_ok(
   'P0001', 'conflict', 'a President Team membership has no office role to change'
 );
 
--- ── Close office ──
-do $$ begin
-  perform api.create_invitation(pg_temp.u(5), pg_temp.s(5), pg_temp.m(5, pg_temp.id('T2')), pg_temp.id('T2'), 'member',
-    'new@example.test', pg_temp.tid('tok-close'), pg_temp.dg('tok-close'), null, pg_temp.k());
+-- ── Close office (owner decision 2026-10-08) ──
+-- Income for 7 in T2 stays at T2 after 7 moves away: money held there.
+do $$
+declare
+  e uuid;
+  k text := pg_temp.k();
+begin
+  e := (api.create_evidence_upload(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.m(7, pg_temp.id('T2')), k,
+    'receipt.pdf', 'application/pdf', 1000, repeat('b', 64))->>'evidenceId')::uuid;
+  perform api.finalize_evidence_upload(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), e, 1000, repeat('b', 64), 'application/pdf');
+  perform api.record_income(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.m(7, pg_temp.id('T2')), 'NGN', '500.00',
+    'Fiverr', to_char(now() at time zone 'UTC', 'YYYY-MM-DD'), null, null, null, null, array[e], k);
 end $$;
 select throws_ok(
   $$ select api.close_office(pg_temp.u(2), pg_temp.s(2), pg_temp.m(2, pg_temp.id('W')), pg_temp.id('T2'), 'Merged', pg_temp.k()) $$,
@@ -220,58 +228,77 @@ select throws_ok(
 );
 select throws_ok(
   $$ select api.close_office(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.id('T2'), 'Merged', pg_temp.k()) $$,
-  'P0001', 'conflict', 'an office with members cannot close'
-);
-select throws_ok(
-  $$ select api.close_office(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.id('T2'), ' ', pg_temp.k()) $$,
-  'P0001', 'validation_error', 'closing needs a reason'
+  'P0001', 'conflict', 'an office with active members cannot close'
 );
 do $$ begin
   perform api.move_membership(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.m(7, pg_temp.id('T2')), pg_temp.id('T'), 'Merge into Team A', pg_temp.k());
 end $$;
+select throws_like(
+  $$ select api.close_office(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.id('T2'), 'Merged', pg_temp.k()) $$,
+  'conflict', 'an office still holding money cannot close'
+);
+select is(
+  (select count(*)::int from audit.tenant_events where action = 'office.closed'), 0, 'nothing closed yet'
+);
+
+-- T3: a leader (8), a suspended member (9) and a pending invitation; no money.
+insert into ids
+select 'T3', (api.create_office(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), 'team_leader', 'Team C', pg_temp.id('D'), array[pg_temp.uid(8)], pg_temp.k())->>'officeId')::uuid;
+do $$ begin
+  perform api.add_membership(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.id('T3'), pg_temp.uid(9), pg_temp.k());
+  perform api.set_membership_status(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.m(9, pg_temp.id('T3')), 'suspended', 'On leave', pg_temp.k());
+  perform api.create_invitation(pg_temp.u(8), pg_temp.s(8), pg_temp.m(8, pg_temp.id('T3')), pg_temp.id('T3'), 'member',
+    'new@example.test', pg_temp.tid('tok-close'), pg_temp.dg('tok-close'), null, pg_temp.k());
+end $$;
+insert into ids select 'lead8', pg_temp.m(8, pg_temp.id('T3'));
+insert into ids select 'susp9', id from org.memberships where user_id = pg_temp.u(9) and office_id = pg_temp.id('T3');
+select throws_ok(
+  $$ select api.close_office(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.id('T3'), ' ', pg_temp.k()) $$,
+  'P0001', 'validation_error', 'closing needs a reason'
+);
 update identity.session_pin_proofs set verified_at = now() - interval '6 minutes' where session_id = pg_temp.s(1);
 select throws_ok(
-  $$ select api.close_office(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.id('T2'), 'Merged', pg_temp.k()) $$,
+  $$ select api.close_office(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.id('T3'), 'Merged', pg_temp.k()) $$,
   'P0001', 'step_up_required', 'closing needs a fresh PIN'
 );
 update identity.session_pin_proofs set verified_at = now() where session_id = pg_temp.s(1);
-insert into ids select 'lead5', pg_temp.m(5, pg_temp.id('T2'));
 create temp table co as
-select api.close_office(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.id('T2'), 'Merged into Team A', 'kCloseOffice00001') as res;
-select is((select status::text from org.offices where id = pg_temp.id('T2')), 'closed', 'the office is closed');
-select is((select status::text from org.memberships where id = pg_temp.id('lead5')), 'ended', 'its leader''s membership ended');
-select is((select ended_reason from org.memberships where id = pg_temp.id('lead5')), 'Merged into Team A', 'with the reason');
-select is((select status::text from org.invitations where office_id = pg_temp.id('T2')), 'revoked', 'pending invitations are revoked');
+select api.close_office(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.id('T3'), 'Merged into Team A', 'kCloseOffice00001') as res;
+select is((select status::text from org.offices where id = pg_temp.id('T3')), 'closed', 'the office is closed');
+select is((select status::text from org.memberships where id = pg_temp.id('lead8')), 'ended', 'its leader''s membership is archived');
+select is((select status::text from org.memberships where id = pg_temp.id('susp9')), 'ended', 'a suspended member''s membership is archived');
+select is((select ended_reason from org.memberships where id = pg_temp.id('lead8')), 'Merged into Team A', 'with the reason');
+select is((select status::text from org.invitations where office_id = pg_temp.id('T3')), 'revoked', 'pending invitations are revoked');
 select is(((select res from co)->>'revokedInvitations')::int, 1, 'the result counts revoked invitations');
 select is(
-  api.close_office(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.id('T2'), 'Merged into Team A', 'kCloseOffice00001') - 'replayed',
+  api.close_office(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.id('T3'), 'Merged into Team A', 'kCloseOffice00001') - 'replayed',
   (select res from co) - 'replayed', 'a replay returns the same result'
 );
 select is(
-  api.close_office(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.id('T2'), 'Again', pg_temp.k())->>'changed',
+  api.close_office(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.id('T3'), 'Again', pg_temp.k())->>'changed',
   'false', 'closing a closed office changes nothing'
 );
 select throws_ok(
-  $$ select api.add_membership(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.id('T2'), pg_temp.uid(8), pg_temp.k()) $$,
+  $$ select api.add_membership(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.id('T3'), pg_temp.uid(6), pg_temp.k()) $$,
   'P0001', 'not_found', 'nobody can be added to a closed office'
 );
 select throws_ok(
   $$ insert into org.memberships (tenant_id, office_id, user_id, role, created_by)
-     values (pg_temp.id('tenant'), pg_temp.id('T2'), pg_temp.u(8), 'member', pg_temp.u(1)) $$,
+     values (pg_temp.id('tenant'), pg_temp.id('T3'), pg_temp.u(6), 'member', pg_temp.u(1)) $$,
   'P0001', 'conflict', 'the table itself refuses memberships in a closed office'
 );
 select throws_ok(
-  $$ select api.create_office(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), 'team_leader', 'Under closed', pg_temp.id('T2'), array[pg_temp.uid(8)], pg_temp.k()) $$,
+  $$ select api.create_office(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), 'team_leader', 'Under closed', pg_temp.id('T3'), array[pg_temp.uid(6)], pg_temp.k()) $$,
   'P0001', 'hierarchy_invalid', 'a closed office cannot be a parent'
 );
 select is(
-  (select count(*)::int from org.memberships where user_id = pg_temp.u(5) and is_primary),
-  0, 'a person whose only membership ended has no primary'
+  (select count(*)::int from org.memberships where user_id = pg_temp.u(8) and is_primary),
+  0, 'a person whose only membership was archived has no primary'
 );
 select is((select count(*)::int from audit.tenant_events where action = 'office.closed'), 1, 'closing is audited once');
 select is(
-  api.office_detail(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.id('T2'))->>'status',
-  'closed', 'the President still reads the closed office'
+  api.office_detail(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.id('T3'))->'closure'->>'reason',
+  'Merged into Team A', 'the President reads why it closed'
 );
 
 -- ── Privileges ──

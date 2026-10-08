@@ -107,7 +107,7 @@ describe('describeOrgFailure', () => {
 		expect(describeOrgFailure(backend('step_up_required')).kind).toBe('pin');
 		expect(describeOrgFailure(backend('conflict', { reason: 'office_not_empty' }))).toEqual({
 			kind: 'message',
-			text: 'Move or end its members first. Leaders end with the office.'
+			text: 'Move or end its active members first. Leaders and suspended members are archived.'
 		});
 		expect(describeOrgFailure(backend('last_leader')).kind).toBe('message');
 		expect(describeOrgFailure(undefined).kind).toBe('message');

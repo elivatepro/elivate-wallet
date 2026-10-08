@@ -309,7 +309,9 @@ export type Outcome =
 
 const CONFLICTS: Record<string, string> = {
 	has_child_offices: 'Move or close the offices under it first.',
-	office_not_empty: 'Move or end its members first. Leaders end with the office.',
+	office_not_empty:
+		'Move or end its active members first. Leaders and suspended members are archived.',
+	money_held: 'Money is still held in this office. It can close once nothing is held there.',
 	office_closed: 'That office is closed.',
 	office_changed: 'Someone joined this office meanwhile. Reload and try again.',
 	membership_not_active: 'That membership isn’t active.',

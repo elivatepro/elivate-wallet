@@ -19,11 +19,12 @@
 	import Pause from '@lucide/svelte/icons/pause';
 	import Play from '@lucide/svelte/icons/play';
 	import UserCog from '@lucide/svelte/icons/user-cog';
+	import type { Role } from '#lib/contract/common.js';
 	import { AppOrgRoutes, MemberView, type MembershipAction } from '#lib/contract/org-admin.js';
 	import { loadView, OrgCommand } from '#lib/client/org.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { formatMoney, hiddenMoney } from '#lib/money.js';
-	import { OFFICE_TYPE_LABELS, personName, STATUS_LABELS } from '#lib/org.js';
+	import { LEADER_ROLE, OFFICE_TYPE_LABELS, personName, STATUS_LABELS } from '#lib/org.js';
 	import { ROLE_LABELS } from '#lib/labels.js';
 	import OrgDialog from '#lib/ui/org/OrgDialog.svelte';
 	import OrgHero from '#lib/ui/org/OrgHero.svelte';
@@ -77,11 +78,18 @@
 	let dialog = $state<MembershipAction | null>(null);
 	let open = $state(false);
 	let toOffice = $state('');
+	let newRole = $state<string>('');
+	/** N03: role only, never the office (owner decision 2026-10-08). */
+	const roleChoices = $derived.by(() => {
+		if (!member?.office) return [] as Role[];
+		return (['member', LEADER_ROLE[member.office.type]] as Role[]).filter((r) => r !== member.role);
+	});
 
 	function ask(action: MembershipAction) {
 		command.reset(`${id}:${action}`);
 		notice = null;
 		toOffice = '';
+		newRole = roleChoices[0] ?? '';
 		dialog = action;
 		open = true;
 	}
@@ -90,7 +98,8 @@
 		suspend: 'Membership suspended.',
 		reactivate: 'Membership reactivated.',
 		end: 'Membership ended.',
-		move: 'Moved to the new office.'
+		move: 'Moved to the new office.',
+		role: 'Role changed.'
 	};
 
 	async function confirm({ reason, pin }: { reason: string; pin: string | undefined }) {
@@ -99,15 +108,20 @@
 		const result = await command.send(
 			AppOrgRoutes.memberAction(id, action),
 			'POST',
-			{ reason, ...(action === 'move' ? { toOfficeId: toOffice } : {}), ...(pin ? { pin } : {}) },
+			{
+				reason,
+				...(action === 'move' ? { toOfficeId: toOffice } : {}),
+				...(action === 'role' ? { role: newRole } : {}),
+				...(pin ? { pin } : {})
+			},
 			workspace.membershipId
 		);
 		if (!result) return;
 		open = false;
 		notice = DONE[action] ?? null;
-		// A move ends this membership: show the one that replaced it.
+		// A move or role change ends this membership: show the one that replaced it.
 		const moved = typeof result.membershipId === 'string' ? result.membershipId : null;
-		if (action === 'move' && moved && moved !== id) {
+		if ((action === 'move' || action === 'role') && moved && moved !== id) {
 			await goto(`/app/members/${moved}`);
 			return;
 		}
@@ -171,11 +185,7 @@
 										</DropdownMenu.Item>
 									{/if}
 									{#if member.actions.changeRole}
-										<DropdownMenu.Item
-											class="menu-row"
-											onSelect={() =>
-												window.location.assign(`/app/members/${member.membershipId}/role`)}
-										>
+										<DropdownMenu.Item class="menu-row" onSelect={() => ask('role')}>
 											<UserCog size={16} strokeWidth={1.8} aria-hidden="true" /><span
 												class="menu-label">Change role</span
 											>
@@ -344,6 +354,31 @@
 				</select>
 			</div>
 		</OrgDialog>
+	{:else if dialog === 'role'}
+		<OrgDialog
+			bind:open
+			pose="member-role"
+			title="Change role"
+			subtitle="Same office. Wallet and history stay intact"
+			confirmLabel="Change role"
+			busy={command.busy}
+			error={command.error}
+			pinError={command.pinError}
+			validate={() => (newRole ? null : 'Choose the new role.')}
+			onConfirm={confirm}
+		>
+			<div class="o-field">
+				<label for="role-new">New role</label>
+				<select id="role-new" class="o-input" bind:value={newRole}>
+					{#each roleChoices as role (role)}
+						<option value={role}>{ROLE_LABELS[role]}</option>
+					{/each}
+				</select>
+				<p class="o-sub currently">
+					Currently <span class="cur">{ROLE_LABELS[member.role]} · {place}</span>
+				</p>
+			</div>
+		</OrgDialog>
 	{:else if dialog === 'end'}
 		<OrgDialog
 			bind:open
@@ -362,6 +397,15 @@
 {/if}
 
 <style>
+	.currently {
+		font-size: 13px;
+	}
+
+	.cur {
+		color: var(--color-text);
+		margin-left: 4px;
+	}
+
 	.back {
 		align-self: flex-start;
 		font-size: var(--text-14);

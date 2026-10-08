@@ -1,5 +1,5 @@
 // Org management (Blueprint 07; Paper O01/O04/O07/O10, R01, F05): the
-// President creates, renames and closes an office, changes a role
+// President creates, renames, re-places and closes an office, changes a role
 // permission with a reason and PIN, and reads the audit log. Local stack
 // only, synthetic data.
 
@@ -75,12 +75,25 @@ test('President manages offices, a role permission and reads the audit log', asy
 	await expect(page.getByText('Office renamed.')).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Lagos central office' })).toBeVisible();
 
-	// Close office (stub until Paper): only leaders inside, so it closes.
-	await page.getByRole('link', { name: 'Close office' }).click();
-	await page.getByLabel('Reason').fill('Merged into the World Team office');
-	await page.getByLabel('Your PIN').fill(PIN);
+	// N04: place it at the top of the network (reason + PIN).
+	await page.getByRole('button', { name: 'Move office' }).click();
+	const placeDialog = page.getByRole('dialog', { name: 'Place under another office' });
+	await placeDialog.getByText('Top of the network', { exact: true }).click();
+	await placeDialog.getByLabel('Reason').fill('Reports straight to the President Team');
+	await placeDialog.getByLabel('Your PIN').fill(PIN);
+	await placeDialog.getByRole('button', { name: 'Move office' }).click();
+	await expect(page.getByText('Office moved.')).toBeVisible();
+
+	// N01/N02: close it (no active members or money; its leader is archived).
 	await page.getByRole('button', { name: 'Close office' }).click();
-	await expect(page.getByText('The office is closed.')).toBeVisible();
+	const closeDialog = page.getByRole('dialog', { name: 'Close Lagos central office' });
+	await closeDialog.getByLabel('Reason').fill('Merged into the World Team office');
+	await closeDialog.getByLabel('Your PIN').fill(PIN);
+	await closeDialog.getByRole('button', { name: 'Close office' }).click();
+	await expect(page.getByText('Office closed.')).toBeVisible();
+	await expect(page.getByText(/^Closed · /)).toBeVisible();
+	await expect(page.getByText('Merged into the World Team office')).toBeVisible();
+	await expectAccessible(page);
 
 	// Members (C11): the founder is listed.
 	await page.goto('/app/members');

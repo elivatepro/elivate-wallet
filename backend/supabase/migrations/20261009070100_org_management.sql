@@ -1,10 +1,12 @@
 -- Blueprint 07 — Org management (member build plan, slice 1).
 --
--- 1. api.close_office: the President Team closes an empty office (no open
---    child offices, no open non-leader memberships). Its leaders' memberships
---    end with the reason, pending invitations into it are revoked, reviewer
---    assignments held through those memberships end. Money stays where it is
---    (Blueprint 04 decision 23 already keeps it visible above).
+-- 1. api.close_office (owner decision 2026-10-08): the President Team closes
+--    an office only when it has no active members (leaders aside), no open
+--    offices below it and no money held in it (posted or reserved, any
+--    currency). Memberships still on it (its leaders, suspended members) are
+--    archived (ended with the reason); pending invitations into it are
+--    revoked; reviewer assignments held through those memberships end. Money
+--    history stays visible above it (Blueprint 04 decision 23).
 -- 2. api.change_membership_role (W-05 "classification"): ends the current
 --    membership and creates the new one in the same office (member <-> the
 --    office kind's leader role). Never an in-place edit.
@@ -207,13 +209,20 @@ begin
   end if;
   if exists (
     select 1 from org.memberships
-    where office_id = office.id and status <> 'ended' and role <> org.leader_role(office.office_type)
+    where office_id = office.id and status = 'active' and role <> org.leader_role(office.office_type)
   ) then
     perform identity.fail('conflict', jsonb_build_object('reason', 'office_not_empty'));
+  end if;
+  if exists (
+    select 1 from ledger.balances b
+    where b.office_id = office.id and (b.posted <> 0 or b.reserved <> 0)
+  ) then
+    perform identity.fail('conflict', jsonb_build_object('reason', 'money_held'));
   end if;
 
   update org.offices set status = 'closed' where id = office.id;
 
+  -- Archive what is left on it: its leaders and any suspended members.
   for leader in
     select id, user_id from org.memberships
     where office_id = office.id and status <> 'ended'
@@ -439,6 +448,10 @@ begin
                        where l.office_id = office.id and l.status = 'active'),
     'pendingInvitations', (select count(*) from org.invitations i
                            where i.office_id = office.id and i.status = 'pending' and i.expires_at > now()),
+    'closure', (select jsonb_build_object('at', e.at, 'reason', e.reason, 'by', org.person(e.actor_user_id))
+                from audit.tenant_events e
+                where e.tenant_id = office.tenant_id and e.action = 'office.closed' and e.target_id = office.id::text
+                order by e.id desc limit 1),
     'canManage', (authz.decide(p_user_id, 'manage_members', workspace.tenant_id,
                     case when office.status = 'active' then office.id end, null, workspace.id)->>'allowed')::boolean
                  and office.status = 'active',

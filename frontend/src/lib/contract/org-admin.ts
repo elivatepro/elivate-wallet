@@ -53,6 +53,10 @@ export const OfficeDetail = Schema.Struct({
 	memberCount: Schema.Int,
 	ownMemberCount: Schema.Int,
 	pendingInvitations: Schema.Int,
+	/** Set once the office is closed (from the network audit log). */
+	closure: Schema.NullOr(
+		Schema.Struct({ at: IsoDateTime, reason: Schema.NullOr(Schema.String), by: Person })
+	),
 	canManage: Schema.Boolean,
 	canLeadAssign: Schema.Boolean
 });
@@ -209,6 +213,7 @@ export const OrgAdminRoutes = {
 	office: (id: string) => ({ method: 'GET', path: `/offices/${id}` }) as const,
 	renameOffice: (id: string) => ({ method: 'PATCH', path: `/offices/${id}` }) as const,
 	closeOffice: (id: string) => ({ method: 'POST', path: `/offices/${id}/close` }) as const,
+	placeOffice: (id: string) => ({ method: 'POST', path: `/offices/${id}/place` }) as const,
 	addLeader: (id: string) => ({ method: 'POST', path: `/offices/${id}/leaders` }) as const,
 	replaceLeader: (id: string) =>
 		({ method: 'POST', path: `/offices/${id}/leaders/replace` }) as const,
@@ -250,7 +255,16 @@ export const OfficeView = Schema.Struct({
 	office: OfficeDetail,
 	totals: Schema.NullOr(OfficeTotals),
 	members: Schema.NullOr(MemberRows),
-	isPresident: Schema.Boolean
+	isPresident: Schema.Boolean,
+	/** Where the President Team may place this office (N04): strictly higher kinds. */
+	parents: Schema.Array(
+		Schema.Struct({
+			id: Uuid,
+			name: Schema.String,
+			type: OfficeType,
+			parentName: Schema.NullOr(Schema.String)
+		})
+	)
 });
 export type OfficeView = typeof OfficeView.Type;
 
@@ -287,6 +301,7 @@ export const CreateOfficeCommand = Command({
 });
 export const RenameOfficeCommand = Command({ name: Name });
 export const ReasonCommand = Command({ reason: Reason });
+export const PlaceCommand = Command({ parentOfficeId: Schema.NullOr(Uuid), reason: Reason });
 export const AddLeaderCommand = Command({ leaderUid: Uid, reason: Reason });
 export const ReplaceLeaderCommand = Command({
 	outgoingMembershipId: Uuid,
@@ -332,6 +347,7 @@ export const AppOrgRoutes = {
 	offices: '/api/org/offices',
 	office: (id: string) => `/api/org/offices/${id}`,
 	officeClose: (id: string) => `/api/org/offices/${id}/close`,
+	officePlace: (id: string) => `/api/org/offices/${id}/place`,
 	officeLeaders: (id: string) => `/api/org/offices/${id}/leaders`,
 	officeLeaderReplace: (id: string) => `/api/org/offices/${id}/leaders/replace`,
 	members: '/api/org/members',

@@ -45,7 +45,12 @@ export type RootPose =
 	| 'member'
 	| 'member-suspend'
 	| 'member-move'
-	| 'member-end';
+	| 'member-end'
+	// Paper "App — Screens v4" N01–N04 (owner approved 2026-10-08).
+	| 'office-close'
+	| 'office-closed'
+	| 'member-role'
+	| 'office-place';
 
 /** Rendered Root size on mobile gate screens (Paper: 120×160, 150×200, 180×240). */
 export type RootSize = 'sm' | 'md' | 'lg';
@@ -96,7 +101,11 @@ export const ROOT_HEIGHTS: Record<RootPose, number> = {
 	member: 446,
 	'member-suspend': 502,
 	'member-move': 442,
-	'member-end': 502
+	'member-end': 502,
+	'office-close': 512,
+	'office-closed': 521,
+	'member-role': 442,
+	'office-place': 512
 };
 
 export const rootSrc = (pose: RootPose) => `/root/${pose}.webp`;
