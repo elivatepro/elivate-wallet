@@ -24,6 +24,17 @@ const local = (status: number, code: BackendError['code'], message: string, retr
 
 export const unauthenticated = () => local(401, 'authentication_required', 'Sign in to continue.');
 
+/** A same-origin request body or query that does not match its schema. */
+export const invalidRequest = (field: string) =>
+	new BackendError({
+		status: 400,
+		code: 'validation_error',
+		message: 'The request is invalid.',
+		retryable: false,
+		details: { field },
+		requestId: null
+	});
+
 /** Maps any failure to a relayed envelope with an honest status. */
 export function toBackendError(failure: EdgeFailure): BackendError {
 	switch (failure._tag) {

@@ -31,9 +31,27 @@ export const Capabilities = Schema.Struct({
 });
 export type Capabilities = typeof Capabilities.Type;
 
+/** One row of GET /offices (api.list_offices), scoped to the workspace's subtree. */
+export const Office = Schema.Struct({
+	id: Uuid,
+	name: Schema.String,
+	type: OfficeType,
+	status: Schema.Literals(['active', 'closed']),
+	parentOfficeId: Schema.NullOr(Uuid),
+	leaderCount: Schema.Int,
+	memberCount: Schema.Int
+});
+export type Office = typeof Office.Type;
+
+export const Offices = Schema.Struct({
+	items: Schema.Array(Office),
+	nextCursor: Schema.NullOr(Schema.String)
+});
+
 export const OrgRoutes = {
 	workspaces: { method: 'GET', path: '/workspaces' },
-	capabilities: { method: 'GET', path: '/capabilities' }
+	capabilities: { method: 'GET', path: '/capabilities' },
+	offices: { method: 'GET', path: '/offices' }
 } as const;
 
 /**

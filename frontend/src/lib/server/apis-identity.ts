@@ -20,9 +20,13 @@ import {
 import {
 	Banks,
 	Confirmed,
+	Deactivated,
+	deactivateRoute,
 	Lookup,
 	PayoutAccounts,
 	PayoutRoutes,
+	PrimarySet,
+	primaryRoute,
 	type Bank,
 	type PayoutAccount
 } from '#lib/contract/payout.js';
@@ -128,6 +132,16 @@ export interface PayoutApiShape {
 		membershipId: string,
 		input: { lookupId: string; idempotencyKey: string }
 	) => Effect.Effect<PayoutAccount, EdgeFailure>;
+	readonly setPrimary: (
+		membershipId: string,
+		payoutAccountId: string,
+		input: { idempotencyKey: string }
+	) => Effect.Effect<typeof PrimarySet.Type, EdgeFailure>;
+	readonly deactivate: (
+		membershipId: string,
+		payoutAccountId: string,
+		input: { reason: string; idempotencyKey: string }
+	) => Effect.Effect<PayoutAccount, EdgeFailure>;
 }
 
 export class PayoutApi extends Context.Service<PayoutApi, PayoutApiShape>()('PayoutApi') {}
@@ -164,6 +178,18 @@ export const PayoutApiLive = Layer.effect(
 					.call(
 						{ fn, route: PayoutRoutes.confirm, body: { ...input, confirmed: true }, membershipId },
 						Confirmed
+					)
+					.pipe(Effect.map((r) => r.payoutAccount)),
+			setPrimary: (membershipId, payoutAccountId, input) =>
+				edge.call(
+					{ fn, route: primaryRoute(payoutAccountId), body: input, membershipId },
+					PrimarySet
+				),
+			deactivate: (membershipId, payoutAccountId, input) =>
+				edge
+					.call(
+						{ fn, route: deactivateRoute(payoutAccountId), body: input, membershipId },
+						Deactivated
 					)
 					.pipe(Effect.map((r) => r.payoutAccount))
 		};

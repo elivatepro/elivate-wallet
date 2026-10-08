@@ -13,6 +13,7 @@
 		title,
 		summary,
 		confirmLabel,
+		cancelLabel = 'Cancel',
 		reasonLabel = 'Reason',
 		needsReason = true,
 		needsPin = true,
@@ -26,6 +27,7 @@
 		title: string;
 		summary?: string;
 		confirmLabel: string;
+		cancelLabel?: string;
 		reasonLabel?: string;
 		needsReason?: boolean;
 		needsPin?: boolean;
@@ -88,7 +90,7 @@
 					{/if}
 				</div>
 				<div class="confirm-actions">
-					<Dialog.Close class="confirm-cancel" type="button">Cancel</Dialog.Close>
+					<Dialog.Close class="confirm-cancel" type="button">{cancelLabel}</Dialog.Close>
 					<button
 						class="confirm-go"
 						data-tone={tone}
