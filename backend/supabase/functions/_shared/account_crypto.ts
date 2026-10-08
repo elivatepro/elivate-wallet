@@ -30,7 +30,7 @@ export interface AccountKeys {
 
 const accountNumberPattern = /^[0-9]{10}$/;
 
-function hexKey(value: string, name: string): Uint8Array {
+function hexKey(value: string, name: string) {
   if (!/^[0-9a-f]{64}$/i.test(value)) {
     throw new Error(`${name} must be 32 bytes as 64 hex characters`);
   }
@@ -45,14 +45,14 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-function fromBase64(value: string): Uint8Array {
+function fromBase64(value: string) {
   const binary = atob(value);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return bytes;
 }
 
-function aad(ownerUserId: string, keyVersion: number): Uint8Array {
+function aad(ownerUserId: string, keyVersion: number) {
   return encoder.encode(`payout-account:v${keyVersion}:${ownerUserId.toLowerCase()}`);
 }
 
