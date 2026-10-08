@@ -178,11 +178,17 @@ const activityQuery = [
   "pocketId",
   "direction",
   "type",
+  "status",
+  "q",
+  "tz",
   "from",
   "to",
   "cursor",
   "limit",
 ];
+
+/** IANA zone names ("Africa/Lagos", "UTC"); the database checks they exist. */
+const timeZonePattern = /^[A-Za-z][A-Za-z0-9_+-]*(\/[A-Za-z0-9_+-]+){0,2}$/;
 
 function activityArgs(query: URLSearchParams): Record<string, unknown> {
   onlyQuery(query, activityQuery);
@@ -195,6 +201,9 @@ function activityArgs(query: URLSearchParams): Record<string, unknown> {
     p_to: queryPattern(query, "to", /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/),
     p_cursor: queryText(query, "cursor", 500),
     p_limit: queryLimit(query),
+    p_query: queryText(query, "q", 100),
+    p_status: queryPattern(query, "status", /^[a-z_]{1,30}$/),
+    p_tz: queryPattern(query, "tz", timeZonePattern),
   };
 }
 
@@ -317,6 +326,21 @@ export function createHandler(
       });
     }),
 
+    // Unknown-outcome recovery (Blueprint 08, F-03): the fate of the actor's
+    // own attempt by its idempotency key. Account-level; no workspace.
+    route("GET", "/me/command-outcome", (c) => {
+      onlyQuery(c.query, ["idempotencyKey", "command"]);
+      const key = queryPattern(c.query, "idempotencyKey", /^[A-Za-z0-9_-]{16,100}$/);
+      if (key === null) {
+        throw new ApiError("validation_error", { field: "idempotencyKey" });
+      }
+      return call("command_outcome", {
+        ...actorArgs(c),
+        p_idempotency_key: key,
+        p_command: queryPattern(c.query, "command", /^[a-z][a-z_]{0,59}$/),
+      });
+    }),
+
     route("GET", "/currencies", (c) => {
       onlyQuery(c.query, []);
       return call("ledger_currencies", actorArgs(c));
@@ -391,6 +415,15 @@ export function createHandler(
         ...inWorkspace(c),
         p_wallet_id: c.params.walletId,
         p_transaction_id: c.params.id,
+      });
+    }),
+
+    // Leadership dashboard (Blueprint 08, W-07): the workspace's scope.
+    route("GET", "/overview", (c) => {
+      onlyQuery(c.query, ["tz"]);
+      return call("leadership_overview", {
+        ...inWorkspace(c),
+        p_tz: queryPattern(c.query, "tz", timeZonePattern),
       });
     }),
 
