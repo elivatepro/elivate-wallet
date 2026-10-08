@@ -4,6 +4,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 import {
+	completeIdentityAndProfile,
 	confirmLinkFor,
 	createConfirmedAccount,
 	expectAccessible,
@@ -71,16 +72,58 @@ test('new person: join link → verify email → password → accept → PIN →
 	await expectAccessible(page);
 	await page.getByRole('button', { name: 'Accept invitation' }).click();
 
-	// 5. PIN next, then the only workspace opens.
-	await expect(page).toHaveURL(/\/pin\/setup$/);
+	// 5. The first-use wizard (W-02): welcome → PIN → NIN → details → profile → bank → all set.
+	await expect(page).toHaveURL(/\/onboarding$/);
+	await expect(page.getByRole('heading', { name: 'Welcome to Harbor Test Network' })).toBeVisible();
+	await expect(page.getByText('Member', { exact: true })).toBeVisible();
+	await expectAccessible(page);
+	await page.getByRole('link', { name: 'Let’s begin' }).click();
+	await expect(page).toHaveURL(/\/onboarding\/pin$/);
 	await page.getByLabel('PIN', { exact: true }).fill(PIN);
 	await page.getByLabel('Repeat PIN').fill(PIN);
 	await page.getByRole('button', { name: 'Save PIN' }).click();
+
+	// A NIN the provider doesn't know is a failed check, with one left.
+	await expect(page).toHaveURL(/\/onboarding\/identity$/);
+	await page.getByLabel('National Identification Number').fill('91234567890');
+	await page.getByRole('button', { name: 'Verify NIN' }).click();
+	await expect(page.getByRole('heading', { name: 'We couldn’t verify that NIN' })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Ask my leaders to review' })).toBeVisible();
+	await expectAccessible(page);
+	await page.getByLabel('National Identification Number').fill('');
+	await completeIdentityAndProfile(page);
+
+	// Bank: a mismatching name is refused, a matching one is saved.
+	await expect(page.getByRole('heading', { name: 'Where should payouts go?' })).toBeVisible();
+	await page.getByLabel('Bank').selectOption('058');
+	await page.getByLabel('Account number').fill('0987654321');
+	await page.getByRole('button', { name: 'Check account' }).click();
+	await expect(page.getByRole('heading', { name: 'Name doesn’t match' })).toBeVisible();
+	await expect(page.getByText('Doesn’t match Ada Nkem Obi')).toBeVisible();
+	await page.getByRole('link', { name: 'Use a different account' }).click();
+	await page.getByLabel('Bank').selectOption('058');
+	await page.getByLabel('Account number').fill('0123456789');
+	await page.getByRole('button', { name: 'Check account' }).click();
+	await expect(page.getByText('Matches your verified name')).toBeVisible();
+	await expectAccessible(page);
+	await page.getByRole('button', { name: 'Save account' }).click();
+
+	await expect(page.getByRole('heading', { name: 'You’re all set, Ada' })).toBeVisible();
+	await expect(page.getByText('Test Bank •• 6789')).toBeVisible();
+	await expectAccessible(page);
+	await page.getByRole('link', { name: 'Go to my wallet' }).click();
 	await expect(page).toHaveURL(/\/app$/);
 	await expect(
 		page.getByRole('button', { name: 'Harbor Test Network: switch workspace' })
 	).toBeVisible();
 	expect(page.url()).not.toMatch(/token|#t=|[0-9a-f]{8}-[0-9a-f]{4}/i);
+
+	// The shell shows the person's name (profile read) and their photo.
+	await page.getByRole('button', { name: 'Account' }).click();
+	await expect(
+		page.getByText('Ada Nkem Obi', { exact: true }).or(page.getByText('Ada Obi', { exact: true }))
+	).toBeVisible();
+	await page.keyboard.press('Escape');
 
 	// 6. The link is used up.
 	await page.goto(joinPath);
@@ -93,7 +136,7 @@ test('new person: join link → verify email → password → accept → PIN →
 	await expect(page).toHaveURL(/\/app$/);
 });
 
-test('existing account: join link → sign in → PIN → accept → home', async ({ page }) => {
+test('existing account: join link → sign in → PIN → accept → wizard', async ({ page }) => {
 	const founder = await newFounder('founder-existing');
 	const invitee = uniqueEmail('existing');
 	await createConfirmedAccount(invitee, PASSWORD, PIN);
@@ -109,10 +152,10 @@ test('existing account: join link → sign in → PIN → accept → home', asyn
 	await expect(page).toHaveURL(/\/join$/);
 	await expect(page.getByRole('heading', { name: 'Accept your invitation' })).toBeVisible();
 	await page.getByRole('button', { name: 'Accept invitation' }).click();
-	await expect(page).toHaveURL(/\/app$/);
-	await expect(
-		page.getByRole('button', { name: 'Delta Test Network: switch workspace' })
-	).toBeVisible();
+	// The wizard starts at Welcome; the PIN already exists, so it continues at NIN.
+	await expect(page.getByRole('heading', { name: 'Welcome to Delta Test Network' })).toBeVisible();
+	await page.getByRole('link', { name: 'Let’s begin' }).click();
+	await expect(page).toHaveURL(/\/onboarding\/identity$/);
 });
 
 test('signed in as someone else: the invitation is refused, nothing joins', async ({ page }) => {
@@ -134,7 +177,7 @@ test('signed in as someone else: the invitation is refused, nothing joins', asyn
 	await expect(page).toHaveURL(/\/workspaces$/);
 });
 
-test('in-app list: "Invitations for you" → Accept → home', async ({ page }) => {
+test('in-app list: "Invitations for you" → Accept → wizard', async ({ page }) => {
 	const founder = await newFounder('founder-list');
 	const invitee = uniqueEmail('listed');
 	await createConfirmedAccount(invitee, PASSWORD, PIN);
@@ -146,14 +189,11 @@ test('in-app list: "Invitations for you" → Accept → home', async ({ page }) 
 	await expect(page.getByRole('heading', { name: 'Invitations for you' })).toBeVisible();
 	await expectAccessible(page);
 	await page.getByRole('button', { name: 'Accept invitation to Maple Test Network' }).click();
-	await expect(page).toHaveURL(/\/app$/);
-	await expect(
-		page.getByRole('button', { name: 'Maple Test Network: switch workspace' })
-	).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Welcome to Maple Test Network' })).toBeVisible();
 
-	// Accepted invitations leave the list.
+	// The invitation left the list; unfinished setup resumes instead of the picker.
 	await page.goto('/workspaces?switch');
-	await expect(page.getByRole('heading', { name: 'Invitations for you' })).toHaveCount(0);
+	await expect(page).toHaveURL(/\/onboarding$/);
 });
 
 test('unknown or missing link: one unavailable page', async ({ page }) => {

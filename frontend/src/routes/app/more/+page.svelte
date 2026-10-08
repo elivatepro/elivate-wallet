@@ -26,6 +26,7 @@
 		shell.state.kind === 'ready' || shell.state.kind === 'offline' ? shell.state.summary : null
 	);
 	const uid = $derived(shell.state.kind === 'ready' ? shell.state.view.state.uid : null);
+	const person = $derived(shell.state.kind === 'ready' ? shell.state.view.profile : null);
 
 	function nextTheme() {
 		const next = THEMES[(THEMES.indexOf(appearance.theme) + 1) % THEMES.length] ?? 'dark';
@@ -43,9 +44,15 @@
 </header>
 
 <div class="profile">
-	<span class="profile-avatar" aria-hidden="true"><UserRound size={24} strokeWidth={1.6} /></span>
+	<span class="profile-avatar" aria-hidden="true">
+		{#if person?.hasPhoto}<img src="/api/profile/photo" alt="" />{:else}<UserRound
+				size={24}
+				strokeWidth={1.6}
+			/>{/if}
+	</span>
 	<span class="profile-text">
-		{#if summary}<span class="profile-name"
+		{#if person?.name}<span class="profile-name">{person.name}</span>{/if}
+		{#if summary}<span class={person?.name ? 'profile-uid' : 'profile-name'}
 				>{ROLE_LABELS[summary.role]}{summary.officeName ? ` · ${summary.officeName}` : ''}</span
 			>{/if}
 		{#if uid}<span class="profile-uid">{uid}</span>{/if}
@@ -348,5 +355,12 @@
 		.bar {
 			display: none;
 		}
+	}
+
+	.profile-avatar img {
+		width: 100%;
+		height: 100%;
+		border-radius: inherit;
+		object-fit: cover;
 	}
 </style>

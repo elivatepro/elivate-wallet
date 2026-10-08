@@ -12,11 +12,12 @@ import {
 	SecurityApi,
 	SecurityApiLive
 } from './apis';
+import { IdentityApi, IdentityApiLive, PayoutApi, PayoutApiLive } from './apis-identity';
 import type { VerifiedSession } from './auth';
 import { EdgeTransportLive, type EdgeFailure } from './edge';
 import { requireConfig } from './config';
 
-export type ApiServices = SecurityApi | OrgApi | InvitationsApi;
+export type ApiServices = SecurityApi | OrgApi | InvitationsApi | IdentityApi | PayoutApi;
 
 /**
  * `session` null runs without a bearer token: only the public invitation
@@ -36,9 +37,13 @@ export function runApi<A>(
 		fetch: event.fetch,
 		signal: event.request.signal
 	});
-	const layer = Layer.mergeAll(SecurityApiLive, OrgApiLive, InvitationsApiLive).pipe(
-		Layer.provide(edge)
-	);
+	const layer = Layer.mergeAll(
+		SecurityApiLive,
+		OrgApiLive,
+		InvitationsApiLive,
+		IdentityApiLive,
+		PayoutApiLive
+	).pipe(Layer.provide(edge));
 	return Effect.runPromiseExit(program.pipe(Effect.provide(layer)));
 }
 

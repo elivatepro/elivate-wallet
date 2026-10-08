@@ -10,7 +10,11 @@ import { SecurityState } from './security';
 export const SessionView = Schema.Struct({
 	state: SecurityState,
 	workspace: Schema.NullOr(Workspace),
-	capabilities: Schema.NullOr(Capabilities)
+	capabilities: Schema.NullOr(Capabilities),
+	/** Own name and photo flag (Blueprint 06); null when unavailable. Never cached on device. */
+	profile: Schema.NullOr(
+		Schema.Struct({ name: Schema.NullOr(Schema.String), hasPhoto: Schema.Boolean })
+	)
 });
 export type SessionView = typeof SessionView.Type;
 

@@ -47,6 +47,7 @@
 		shell.state.kind === 'ready' || shell.state.kind === 'offline' ? shell.state.summary : null
 	);
 	const uid = $derived(shell.state.kind === 'ready' ? shell.state.view.state.uid : null);
+	const person = $derived(shell.state.kind === 'ready' ? shell.state.view.profile : null);
 	const path = $derived(page.url.pathname);
 	/** Pushed pages (mobile Notifications) have their own nav bar and no tabs. */
 	const pushed = $derived(path.startsWith('/app/notifications'));
@@ -137,11 +138,15 @@
 				<DropdownMenu.Portal>
 					<DropdownMenu.Content class="popover account" sideOffset={10} align="end">
 						<div class="identity">
-							<span class="identity-avatar" aria-hidden="true"
-								><UserRound size={20} strokeWidth={1.6} /></span
-							>
+							<span class="identity-avatar" aria-hidden="true">
+								{#if person?.hasPhoto}<img src="/api/profile/photo" alt="" />{:else}<UserRound
+										size={20}
+										strokeWidth={1.6}
+									/>{/if}
+							</span>
 							<span class="identity-text">
-								{#if summary}<span class="identity-name">{summary.tenantName}</span>{/if}
+								{#if person?.name}<span class="identity-name">{person.name}</span>
+								{:else if summary}<span class="identity-name">{summary.tenantName}</span>{/if}
 								{#if uid}<span class="identity-uid">{uid}</span>{/if}
 							</span>
 						</div>
@@ -834,6 +839,7 @@
 		border-radius: var(--radius-pill);
 		background: #3a251f;
 		color: #ff9c77;
+		overflow: hidden;
 	}
 
 	:global(.identity-text) {
@@ -1073,5 +1079,12 @@
 			height: 48px;
 			padding: 0 8px;
 		}
+	}
+
+	:global(.identity-avatar img) {
+		width: 100%;
+		height: 100%;
+		border-radius: inherit;
+		object-fit: cover;
 	}
 </style>

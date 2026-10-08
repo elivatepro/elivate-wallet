@@ -210,3 +210,38 @@ export async function createConfirmedAccount(email: string, password: string, pi
 	if (!((await response.json()) as { ok: boolean }).ok) throw new Error('test PIN setup failed');
 	await supabase.auth.signOut({ scope: 'local' });
 }
+
+/** A NIN the fake provider verifies (starts with 2), unique per call. */
+export const verifiableNin = () => `2${String(Math.floor(Math.random() * 1e10)).padStart(10, '0')}`;
+
+/** 1×1 PNG for the profile photo step. */
+export const TINY_PNG = Buffer.from(
+	'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+	'base64'
+);
+
+/**
+ * Drives the wizard from the NIN step through the profile step (identity,
+ * details, photo, phone, rank). Leaves the page on whatever comes next.
+ */
+export async function completeIdentityAndProfile(page: Page) {
+	await expect(page).toHaveURL(/\/onboarding\/identity$/);
+	await page.getByLabel('National Identification Number').fill(verifiableNin());
+	// "Verify NIN", or "Try again" after a failed check.
+	await page.getByRole('button', { name: /^(Verify NIN|Try again)$/ }).click();
+	await expect(page.getByRole('heading', { name: 'Is this you?' })).toBeVisible();
+	await expect(page.getByText('Ada Nkem Obi')).toBeVisible();
+	await page.getByRole('link', { name: 'Yes, that’s me' }).click();
+	await expect(page.getByRole('heading', { name: 'Suit up your profile' })).toBeVisible();
+	// The photo field exists only when R2 storage is bound (not under vite preview).
+	const photo = page.getByLabel('Profile photo');
+	if (await photo.count()) {
+		await photo.setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: TINY_PNG });
+	}
+	await page.getByLabel('Phone number').fill('803 214 5678');
+	await page.getByRole('button', { name: /Your rank/ }).click();
+	await expect(page.getByRole('dialog', { name: 'Your rank' })).toBeVisible();
+	await page.getByRole('listbox', { name: 'Rank' }).press('ArrowDown');
+	await page.getByRole('button', { name: 'Set rank' }).click();
+	await page.getByRole('button', { name: 'Continue' }).click();
+}

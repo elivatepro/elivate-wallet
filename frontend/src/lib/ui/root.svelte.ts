@@ -18,7 +18,17 @@ export type RootPose =
 	| 'offline-empty'
 	| 'load-error'
 	| 'notifications'
-	| 'home-empty';
+	| 'home-empty'
+	| 'onboard-welcome'
+	| 'onboard-pin'
+	| 'onboard-verifying'
+	| 'onboard-retry'
+	| 'onboard-waiting'
+	| 'onboard-confirm'
+	| 'onboard-profile'
+	| 'onboard-bank'
+	| 'onboard-stop'
+	| 'onboard-done';
 
 /** Rendered Root size on mobile gate screens (Paper: 120×160, 150×200, 180×240). */
 export type RootSize = 'sm' | 'md' | 'lg';
@@ -39,7 +49,18 @@ export const ROOT_HEIGHTS: Record<RootPose, number> = {
 	'offline-empty': 523,
 	'load-error': 523,
 	notifications: 520,
-	'home-empty': 520
+	'home-empty': 520,
+	// Paper "Onboarding — Invited member" · Root — Onboarding poses.
+	'onboard-welcome': 525,
+	'onboard-pin': 525,
+	'onboard-verifying': 525,
+	'onboard-retry': 525,
+	'onboard-waiting': 525,
+	'onboard-confirm': 525,
+	'onboard-profile': 525,
+	'onboard-bank': 525,
+	'onboard-stop': 525,
+	'onboard-done': 525
 };
 
 export const rootSrc = (pose: RootPose) => `/root/${pose}.webp`;

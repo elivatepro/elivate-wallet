@@ -29,7 +29,8 @@ import {
 } from '#lib/server/cookies.js';
 import { failureOf, isBackendError, loadState, redirectForFailure } from '#lib/server/flow.js';
 import { runApi } from '#lib/server/request.js';
-import { newIdempotencyKey, openMembership } from '#lib/server/workspace.js';
+import { writeOnboardingMembership } from '#lib/server/onboarding.js';
+import { newIdempotencyKey } from '#lib/server/workspace.js';
 import { MAX_PASSWORD, MIN_PASSWORD } from '../credentials';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -162,7 +163,7 @@ export const actions: Actions = {
 		if (!session) redirect(303, JOIN_PATH);
 		const token = readJoinToken(event.cookies);
 		if (!token) return fail(410, { unavailable: true });
-		const { state } = await acceptingState(event, session);
+		await acceptingState(event, session);
 
 		const idempotencyKey = String((await event.request.formData()).get('idempotencyKey') ?? '');
 		if (!IDEMPOTENCY_KEY_PATTERN.test(idempotencyKey)) {
@@ -206,9 +207,8 @@ export const actions: Actions = {
 		}
 
 		clearJoin(event.cookies);
-		// Without a PIN the person sets it next (W-02 order); the gate decides.
-		if (state.gate !== 'ready') redirect(303, GATE_PATHS[state.gate]);
-		if (await openMembership(event, session, exit.value.membershipId)) redirect(303, '/app');
-		redirect(303, '/workspaces?switch');
+		// The first-use wizard (W-02) runs in the membership just created.
+		writeOnboardingMembership(event.cookies, exit.value.membershipId, event.locals.secureCookies);
+		redirect(303, '/onboarding');
 	}
 };

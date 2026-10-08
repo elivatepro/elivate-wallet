@@ -6,7 +6,7 @@ import { Context, Effect, Layer, Schema } from 'effect';
 import type { BackendError, ContractViolation, TransportError } from '#lib/contract/errors.js';
 import { COMMAND_TIMEOUT_MS, READ_TIMEOUT_MS, requestJson } from '#lib/contract/transport.js';
 
-export type EdgeFunction = 'security' | 'org' | 'invitations';
+export type EdgeFunction = 'security' | 'org' | 'invitations' | 'identity' | 'payout' | 'ledger';
 
 export interface EdgeRoute {
 	readonly method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';

@@ -12,13 +12,9 @@ import { InvitationsApi } from '#lib/server/apis.js';
 import type { VerifiedSession } from '#lib/server/auth.js';
 import { readJoinToken, readWorkspace } from '#lib/server/cookies.js';
 import { expectGate, failureOf, isBackendError, redirectForFailure } from '#lib/server/flow.js';
+import { onboardingIncomplete, writeOnboardingMembership } from '#lib/server/onboarding.js';
 import { runApi } from '#lib/server/request.js';
-import {
-	listWorkspaces,
-	newIdempotencyKey,
-	openMembership,
-	selectWorkspace
-} from '#lib/server/workspace.js';
+import { listWorkspaces, newIdempotencyKey, selectWorkspace } from '#lib/server/workspace.js';
 import type { Actions, PageServerLoad } from './$types';
 
 const APP_PATH = '/app';
@@ -55,6 +51,10 @@ export const load: PageServerLoad = async (event) => {
 		listInvitations(event, session)
 	]);
 	const selectable = workspaces.filter(isSelectable);
+	// Unfinished first-use setup (W-01 step 6, W-02) resumes before any workspace opens.
+	if (selectable.length > 0 && (await onboardingIncomplete(event, session))) {
+		redirect(303, '/onboarding');
+	}
 	const switching = event.url.searchParams.has('switch');
 
 	// Pending invitations keep the picker open so the person sees them.
@@ -134,7 +134,8 @@ export const actions: Actions = {
 			redirectForFailure(failure);
 		}
 
-		if (await openMembership(event, session, exit.value.membershipId)) redirect(303, APP_PATH);
-		redirect(303, '/workspaces?switch');
+		// First-use setup runs in the new membership; it skips what is already done.
+		writeOnboardingMembership(event.cookies, exit.value.membershipId, event.locals.secureCookies);
+		redirect(303, '/onboarding');
 	}
 };
