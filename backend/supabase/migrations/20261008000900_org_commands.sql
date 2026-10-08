@@ -126,6 +126,20 @@ begin
 end;
 $$;
 
+-- Session gate for organizational writes: restricted accounts may read but not
+-- change anything (Blueprint 02 B3).
+create function org.require_writer(p_user_id uuid, p_session_id uuid, p_step_up boolean default false)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if identity.require_session(p_user_id, p_session_id, p_step_up => p_step_up) <> 'active' then
+    perform identity.fail('authorization_denied', jsonb_build_object('reason', 'account_not_active'));
+  end if;
+end;
+$$;
+
 -- ── Networks ──────────────────────────────────────────────────────────────
 
 create function api.start_network(
@@ -285,11 +299,24 @@ begin
       select jsonb_agg(c.key order by c.key)
       from authz.permission_catalog c
       where (authz.decide(
-        p_user_id, c.key, workspace.tenant_id,
-        case when c.scope = 'office' then workspace.office_id end,
-        case when c.scope = 'self' then p_user_id end,
-        workspace.id
-      )->>'allowed')::boolean
+          p_user_id, c.key, workspace.tenant_id,
+          case when c.scope = 'office' then workspace.office_id end,
+          case when c.scope = 'self' then p_user_id end,
+          workspace.id
+        )->>'allowed')::boolean
+        -- Held only for specific targets: the server still checks each action.
+        or (c.scope in ('office', 'tenant') and exists (
+          select 1 from authz.access_rules r
+          join authz.access_assignments a on a.id = r.assignment_id
+          where r.tenant_id = workspace.tenant_id and r.subject_user_id = p_user_id
+            and r.permission_key = c.key and r.effect = 'allow'
+            and r.revoked_at is null and a.revoked_at is null
+            and r.starts_at <= now() and (r.expires_at is null or r.expires_at > now())
+        ))
+        or (c.scope = 'assignment' and tenant_status = 'active' and exists (
+          select 1 from authz.reviewer_assignments ra
+          where ra.membership_id = workspace.id and ra.ended_at is null
+        ))
     ), '[]'::jsonb)
   );
 end;
@@ -395,7 +422,7 @@ declare
   leader_ids uuid[] := '{}'::uuid[];
   leader_uid text;
 begin
-  perform identity.require_session(p_user_id, p_session_id);
+  perform org.require_writer(p_user_id, p_session_id);
   workspace := authz.require_workspace(p_user_id, p_membership_id);
   perform authz.require_president(workspace);
 
@@ -419,6 +446,7 @@ begin
     return replayed;
   end if;
 
+  perform org.lock_tree(workspace.tenant_id);
   insert into org.offices (tenant_id, parent_office_id, office_type, name, created_by)
   values (workspace.tenant_id, p_parent_office_id, p_type::org.office_type, clean_name, p_user_id)
   returning * into office;
@@ -461,7 +489,7 @@ declare
   request jsonb;
   replayed jsonb;
 begin
-  perform identity.require_session(p_user_id, p_session_id);
+  perform org.require_writer(p_user_id, p_session_id);
   workspace := org.change_workspace(p_user_id, p_membership_id);
   office := org.office_in_tenant(workspace.tenant_id, p_office_id);
   perform authz.require(p_user_id, 'manage_members', workspace.tenant_id, office.id, null, workspace.id);
@@ -506,7 +534,7 @@ declare
   request jsonb;
   replayed jsonb;
 begin
-  perform identity.require_session(p_user_id, p_session_id, p_step_up => true);
+  perform org.require_writer(p_user_id, p_session_id, true);
   workspace := authz.require_workspace(p_user_id, p_membership_id);
   perform authz.require_president(workspace);
   office := org.office_in_tenant(workspace.tenant_id, p_office_id);
@@ -521,6 +549,7 @@ begin
     return replayed;
   end if;
 
+  perform org.lock_tree(workspace.tenant_id);
   select * into office from org.offices where id = office.id for update;
   if office.parent_office_id is not distinct from p_parent_office_id then
     return identity.store_result(p_user_id, p_idempotency_key, 'place_office', request,
@@ -566,7 +595,7 @@ declare
   replayed jsonb;
   leader org.memberships;
 begin
-  perform identity.require_session(p_user_id, p_session_id, p_step_up => true);
+  perform org.require_writer(p_user_id, p_session_id, true);
   workspace := org.change_workspace(p_user_id, p_membership_id);
   office := org.office_in_tenant(workspace.tenant_id, p_office_id);
   leader_user_id := identity.account_by_uid(p_leader_uid);
@@ -619,7 +648,7 @@ declare
   existing record;
   incoming org.memberships;
 begin
-  perform identity.require_session(p_user_id, p_session_id, p_step_up => true);
+  perform org.require_writer(p_user_id, p_session_id, true);
   workspace := org.change_workspace(p_user_id, p_membership_id);
   office := org.office_in_tenant(workspace.tenant_id, p_office_id);
   outgoing := org.membership_in_tenant(workspace.tenant_id, p_outgoing_membership_id);
@@ -692,7 +721,7 @@ declare
   replayed jsonb;
   created org.memberships;
 begin
-  perform identity.require_session(p_user_id, p_session_id);
+  perform org.require_writer(p_user_id, p_session_id);
   workspace := org.change_workspace(p_user_id, p_membership_id);
   office := org.office_in_tenant(workspace.tenant_id, p_office_id);
   member_user_id := identity.account_by_uid(p_member_uid);
@@ -738,7 +767,7 @@ declare
   replayed jsonb;
   moved org.memberships;
 begin
-  perform identity.require_session(p_user_id, p_session_id, p_step_up => true);
+  perform org.require_writer(p_user_id, p_session_id, true);
   workspace := org.change_workspace(p_user_id, p_membership_id);
   target := org.membership_in_tenant(workspace.tenant_id, p_target_membership_id);
   if target.office_id is null then
@@ -857,7 +886,7 @@ declare
   replayed jsonb;
   updated org.memberships;
 begin
-  perform identity.require_session(p_user_id, p_session_id, p_step_up => true);
+  perform org.require_writer(p_user_id, p_session_id, true);
   workspace := org.change_workspace(p_user_id, p_membership_id);
   target := org.membership_in_tenant(workspace.tenant_id, p_target_membership_id);
   perform org.require_lifecycle_authority(p_user_id, workspace, target, 'suspend_membership');
@@ -916,7 +945,7 @@ declare
   request jsonb;
   replayed jsonb;
 begin
-  perform identity.require_session(p_user_id, p_session_id, p_step_up => true);
+  perform org.require_writer(p_user_id, p_session_id, true);
   workspace := org.change_workspace(p_user_id, p_membership_id);
   target := org.membership_in_tenant(workspace.tenant_id, p_target_membership_id);
   perform org.require_lifecycle_authority(p_user_id, workspace, target, 'end_membership');
@@ -970,13 +999,13 @@ declare
   replayed jsonb;
   created org.memberships;
 begin
-  perform identity.require_session(p_user_id, p_session_id, p_step_up => true);
+  perform org.require_writer(p_user_id, p_session_id, true);
   workspace := authz.require_workspace(p_user_id, p_membership_id);
   perform authz.require_president(workspace);
   president_user_id := identity.account_by_uid(p_member_uid);
   clean_reason := identity.require_reason(p_reason);
 
-  request := jsonb_build_object('memberUid', upper(btrim(p_member_uid)), 'reason', clean_reason);
+  request := jsonb_build_object('tenantId', workspace.tenant_id, 'memberUid', upper(btrim(p_member_uid)), 'reason', clean_reason);
   replayed := identity.replay(p_user_id, p_idempotency_key, 'add_president', request);
   if replayed is not null then
     return replayed;
@@ -1011,7 +1040,7 @@ declare
   workspace org.memberships;
   target org.memberships;
 begin
-  perform identity.require_session(p_user_id, p_session_id, p_step_up => true);
+  perform org.require_writer(p_user_id, p_session_id, true);
   workspace := authz.require_workspace(p_user_id, p_membership_id);
   perform authz.require_president(workspace);
   target := org.membership_in_tenant(workspace.tenant_id, p_target_membership_id);
@@ -1088,6 +1117,9 @@ begin
       )
       and (p_role is null or m.role = p_role::org.role)
       and (case when p_status is null then m.status <> 'ended' else m.status = p_status::org.membership_status end)
+      and (m.user_id = p_user_id
+           or (authz.decide(p_user_id, 'manage_members', workspace.tenant_id, m.office_id, m.user_id, workspace.id)->>'allowed')::boolean
+           or (authz.decide(p_user_id, 'view_managed_wallets', workspace.tenant_id, m.office_id, m.user_id, workspace.id)->>'allowed')::boolean)
       and (after is null or (to_char(m.started_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US'), m.id::text)
                             > (after->>'s', after->>'id'))
     order by m.started_at, m.id
@@ -1157,7 +1189,7 @@ declare
   replayed jsonb;
   previous boolean;
 begin
-  perform identity.require_session(p_user_id, p_session_id, p_step_up => true);
+  perform org.require_writer(p_user_id, p_session_id, true);
   workspace := org.change_workspace(p_user_id, p_membership_id);
   perform authz.require(p_user_id, 'manage_role_permissions', workspace.tenant_id, null, null, workspace.id);
   if p_role is null or p_role not in ('member', 'team_leader', 'director', 'world_team_member', 'president_team_member') then
@@ -1176,7 +1208,8 @@ begin
   end if;
   clean_reason := identity.require_reason(p_reason);
 
-  request := jsonb_build_object('role', p_role, 'permission', p_permission_key, 'allowed', p_allowed, 'reason', clean_reason);
+  request := jsonb_build_object('tenantId', workspace.tenant_id, 'role', p_role, 'permission', p_permission_key,
+    'allowed', p_allowed, 'reason', clean_reason);
   replayed := identity.replay(p_user_id, p_idempotency_key, 'set_role_permission', request);
   if replayed is not null then
     return replayed;
@@ -1233,7 +1266,7 @@ as $$
 $$;
 
 -- Can the actor manage every rule in the assignment?
-create function authz.covers_assignment(p_actor_user_id uuid, p_assignment_id uuid)
+create function authz.covers_assignment(p_actor_user_id uuid, p_assignment_id uuid, p_workspace_membership_id uuid)
 returns boolean
 language sql
 stable
@@ -1242,7 +1275,8 @@ as $$
   select not exists (
     select 1 from authz.access_rules r
     where r.assignment_id = p_assignment_id
-      and not authz.covers_scope(p_actor_user_id, r.tenant_id, r.scope_type, r.scope_office_id, r.scope_user_id)
+      and not authz.covers_scope(p_actor_user_id, r.tenant_id, r.scope_type, r.scope_office_id, r.scope_user_id,
+        p_workspace_membership_id)
   );
 $$;
 
@@ -1273,7 +1307,7 @@ begin
   from (
     select a.* from authz.access_assignments a
     where a.tenant_id = workspace.tenant_id
-      and (a.created_by = p_user_id or authz.covers_assignment(p_user_id, a.id))
+      and authz.covers_assignment(p_user_id, a.id, workspace.id)
       and (after is null or (to_char(a.created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US'), a.id::text)
                             < (after->>'c', after->>'id'))
     order by a.created_at desc, a.id desc
@@ -1322,7 +1356,7 @@ declare
   parsed jsonb := '[]'::jsonb;
   assignment_id uuid;
 begin
-  perform identity.require_session(p_user_id, p_session_id, p_step_up => true);
+  perform org.require_writer(p_user_id, p_session_id, true);
   workspace := org.change_workspace(p_user_id, p_membership_id);
   subject_user_id := identity.account_by_uid(p_subject_uid);
   if subject_user_id = p_user_id then
@@ -1386,7 +1420,7 @@ begin
       perform identity.fail('validation_error', jsonb_build_object('field', 'rules.expiresAt'));
     end if;
 
-    if not authz.covers_scope(p_user_id, workspace.tenant_id, scope_type, scope_office_id, scope_user_id) then
+    if not authz.covers_scope(p_user_id, workspace.tenant_id, scope_type, scope_office_id, scope_user_id, workspace.id) then
       perform identity.fail('scope_exceeds_authority', jsonb_build_object('permission', permission.key));
     end if;
 
@@ -1396,7 +1430,8 @@ begin
       'startsAt', rule->>'startsAt', 'expiresAt', rule->>'expiresAt');
   end loop;
 
-  request := jsonb_build_object('subjectUid', upper(btrim(p_subject_uid)), 'rules', parsed, 'reason', clean_reason);
+  request := jsonb_build_object('tenantId', workspace.tenant_id, 'subjectUid', upper(btrim(p_subject_uid)),
+    'rules', parsed, 'reason', clean_reason);
   replayed := identity.replay(p_user_id, p_idempotency_key, 'create_access_assignment', request);
   if replayed is not null then
     return replayed;
@@ -1445,7 +1480,7 @@ declare
   request jsonb;
   replayed jsonb;
 begin
-  perform identity.require_session(p_user_id, p_session_id, p_step_up => true);
+  perform org.require_writer(p_user_id, p_session_id, true);
   workspace := org.change_workspace(p_user_id, p_membership_id);
   select * into assignment from authz.access_assignments where id = p_assignment_id and tenant_id = workspace.tenant_id;
   if assignment.id is null then
@@ -1455,7 +1490,7 @@ begin
     perform identity.fail('self_target_forbidden');
   end if;
   -- Checked against the person revoking, not the original creator.
-  if not authz.covers_assignment(p_user_id, assignment.id) then
+  if not authz.covers_assignment(p_user_id, assignment.id, workspace.id) then
     perform identity.fail('scope_exceeds_authority');
   end if;
   clean_reason := identity.require_reason(p_reason);
@@ -1540,7 +1575,7 @@ declare
   replayed jsonb;
   assignment_id uuid;
 begin
-  perform identity.require_session(p_user_id, p_session_id, p_step_up => true);
+  perform org.require_writer(p_user_id, p_session_id, true);
   workspace := authz.require_workspace(p_user_id, p_membership_id);
   perform authz.require_president(workspace);
   target := org.membership_in_tenant(workspace.tenant_id, p_target_membership_id);
@@ -1592,7 +1627,7 @@ declare
   request jsonb;
   replayed jsonb;
 begin
-  perform identity.require_session(p_user_id, p_session_id, p_step_up => true);
+  perform org.require_writer(p_user_id, p_session_id, true);
   workspace := authz.require_workspace(p_user_id, p_membership_id);
   perform authz.require_president(workspace);
   select * into assignment from authz.reviewer_assignments where id = p_assignment_id and tenant_id = workspace.tenant_id;

@@ -118,7 +118,7 @@ begin
     end if;
   end if;
 
-  perform pg_advisory_xact_lock(hashtextextended('org.offices:' || new.tenant_id::text, 0));
+  perform org.lock_tree(new.tenant_id);
 
   if new.parent_office_id is not null then
     select * into parent from org.offices where id = new.parent_office_id;
@@ -345,6 +345,25 @@ as $$
   values (p_membership.tenant_id, p_membership.id, p_action, p_from_status, p_membership.status, p_reason, p_actor_user_id);
 $$;
 
+-- Serializes primary selection and handover for one person in one network.
+create function org.lock_person(p_tenant_id uuid, p_user_id uuid)
+returns void
+language sql
+set search_path = ''
+as $$
+  select pg_advisory_xact_lock(hashtextextended('org.person:' || p_tenant_id::text || ':' || p_user_id::text, 0));
+$$;
+
+-- Serializes changes to one network's office tree. Take it before any office
+-- row lock.
+create function org.lock_tree(p_tenant_id uuid)
+returns void
+language sql
+set search_path = ''
+as $$
+  select pg_advisory_xact_lock(hashtextextended('org.offices:' || p_tenant_id::text, 0));
+$$;
+
 -- Creates an active membership; it is primary when the person has none open
 -- in that network.
 create function org.create_membership(
@@ -362,6 +381,7 @@ as $$
 declare
   created org.memberships;
 begin
+  perform org.lock_person(p_tenant_id, p_user_id);
   if (select status from identity.accounts where user_id = p_user_id) <> 'active' then
     perform identity.fail('conflict', jsonb_build_object('reason', 'account_not_active'));
   end if;
@@ -393,6 +413,7 @@ returns void
 language sql
 set search_path = ''
 as $$
+  select org.lock_person(p_tenant_id, p_user_id);
   update org.memberships set is_primary = true
   where id = (
     select id from org.memberships
@@ -422,6 +443,8 @@ declare
   previous org.memberships;
   ended org.memberships;
 begin
+  select * into previous from org.memberships where id = p_membership_id;
+  perform org.lock_person(previous.tenant_id, previous.user_id);
   select * into previous from org.memberships where id = p_membership_id for update;
   update org.memberships
   set status = 'ended', ended_at = now(), ended_reason = p_reason, is_primary = false,

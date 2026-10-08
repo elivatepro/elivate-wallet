@@ -327,6 +327,7 @@ begin
       join authz.role_permissions rp
         on rp.tenant_id = m.tenant_id and rp.role = m.role and rp.permission_key = permission.key
       where m.tenant_id = p_tenant_id and m.user_id = p_actor_user_id and m.status = 'active' and rp.allowed
+        and (p_workspace_membership_id is null or m.id = p_workspace_membership_id)
     ) then
       return jsonb_build_object('allowed', true, 'reason', 'ok', 'source', 'role_policy');
     end if;
@@ -345,6 +346,10 @@ begin
       join org.memberships m on m.id = ra.membership_id
       where ra.tenant_id = p_tenant_id and ra.ended_at is null
         and m.user_id = p_actor_user_id and m.status = 'active'
+        and (p_workspace_membership_id is null or m.id = p_workspace_membership_id)
+        -- Within the reviewer's own scope; President Team reviewers cover the network.
+        and (m.office_id is null
+             or authz.office_covers(m.office_id, p_tenant_id, p_target_office_id, p_target_user_id))
     ) then
       return jsonb_build_object('allowed', true, 'reason', 'ok', 'source', 'reviewer_assignment');
     end if;
@@ -474,8 +479,9 @@ begin
 end;
 $$;
 
--- Is a proposed rule scope inside the actor's own manage_access_rules scope?
-create function authz.covers_scope(
+-- Does a deny on the actor's manage_access_rules overlap a proposed scope
+-- anywhere inside it (not just at its root)?
+create function authz.scope_has_deny(
   p_actor_user_id uuid,
   p_tenant_id uuid,
   p_scope_type text,
@@ -487,9 +493,49 @@ language sql
 stable
 set search_path = ''
 as $$
+  select exists (
+    select 1 from authz.access_rules r
+    join authz.access_assignments a on a.id = r.assignment_id
+    where r.tenant_id = p_tenant_id and r.subject_user_id = p_actor_user_id
+      and r.permission_key = 'manage_access_rules' and r.effect = 'deny'
+      and r.revoked_at is null and a.revoked_at is null and r.starts_at <= now()
+      and case p_scope_type
+        when 'tenant' then true
+        when 'office_subtree' then
+          r.scope_type = 'tenant'
+          or (r.scope_type = 'office_subtree' and exists (
+                select 1 from org.office_closure c
+                where (c.ancestor_id = p_scope_office_id and c.descendant_id = r.scope_office_id)
+                   or (c.ancestor_id = r.scope_office_id and c.descendant_id = p_scope_office_id)))
+          or (r.scope_type = 'member' and authz.office_covers(p_scope_office_id, p_tenant_id, null, r.scope_user_id))
+        else
+          r.scope_type = 'tenant'
+          or (r.scope_type = 'office_subtree' and authz.office_covers(r.scope_office_id, p_tenant_id, null, p_scope_user_id))
+          or (r.scope_type = 'member' and r.scope_user_id = p_scope_user_id)
+      end
+  );
+$$;
+
+-- Is a proposed rule scope inside the actor's own manage_access_rules scope,
+-- from the selected workspace, with no narrower deny inside it?
+create function authz.covers_scope(
+  p_actor_user_id uuid,
+  p_tenant_id uuid,
+  p_scope_type text,
+  p_scope_office_id uuid,
+  p_scope_user_id uuid,
+  p_workspace_membership_id uuid
+)
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
   select (authz.decide(
     p_actor_user_id, 'manage_access_rules', p_tenant_id,
     case when p_scope_type = 'office_subtree' then p_scope_office_id end,
-    case when p_scope_type = 'member' then p_scope_user_id end
-  )->>'allowed')::boolean;
+    case when p_scope_type = 'member' then p_scope_user_id end,
+    p_workspace_membership_id
+  )->>'allowed')::boolean
+  and not authz.scope_has_deny(p_actor_user_id, p_tenant_id, p_scope_type, p_scope_office_id, p_scope_user_id);
 $$;

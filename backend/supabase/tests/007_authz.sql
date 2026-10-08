@@ -2,7 +2,7 @@
 -- workspace and replay.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(38);
+select plan(44);
 
 create function pg_temp.u(n int) returns uuid language sql immutable as
   $$ select ('10000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
@@ -198,6 +198,66 @@ select ok(
   (api.my_capabilities(pg_temp.u(4), pg_temp.s(4), pg_temp.m(4, pg_temp.id('T')))->'permissions') ? 'view_own_wallet'
   and not ((api.my_capabilities(pg_temp.u(4), pg_temp.s(4), pg_temp.m(4, pg_temp.id('T')))->'permissions') ? 'move_membership'),
   'capabilities list what the workspace allows'
+);
+
+-- ── Review fixes (PR #3) ──
+select ok(not pg_temp.allowed(3, 'review_financial_evidence', null, 2), 'a scoped reviewer cannot review outside their subtree');
+
+do $$ begin
+  perform api.create_access_assignment(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.uid(2),
+    jsonb_build_array(
+      jsonb_build_object('permission', 'manage_members', 'effect', 'deny', 'scopeType', 'member', 'scopeUid', pg_temp.uid(7)),
+      jsonb_build_object('permission', 'view_managed_wallets', 'effect', 'deny', 'scopeType', 'member', 'scopeUid', pg_temp.uid(7))),
+    'Privacy request', pg_temp.k());
+end $$;
+select ok(
+  not exists (
+    select 1 from jsonb_array_elements(api.list_members(pg_temp.u(2), pg_temp.s(2), pg_temp.m(2, pg_temp.id('W')))->'items') i
+    where i->'person'->>'uid' = pg_temp.uid(7)
+  )
+  and exists (
+    select 1 from jsonb_array_elements(api.list_members(pg_temp.u(2), pg_temp.s(2), pg_temp.m(2, pg_temp.id('W')))->'items') i
+    where i->'person'->>'uid' = pg_temp.uid(6)
+  ),
+  'member lists hide people the viewer is denied'
+);
+
+do $$ begin
+  perform api.create_access_assignment(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.uid(2),
+    jsonb_build_array(jsonb_build_object('permission', 'manage_access_rules', 'effect', 'deny',
+      'scopeType', 'office_subtree', 'scopeOfficeId', pg_temp.id('T2'))),
+    'Team B handled centrally', pg_temp.k());
+end $$;
+select throws_ok(
+  $$ select api.create_access_assignment(pg_temp.u(2), pg_temp.s(2), pg_temp.m(2, pg_temp.id('W')), pg_temp.uid(3),
+       jsonb_build_array(jsonb_build_object('permission', 'record_income', 'effect', 'allow', 'scopeType', 'office_subtree', 'scopeOfficeId', pg_temp.id('D'))),
+       'Wide grant', pg_temp.k()) $$,
+  'P0001', 'scope_exceeds_authority', 'a broad rule cannot cover a narrower deny inside it'
+);
+
+-- A leader who is also a plain member elsewhere cannot use the member
+-- workspace to manage access with leader authority (A-02).
+do $$ begin
+  perform api.set_role_permission(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), 'team_leader', 'manage_access_rules', true, 'Pilot', pg_temp.k());
+  perform api.add_membership(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.id('T'), pg_temp.uid(5), pg_temp.k());
+end $$;
+select throws_ok(
+  $$ select api.create_access_assignment(pg_temp.u(5), pg_temp.s(5), pg_temp.m(5, pg_temp.id('T')), pg_temp.uid(7),
+       jsonb_build_array(jsonb_build_object('permission', 'record_income', 'effect', 'allow', 'scopeType', 'office_subtree', 'scopeOfficeId', pg_temp.id('T2'))),
+       'From the wrong workspace', pg_temp.k()) $$,
+  'P0001', 'scope_exceeds_authority', 'access management stays inside the selected workspace'
+);
+select lives_ok(
+  $$ select api.create_access_assignment(pg_temp.u(5), pg_temp.s(5), pg_temp.m(5, pg_temp.id('T2')), pg_temp.uid(7),
+       jsonb_build_array(jsonb_build_object('permission', 'record_income', 'effect', 'allow', 'scopeType', 'office_subtree', 'scopeOfficeId', pg_temp.id('T2'))),
+       'From the leader workspace', pg_temp.k()) $$,
+  'the same rule works from the leader workspace'
+);
+
+update identity.accounts set status = 'restricted' where user_id = pg_temp.u(1);
+select throws_ok(
+  $$ select api.create_office(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), 'team_leader', 'Restricted', null, array[pg_temp.uid(6)], pg_temp.k()) $$,
+  'P0001', 'authorization_denied', 'restricted accounts cannot make organizational changes'
 );
 
 select * from finish();
