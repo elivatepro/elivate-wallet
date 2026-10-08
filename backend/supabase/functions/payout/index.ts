@@ -1,6 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 import { createAccountCrypto } from "../_shared/account_crypto.ts";
-import { type NameLookupProvider, paystackProvider } from "../_shared/name_lookup.ts";
+import {
+  localTestOrigin,
+  type NameLookupProvider,
+  paystackProvider,
+} from "../_shared/name_lookup.ts";
 import { type Actor, createHandler } from "./handler.ts";
 
 function env(name: string): string {
@@ -30,7 +34,8 @@ function provider(): NameLookupProvider | null {
     return null;
   }
   try {
-    return paystackProvider(key);
+    const testOrigin = localTestOrigin(Deno.env.get("PAYSTACK_TEST_ORIGIN"));
+    return paystackProvider(key, testOrigin ? { origin: testOrigin } : {});
   } catch {
     console.log(JSON.stringify({ event: "paystack_key_malformed" }));
     return null;

@@ -49,7 +49,10 @@ export const ERROR_CODES = [
 	'payout_lookup_expired',
 	'payout_name_mismatch',
 	'payout_account_exists',
-	'payout_account_unusable'
+	'payout_account_unusable',
+	'nin_not_verified',
+	'nin_in_use',
+	'nin_review_required'
 ] as const;
 
 export const ErrorCode = Schema.Literals(ERROR_CODES);
@@ -153,6 +156,8 @@ export function categorize(error: ApiFailure): FailureCategory {
 				case 'payout_lookup_expired':
 				case 'payout_account_exists':
 				case 'payout_account_unusable':
+				case 'nin_in_use':
+				case 'nin_review_required':
 					return 'conflict';
 				case 'currency_not_supported':
 				case 'policy_invalid':
@@ -161,6 +166,7 @@ export function categorize(error: ApiFailure): FailureCategory {
 				case 'bank_unknown':
 				case 'account_not_found':
 				case 'payout_name_mismatch':
+				case 'nin_not_verified':
 					return 'validation';
 				case 'not_found':
 				case 'invitation_unavailable':
