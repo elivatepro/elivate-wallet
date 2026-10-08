@@ -59,13 +59,15 @@ as $$
 declare
   credential identity.pin_credentials;
 begin
-  -- Gate `ready`: a session that still owes its PIN unlocks first.
-  perform identity.require_session(p_user_id, p_session_id);
+  perform identity.require_live_session(p_user_id, p_session_id);
   if p_current_pin_hmac is null or p_current_pin_hmac !~ '^[0-9a-f]{64}$' then
     perform identity.fail('validation_error', jsonb_build_object('field', 'currentPin'));
   end if;
   perform identity.check_pin_hmac(p_new_pin_hmac);
 
+  -- Lock order: the credential first, then PIN proofs (same as verify_pin and
+  -- complete_pin_reset), so two devices changing the PIN at once queue on the
+  -- credential instead of deadlocking on each other's proofs.
   select * into credential from identity.pin_credentials
   where user_id = p_user_id
   for update;
@@ -75,6 +77,8 @@ begin
   if credential.locked_at is not null then
     perform identity.fail('pin_locked');
   end if;
+  -- Gate `ready`: a session that still owes its PIN unlocks first.
+  perform identity.require_session(p_user_id, p_session_id);
 
   if extensions.crypt(p_current_pin_hmac, credential.pin_hash) <> credential.pin_hash then
     return identity.record_wrong_pin(p_user_id, p_session_id, credential.failed_attempts, p_request_id);

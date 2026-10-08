@@ -314,7 +314,7 @@
 		}
 
 		.who {
-			flex: 0 0 340px;
+			flex: 0 1 340px;
 		}
 
 		.name {
@@ -328,12 +328,20 @@
 
 		.activity {
 			display: block;
-			flex: 1;
+			flex: 1 1 0%;
+			min-width: 0;
 			color: var(--color-muted);
 			font-size: 13px;
 			line-height: var(--leading-16);
 		}
 
+		.lane {
+			min-width: 96px;
+		}
+	}
+
+	/* The 200 px action lane of Paper S03 once the row has room for it. */
+	@media (min-width: 1280px) {
 		.lane {
 			width: 200px;
 		}

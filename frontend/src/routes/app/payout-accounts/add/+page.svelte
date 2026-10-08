@@ -47,6 +47,11 @@
 		{}
 	);
 	let reason = $state('');
+	/**
+	 * Set when a replacement save's outcome is unknown: the reason stays as
+	 * sent so the retry replays the same request with the same key (W-00).
+	 */
+	let reasonLocked = $state(false);
 	let formError = $state<string | null>(null);
 	/** Bumped to remount the inputs (clears the number and PIN). */
 	let formId = $state(0);
@@ -150,6 +155,7 @@
 			lookup = exit.value;
 			lookupFor = '';
 			confirmKey = newKey();
+			reasonLocked = false;
 			needPin = false;
 			errors = {};
 			return;
@@ -206,7 +212,12 @@
 			formError = payoutMessage(failure, 'confirm');
 			return;
 		}
-		if (isRefusal(failure)) confirmKey = newKey();
+		if (isRefusal(failure)) {
+			confirmKey = newKey();
+			reasonLocked = false;
+		} else {
+			reasonLocked = true;
+		}
 		formError = payoutMessage(failure, 'confirm');
 	}
 
@@ -305,6 +316,7 @@
 									name="reason"
 									rows="3"
 									maxlength="500"
+									readonly={reasonLocked}
 									bind:value={reason}
 									aria-invalid={errors.reason ? 'true' : undefined}
 									aria-describedby={errors.reason ? 'reason-error' : undefined}></textarea>
