@@ -56,7 +56,6 @@ insert into ids
 select 'T', (api.create_office(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), 'team_leader', 'Team A', pg_temp.id('D'), array[pg_temp.uid(4)], pg_temp.k())->>'officeId')::uuid;
 do $$ begin
   perform api.add_membership(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.id('T'), pg_temp.uid(6), pg_temp.k());
-  perform ledger.backfill_wallets();
 end $$;
 
 insert into ids values ('pv', pg_temp.seg('Point Value')), ('sav', pg_temp.seg('Savings')),

@@ -1,7 +1,9 @@
--- Blueprint 04 — B6 041: wallet creation (D-01), the membership hook and backfill.
+-- Blueprint 04 — B6 041: wallet creation (D-01) through the membership hook
+-- (org.create_membership → org.on_membership_created → ledger.ensure_wallet),
+-- invitation acceptance, and the backfill.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(11);
+select plan(14);
 
 create function pg_temp.u(n int) returns uuid language sql immutable as
   $$ select ('10000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
@@ -20,9 +22,10 @@ create function pg_temp.m(n int, p_office uuid default null) returns uuid langua
   order by started_at desc, id limit 1
 $$;
 
--- 1 founder (President only) · 4 Team Leader · 6, 7 members · 9 other founder · 10 admin
-insert into auth.users (id, email, aud, role)
-select pg_temp.u(n), 'u' || n || '@example.test', 'authenticated', 'authenticated' from generate_series(1, 10) n;
+-- 1 founder (President only) · 4 Team Leader in two networks · 6 member · 7 invitee
+-- 8 pre-hook member · 9 other founder · 10 admin
+insert into auth.users (id, email, aud, role, email_confirmed_at)
+select pg_temp.u(n), 'u' || n || '@example.test', 'authenticated', 'authenticated', now() from generate_series(1, 10) n;
 insert into auth.sessions (id, user_id, created_at, updated_at)
 select pg_temp.s(n), pg_temp.u(n), now(), now() from generate_series(1, 10) n;
 do $$ begin perform api.set_pin(pg_temp.u(n), pg_temp.s(n), repeat('a', 64)) from generate_series(1, 10) n; end $$;
@@ -35,45 +38,50 @@ do $$ begin
   perform api.activate_tenant(pg_temp.u(10), pg_temp.s(10), pg_temp.id('tenant'), 'Pilot', pg_temp.k());
   perform api.activate_tenant(pg_temp.u(10), pg_temp.s(10), pg_temp.id('other'), 'Pilot', pg_temp.k());
 end $$;
+
+-- ── President-only accounts ──
+select is(ledger.wallet_for(pg_temp.u(1)), null, 'starting a network creates no wallet for the founder');
+select throws_ok($$ select ledger.require_wallet(pg_temp.u(1)) $$, 'P0001', 'no_wallet', 'require_wallet explains the missing wallet');
+select is(ledger.ensure_wallet(pg_temp.u(1)), null, 'ensure_wallet creates nothing for a President-only account');
+
+-- ── Through org.create_membership ──
 insert into ids
 select 'T', (api.create_office(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), 'team_leader', 'Team A', null, array[pg_temp.uid(4)], pg_temp.k())->>'officeId')::uuid;
-insert into ids
-select 'O', (api.create_office(pg_temp.u(9), pg_temp.s(9), pg_temp.m(9), 'team_leader', 'Abuja Team', null, array[pg_temp.uid(4)], pg_temp.k())->>'officeId')::uuid;
+select isnt(ledger.wallet_for(pg_temp.u(4)), null, 'a leader named when an office is created gets a wallet');
 do $$ begin
   perform api.add_membership(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.id('T'), pg_temp.uid(6), pg_temp.k());
 end $$;
+select isnt(ledger.wallet_for(pg_temp.u(6)), null, 'adding a member creates their wallet');
+select is(ledger.ensure_wallet(pg_temp.u(6)), ledger.wallet_for(pg_temp.u(6)), 'ensure_wallet is idempotent');
+insert into ids
+select 'O', (api.create_office(pg_temp.u(9), pg_temp.s(9), pg_temp.m(9), 'team_leader', 'Abuja Team', null, array[pg_temp.uid(4)], pg_temp.k())->>'officeId')::uuid;
+select is((select count(*)::int from ledger.wallets where owner_user_id = pg_temp.u(4)), 1,
+  'a second membership in another network creates no second wallet');
 
--- ── Eligibility and idempotency ──
-select is(ledger.ensure_wallet(pg_temp.u(1)), null, 'a President-only account gets no wallet');
-select throws_ok($$ select ledger.require_wallet(pg_temp.u(1)) $$, 'P0001', 'no_wallet', 'require_wallet explains the missing wallet');
-select is(ledger.ensure_wallet(pg_temp.u(6)), ledger.ensure_wallet(pg_temp.u(6)), 'ensure_wallet is idempotent');
-
--- ── The membership hook (Track A calls it from org.create_membership) ──
+-- ── Invitation acceptance (Blueprint 03) ──
 do $$ begin
-  perform org.on_membership_created(m) from org.memberships m where m.user_id = pg_temp.u(9);
+  perform api.create_invitation(pg_temp.u(4), pg_temp.s(4), pg_temp.m(4, pg_temp.id('T')), pg_temp.id('T'), 'member',
+    'u7@example.test', gen_random_uuid(), encode(sha256('t7'::bytea), 'hex'), null, pg_temp.k());
 end $$;
-select is(ledger.wallet_for(pg_temp.u(9)), null, 'the hook creates nothing for a President Team membership');
+select is(ledger.wallet_for(pg_temp.u(7)), null, 'an invitation alone creates no wallet');
 do $$ begin
-  perform api.add_membership(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.id('T'), pg_temp.uid(7), pg_temp.k());
-  perform org.on_membership_created(m) from org.memberships m where m.user_id = pg_temp.u(7);
+  perform api.accept_invitation(pg_temp.u(7), pg_temp.s(7), encode(sha256('t7'::bytea), 'hex'), null, pg_temp.k());
 end $$;
-select isnt(ledger.wallet_for(pg_temp.u(7)), null, 'the hook creates the wallet for a member');
+select isnt(ledger.wallet_for(pg_temp.u(7)), null, 'accepting an invitation creates the wallet');
 
--- ── Backfill ──
-select ok(ledger.backfill_wallets() >= 1, 'backfill creates the missing wallets');
-select is(ledger.backfill_wallets(), 0, 'backfill is idempotent');
-select is(
-  (select count(*)::int from ledger.wallets where owner_user_id in (pg_temp.u(4), pg_temp.u(6), pg_temp.u(7))),
-  3, 'one wallet per eligible person, whatever their number of memberships (Team Leader 4 leads in two networks)'
-);
-
--- A founder who is also added as a member gets a wallet.
+-- A President who is also added as a member gets a wallet.
 do $$ begin
   perform api.add_membership(pg_temp.u(4), pg_temp.s(4), pg_temp.m(4, pg_temp.id('T')), pg_temp.id('T'), pg_temp.uid(1), pg_temp.k());
 end $$;
-select isnt(ledger.ensure_wallet(pg_temp.u(1)), null, 'a President who becomes a member gets a wallet');
+select isnt(ledger.wallet_for(pg_temp.u(1)), null, 'a President who becomes a member gets a wallet');
 
--- Ending every membership keeps the wallet (W-05).
+-- ── Backfill: only memberships created before the hook existed ──
+select is(ledger.backfill_wallets(), 0, 'the hook leaves nothing to backfill');
+insert into org.memberships (tenant_id, office_id, user_id, role, created_by)
+values (pg_temp.id('tenant'), pg_temp.id('T'), pg_temp.u(8), 'member', pg_temp.u(1));
+select is(ledger.backfill_wallets(), 1, 'backfill creates the wallet of a membership that bypassed the hook, once');
+
+-- ── Wallets outlive memberships (W-05) ──
 do $$ begin
   perform api.end_membership(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.m(6, pg_temp.id('T')), 'Left the team', pg_temp.k());
 end $$;

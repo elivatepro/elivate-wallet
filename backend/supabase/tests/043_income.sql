@@ -79,7 +79,6 @@ do $$ begin
   perform api.add_membership(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.id('T2'), pg_temp.uid(7), pg_temp.k());
   perform api.add_membership(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.id('T'), pg_temp.uid(8), pg_temp.k());
   perform api.add_membership(pg_temp.u(9), pg_temp.s(9), pg_temp.m(9), pg_temp.id('O'), pg_temp.uid(12), pg_temp.k());
-  perform ledger.backfill_wallets();
 end $$;
 insert into ids values ('m6', pg_temp.m(6, pg_temp.id('T'))), ('m7', pg_temp.m(7, pg_temp.id('T2'))),
   ('m8', pg_temp.m(8, pg_temp.id('T'))), ('m12', pg_temp.m(12, pg_temp.id('O')));

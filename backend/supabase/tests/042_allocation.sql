@@ -53,7 +53,6 @@ insert into ids
 select 'D', (api.create_office(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), 'director', 'Ikeja', null, array[pg_temp.uid(3)], pg_temp.k())->>'officeId')::uuid;
 do $$ begin
   perform api.add_membership(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.id('D'), pg_temp.uid(6), pg_temp.k());
-  perform ledger.backfill_wallets();
 end $$;
 
 -- ── Seeding at activation (Q1, Q3) ──
