@@ -185,6 +185,8 @@ Store exact allocated lines/policy and structured facts separately from receipts
 
 **Recovery:** Keep attempt ID before dispatch. Unknown outcome cannot start a replacement attempt. Approved cancellation serializes against posting and either recovers the committed result under current authority or permanently cancels the unposted attempt. Clean up expired unposted uploads safely.
 
+**Built (2026-10-08, Blueprint 09):** member/leader UI at `/app/income` (Paper T02/T05): exact split preview mirroring the server allocation, receipts uploaded and byte-verified on confirm with the PIN, `INC` result, and unknown-outcome recovery (same-key re-check or trusted cancel) that survives reload.
+
 **Acceptance:** Missing evidence/invalid target/self-target/absent policy denies without money. Policy change does not recalculate posted allocations. Concurrent/replayed income posts once. Later correction uses W-15 then a new ordinary Income, never mutable balances or current-policy reversal.
 
 ## W-09 — Withdrawal request, approval, rejection and cancellation
