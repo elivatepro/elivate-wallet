@@ -103,23 +103,13 @@ tbody tr:last-child td{border-bottom-color:#D8DDDE}
 .members .uid{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;color:#8A9396}
 .members td{padding:11px 0}`;
 
-function pageCss(
-	footerLeft: string,
-	footerRight: string,
-	headLeft: string,
-	headRight: string
-): string {
-	const box =
-		'font-family:Lexend,system-ui,sans-serif;font-size:11px;line-height:16px;color:#8A9396;vertical-align:top;padding-top:12px;border-top:1px solid #E6E9EA';
-	const head =
-		'font-family:Lexend,system-ui,sans-serif;font-size:12px;line-height:16px;color:#5E686B;vertical-align:bottom;padding-bottom:14px;border-bottom:1px solid #D8DDDE';
-	return `
-@page{size:A4;margin:48px 56px 64px 56px;
-@bottom-left{content:${cssString(footerLeft)};width:68%;${box}}
-@bottom-right{content:${cssString(footerRight)} " · Page " counter(page) " of " counter(pages);width:32%;text-align:right;${box}}
-@top-left{content:${cssString(headLeft)};width:62%;${head};color:#212628;font-weight:500;font-size:13px}
-@top-right{content:${cssString(headRight)};width:38%;text-align:right;${head}}}
-@page:first{@top-left{content:none;border:0}@top-right{content:none;border:0}}`;
+/**
+ * A4 with Paper's margins. Page numbers come from the renderer's footer
+ * template (Chrome's own header/footer), which Cloudflare's browser and local
+ * Chromium both draw; CSS @page margin boxes are not supported everywhere.
+ */
+function pageCss(): string {
+	return '@page{size:A4;margin:48px 56px 64px 56px}';
 }
 
 function document(title: string, css: string, body: string): string {
@@ -291,12 +281,7 @@ export function statementHtml(summary: StatementSummary, rows: readonly TxnRow[]
 		other
 	)} activity is on a separate statement.${p.cutShort ? ` This period had not ended: figures are as of ${e(watDateTime(p.asOf))}.` : ''}</div>`;
 
-	const css = pageCss(
-		footerFor(summary.network.name),
-		summary.reference,
-		`Account statement · ${name} · ${person?.uid ?? ''}`,
-		`${periodRange(p).replace(/([A-Z][a-z]{2})[a-z]+/, '$1')} · ${c}`
-	);
+	const css = pageCss();
 	return document(
 		`${summary.reference} · Account statement`,
 		css,
@@ -431,12 +416,7 @@ export function reportHtml(summary: ReportSummary, members: readonly MemberFigur
 				.join('')}</tbody></table></div>`
 		: '';
 
-	const css = pageCss(
-		footerFor(summary.network.name, 'Confidential to office leadership'),
-		summary.reference,
-		`${title} · ${scopeName}`,
-		`${periodRange(p).replace(/([A-Z][a-z]{2})[a-z]+/, '$1')} · ${c}`
-	);
+	const css = pageCss();
 	return document(
 		`${summary.reference} · ${title}`,
 		css,
