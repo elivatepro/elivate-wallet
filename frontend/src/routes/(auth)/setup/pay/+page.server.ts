@@ -23,9 +23,13 @@ export const load: PageServerLoad = async (event) => {
 	const { session } = await expectGate(event, 'ready');
 	const membershipId = readWorkspace(event.cookies);
 	if (!membershipId) redirect(303, '/setup');
-	const remembered = event.cookies.get(KEY_COOKIE);
+	// The cookie holds "<membership>:<key>": a key is never replayed for another
+	// network (the request names the membership).
+	const [rememberedFor, remembered] = (event.cookies.get(KEY_COOKIE) ?? '').split(':');
 	const firstKey =
-		remembered && IDEMPOTENCY_KEY_PATTERN.test(remembered) ? remembered : newIdempotencyKey();
+		rememberedFor === membershipId && remembered && IDEMPOTENCY_KEY_PATTERN.test(remembered)
+			? remembered
+			: newIdempotencyKey();
 	let usedKey = firstKey;
 	const exit = await runApi(
 		event,
@@ -44,7 +48,7 @@ export const load: PageServerLoad = async (event) => {
 			return { view, checkout };
 		})
 	);
-	event.cookies.set(KEY_COOKIE, usedKey, {
+	event.cookies.set(KEY_COOKIE, `${membershipId}:${usedKey}`, {
 		path: '/setup',
 		httpOnly: true,
 		sameSite: 'lax',

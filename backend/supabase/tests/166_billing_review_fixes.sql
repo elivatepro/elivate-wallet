@@ -2,7 +2,7 @@
 -- smaller band (paused reads that share command checks: 163).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(6);
+select plan(7);
 
 create function pg_temp.u(n int) returns uuid language sql immutable as
   $$ select ('10000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
@@ -74,6 +74,11 @@ update billing.subscriptions set next_plan_id = (billing.plan('band_400')).id, p
 where tenant_id = pg_temp.id('t');
 select is(pg_temp.fails($$ select api.add_membership(pg_temp.u(1), pg_temp.s(1), pg_temp.ws(1), pg_temp.id('WT'), pg_temp.uid(4), pg_temp.k()) $$),
   'conflict:seat_limit_reached', 'a paid smaller year caps seats now');
+
+-- ── Adoption filter (1) ──
+update billing.subscriptions set provider_subscription_code = 'SUB_mine00001' where tenant_id = pg_temp.id('t');
+select is(api.billing_unclaimed_subscriptions(gen_random_uuid(), array['SUB_mine00001', 'SUB_free00001']),
+  '["SUB_free00001"]'::jsonb, 'another network never adopts a subscription this one recorded');
 
 select * from finish();
 rollback;

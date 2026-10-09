@@ -567,11 +567,21 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
             startDate: start.toISOString(),
           });
           if (existing.kind === "unavailable") throw new Error("lookup failed");
-          const created = existing.kind === "found"
+          // Only one no other network has recorded (a payer may hold several).
+          let adopt: { subscriptionCode: string; emailToken: string | null } | undefined;
+          if (existing.kind === "found") {
+            const free = await rpc("billing_unclaimed_subscriptions", {
+              p_tenant_id: tenantId,
+              p_codes: existing.candidates.map((c) => c.subscriptionCode),
+            });
+            const unclaimed = new Set(Array.isArray(free) ? free : []);
+            adopt = existing.candidates.find((c) => unclaimed.has(c.subscriptionCode));
+          }
+          const created = adopt
             ? {
               kind: "ok" as const,
-              subscriptionCode: existing.subscriptionCode,
-              emailToken: existing.emailToken,
+              subscriptionCode: adopt.subscriptionCode,
+              emailToken: adopt.emailToken,
             }
             : await paystack.createSubscription({
               customerCode: job.customerCode,

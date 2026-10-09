@@ -85,7 +85,13 @@ function fakePaystack(verify: (ref: string) => VerifyOutcome = () => charge()): 
       calls.push(`find:${input.customerCode}:${input.amountKobo}`);
       return Promise.resolve(
         input.customerCode === "CUS_adopt0001"
-          ? { kind: "found", subscriptionCode: "SUB_adopted01", emailToken: "tokA" }
+          ? {
+            kind: "found",
+            candidates: [
+              { subscriptionCode: "SUB_othernet1", emailToken: "tokB" },
+              { subscriptionCode: "SUB_adopted01", emailToken: "tokA" },
+            ],
+          }
           : { kind: "none" },
       );
     },
@@ -480,6 +486,8 @@ Deno.test("a subscription created by an uncertain earlier attempt is adopted, no
         emailToken: null,
       }]);
     }
+    // SUB_othernet1 already belongs to another network of the same payer.
+    if (fn === "billing_unclaimed_subscriptions") return ok(["SUB_adopted01"]);
     return ok({});
   }, paystack);
   await handler(

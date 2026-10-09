@@ -31,6 +31,11 @@ export type SubscriptionOutcome =
   | { readonly kind: "no_card" }
   | { readonly kind: "unavailable" };
 
+export interface FoundSubscription {
+  readonly subscriptionCode: string;
+  readonly emailToken: string | null;
+}
+
 export interface PaystackBilling {
   readonly environment: Environment;
   initialize(input: {
@@ -60,11 +65,7 @@ export interface PaystackBilling {
     readonly amountKobo: number;
     readonly startDate: string;
   }): Promise<
-    | {
-      readonly kind: "found";
-      readonly subscriptionCode: string;
-      readonly emailToken: string | null;
-    }
+    | { readonly kind: "found"; readonly candidates: readonly FoundSubscription[] }
     | { readonly kind: "none" }
     | { readonly kind: "unavailable" }
   >;
@@ -372,6 +373,7 @@ export function paystackBilling(
         const data = object(body?.data);
         if (status !== 200 || body?.status !== true || !data) return { kind: "unavailable" };
         const day = input.startDate.slice(0, 10);
+        const candidates: { subscriptionCode: string; emailToken: string | null }[] = [];
         for (const item of Array.isArray(data.subscriptions) ? data.subscriptions : []) {
           const sub = object(item);
           const code = str(sub?.subscription_code, codePattern("SUB"));
@@ -380,14 +382,13 @@ export function paystackBilling(
             code && sub?.status === "active" && sub?.amount === input.amountKobo && next &&
             next.slice(0, 10) === day
           ) {
-            return {
-              kind: "found",
+            candidates.push({
               subscriptionCode: code,
               emailToken: str(sub?.email_token, /^[A-Za-z0-9_-]{1,100}$/),
-            };
+            });
           }
         }
-        return { kind: "none" };
+        return candidates.length > 0 ? { kind: "found", candidates } : { kind: "none" };
       } catch {
         return { kind: "unavailable" };
       }

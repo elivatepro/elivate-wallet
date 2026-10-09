@@ -297,3 +297,24 @@ begin
   end loop;
 end;
 $$;
+
+-- ── 4. Adopting a subscription after an uncertain create ──────────────────
+
+-- The candidates Paystack lists for a payer that no other network has
+-- recorded: one payer may hold subscriptions for several networks.
+create function api.billing_unclaimed_subscriptions(p_tenant_id uuid, p_codes text[])
+returns jsonb
+language sql
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(c.code), '[]'::jsonb)
+  from unnest(coalesce(p_codes, array[]::text[])) as c(code)
+  where not exists (
+    select 1 from billing.subscriptions s
+    where s.provider_subscription_code = c.code and s.tenant_id <> p_tenant_id
+  );
+$$;
+
+revoke all on function api.billing_unclaimed_subscriptions(uuid, text[]) from public, anon, authenticated;
+grant execute on function api.billing_unclaimed_subscriptions(uuid, text[]) to service_role;
