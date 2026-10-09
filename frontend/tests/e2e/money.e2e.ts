@@ -91,8 +91,10 @@ test('a member searches and filters activity and opens a transaction', async ({ 
 
 	await page.getByLabel('Search activity').fill('');
 	await page.getByRole('button', { name: 'Money out' }).click();
-	await expect(page.getByText('Nothing matches these filters.')).toBeVisible();
-	await page.getByRole('button', { name: 'All', exact: true }).click();
+	await expect(page.getByRole('heading', { name: 'Nothing matches' })).toBeVisible();
+	await expectAccessible(page);
+	await page.getByRole('button', { name: 'Clear filters' }).click();
+	await expect(list.getByRole('button', { name: /Fiverr/ })).toHaveCount(2);
 
 	// Mobile: the full-page detail (M05).
 	await page.setViewportSize({ width: 320, height: 720 });
@@ -120,6 +122,12 @@ test('the President sees the team overview and opens a member wallet', async ({ 
 	await page.goto('/app/wallets');
 	await page.getByRole('link', { name: /₦3,500\.00/ }).click();
 	await expect(page).toHaveURL(/wallet=/);
+	// Q05: per-pocket breakdown (default split of ₦3,500.00: Point Value 40%).
+	await expect(
+		page.getByRole('region', { name: 'Pockets' }).getByText('₦1,400.00').first()
+	).toBeVisible();
+	await expectAccessible(page);
+	await page.getByRole('link', { name: 'View all' }).click();
 	await expect(page.locator('.list').getByRole('button', { name: /Fiverr/ })).toHaveCount(2);
 });
 
