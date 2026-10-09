@@ -111,7 +111,7 @@ begin
     'periodEnd', s.period_end,
     'lastDay', case when s.period_end is not null then billing.last_day(s.period_end) end,
     'daysLeft', case when s.period_end is not null and s.status in ('trial', 'active')
-                     then billing.days_left(s.period_end) + 1 end,
+                     then billing.days_left(s.period_end) end,
     'pausedAt', s.paused_at,
     'seats', jsonb_build_object('used', billing.seats_used(p_tenant_id), 'cap', billing.seat_cap(s)),
     'autoRenew', s.auto_renew,
@@ -375,7 +375,8 @@ security definer
 set search_path = ''
 as $$
 begin
-  if p_authorization_url is null or p_authorization_url !~ '^https?://[^\s]{1,500}$' then
+  if p_authorization_url is null or length(p_authorization_url) > 500
+     or p_authorization_url !~ '^https?://[^\s]+$' then
     perform identity.fail('validation_error', jsonb_build_object('field', 'authorizationUrl'));
   end if;
   update billing.payments

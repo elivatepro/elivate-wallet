@@ -14,6 +14,7 @@ import {
 } from './apis';
 import { IdentityApi, IdentityApiLive, PayoutApi, PayoutApiLive } from './apis-identity';
 import { IncomeApi, IncomeApiLive } from './apis-income';
+import { BillingApi, BillingApiLive } from './apis-billing';
 import { ExportsApi, ExportsApiLive } from './apis-exports';
 import { LedgerApi, LedgerApiLive } from './apis-ledger';
 import { OrgAdminApi, OrgAdminApiLive } from './apis-org';
@@ -32,7 +33,8 @@ export type ApiServices =
 	| IncomeApi
 	| OrgAdminApi
 	| MoneyMovesApi
-	| ExportsApi;
+	| ExportsApi
+	| BillingApi;
 
 /**
  * `session` null runs without a bearer token: only the public invitation
@@ -60,6 +62,7 @@ export function runApi<A>(
 		PayoutApiLive,
 		LedgerApiLive,
 		ExportsApiLive,
+		BillingApiLive,
 		IncomeApiLive({
 			supabaseUrl: config.supabaseUrl,
 			publishableKey: config.publishableKey,

@@ -94,7 +94,7 @@ describe('labels', () => {
 		expect(auditSentence({ action: 'role_permission.changed', after: { allowed: false } })).toBe(
 			'Removed a role permission'
 		);
-		expect(auditSentence({ action: 'billing.paid', after: null })).toBe('billing · paid');
+		expect(auditSentence({ action: 'widget.paid', after: null })).toBe('widget · paid');
 		expect(auditFacts({ status: 'closed', nested: { a: 1 }, n: null })).toEqual([
 			['status', 'closed'],
 			['n', '—']

@@ -6,6 +6,11 @@
 // Cloudflare Email Sending (Blueprint 13): each message the outbox worker
 // sends is handed to the local mail catcher (Mailpit); nothing leaves the
 // machine.
+// Paystack plan purchases (Blueprint 16): initialize returns a local "hosted
+// checkout" page; paying there marks the transaction successful, posts a
+// signed charge.success webhook to the local billing function and sends the
+// payer back. Verify answers from the same store. Synthetic data only.
+import { createHmac } from 'node:crypto';
 import { createServer } from 'node:http';
 
 const mailpit = process.env.MAILPIT_URL ?? 'http://127.0.0.1:54324';
@@ -17,6 +22,35 @@ const readJson = async (req) => {
 };
 
 const port = Number(process.argv[2] ?? 54399);
+const paystackKey = process.env.PAYSTACK_SECRET_KEY ?? '';
+const billingWebhook = process.env.BILLING_WEBHOOK_URL ?? '';
+/** @type {Map<string, {id: number, amount: number, email: string, callback: string, status: string, paidAt: string | null}>} */
+const transactions = new Map();
+let nextId = 5000;
+let nextCode = 1;
+/** @param {import('node:http').IncomingMessage} req */
+const readForm = async (req) => {
+	const chunks = [];
+	for await (const chunk of req) chunks.push(chunk);
+	return new URLSearchParams(Buffer.concat(chunks).toString('utf8'));
+};
+/** @param {string} reference */
+const verified = (reference) => {
+	const tx = transactions.get(reference);
+	if (!tx) return null;
+	return {
+		id: tx.id,
+		status: tx.status,
+		reference,
+		amount: tx.amount,
+		currency: 'NGN',
+		domain: 'test',
+		paid_at: tx.paidAt,
+		customer: { customer_code: 'CUS_e2elocal0001', email: tx.email },
+		authorization: { reusable: true, channel: 'card', last4: '4081' },
+		plan: null
+	};
+};
 /** @param {import('node:http').ServerResponse} res @param {number} status @param {unknown} body */
 const json = (res, status, body) => {
 	res.writeHead(status, { 'content-type': 'application/json' });
@@ -90,6 +124,77 @@ createServer(async (req, res) => {
 		const name = accounts[number];
 		if (!name) return json(res, 422, { status: false, message: 'Could not resolve account name' });
 		return json(res, 200, { status: true, data: { account_number: number, account_name: name } });
+	}
+	if (url.pathname === '/transaction/initialize' && req.method === 'POST') {
+		const body = await readJson(req);
+		const id = nextId++;
+		transactions.set(body.reference, {
+			id,
+			amount: body.amount,
+			email: body.email,
+			callback: body.callback_url,
+			status: 'abandoned',
+			paidAt: null
+		});
+		return json(res, 200, {
+			status: true,
+			data: {
+				authorization_url: `http://127.0.0.1:${port}/checkout/${body.reference}`,
+				access_code: `ac_${id}`,
+				reference: body.reference
+			}
+		});
+	}
+	const verify = url.pathname.match(/^\/transaction\/verify\/([A-Za-z0-9._=-]+)$/);
+	if (verify && req.method === 'GET') {
+		const data = verified(verify[1] ?? '');
+		return data
+			? json(res, 200, { status: true, data })
+			: json(res, 400, { status: false, message: 'Transaction reference not found' });
+	}
+	const checkout = url.pathname.match(/^\/checkout\/([A-Za-z0-9._=-]+)(\/pay|\/cancel)?$/);
+	if (checkout) {
+		const reference = checkout[1] ?? '';
+		const tx = transactions.get(reference);
+		if (!tx) return json(res, 404, { status: false });
+		if (!checkout[2]) {
+			res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+			return res.end(`<!doctype html><title>Paystack (test)</title><main style="font:16px system-ui;padding:40px">
+<h1>Paystack test checkout</h1><p>Pay NGN ${(tx.amount / 100).toFixed(2)}</p>
+<form method="post" action="/checkout/${reference}/pay"><button>Pay</button></form>
+<form method="post" action="/checkout/${reference}/cancel"><button>Cancel payment</button></form></main>`);
+		}
+		await readForm(req);
+		if (checkout[2] === '/pay') {
+			tx.status = 'success';
+			tx.paidAt = new Date().toISOString();
+			const raw = JSON.stringify({ event: 'charge.success', data: verified(reference) });
+			const signature = createHmac('sha512', paystackKey).update(raw).digest('hex');
+			await fetch(billingWebhook, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json', 'x-paystack-signature': signature },
+				body: raw
+			}).catch(() => undefined);
+		} else {
+			tx.status = 'abandoned';
+		}
+		res.writeHead(303, { location: `${tx.callback}?trxref=${reference}&reference=${reference}` });
+		return res.end();
+	}
+	if (url.pathname === '/plan' && req.method === 'POST') {
+		await readJson(req);
+		return json(res, 200, { status: true, data: { plan_code: `PLN_e2e${nextCode++}` } });
+	}
+	if (url.pathname === '/subscription' && req.method === 'POST') {
+		await readJson(req);
+		return json(res, 200, {
+			status: true,
+			data: { subscription_code: `SUB_e2e${nextCode++}`, email_token: `tok${nextCode}` }
+		});
+	}
+	if (url.pathname === '/subscription/disable' && req.method === 'POST') {
+		await readJson(req);
+		return json(res, 200, { status: true, message: 'Subscription disabled successfully' });
 	}
 	json(res, 404, { status: false });
 }).listen(port, '0.0.0.0');

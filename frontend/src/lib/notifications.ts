@@ -22,7 +22,7 @@ export interface BellEntry {
 }
 
 const PATH =
-	/^\/app(\/[a-z][a-z-]*)*(\?withdrawal=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?$/;
+	/^\/app(\/[a-z][a-z-]*)*(\?withdrawal=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?$|^\/app\/billing\/payments\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** The item's in-app link, or Home when it is missing or not an app path. */
 export function safePath(path: string | undefined): string {
@@ -218,6 +218,27 @@ export function present(item: NotificationItem, hide = false): BellEntry {
 				'warning',
 				'lock'
 			);
+		// Blueprint 16: B01–B05 as bell items.
+		case 'billing.payment_received':
+			return entry('Payment received', join(m, p.reference), 'success', 'check');
+		case 'billing.renewal_reminder':
+			return entry(
+				p.chip === 'Trial ends soon' ? 'Your free trial ends soon' : 'Your plan renews soon',
+				join(m, p.due ? `Due ${p.due}` : undefined),
+				'warning',
+				'review'
+			);
+		case 'billing.owner_assigned':
+			return entry('You’re now the Billing Owner', join(p.network), 'neutral', 'person');
+		case 'billing.seats_almost_full':
+			return entry(
+				'You’re close to your seat limit',
+				p.used && p.cap ? `${p.used} of ${p.cap} people` : '',
+				'warning',
+				'person'
+			);
+		case 'billing.paused':
+			return entry('Your plan is paused', 'Pay to turn it back on', 'danger', 'x');
 		default:
 			return entry('Update', '', 'neutral', 'check');
 	}

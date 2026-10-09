@@ -6,7 +6,9 @@
 -->
 <script lang="ts">
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
+	import AltLink from '#lib/ui/auth/AltLink.svelte';
 	import AuthHeading from '#lib/ui/auth/AuthHeading.svelte';
+	import PrimaryButton from '#lib/ui/auth/PrimaryButton.svelte';
 	import FormAlert from '#lib/ui/auth/FormAlert.svelte';
 	import SignOutLink from '#lib/ui/auth/SignOutLink.svelte';
 	import { useRoot } from '#lib/ui/root.svelte.js';
@@ -44,6 +46,8 @@
 		<span class="id-label">Your Elivate ID</span>
 		<span class="id-value">{data.uid}</span>
 	</p>
+	<!-- Blueprint 16: founders start a network here (PL01). -->
+	<PrimaryButton label="Start a network" href="/setup" />
 	<SignOutLink label="Sign out" />
 {:else}
 	<AuthHeading eyebrow="Workspaces" title="Choose a workspace" />
@@ -122,6 +126,7 @@
 	{:else}
 		{@render workspaceRows()}
 	{/if}
+	<AltLink label="Start a network" href="/setup" />
 	<SignOutLink label="Sign out" />
 {/if}
 

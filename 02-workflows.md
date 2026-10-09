@@ -385,6 +385,8 @@ Exports include only authorized data and safe destination/evidence fields. Compl
 
 **Acceptance:** Multiple memberships counted once; suspended retained users count; invitation alone doesn't count; President counts. Concurrency cannot over-activate seats. Forged amount/reference/environment/webhook/replayed payment cannot activate twice. Invoice/tax/trial/renewal/failure/overage/enrollment automation requires U-03, not guessed defaults.
 
+**Built (Blueprint 16, owner decisions 2026-10-09):** trial, plans, Paystack checkout and subscription renewal, seat cap and prorated upgrade, expiry pause, Billing Owner and B01–B05 as specified in `docs/blueprints/16-billing.md`; Extras keep a quote path only (Support).
+
 ## W-20 — Team settings, branding and white-label
 
 **Actor:** Current explicit configuration authority, ordinarily President/authorized tenant admin, plus step-up. Not ordinary Member or Billing Owner by assignment alone.

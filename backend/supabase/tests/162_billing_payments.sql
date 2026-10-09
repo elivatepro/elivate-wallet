@@ -4,7 +4,7 @@
 -- automatic renewals, webhook deduplication and no cross-tenant access.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(50);
+select plan(52);
 
 create function pg_temp.u(n int) returns uuid language sql immutable as
   $$ select ('10000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
@@ -77,6 +77,12 @@ select isnt((select r->>'providerReference' from c1), (select r->>'reference' fr
   'the Paystack reference is separate from the public one');
 select is((pg_temp.checkout(1, 'band_400', 'year', 'k-checkout-cedar-001')->>'paymentId'), (select r->>'paymentId' from c1),
   'the same key returns the same checkout');
+
+select is((api.billing_checkout_opened(pg_temp.u(1), (select (r->>'paymentId')::uuid from c1),
+  'https://checkout.paystack.com/abc123xyz')->>'paymentId'), (select r->>'paymentId' from c1),
+  'the Paystack page is recorded for the open checkout');
+select is(pg_temp.fails($$ select api.billing_checkout_opened(pg_temp.u(1), (select (r->>'paymentId')::uuid from c1),
+  'javascript:alert(1)') $$), 'validation_error:', 'only an http(s) page');
 
 -- ── Forged and misdirected payments (6) ──
 select is((pg_temp.pay((select r from c1), 69999999)->>'outcome'), 'amount_mismatch', 'a forged amount is refused');

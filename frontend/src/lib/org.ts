@@ -259,7 +259,18 @@ const AUDIT_SENTENCES: Record<string, string> = {
 	'invitation.revoked': 'Revoked an invitation',
 	'invitation.reissued': 'Resent an invitation',
 	'invitation.accepted': 'Accepted an invitation',
-	'allocation.changed': 'Changed the pockets & split'
+	'allocation.changed': 'Changed the pockets & split',
+	// Blueprint 16 (billing).
+	'billing.checkout_opened': 'Opened a Paystack checkout',
+	'billing.payment_received': 'Payment received',
+	'billing.payment_rejected': 'A payment didn’t match and was refused',
+	'billing.owner_changed': 'Changed the Billing Owner',
+	'subscription.paused': 'The plan paused',
+	'subscription.reactivated': 'The plan resumed',
+	'subscription.upgraded': 'Moved up a plan',
+	'subscription.auto_renew_changed': 'Changed auto-renew',
+	'subscription.next_plan_changed': 'Changed next year’s plan',
+	'subscription.grandfathered': 'Kept as a development network'
 };
 
 const AREA_LABELS: Record<string, string> = {
@@ -271,7 +282,9 @@ const AREA_LABELS: Record<string, string> = {
 	access: 'Access',
 	reviewer: 'Reviewers',
 	invitation: 'Invitations',
-	allocation: 'Pockets'
+	allocation: 'Pockets',
+	billing: 'Billing',
+	subscription: 'Billing'
 };
 
 export function auditSentence(event: Pick<AuditEvent, 'action' | 'after'>): string {
@@ -308,6 +321,19 @@ export type Outcome =
 	| { readonly kind: 'message'; readonly text: string };
 
 const CONFLICTS: Record<string, string> = {
+	// Blueprint 16 (billing).
+	seat_limit_reached: 'This network is full. Move up a plan to add more people.',
+	seats_exceed_plan: 'Your network has more people than that plan covers.',
+	auto_renew_on: 'Your card renews this plan automatically.',
+	use_upgrade: 'Use Upgrade to move to a bigger plan.',
+	not_upgradable: 'That plan can’t be an upgrade right now.',
+	not_paid_plan: 'This network isn’t on a paid plan.',
+	next_year_paid: 'Next year is already paid for.',
+	already_owner: 'That person is already the Billing Owner.',
+	trial_used: 'You’ve already used your free trial.',
+	trial_plan: 'The free trial is on the smallest plan only.',
+	pending_network_exists: 'Finish paying for your other new network first.',
+	payment_not_open: 'That checkout has closed. Try again.',
 	has_child_offices: 'Move or close the offices under it first.',
 	office_not_empty:
 		'Move or end its active members first. Leaders and suspended members are archived.',

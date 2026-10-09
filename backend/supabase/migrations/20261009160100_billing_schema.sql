@@ -177,7 +177,8 @@ create table billing.payments (
   provider_reference text not null unique check (provider_reference ~ '^[A-Za-z0-9._=-]{6,100}$'),
   provider_transaction_id bigint,
   environment text not null check (environment in ('test', 'live')),
-  authorization_url text check (authorization_url is null or authorization_url ~ '^https?://[^\s]{1,500}$'),
+  authorization_url text check (authorization_url is null
+    or (length(authorization_url) <= 500 and authorization_url ~ '^https?://[^\s]+$')),
   initiated_by uuid references identity.accounts (user_id) on delete restrict,
   idempotency_key text,
   covers_from timestamptz,

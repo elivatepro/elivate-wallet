@@ -40,6 +40,8 @@ export interface LogEntry {
   readonly status: number;
   readonly code?: string;
   readonly outcome?: string;
+  /** Internal errors only: which step failed (never request data or secrets). */
+  readonly cause?: string;
   readonly ms: number;
 }
 
@@ -153,7 +155,8 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       if (isErrorCode(error.message)) {
         throw new ApiError(error.message, parseDetails(error.details));
       }
-      throw new Error(`rpc ${fn} failed`);
+      // The database message names the failing statement, never secrets.
+      throw new Error(`rpc ${fn} failed: ${error.message.slice(0, 160)}`);
     }
     return data;
   }
@@ -664,7 +667,15 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       if (error instanceof ApiError) {
         return log(found.name, failure(error.code, requestId, error.details, cors), error.code);
       }
-      return log(found.name, failure("internal_error", requestId, {}, cors), "internal_error");
+      deps.log({
+        requestId,
+        route: found.name,
+        status: 500,
+        code: "internal_error",
+        cause: error instanceof Error ? error.message.slice(0, 200) : "unknown",
+        ms: Date.now() - started,
+      });
+      return failure("internal_error", requestId, {}, cors);
     }
   };
 }

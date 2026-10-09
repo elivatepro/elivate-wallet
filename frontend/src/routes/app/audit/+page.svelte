@@ -111,7 +111,7 @@
 							>
 								<span class="c-when o-sub">{when(event.at)}</span>
 								<span class="c-who o-stack">
-									<span class="who">{personName(event.actor)}</span>
+									<span class="who">{event.actor ? personName(event.actor) : 'Elivate'}</span>
 									<span class="o-sub">{auditArea(event.action)}</span>
 								</span>
 								<span class="o-grow what">{auditSentence(event)}</span>
@@ -139,7 +139,7 @@
 					<dl>
 						<div>
 							<dt>By</dt>
-							<dd>{personName(selected.actor)}</dd>
+							<dd>{selected.actor ? personName(selected.actor) : 'Elivate'}</dd>
 						</div>
 						<div>
 							<dt>When</dt>
