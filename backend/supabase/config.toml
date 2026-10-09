@@ -451,6 +451,9 @@ verify_jwt = false
 [functions.outbox-worker]
 verify_jwt = false
 
+[functions.payout-checker]
+verify_jwt = false
+
 [functions.ledger]
 verify_jwt = true
 

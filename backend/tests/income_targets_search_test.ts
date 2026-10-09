@@ -19,6 +19,8 @@ function setup() {
     },
     signUpload: () => Promise.resolve(null),
     download: () => Promise.resolve(null),
+    signDownload: () => Promise.resolve(null),
+    openAccount: () => Promise.reject(new Error("unused")),
     log: () => {},
     allowedOrigins: [],
   };

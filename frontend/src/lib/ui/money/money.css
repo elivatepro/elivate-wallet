@@ -1,0 +1,771 @@
+/*
+	Shared money-move screens (Blueprint 11), Paper "App — Screens v1" T03/C01–C10,
+	B05 and "App — Screens v2" W01–W06: tabs, list card with member rows, the
+	420 px detail panel, status pills, step forms. Global `mm-` classes so the
+	withdrawal, queue, transfers and evidence pages share one set of values.
+*/
+
+.mm-page {
+	display: flex;
+	flex-direction: column;
+	gap: 24px;
+}
+
+.mm-title {
+	font-size: 28px;
+	font-weight: var(--font-weight-semibold);
+	letter-spacing: -0.02em;
+	line-height: 36px;
+	outline: none;
+}
+
+/* ── Tabs (T03: 42 px, coral underline, count badge) ── */
+.mm-tabs {
+	display: flex;
+	gap: 4px;
+	overflow-x: auto;
+	border-bottom: 1px solid color-mix(in oklab, var(--color-text) 8%, transparent);
+	scrollbar-width: none;
+}
+
+.mm-tab {
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	gap: 8px;
+	height: 42px;
+	padding: 0 14px;
+	border: 0;
+	background: none;
+	color: var(--color-muted);
+	font: inherit;
+	font-size: var(--text-14);
+	line-height: 18px;
+	cursor: pointer;
+}
+
+.mm-tab[aria-selected='true'] {
+	box-shadow: inset 0 -2px 0 var(--color-accent);
+	color: var(--color-text);
+	font-weight: var(--font-weight-medium);
+}
+
+.mm-count {
+	color: var(--color-muted);
+	font-size: var(--text-12);
+	line-height: 16px;
+}
+
+.mm-tab[aria-selected='true'] .mm-count.hot,
+.mm-count.hot {
+	padding: 1px 7px;
+	border-radius: var(--radius-pill);
+	background: var(--color-accent);
+	color: #14100e;
+	font-size: 11px;
+	font-weight: var(--font-weight-semibold);
+	line-height: 14px;
+}
+
+/* ── Split layout: list column + 420 px panel ── */
+.mm-split {
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+}
+
+.mm-col {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: 16px;
+	min-width: 0;
+}
+
+@media (min-width: 1024px) {
+	.mm-split {
+		flex-direction: row;
+		align-items: flex-start;
+	}
+
+	.mm-split > .mm-panel {
+		position: sticky;
+		top: 24px;
+		width: 420px;
+		flex-shrink: 0;
+	}
+}
+
+/* ── List card ── */
+.mm-list {
+	display: flex;
+	flex-direction: column;
+	margin: 0;
+	padding: 0;
+	overflow: clip;
+	list-style: none;
+	border: 1px solid color-mix(in oklab, var(--color-text) 8%, transparent);
+	border-radius: 18px;
+	background: var(--color-surface);
+}
+
+.mm-list-head {
+	display: none;
+	align-items: center;
+	gap: 12px;
+	height: 42px;
+	padding: 0 18px;
+	border-bottom: 1px solid color-mix(in oklab, var(--color-text) 6%, transparent);
+	color: color-mix(in oklab, var(--color-muted) 80%, var(--color-canvas));
+	font-family: var(--font-mono);
+	font-size: 11px;
+	letter-spacing: 0.06em;
+	line-height: 14px;
+	text-transform: uppercase;
+}
+
+.mm-row {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	width: 100%;
+	min-height: 68px;
+	padding: 12px 18px;
+	border: 0;
+	background: none;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.mm-list > li + li .mm-row,
+.mm-list > .mm-row + .mm-row {
+	border-top: 1px solid color-mix(in oklab, var(--color-text) 4%, transparent);
+}
+
+.mm-row[aria-current='true'] {
+	background: var(--color-raised);
+	box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-text) 12%, transparent);
+}
+
+.mm-who {
+	display: flex;
+	flex: 1;
+	align-items: center;
+	gap: 12px;
+	min-width: 0;
+}
+
+.mm-avatar {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	width: 34px;
+	height: 34px;
+	border-radius: 50%;
+	background: var(--color-raised);
+	color: var(--color-text);
+	font-size: var(--text-12);
+	font-weight: var(--font-weight-semibold);
+}
+
+.mm-avatar.lg {
+	width: 40px;
+	height: 40px;
+	font-size: 13px;
+}
+
+.mm-names {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.mm-name {
+	overflow: hidden;
+	color: var(--color-text);
+	font-size: var(--text-14);
+	line-height: 18px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mm-sub {
+	overflow: hidden;
+	color: var(--color-muted);
+	font-size: var(--text-12);
+	line-height: 16px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mm-amount {
+	flex-shrink: 0;
+	color: var(--color-text);
+	font-size: var(--text-14);
+	font-variant-numeric: tabular-nums;
+	font-weight: var(--font-weight-medium);
+	line-height: 18px;
+	text-align: right;
+}
+
+.mm-amount.muted {
+	color: var(--color-muted);
+	font-weight: var(--font-weight-regular);
+}
+
+.mm-status {
+	display: none;
+	flex-shrink: 0;
+	width: 150px;
+}
+
+@media (min-width: 768px) {
+	.mm-list-head {
+		display: flex;
+	}
+
+	.mm-list-head .wide {
+		flex: 1;
+	}
+
+	.mm-list-head .num {
+		width: 120px;
+		text-align: right;
+	}
+
+	.mm-list-head .st {
+		width: 150px;
+	}
+
+	.mm-amount {
+		width: 120px;
+	}
+
+	.mm-status {
+		display: flex;
+	}
+
+	.mm-row .mm-pill.inline {
+		display: none;
+	}
+}
+
+/* ── Pills ── */
+.mm-pill {
+	display: inline-block;
+	padding: 3px 10px;
+	border-radius: var(--radius-pill);
+	background: var(--color-raised);
+	color: var(--color-text);
+	font-size: var(--text-12);
+	line-height: 16px;
+	white-space: nowrap;
+}
+
+.mm-pill.warning {
+	background: color-mix(in oklab, var(--color-warning) 16%, var(--color-surface));
+	color: var(--color-warning);
+}
+
+.mm-pill.info {
+	background: color-mix(in oklab, var(--color-info) 16%, var(--color-surface));
+	color: var(--color-info);
+}
+
+.mm-pill.success {
+	background: color-mix(in oklab, var(--color-success) 16%, var(--color-surface));
+	color: var(--color-success);
+}
+
+.mm-pill.danger {
+	background: color-mix(in oklab, var(--color-danger) 16%, var(--color-surface));
+	color: var(--color-danger);
+}
+
+.mm-pill.neutral {
+	color: var(--color-muted);
+}
+
+/* ── Detail panel ── */
+.mm-panel {
+	display: flex;
+	flex-direction: column;
+	overflow: clip;
+	border: 1px solid var(--color-border);
+	border-radius: 20px;
+	background: var(--color-surface);
+}
+
+.mm-section {
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+	padding: 18px 22px;
+}
+
+.mm-section + .mm-section {
+	border-top: 1px solid color-mix(in oklab, var(--color-text) 6%, transparent);
+}
+
+.mm-section.top {
+	padding-top: 22px;
+	padding-bottom: 20px;
+}
+
+.mm-spread {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.mm-spread.base {
+	align-items: baseline;
+}
+
+.mm-ref {
+	color: var(--color-muted);
+	font-family: var(--font-mono);
+	font-size: var(--text-12);
+	line-height: 16px;
+}
+
+.mm-big {
+	color: var(--color-text);
+	font-size: 34px;
+	font-variant-numeric: tabular-nums;
+	font-weight: var(--font-weight-semibold);
+	letter-spacing: -0.02em;
+	line-height: 40px;
+}
+
+.mm-muted {
+	color: var(--color-muted);
+	font-size: var(--text-14);
+	line-height: 18px;
+}
+
+.mm-value {
+	color: var(--color-text);
+	font-size: var(--text-14);
+	font-variant-numeric: tabular-nums;
+	line-height: 18px;
+	text-align: right;
+}
+
+.mm-value.held {
+	color: var(--color-warning);
+}
+
+.mm-label {
+	color: var(--color-muted);
+	font-family: var(--font-mono);
+	font-size: 11px;
+	letter-spacing: 0.08em;
+	line-height: 16px;
+	text-transform: uppercase;
+}
+
+.mm-link {
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--color-accent);
+	font: inherit;
+	font-size: 13px;
+	line-height: 18px;
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.mm-box {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 14px 16px;
+	border: 1px solid var(--color-border);
+	border-radius: 14px;
+	background: var(--color-canvas);
+}
+
+.mm-box .mm-names {
+	flex: 1;
+}
+
+.mm-box-title {
+	color: var(--color-text);
+	font-size: 15px;
+	font-weight: var(--font-weight-medium);
+	line-height: 20px;
+}
+
+.mm-box-sub {
+	color: var(--color-muted);
+	font-size: 13px;
+	line-height: 18px;
+}
+
+.mm-note {
+	color: var(--color-muted);
+	font-size: 13px;
+	line-height: 18px;
+}
+
+.mm-error {
+	color: var(--color-danger);
+	font-size: 13px;
+	line-height: 18px;
+}
+
+/* Four-step progress bars (T03 Requested · Approved · Payout recorded · Verified). */
+.mm-steps {
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
+	gap: 6px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.mm-steps li {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	color: var(--color-muted);
+	font-size: var(--text-12);
+	line-height: 16px;
+}
+
+.mm-steps li::before {
+	content: '';
+	height: 4px;
+	border-radius: 2px;
+	background: var(--color-raised);
+}
+
+.mm-steps li.done::before {
+	background: var(--color-success);
+}
+
+.mm-steps li.current {
+	color: var(--color-accent);
+}
+
+.mm-steps li.current::before {
+	background: var(--color-accent);
+}
+
+/* Compare table (C07/C09 "You recorded / Receipt shows"). */
+.mm-compare {
+	display: grid;
+	grid-template-columns: 1fr auto auto;
+	gap: 0 16px;
+	align-items: center;
+}
+
+.mm-compare > * {
+	padding: 10px 0;
+	font-size: var(--text-14);
+	line-height: 18px;
+}
+
+.mm-compare .h {
+	color: var(--color-muted);
+	font-family: var(--font-mono);
+	font-size: 11px;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+
+.mm-compare .k {
+	color: var(--color-muted);
+}
+
+.mm-compare .ok {
+	color: var(--color-success);
+}
+
+.mm-compare .bad {
+	color: var(--color-danger);
+	font-weight: var(--font-weight-semibold);
+}
+
+.mm-compare .row-bad {
+	margin: 0 -8px;
+	padding-inline: 8px;
+	background: color-mix(in oklab, var(--color-danger) 10%, transparent);
+	color: var(--color-danger);
+}
+
+/* ── Buttons ── */
+.mm-actions {
+	display: flex;
+	gap: 12px;
+}
+
+.mm-btn {
+	display: inline-flex;
+	flex: 1;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	min-height: 48px;
+	padding: 0 20px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-pill);
+	background: transparent;
+	color: var(--color-text);
+	font: inherit;
+	font-size: 15px;
+	font-weight: var(--font-weight-medium);
+	line-height: 18px;
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.mm-btn.primary {
+	flex-grow: 1.6;
+	border: 0;
+	background: var(--button-primary-bg);
+	box-shadow:
+		inset 0 1px 0 #ffffff59,
+		0 10px 28px -10px #ff7f4f99;
+	color: var(--button-primary-ink);
+	font-weight: var(--font-weight-semibold);
+}
+
+.mm-btn.danger {
+	border: 0;
+	background: color-mix(in oklab, var(--color-danger) 18%, var(--color-surface));
+	color: var(--color-danger);
+	font-weight: var(--font-weight-semibold);
+}
+
+.mm-btn.sm {
+	flex: 0 0 auto;
+	min-height: 36px;
+	padding: 0 14px;
+	font-size: var(--text-14);
+}
+
+.mm-btn:disabled {
+	cursor: default;
+	opacity: var(--opacity-disabled);
+}
+
+/* ── Forms (M06, B05, T03 record payout) ── */
+.mm-card {
+	display: flex;
+	flex-direction: column;
+	gap: 24px;
+	padding: 24px;
+	border: 1px solid color-mix(in oklab, var(--color-text) 8%, transparent);
+	border-radius: var(--radius-24);
+	background: var(--color-surface);
+}
+
+@media (min-width: 1024px) {
+	.mm-card {
+		padding: 32px;
+	}
+}
+
+.mm-field {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.mm-field-label {
+	color: var(--color-text);
+	font-size: var(--text-14);
+	font-weight: var(--font-weight-medium);
+	line-height: 18px;
+}
+
+.mm-input {
+	width: 100%;
+	height: 48px;
+	padding: 0 14px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-12);
+	background: var(--color-canvas);
+	color: var(--color-text);
+	font: inherit;
+	font-size: 15px;
+}
+
+.mm-input:focus-visible {
+	border-color: var(--color-accent);
+	outline: none;
+}
+
+.mm-input[aria-invalid='true'] {
+	border-color: var(--color-danger);
+}
+
+.mm-pockets {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+	gap: 10px;
+}
+
+.mm-pocket {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 14px 16px;
+	border: 1px solid var(--color-border);
+	border-radius: 14px;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.mm-pocket[aria-checked='true'] {
+	border-color: var(--color-accent);
+	background: color-mix(in oklab, var(--color-accent) 8%, transparent);
+}
+
+.mm-pocket:disabled {
+	cursor: default;
+	opacity: 0.5;
+}
+
+.mm-pocket-name {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	color: var(--color-text);
+	font-size: 15px;
+	font-weight: var(--font-weight-medium);
+	line-height: 20px;
+}
+
+.mm-pocket-name::before {
+	content: '';
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--dot, var(--color-accent));
+}
+
+.mm-pocket-sub {
+	color: var(--color-muted);
+	font-size: 13px;
+	line-height: 18px;
+}
+
+.mm-amount-box {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 0 16px 0 24px;
+	border: 1px solid var(--color-border);
+	border-radius: 18px;
+	background: var(--color-canvas);
+}
+
+.mm-amount-box:focus-within {
+	border-color: var(--color-accent);
+}
+
+.mm-amount-box input {
+	flex: 1;
+	min-width: 0;
+	height: 82px;
+	border: 0;
+	background: none;
+	color: var(--color-text);
+	font: inherit;
+	font-size: 40px;
+	font-variant-numeric: tabular-nums;
+	font-weight: var(--font-weight-semibold);
+	letter-spacing: -0.02em;
+	outline: none;
+}
+
+.mm-chip-btn {
+	flex-shrink: 0;
+	height: 32px;
+	padding: 0 12px;
+	border: 0;
+	border-radius: var(--radius-pill);
+	background: var(--color-raised);
+	color: var(--color-text);
+	font: inherit;
+	font-size: 13px;
+	cursor: pointer;
+}
+
+.mm-stepper {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 12px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	color: var(--color-muted);
+	font-size: 15px;
+}
+
+.mm-stepper li {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.mm-stepper li + li::before {
+	content: '';
+	width: 40px;
+	height: 1px;
+	margin-right: 4px;
+	background: var(--color-border);
+}
+
+.mm-stepper .n {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	border: 1px solid var(--color-border);
+	border-radius: 50%;
+	font-size: var(--text-12);
+}
+
+.mm-stepper [aria-current='step'] {
+	color: var(--color-text);
+	font-weight: var(--font-weight-medium);
+}
+
+.mm-stepper [aria-current='step'] .n {
+	border-color: var(--color-accent);
+	background: var(--color-accent);
+	color: #14100e;
+}
+
+.mm-empty {
+	padding: 32px 18px;
+	color: var(--color-muted);
+	font-size: var(--text-14);
+	text-align: center;
+}
+
+.mm-skeleton {
+	height: 240px;
+	border-radius: var(--radius-24);
+	background: var(--color-surface);
+}
+
+.mm-notice {
+	color: var(--color-success);
+	font-size: var(--text-14);
+}

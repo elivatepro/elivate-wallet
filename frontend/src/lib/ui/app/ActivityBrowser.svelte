@@ -552,7 +552,9 @@
 											>
 											<span class="figures">
 												<span class="value" class:credit
-													>{money(item.amount, item.currency, true)}</span
+													>{item.movedAmount
+														? money(item.movedAmount, item.currency)
+														: money(item.amount, item.currency, true)}</span
 												>
 												<span class="status-inline {statusTone(item.status)}"
 													>{statusLabel(item.status)}</span

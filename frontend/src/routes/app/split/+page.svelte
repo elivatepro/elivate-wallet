@@ -10,6 +10,7 @@
 	import { Cause, Effect, Exit, Option } from 'effect';
 	import Check from '@lucide/svelte/icons/check';
 	import Lock from '@lucide/svelte/icons/lock';
+	import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
 	import Plus from '@lucide/svelte/icons/plus';
 	import X from '@lucide/svelte/icons/x';
 	import { SplitView } from '#lib/contract/app.js';
@@ -40,6 +41,11 @@
 	}
 
 	let view = $state<SplitView | null>(null);
+	/** W-13 pocket moves (Blueprint 11); the backend re-checks the permission. */
+	const canMove = $derived(
+		shell.state.kind === 'ready' &&
+			(shell.state.view.capabilities?.permissions ?? []).includes('transfer_between_own_pockets')
+	);
 	let loadError = $state<string | null>(null);
 	let rows = $state<Row[]>([]);
 	let dialogOpen = $state(false);
@@ -262,6 +268,12 @@
 
 		<section class="editor" aria-labelledby="split-heading">
 			<h1 id="split-heading" class="visually-hidden">Pockets &amp; split</h1>
+			{#if canMove}
+				<a class="move-link" href="/app/split/move"
+					><ArrowLeftRight size={16} strokeWidth={1.8} aria-hidden="true" />Move money between
+					pockets</a
+				>
+			{/if}
 			{#if saved}<p class="saved" role="status">
 					<Check size={16} strokeWidth={2} aria-hidden="true" />Saved. New income uses version {view
 						.allocation.version}.
@@ -784,5 +796,16 @@
 			height: 453px;
 			transform: translateX(-50%);
 		}
+	}
+
+	.move-link {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		align-self: flex-start;
+		margin-bottom: 12px;
+		color: var(--color-accent);
+		font-size: var(--text-14);
+		text-decoration: none;
 	}
 </style>

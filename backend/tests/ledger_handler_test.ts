@@ -49,6 +49,8 @@ function setup(
       });
     },
     download: () => Promise.resolve(stored),
+    signDownload: (path) => Promise.resolve(`https://storage.test/read/${path}`),
+    openAccount: () => Promise.resolve("0123456789"),
     log: (entry) => logs.push(entry),
     allowedOrigins: [],
   };

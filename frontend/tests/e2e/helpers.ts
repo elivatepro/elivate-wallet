@@ -44,7 +44,7 @@ export async function confirmLinkFor(to: string, subject: RegExp): Promise<strin
 }
 
 /** Runs one SQL statement in the LOCAL database container and returns its text output. */
-function localSql(sql: string): string {
+export function localSql(sql: string): string {
 	return execFileSync(
 		'docker',
 		['exec', DB_CONTAINER, 'psql', '-U', 'postgres', '-d', 'postgres', '-tAc', sql],

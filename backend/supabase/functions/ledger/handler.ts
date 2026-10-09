@@ -11,6 +11,9 @@ import {
   success,
 } from "../_shared/http.ts";
 import * as v from "../_shared/validate.ts";
+import { evidenceMimeTypes, sha256Hex, sniffMime } from "../_shared/evidence.ts";
+
+export { sniffMime };
 
 export interface Actor {
   readonly userId: string;
@@ -51,6 +54,10 @@ export interface Deps {
   ): Promise<{ readonly url: string; readonly token: string } | null>;
   /** Reads a private evidence object; bytes are null when larger than maxBytes. */
   download(path: string, maxBytes: number): Promise<StoredObject | null>;
+  /** Signed short-lived read of one evidence object (payout receipts). */
+  signDownload(path: string, seconds: number): Promise<string | null>;
+  /** Decrypts a snapshotted bank account number; never logged. */
+  openAccount(ownerUserId: string, ciphertext: string, keyVersion: number): Promise<string>;
   log(entry: LogEntry): void;
   readonly allowedOrigins: readonly string[];
 }
@@ -73,8 +80,8 @@ interface Route {
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const objectPathPattern =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/income\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const mimeTypes = ["application/pdf", "image/jpeg", "image/png"] as const;
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(income|payout)\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const mimeTypes = evidenceMimeTypes;
 
 function parseDetails(raw: string | null | undefined): Details {
   if (!raw) return {};
@@ -169,6 +176,17 @@ function queryUuid(query: URLSearchParams, field: string): string | null {
   return value.toLowerCase();
 }
 
+function queryStatus(
+  query: URLSearchParams,
+  field: string,
+  values: readonly string[],
+): string | null {
+  const value = query.get(field);
+  if (value === null) return null;
+  if (!values.includes(value)) throw new ApiError("validation_error", { field });
+  return value;
+}
+
 function optionalText(body: v.Body, field: string, max: number): string | null {
   return body[field] === undefined || body[field] === null ? null : v.text(body, field, max);
 }
@@ -235,22 +253,44 @@ function pockets(body: v.Body): unknown[] {
   });
 }
 
-/** Detects PDF, JPEG or PNG from the first bytes; null for anything else. */
-export function sniffMime(
-  bytes: Uint8Array,
-): (typeof mimeTypes)[number] | null {
-  const starts = (sig: number[]) => sig.every((b, i) => bytes[i] === b);
-  if (starts([0x25, 0x50, 0x44, 0x46, 0x2d])) return "application/pdf";
-  if (starts([0xff, 0xd8, 0xff])) return "image/jpeg";
-  if (starts([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) {
-    return "image/png";
+function uploadFacts(body: v.Body) {
+  const mimeType = v.text(body, "mimeType", 40);
+  if (!(mimeTypes as readonly string[]).includes(mimeType)) {
+    throw new ApiError("validation_error", { field: "mimeType" });
   }
-  return null;
+  const sha256 = v.text(body, "sha256", 64);
+  if (!/^[0-9a-f]{64}$/i.test(sha256)) {
+    throw new ApiError("validation_error", { field: "sha256" });
+  }
+  return {
+    fileName: v.text(body, "fileName", 200),
+    mimeType,
+    size: v.integer(body, "size", 1, 10485760),
+    sha256: sha256.toLowerCase(),
+  };
 }
 
-async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(bytes)));
-  return Array.from(digest, (b) => b.toString(16).padStart(2, "0")).join("");
+const payoutFields = [
+  "amount",
+  "fee",
+  "paidOn",
+  "bankReference",
+  "notes",
+  "evidenceId",
+  "idempotencyKey",
+];
+
+/** Record or correct a payout: amounts in NGN; the database checks the cap. */
+function payoutArgs(body: v.Body): Record<string, unknown> {
+  return {
+    p_amount: v.decimal(body, "amount"),
+    p_fee_amount: body.fee === undefined || body.fee === null ? null : v.decimal(body, "fee"),
+    p_paid_on: v.date(body, "paidOn"),
+    p_bank_reference: optionalText(body, "bankReference", 100),
+    p_notes: optionalText(body, "notes", 1000),
+    p_evidence_id: v.uuid(body, "evidenceId"),
+    p_idempotency_key: v.idempotencyKey(body),
+  };
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -299,6 +339,22 @@ export function createHandler(
     pattern,
     handler,
   });
+
+  /** Signs the upload for a path the database built; never a client path. */
+  async function signed(created: Record<string, unknown>, fn: string) {
+    const path = created.objectPath;
+    if (typeof path !== "string" || !objectPathPattern.test(path)) {
+      throw new Error(`${fn} returned an unexpected path`);
+    }
+    const upload = await deps.signUpload(path);
+    if (!upload) throw new Error("signing the upload failed");
+    return {
+      evidenceId: created.evidenceId,
+      uploadUrl: upload.url,
+      token: upload.token,
+      expiresAt: created.expiresAt,
+    };
+  }
 
   const routes: Route[] = [
     // ── Own wallet (account-level; no workspace) ──
@@ -456,37 +512,19 @@ export function createHandler(
         "size",
         "sha256",
       ]);
-      const mimeType = v.text(body, "mimeType", 40);
-      if (!(mimeTypes as readonly string[]).includes(mimeType)) {
-        throw new ApiError("validation_error", { field: "mimeType" });
-      }
-      const sha256 = v.text(body, "sha256", 64);
-      if (!/^[0-9a-f]{64}$/i.test(sha256)) {
-        throw new ApiError("validation_error", { field: "sha256" });
-      }
+      const upload = uploadFacts(body);
       const created = record(
         await call("create_evidence_upload", {
           ...commandInWorkspace(c),
           p_target_membership_id: v.uuid(body, "targetMembershipId"),
           p_command_key: v.idempotencyKey(body),
-          p_file_name: v.text(body, "fileName", 200),
-          p_mime_type: mimeType,
-          p_size: v.integer(body, "size", 1, 10485760),
-          p_sha256: sha256.toLowerCase(),
+          p_file_name: upload.fileName,
+          p_mime_type: upload.mimeType,
+          p_size: upload.size,
+          p_sha256: upload.sha256,
         }),
       );
-      const path = created.objectPath;
-      if (typeof path !== "string" || !objectPathPattern.test(path)) {
-        throw new Error("create_evidence_upload returned an unexpected path");
-      }
-      const signed = await deps.signUpload(path);
-      if (!signed) throw new Error("signing the upload failed");
-      return {
-        evidenceId: created.evidenceId,
-        uploadUrl: signed.url,
-        token: signed.token,
-        expiresAt: created.expiresAt,
-      };
+      return signed(created, "create_evidence_upload");
     }),
 
     route("POST", "/evidence/uploads/:id/finalize", async (c) => {
@@ -591,6 +629,293 @@ export function createHandler(
       return call("cancel_income_attempt", {
         ...commandInWorkspace(c),
         p_target_membership_id: v.uuid(body, "targetMembershipId"),
+        p_reason: v.reason(body),
+        p_idempotency_key: v.idempotencyKey(body),
+      });
+    }),
+
+    // ── Withdrawals (Blueprint 11, W-09/W-10) ──
+    route("GET", "/me/withdrawal-sources", (c) => {
+      onlyQuery(c.query, []);
+      return call("withdrawal_sources", inWorkspace(c));
+    }),
+
+    route("GET", "/me/withdrawals", (c) => {
+      onlyQuery(c.query, ["status", "cursor", "limit"]);
+      return call("my_withdrawals", {
+        ...inWorkspace(c),
+        p_status: queryStatus(c.query, "status", ["open", "completed", "closed"]),
+        p_cursor: queryText(c.query, "cursor", 500),
+        p_limit: queryLimit(c.query),
+      });
+    }),
+
+    route("POST", "/me/withdrawals", async (c) => {
+      const body = await v.readBody(c.request, [
+        "accountId",
+        "amount",
+        "payoutAccountId",
+        "idempotencyKey",
+      ]);
+      return call("request_withdrawal", {
+        ...commandInWorkspace(c),
+        p_account_id: v.uuid(body, "accountId"),
+        p_amount: v.decimal(body, "amount"),
+        p_payout_account_id: v.uuid(body, "payoutAccountId"),
+        p_idempotency_key: v.idempotencyKey(body),
+      });
+    }),
+
+    route("GET", "/me/withdrawals/:id", (c) => {
+      onlyQuery(c.query, []);
+      return call("my_withdrawal", { ...inWorkspace(c), p_withdrawal_id: c.params.id });
+    }),
+
+    route("POST", "/me/withdrawals/:id/cancel", async (c) => {
+      const body = await v.readBody(c.request, ["reason", "idempotencyKey"]);
+      return call("cancel_withdrawal", {
+        ...commandInWorkspace(c),
+        p_withdrawal_id: c.params.id,
+        p_reason: optionalText(body, "reason", 500),
+        p_idempotency_key: v.idempotencyKey(body),
+      });
+    }),
+
+    route("GET", "/withdrawals", (c) => {
+      onlyQuery(c.query, ["tab", "cursor", "limit"]);
+      return call("withdrawal_queue", {
+        ...inWorkspace(c),
+        p_tab: queryStatus(c.query, "tab", ["action", "verifying", "completed", "closed"]),
+        p_cursor: queryText(c.query, "cursor", 500),
+        p_limit: queryLimit(c.query),
+      });
+    }),
+
+    route("GET", "/withdrawals/:id", (c) => {
+      onlyQuery(c.query, []);
+      return call("withdrawal_detail", { ...inWorkspace(c), p_withdrawal_id: c.params.id });
+    }),
+
+    route("POST", "/withdrawals/:id/approve", async (c) => {
+      const body = await v.readBody(c.request, ["idempotencyKey"]);
+      return call("approve_withdrawal", {
+        ...commandInWorkspace(c),
+        p_withdrawal_id: c.params.id,
+        p_idempotency_key: v.idempotencyKey(body),
+      });
+    }),
+
+    route("POST", "/withdrawals/:id/reject", async (c) => {
+      const body = await v.readBody(c.request, ["reason", "idempotencyKey"]);
+      return call("reject_withdrawal", {
+        ...commandInWorkspace(c),
+        p_withdrawal_id: c.params.id,
+        p_reason: v.reason(body),
+        p_idempotency_key: v.idempotencyKey(body),
+      });
+    }),
+
+    route("POST", "/withdrawals/:id/cancel", async (c) => {
+      const body = await v.readBody(c.request, ["reason", "idempotencyKey"]);
+      return call("cancel_withdrawal", {
+        ...commandInWorkspace(c),
+        p_withdrawal_id: c.params.id,
+        p_reason: v.reason(body),
+        p_idempotency_key: v.idempotencyKey(body),
+      });
+    }),
+
+    // The database audits the reveal and returns ciphertext; only the number
+    // leaves here, never the ciphertext, and it is never logged.
+    route("POST", "/withdrawals/:id/reveal", async (c) => {
+      await v.readBody(c.request, []);
+      const sealed = record(
+        await call("reveal_withdrawal_destination", {
+          ...commandInWorkspace(c),
+          p_withdrawal_id: c.params.id,
+        }),
+      );
+      const { ownerUserId, ciphertext, keyVersion, ...rest } = sealed;
+      if (
+        typeof ownerUserId !== "string" || typeof ciphertext !== "string" ||
+        typeof keyVersion !== "number"
+      ) {
+        throw new Error("reveal_withdrawal_destination returned an unexpected result");
+      }
+      return {
+        ...rest,
+        accountNumber: await deps.openAccount(ownerUserId, ciphertext, keyVersion),
+      };
+    }),
+
+    // ── Payouts (W-10 step 3, W-11) ──
+    route("POST", "/payout-evidence/uploads", async (c) => {
+      const body = await v.readBody(c.request, [
+        "withdrawalId",
+        "idempotencyKey",
+        "fileName",
+        "mimeType",
+        "size",
+        "sha256",
+      ]);
+      const upload = uploadFacts(body);
+      const created = record(
+        await call("create_payout_evidence_upload", {
+          ...commandInWorkspace(c),
+          p_withdrawal_id: v.uuid(body, "withdrawalId"),
+          p_command_key: v.idempotencyKey(body),
+          p_file_name: upload.fileName,
+          p_mime_type: upload.mimeType,
+          p_size: upload.size,
+          p_sha256: upload.sha256,
+        }),
+      );
+      return signed(created, "create_payout_evidence_upload");
+    }),
+
+    route("POST", "/withdrawals/:id/payouts", async (c) => {
+      const body = await v.readBody(c.request, payoutFields);
+      return call("record_payout", {
+        ...commandInWorkspace(c),
+        p_withdrawal_id: c.params.id,
+        ...payoutArgs(body),
+      });
+    }),
+
+    route("POST", "/payouts/:id/correct", async (c) => {
+      const body = await v.readBody(c.request, payoutFields);
+      return call("correct_payout", {
+        ...commandInWorkspace(c),
+        p_payout_id: c.params.id,
+        ...payoutArgs(body),
+      });
+    }),
+
+    route("POST", "/payouts/:id/retry", async (c) => {
+      const body = await v.readBody(c.request, ["idempotencyKey"]);
+      return call("retry_payout_check", {
+        ...commandInWorkspace(c),
+        p_payout_id: c.params.id,
+        p_idempotency_key: v.idempotencyKey(body),
+      });
+    }),
+
+    route("GET", "/payouts/:id/receipt", async (c) => {
+      onlyQuery(c.query, ["revision"]);
+      const revision = queryStatus(c.query, "revision", ["1", "2"]);
+      if (revision === null) throw new ApiError("validation_error", { field: "revision" });
+      const target = record(
+        await call("payout_receipt", {
+          ...inWorkspace(c),
+          p_payout_id: c.params.id,
+          p_revision: Number(revision),
+        }),
+      );
+      const { objectPath, ...rest } = target;
+      if (typeof objectPath !== "string" || !objectPathPattern.test(objectPath)) {
+        throw new Error("payout_receipt returned an unexpected path");
+      }
+      const url = await deps.signDownload(objectPath, 60);
+      if (!url) throw new Error("signing the receipt failed");
+      return { ...rest, url, expiresIn: 60 };
+    }),
+
+    // ── Evidence review (W-11) ──
+    route("GET", "/reviews", (c) => {
+      onlyQuery(c.query, ["tab", "cursor", "limit"]);
+      return call("review_queue", {
+        ...inWorkspace(c),
+        p_tab: queryStatus(c.query, "tab", ["assigned", "cleared", "rejected", "all"]),
+        p_cursor: queryText(c.query, "cursor", 500),
+        p_limit: queryLimit(c.query),
+      });
+    }),
+
+    route("GET", "/reviews/:id", (c) => {
+      onlyQuery(c.query, []);
+      return call("review_case", { ...inWorkspace(c), p_payout_id: c.params.id });
+    }),
+
+    route("POST", "/reviews/:id/decision", async (c) => {
+      const body = await v.readBody(c.request, ["decision", "reason", "idempotencyKey"]);
+      const decision = v.text(body, "decision", 10);
+      if (decision !== "clear" && decision !== "reject") {
+        throw new ApiError("validation_error", { field: "decision" });
+      }
+      return call("review_payout", {
+        ...commandInWorkspace(c),
+        p_payout_id: c.params.id,
+        p_decision: decision,
+        p_reason: v.reason(body),
+        p_idempotency_key: v.idempotencyKey(body),
+      });
+    }),
+
+    // ── Pocket moves (W-13) ──
+    route("GET", "/me/transfer-choices", (c) => {
+      onlyQuery(c.query, []);
+      return call("transfer_choices", inWorkspace(c));
+    }),
+
+    route("GET", "/me/pocket-transfers", (c) => {
+      onlyQuery(c.query, ["status", "cursor", "limit"]);
+      return call("my_pocket_transfers", {
+        ...inWorkspace(c),
+        p_status: queryStatus(c.query, "status", ["open", "completed", "closed"]),
+        p_cursor: queryText(c.query, "cursor", 500),
+        p_limit: queryLimit(c.query),
+      });
+    }),
+
+    route("POST", "/me/pocket-transfers", async (c) => {
+      const body = await v.readBody(c.request, [
+        "sourceAccountId",
+        "destinationPocketId",
+        "amount",
+        "idempotencyKey",
+      ]);
+      return call("request_pocket_transfer", {
+        ...commandInWorkspace(c),
+        p_source_account_id: v.uuid(body, "sourceAccountId"),
+        p_destination_pocket_id: v.uuid(body, "destinationPocketId"),
+        p_amount: v.decimal(body, "amount"),
+        p_idempotency_key: v.idempotencyKey(body),
+      });
+    }),
+
+    route("POST", "/me/pocket-transfers/:id/cancel", async (c) => {
+      const body = await v.readBody(c.request, ["idempotencyKey"]);
+      return call("cancel_pocket_transfer", {
+        ...commandInWorkspace(c),
+        p_transfer_id: c.params.id,
+        p_idempotency_key: v.idempotencyKey(body),
+      });
+    }),
+
+    route("GET", "/pocket-transfers", (c) => {
+      onlyQuery(c.query, ["tab", "cursor", "limit"]);
+      return call("transfer_queue", {
+        ...inWorkspace(c),
+        p_tab: queryStatus(c.query, "tab", ["waiting", "history"]),
+        p_cursor: queryText(c.query, "cursor", 500),
+        p_limit: queryLimit(c.query),
+      });
+    }),
+
+    route("POST", "/pocket-transfers/:id/approve", async (c) => {
+      const body = await v.readBody(c.request, ["idempotencyKey"]);
+      return call("approve_pocket_transfer", {
+        ...commandInWorkspace(c),
+        p_transfer_id: c.params.id,
+        p_idempotency_key: v.idempotencyKey(body),
+      });
+    }),
+
+    route("POST", "/pocket-transfers/:id/reject", async (c) => {
+      const body = await v.readBody(c.request, ["reason", "idempotencyKey"]);
+      return call("reject_pocket_transfer", {
+        ...commandInWorkspace(c),
+        p_transfer_id: c.params.id,
         p_reason: v.reason(body),
         p_idempotency_key: v.idempotencyKey(body),
       });

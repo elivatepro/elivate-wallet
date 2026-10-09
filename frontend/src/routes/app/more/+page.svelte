@@ -18,6 +18,10 @@
 	import PieChart from '@lucide/svelte/icons/chart-pie';
 	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
 	import Download from '@lucide/svelte/icons/download';
+	import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
+	import Gavel from '@lucide/svelte/icons/gavel';
+	import ListChecks from '@lucide/svelte/icons/list-checks';
+	import Upload from '@lucide/svelte/icons/upload';
 	import EyeOff from '@lucide/svelte/icons/eye-off';
 	import LogOut from '@lucide/svelte/icons/log-out';
 	import Moon from '@lucide/svelte/icons/moon';
@@ -98,6 +102,34 @@
 			<a class="row" href="/app/income">
 				<Download size={20} strokeWidth={1.8} aria-hidden="true" />
 				<span class="label">Record income</span>
+				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
+			</a>
+		{/if}
+		{#if can('initiate_own_withdrawal')}
+			<a class="row" href="/app/withdrawals">
+				<Upload size={20} strokeWidth={1.8} aria-hidden="true" />
+				<span class="label">Withdrawals</span>
+				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
+			</a>
+		{/if}
+		{#if can('approve_withdrawal')}
+			<a class="row" href="/app/queue">
+				<ListChecks size={20} strokeWidth={1.8} aria-hidden="true" />
+				<span class="label">Withdrawal queue</span>
+				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
+			</a>
+		{/if}
+		{#if can('approve_pocket_transfer')}
+			<a class="row" href="/app/transfers">
+				<ArrowLeftRight size={20} strokeWidth={1.8} aria-hidden="true" />
+				<span class="label">Transfers</span>
+				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
+			</a>
+		{/if}
+		{#if can('review_financial_evidence')}
+			<a class="row" href="/app/evidence">
+				<Gavel size={20} strokeWidth={1.8} aria-hidden="true" />
+				<span class="label">Evidence review</span>
 				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
 			</a>
 		{/if}

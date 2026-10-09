@@ -29,7 +29,7 @@ export const invalidRequest = (field: string) =>
 		requestId: null
 	});
 
-export async function relayCommand<S extends Schema.ConstraintDecoder<{ pin?: string }>, A>(
+export async function relayCommand<S extends Schema.ConstraintDecoder<object>, A>(
 	event: RequestEvent,
 	schema: S,
 	program: (membershipId: string, body: S['Type']) => Effect.Effect<A, EdgeFailure, ApiServices>
@@ -44,7 +44,9 @@ export async function relayCommand<S extends Schema.ConstraintDecoder<{ pin?: st
 	} catch {
 		return respondError(invalidRequest('body'));
 	}
-	return respond(await runApi(event, session, withPin(body.pin, program(membershipId, body))));
+	// Commands without a PIN field decode without one (excess keys are dropped).
+	const pin = (body as { pin?: string }).pin;
+	return respond(await runApi(event, session, withPin(pin, program(membershipId, body))));
 }
 
 /**

@@ -4,6 +4,7 @@
 	desktop 220 px. The card stays dark in both themes (brand surface).
 -->
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
 	import type { RootPose } from '#lib/ui/root.svelte.js';
 
@@ -11,25 +12,36 @@
 		pose,
 		title,
 		lead,
+		kicker,
+		children,
 		compact = false,
+		card = false,
 		headingLevel = 1
 	}: {
 		pose: RootPose;
 		title: string;
-		lead: string;
+		lead?: string;
+		/** Small line above the title (Paper v2 W01 "Reserved for open withdrawals"). */
+		kicker?: string;
+		/** Extra content under the title (W01 status chips). */
+		children?: Snippet;
 		/** H09 draws a smaller Root on mobile (150×200). */
 		compact?: boolean;
+		/** Queue cards under a list (Paper v1 C01/C05/C07/C09, v2 W05): 260 px, 24 px title. */
+		card?: boolean;
 		headingLevel?: 1 | 2;
 	} = $props();
 </script>
 
-<section class="hero" class:compact>
+<section class="hero" class:compact class:card>
 	<div class="shade" aria-hidden="true"></div>
 	<div class="grain" aria-hidden="true"></div>
 	<RootImage {pose} class="hero-root" sizes="(min-width: 1024px) 178px, 170px" eager />
 	<div class="text">
+		{#if kicker}<p class="kicker">{kicker}</p>{/if}
 		<svelte:element this={`h${headingLevel}`} class="title" tabindex="-1">{title}</svelte:element>
-		<p class="lead">{lead}</p>
+		{#if lead}<p class="lead">{lead}</p>{/if}
+		{@render children?.()}
 	</div>
 </section>
 
@@ -110,7 +122,8 @@
 		outline: none;
 	}
 
-	.lead {
+	.lead,
+	.kicker {
 		color: #d5dadb;
 		font-size: 13px;
 		line-height: 18px;
@@ -155,6 +168,37 @@
 		.lead {
 			font-size: 15px;
 			line-height: 22px;
+		}
+	}
+
+	@media (min-width: 1024px) {
+		.hero.card {
+			height: 260px;
+			padding: 28px;
+		}
+
+		.hero.card :global(.hero-root) {
+			right: 64px;
+			bottom: -14px;
+			width: 180px;
+			height: 242px;
+		}
+
+		.hero.card .text {
+			max-width: calc(100% - 260px);
+			gap: 6px;
+		}
+
+		.hero.card .title {
+			font-size: 24px;
+			letter-spacing: -0.01em;
+			line-height: 30px;
+		}
+
+		.hero.card .lead {
+			color: #a9b0b3;
+			font-size: 14px;
+			line-height: 20px;
 		}
 	}
 </style>
