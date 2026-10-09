@@ -137,13 +137,17 @@
 		return Exit.isSuccess(exit) ? exit.value : null;
 	}
 
+	/** Only the newest member read is applied (a slower, older one must not win). */
+	let memberSeq = 0;
 	async function loadMember(membershipId: string) {
+		const mine = ++memberSeq;
 		segments = null;
 		formError = null;
 		const params = new URLSearchParams({ kind: 'adjustment', membershipId });
 		const exit = await Effect.runPromiseExit(
 			getJson(`${EntryAppRoutes.segments}?${params}`, EntrySegments)
 		);
+		if (mine !== memberSeq) return;
 		if (Exit.isFailure(exit)) {
 			const message = entryMessage(failureOf(exit));
 			if (fixedMember) loadError = message;
@@ -193,6 +197,11 @@
 	let confirmOpen = $state(false);
 	let pinError = $state<string | null>(null);
 	let confirmError = $state<string | null>(null);
+
+	/** Closing the PIN prompt drops the refused attempt, so an edited form never resends the old body. */
+	$effect(() => {
+		if (!confirmOpen && attempt.awaitingPin) attempt.reset();
+	});
 
 	function review() {
 		const problem = validate();

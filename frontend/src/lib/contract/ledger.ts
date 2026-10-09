@@ -173,7 +173,6 @@ export const TransactionDetail = Schema.Struct({
 		Schema.NullOr(
 			Schema.Struct({
 				category: Schema.String,
-				note: Schema.NullOr(Schema.String),
 				reversedBy: Person
 			})
 		)

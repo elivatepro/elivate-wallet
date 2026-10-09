@@ -84,18 +84,23 @@
 	const failureOf = <A, E>(exit: Exit.Exit<A, E>) =>
 		Exit.isFailure(exit) ? Option.getOrUndefined(Cause.findErrorOption(exit.cause)) : undefined;
 
+	/**
+	 * The linked withdrawal loads on its own (record_returned_funds is enough);
+	 * the picker's list of completed withdrawals needs the queue permission and
+	 * is only offered when it loads.
+	 */
 	async function loadCompleted() {
+		if (withdrawalId) void loadReturnable(withdrawalId);
 		const exit = await Effect.runPromiseExit(
 			getJson(`${WithdrawalAppRoutes.queue}?tab=completed`, WithdrawalPage)
 		);
 		if (Exit.isSuccess(exit)) {
 			completed = [...exit.value.items];
 			const first = completed[0]?.withdrawalId;
-			if (!withdrawalId && first) return pick(first);
-			if (withdrawalId) void loadReturnable(withdrawalId);
+			if (!withdrawalId && first) pick(first);
 			return;
 		}
-		loadError = entryMessage(failureOf(exit));
+		if (!withdrawalId) loadError = entryMessage(failureOf(exit));
 	}
 	let started = false;
 	$effect(() => {
@@ -110,7 +115,7 @@
 		formError = null;
 		const exit = await Effect.runPromiseExit(getJson(EntryAppRoutes.returns(id), Returnable));
 		if (Exit.isSuccess(exit)) returnable = exit.value;
-		else formError = entryMessage(failureOf(exit));
+		else loadError = entryMessage(failureOf(exit));
 	}
 
 	/** The command path follows the chosen withdrawal (the attempt is per page). */
@@ -146,6 +151,11 @@
 	let pinOpen = $state(false);
 	let pinError = $state<string | null>(null);
 	let pinTry = $state(0);
+
+	/** Closing the PIN prompt drops the refused attempt, so an edited form never resends the old body. */
+	$effect(() => {
+		if (!pinOpen && attempt.awaitingPin) attempt.reset();
+	});
 
 	async function submit(pin?: string) {
 		const problem = validate();

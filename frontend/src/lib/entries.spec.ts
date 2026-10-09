@@ -39,6 +39,8 @@ describe('conversion rates', () => {
 	it('shows the difference from the quote in the quoted currency', () => {
 		expect(differenceFromQuote('420.00', 'USD', '638400.00', 'NGN', '1525')).toBe('2100.00');
 		expect(differenceFromQuote('640500.00', 'NGN', '420.00', 'USD', '1525')).toBe('0.00');
+		expect(differenceFromQuote('1.00', 'USD', '1520.50', 'NGN', '1520')).toBe('-0.50');
+		expect(differenceFromQuote('1.00', 'USD', '1600.00', 'NGN', '1520')).toBe('-80.00');
 		expect(differenceFromQuote('420.00', 'USD', '638400.00', 'NGN', null)).toBeNull();
 		expect(differenceFromQuote('420.00', 'USD', '638400.00', 'NGN', '1,525')).toBeNull();
 	});

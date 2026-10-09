@@ -158,6 +158,11 @@
 	let pinError = $state<string | null>(null);
 	let pinTry = $state(0);
 
+	/** Closing the PIN prompt drops the refused attempt, so an edited form never resends the old body. */
+	$effect(() => {
+		if (!pinOpen && attempt.awaitingPin) attempt.reset();
+	});
+
 	async function submit(pin?: string) {
 		const problem = validate();
 		if (problem) return void (formError = problem);

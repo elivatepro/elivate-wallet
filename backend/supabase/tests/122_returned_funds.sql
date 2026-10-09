@@ -2,7 +2,7 @@
 -- what left (sent + fee) minus returns, pending returns count, review, posting.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(18);
+select plan(22);
 
 create function pg_temp.u(n int) returns uuid language sql immutable as
   $$ select ('10000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
@@ -205,10 +205,24 @@ select is((pg_temp.review(7, (select (r->>'entryId')::uuid from r2), 'clear')->>
 select is(pg_temp.fails($$ select pg_temp.give_back(3, '0.01') $$), 'conflict:exceeds_returnable',
   'nothing more once it is all back');
 
+-- ── A reinstated return still respects the limit (4) ──
+create temp table rv as select api.reverse_transaction(pg_temp.u(1), pg_temp.s(1), pg_temp.ws(1),
+  (select transaction_id from finance.entries where id = pg_temp.id('r1')), 'wrong_amount', 'Bank said otherwise',
+  (select reference from finance.entries where id = pg_temp.id('r1')), pg_temp.k()) as r;
+select is(api.returnable_withdrawal(pg_temp.u(3), pg_temp.s(3), pg_temp.ws(3), pg_temp.id('w'))->>'remaining',
+  '1500.00', 'a reversed return no longer counts');
+create temp table r3 as select pg_temp.give_back(3, '1500.00') as r;
+select is((pg_temp.review(7, (select (r->>'entryId')::uuid from r3), 'clear')->>'status'), 'posted',
+  'a replacement return posts');
+select is(pg_temp.fails($$ select api.reverse_transaction(pg_temp.u(1), pg_temp.s(1), pg_temp.ws(1),
+  (select (r->>'transactionId')::uuid from rv), 'other', 'Reversed by mistake', (select r->>'reference' from rv),
+  pg_temp.k()) $$), 'conflict:exceeds_returnable', 'reinstating the first return would exceed what left');
+select is(pg_temp.posted(4), 4000.00::numeric, 'nothing changed');
+
 -- ── Ledger (2) ──
 select is((select count(*)::int from ledger.verify_balances()), 0, 'projections match the ledger');
 select is((select count(*)::int from jsonb_array_elements(api.my_activity(pg_temp.u(4), pg_temp.s(4),
-  p_type => 'returned_funds')->'items')), 2, 'activity shows both returns');
+  p_type => 'returned_funds')->'items')), 3, 'activity shows every return');
 
 select * from finish();
 rollback;

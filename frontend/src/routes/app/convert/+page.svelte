@@ -149,7 +149,10 @@
 	}
 
 	/** Loads the member's pockets; `adopt` fills the picker from them (opened from a wallet). */
+	/** Only the newest member read is applied (a slower, older one must not win). */
+	let memberSeq = 0;
 	async function choose(t: EntryTarget, adopt = false) {
+		const mine = ++memberSeq;
 		segments = null;
 		sourceId = null;
 		formError = null;
@@ -158,6 +161,7 @@
 		const exit = await Effect.runPromiseExit(
 			getJson(`${EntryAppRoutes.segments}?${params}`, EntrySegments)
 		);
+		if (mine !== memberSeq) return;
 		if (Exit.isFailure(exit)) {
 			formError = entryMessage(failureOf(exit));
 			return;
@@ -236,6 +240,11 @@
 	let pinOpen = $state(false);
 	let pinError = $state<string | null>(null);
 	let pinTry = $state(0);
+
+	/** Closing the PIN prompt drops the refused attempt, so an edited form never resends the old body. */
+	$effect(() => {
+		if (!pinOpen && attempt.awaitingPin) attempt.reset();
+	});
 
 	async function submit(pin?: string) {
 		const problem = validate();
@@ -534,8 +543,14 @@
 							</div>
 							{#if difference && quote && !isZero(difference)}
 								<div class="en-line">
-									<span>Difference from quote</span>
-									<span class="v warn">{money(difference.replace('-', ''), quote)}</span>
+									<span
+										>{difference.startsWith('-')
+											? 'Better than the quote'
+											: 'Difference from quote'}</span
+									>
+									<span class="v" class:warn={!difference.startsWith('-')}
+										>{money(difference.replace('-', ''), quote)}</span
+									>
 								</div>
 							{/if}
 						</div>

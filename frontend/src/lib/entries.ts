@@ -45,8 +45,9 @@ const toUnits = (value: string, scale: number): bigint => {
 	return BigInt(whole + fraction.padEnd(scale, '0').slice(0, scale));
 };
 const fromUnits = (units: bigint, scale: number): string => {
-	const text = units.toString().padStart(scale + 1, '0');
-	return `${text.slice(0, -scale)}.${text.slice(-scale)}`;
+	const sign = units < 0n ? '-' : '';
+	const text = (units < 0n ? -units : units).toString().padStart(scale + 1, '0');
+	return `${sign}${text.slice(0, -scale)}.${text.slice(-scale)}`;
 };
 
 /**

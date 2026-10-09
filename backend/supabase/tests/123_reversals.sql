@@ -2,7 +2,7 @@
 -- exact opposite lines, once per transaction, reinstatement, availability.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(21);
+select plan(22);
 
 create function pg_temp.u(n int) returns uuid language sql immutable as
   $$ select ('10000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
@@ -156,6 +156,9 @@ select is(pg_temp.fails($$ select pg_temp.reverse(1, pg_temp.tx('Fiverr'), pg_te
   'conflict:already_reversed', 'a transaction is reversed once');
 select is(api.my_transaction(pg_temp.u(4), pg_temp.s(4), pg_temp.tx('Fiverr'))->>'status', 'reversed',
   'the original shows Reversed');
+
+select ok(not (api.my_transaction(pg_temp.u(4), pg_temp.s(4), (select (r->>'transactionId')::uuid from v1))
+  ->'reversal' ? 'note'), 'the member never sees the President''s note');
 
 -- ── Reinstatement (3) ──
 create temp table v2 as select pg_temp.reverse(1, (select (r->>'transactionId')::uuid from v1),

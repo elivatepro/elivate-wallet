@@ -50,6 +50,8 @@
 	let items = $state<WithdrawalType[]>([]);
 	let loadError = $state<string | null>(null);
 	let selectedId = $state<string | null>(appPage.url.searchParams.get('withdrawal'));
+	/** The linked withdrawal opens once even when it isn't on the first page. */
+	let linked = appPage.url.searchParams.get('withdrawal');
 	let detail = $state<WithdrawalType | null>(null);
 	let notice = $state<string | null>(null);
 	let loadingMore = $state(false);
@@ -84,7 +86,9 @@
 			// Keep the selection when it's still listed, but always show its current state.
 			if (!more) {
 				const keep = items.some((w) => w.withdrawalId === selectedId);
-				void select(keep ? selectedId : (items[0]?.withdrawalId ?? null), keep);
+				if (linked) void select(linked, keep);
+				else void select(keep ? selectedId : (items[0]?.withdrawalId ?? null), keep);
+				linked = null;
 			}
 			return;
 		}
