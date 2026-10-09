@@ -22,7 +22,7 @@
 	} from '#lib/contract/entries.js';
 	import type { Currency } from '#lib/contract/ledger.js';
 	import { getJson } from '#lib/client/api.js';
-	import { CommandAttempt } from '#lib/client/command-attempt.svelte.js';
+	import { CommandAttempt, showsRecovery } from '#lib/client/command-attempt.svelte.js';
 	import { EntryEvidence } from '#lib/client/entry-evidence.svelte.js';
 	import { submitEntry } from '#lib/client/entry-submit.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
@@ -78,12 +78,7 @@
 		}
 	});
 	/** Recovery (F-03) stays on its own locked screen, including its PIN prompt. */
-	const recovering = $derived(
-		attempt.state.kind === 'unknown' ||
-			attempt.state.kind === 'checking' ||
-			attempt.state.kind === 'resolved' ||
-			(attempt.recovering && attempt.awaitingPin)
-	);
+	const recovering = $derived(showsRecovery(attempt));
 	const result = $derived(attempt.state.kind === 'done' ? attempt.state.result : null);
 	const failureOf = <A, E>(exit: Exit.Exit<A, E>) =>
 		Exit.isFailure(exit) ? Option.getOrUndefined(Cause.findErrorOption(exit.cause)) : undefined;

@@ -83,5 +83,7 @@ file short and current.
 
 Merged and on dev: backend slices 01–06, frontend M1, member-build slices 1, 2, 3 (+#27
 follow-up), 4 (withdrawals, payouts, OpenAI receipt check `payout-checker`, evidence review,
-pocket moves; blueprint 11) and 9. Paper `App — Screens v4`: batches 1 and 2 approved
-(batch 2 on 2026-10-09); slice 4's U/MV stubs are to be replaced by U01–U07/MV01. Next: slice 5.
+pocket moves; blueprint 11), 5 (conversions, adjustments, returned funds, reversals, one
+evidence-review queue; Paper v4 U01–U07 and MV01–MV05; blueprint 12) and 9. Paper
+`App — Screens v4` batches 1 and 2 approved. Next: slice 8 (notifications: send the M-series
+from the slice 4/5 audit events).

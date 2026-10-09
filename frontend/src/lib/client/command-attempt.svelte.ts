@@ -309,3 +309,16 @@ export class CommandAttempt<
 		return this.state;
 	}
 }
+
+/**
+ * Whether a form shows the locked recovery screen (OutcomeUnknown) instead of
+ * its editable fields (F-03): the outcome is being checked, or a recovered
+ * attempt is waiting for its PIN or being re-sent with it.
+ */
+export function showsRecovery(
+	attempt: Pick<AttemptControls, 'state' | 'recovering' | 'awaitingPin'>
+): boolean {
+	const kind = attempt.state.kind;
+	if (kind === 'unknown' || kind === 'checking' || kind === 'resolved') return true;
+	return !!attempt.recovering && (!!attempt.awaitingPin || kind === 'sending');
+}
