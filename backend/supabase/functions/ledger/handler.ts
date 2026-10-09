@@ -57,7 +57,11 @@ export interface Deps {
   /** Signed short-lived read of one evidence object (payout receipts). */
   signDownload(path: string, seconds: number): Promise<string | null>;
   /** Decrypts a snapshotted bank account number; never logged. */
-  openAccount(ownerUserId: string, ciphertext: string, keyVersion: number): Promise<string>;
+  openAccount(
+    ownerUserId: string,
+    ciphertext: string,
+    keyVersion: number,
+  ): Promise<string>;
   log(entry: LogEntry): void;
   readonly allowedOrigins: readonly string[];
 }
@@ -80,7 +84,7 @@ interface Route {
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const objectPathPattern =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(income|payout)\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(income|payout|conversion|adjustment|returned_funds)\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const mimeTypes = evidenceMimeTypes;
 
 function parseDetails(raw: string | null | undefined): Details {
@@ -183,7 +187,9 @@ function queryStatus(
 ): string | null {
   const value = query.get(field);
   if (value === null) return null;
-  if (!values.includes(value)) throw new ApiError("validation_error", { field });
+  if (!values.includes(value)) {
+    throw new ApiError("validation_error", { field });
+  }
   return value;
 }
 
@@ -280,18 +286,55 @@ const payoutFields = [
   "idempotencyKey",
 ];
 
-/** Record or correct a payout: amounts in NGN; the database checks the cap. */
-function payoutArgs(body: v.Body): Record<string, unknown> {
+/**
+ * Record or correct a payout: amounts in NGN; the database checks the cap.
+ * The one fix may leave out evidenceId to keep the first receipt (Paper U03).
+ */
+function payoutArgs(
+  body: v.Body,
+  keepReceipt = false,
+): Record<string, unknown> {
   return {
     p_amount: v.decimal(body, "amount"),
     p_fee_amount: body.fee === undefined || body.fee === null ? null : v.decimal(body, "fee"),
     p_paid_on: v.date(body, "paidOn"),
     p_bank_reference: optionalText(body, "bankReference", 100),
     p_notes: optionalText(body, "notes", 1000),
-    p_evidence_id: v.uuid(body, "evidenceId"),
+    p_evidence_id: keepReceipt && (body.evidenceId === undefined || body.evidenceId === null)
+      ? null
+      : v.uuid(body, "evidenceId"),
     p_idempotency_key: v.idempotencyKey(body),
   };
 }
+
+/** An observed moment: ISO 8601 with an offset; the database checks the range. */
+function moment(body: v.Body, field: string): string {
+  const value = v.text(body, field, 40);
+  if (
+    !/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}(:[0-9]{2}(\.[0-9]{1,6})?)?(Z|[+-][0-9]{2}:[0-9]{2})$/
+      .test(value) || Number.isNaN(Date.parse(value))
+  ) {
+    throw new ApiError("validation_error", { field });
+  }
+  return value;
+}
+
+/** Evidence ids of an entry: an empty list is "evidence required". */
+function entryEvidence(body: v.Body): string[] {
+  if (Array.isArray(body.evidenceIds) && body.evidenceIds.length === 0) {
+    throw new ApiError("evidence_required");
+  }
+  return v.uuidList(body, "evidenceIds", 1, 5);
+}
+
+const entryKinds = ["conversion", "adjustment", "returned_funds"] as const;
+const reversalCategories = [
+  "recorded_twice",
+  "wrong_member",
+  "wrong_amount",
+  "wrong_pocket",
+  "other",
+];
 
 function record(value: unknown): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -386,7 +429,11 @@ export function createHandler(
     // own attempt by its idempotency key. Account-level; no workspace.
     route("GET", "/me/command-outcome", (c) => {
       onlyQuery(c.query, ["idempotencyKey", "command"]);
-      const key = queryPattern(c.query, "idempotencyKey", /^[A-Za-z0-9_-]{16,100}$/);
+      const key = queryPattern(
+        c.query,
+        "idempotencyKey",
+        /^[A-Za-z0-9_-]{16,100}$/,
+      );
       if (key === null) {
         throw new ApiError("validation_error", { field: "idempotencyKey" });
       }
@@ -644,7 +691,11 @@ export function createHandler(
       onlyQuery(c.query, ["status", "cursor", "limit"]);
       return call("my_withdrawals", {
         ...inWorkspace(c),
-        p_status: queryStatus(c.query, "status", ["open", "completed", "closed"]),
+        p_status: queryStatus(c.query, "status", [
+          "open",
+          "completed",
+          "closed",
+        ]),
         p_cursor: queryText(c.query, "cursor", 500),
         p_limit: queryLimit(c.query),
       });
@@ -668,7 +719,10 @@ export function createHandler(
 
     route("GET", "/me/withdrawals/:id", (c) => {
       onlyQuery(c.query, []);
-      return call("my_withdrawal", { ...inWorkspace(c), p_withdrawal_id: c.params.id });
+      return call("my_withdrawal", {
+        ...inWorkspace(c),
+        p_withdrawal_id: c.params.id,
+      });
     }),
 
     route("POST", "/me/withdrawals/:id/cancel", async (c) => {
@@ -685,7 +739,12 @@ export function createHandler(
       onlyQuery(c.query, ["tab", "cursor", "limit"]);
       return call("withdrawal_queue", {
         ...inWorkspace(c),
-        p_tab: queryStatus(c.query, "tab", ["action", "verifying", "completed", "closed"]),
+        p_tab: queryStatus(c.query, "tab", [
+          "action",
+          "verifying",
+          "completed",
+          "closed",
+        ]),
         p_cursor: queryText(c.query, "cursor", 500),
         p_limit: queryLimit(c.query),
       });
@@ -693,7 +752,10 @@ export function createHandler(
 
     route("GET", "/withdrawals/:id", (c) => {
       onlyQuery(c.query, []);
-      return call("withdrawal_detail", { ...inWorkspace(c), p_withdrawal_id: c.params.id });
+      return call("withdrawal_detail", {
+        ...inWorkspace(c),
+        p_withdrawal_id: c.params.id,
+      });
     }),
 
     route("POST", "/withdrawals/:id/approve", async (c) => {
@@ -740,11 +802,17 @@ export function createHandler(
         typeof ownerUserId !== "string" || typeof ciphertext !== "string" ||
         typeof keyVersion !== "number"
       ) {
-        throw new Error("reveal_withdrawal_destination returned an unexpected result");
+        throw new Error(
+          "reveal_withdrawal_destination returned an unexpected result",
+        );
       }
       return {
         ...rest,
-        accountNumber: await deps.openAccount(ownerUserId, ciphertext, keyVersion),
+        accountNumber: await deps.openAccount(
+          ownerUserId,
+          ciphertext,
+          keyVersion,
+        ),
       };
     }),
 
@@ -782,12 +850,13 @@ export function createHandler(
       });
     }),
 
+    // The one fix (Paper U03): without evidenceId the first receipt is kept.
     route("POST", "/payouts/:id/correct", async (c) => {
       const body = await v.readBody(c.request, payoutFields);
       return call("correct_payout", {
         ...commandInWorkspace(c),
         p_payout_id: c.params.id,
-        ...payoutArgs(body),
+        ...payoutArgs(body, true),
       });
     }),
 
@@ -803,7 +872,9 @@ export function createHandler(
     route("GET", "/payouts/:id/receipt", async (c) => {
       onlyQuery(c.query, ["revision"]);
       const revision = queryStatus(c.query, "revision", ["1", "2"]);
-      if (revision === null) throw new ApiError("validation_error", { field: "revision" });
+      if (revision === null) {
+        throw new ApiError("validation_error", { field: "revision" });
+      }
       const target = record(
         await call("payout_receipt", {
           ...inWorkspace(c),
@@ -812,7 +883,9 @@ export function createHandler(
         }),
       );
       const { objectPath, ...rest } = target;
-      if (typeof objectPath !== "string" || !objectPathPattern.test(objectPath)) {
+      if (
+        typeof objectPath !== "string" || !objectPathPattern.test(objectPath)
+      ) {
         throw new Error("payout_receipt returned an unexpected path");
       }
       const url = await deps.signDownload(objectPath, 60);
@@ -825,7 +898,12 @@ export function createHandler(
       onlyQuery(c.query, ["tab", "cursor", "limit"]);
       return call("review_queue", {
         ...inWorkspace(c),
-        p_tab: queryStatus(c.query, "tab", ["assigned", "cleared", "rejected", "all"]),
+        p_tab: queryStatus(c.query, "tab", [
+          "assigned",
+          "cleared",
+          "rejected",
+          "all",
+        ]),
         p_cursor: queryText(c.query, "cursor", 500),
         p_limit: queryLimit(c.query),
       });
@@ -833,20 +911,258 @@ export function createHandler(
 
     route("GET", "/reviews/:id", (c) => {
       onlyQuery(c.query, []);
-      return call("review_case", { ...inWorkspace(c), p_payout_id: c.params.id });
+      return call("review_case", {
+        ...inWorkspace(c),
+        p_payout_id: c.params.id,
+      });
     }),
 
+    // A payout case by default; `kind` names a conversion, adjustment or
+    // returned-funds case (Blueprint 12).
     route("POST", "/reviews/:id/decision", async (c) => {
-      const body = await v.readBody(c.request, ["decision", "reason", "idempotencyKey"]);
+      const body = await v.readBody(c.request, [
+        "kind",
+        "decision",
+        "reason",
+        "idempotencyKey",
+      ]);
       const decision = v.text(body, "decision", 10);
       if (decision !== "clear" && decision !== "reject") {
         throw new ApiError("validation_error", { field: "decision" });
       }
-      return call("review_payout", {
+      const kind = body.kind === undefined || body.kind === null
+        ? "payout"
+        : v.text(body, "kind", 20);
+      if (
+        kind !== "payout" && !(entryKinds as readonly string[]).includes(kind)
+      ) {
+        throw new ApiError("validation_error", { field: "kind" });
+      }
+      const args = {
         ...commandInWorkspace(c),
-        p_payout_id: c.params.id,
         p_decision: decision,
         p_reason: v.reason(body),
+        p_idempotency_key: v.idempotencyKey(body),
+      };
+      return kind === "payout"
+        ? call("review_payout", { ...args, p_payout_id: c.params.id })
+        : call("review_entry", { ...args, p_entry_id: c.params.id });
+    }),
+
+    route("GET", "/reviews/:id/evidence/:evidenceId", async (c) => {
+      onlyQuery(c.query, []);
+      const target = record(
+        await call("entry_evidence", {
+          ...inWorkspace(c),
+          p_entry_id: c.params.id,
+          p_evidence_id: c.params.evidenceId,
+        }),
+      );
+      const { objectPath, ...rest } = target;
+      if (
+        typeof objectPath !== "string" || !objectPathPattern.test(objectPath)
+      ) {
+        throw new Error("entry_evidence returned an unexpected path");
+      }
+      const url = await deps.signDownload(objectPath, 60);
+      if (!url) throw new Error("signing the evidence failed");
+      return { ...rest, url, expiresIn: 60 };
+    }),
+
+    // ── Conversions, adjustments, returned funds (Blueprint 12) ──
+    route("GET", "/entries/targets", (c) => {
+      onlyQuery(c.query, ["kind", "cursor", "limit", "q"]);
+      const kind = queryStatus(c.query, "kind", ["conversion", "adjustment"]);
+      if (kind === null) {
+        throw new ApiError("validation_error", { field: "kind" });
+      }
+      return call("entry_targets", {
+        ...inWorkspace(c),
+        p_kind: kind,
+        p_cursor: queryText(c.query, "cursor", 500),
+        p_limit: queryLimit(c.query),
+        p_query: queryText(c.query, "q", 100),
+      });
+    }),
+
+    route("GET", "/entries/segments", (c) => {
+      onlyQuery(c.query, ["kind", "membershipId"]);
+      const kind = queryStatus(c.query, "kind", ["conversion", "adjustment"]);
+      const membershipId = queryUuid(c.query, "membershipId");
+      if (kind === null) {
+        throw new ApiError("validation_error", { field: "kind" });
+      }
+      if (membershipId === null) {
+        throw new ApiError("validation_error", { field: "membershipId" });
+      }
+      return call("entry_segments", {
+        ...inWorkspace(c),
+        p_kind: kind,
+        p_target_membership_id: membershipId,
+      });
+    }),
+
+    route("POST", "/entry-evidence/uploads", async (c) => {
+      const body = await v.readBody(c.request, [
+        "kind",
+        "targetMembershipId",
+        "idempotencyKey",
+        "fileName",
+        "mimeType",
+        "size",
+        "sha256",
+      ]);
+      const kind = v.text(body, "kind", 20);
+      if (!(entryKinds as readonly string[]).includes(kind)) {
+        throw new ApiError("validation_error", { field: "kind" });
+      }
+      const upload = uploadFacts(body);
+      const created = record(
+        await call("create_entry_evidence_upload", {
+          ...commandInWorkspace(c),
+          p_kind: kind,
+          p_target_membership_id: v.uuid(body, "targetMembershipId"),
+          p_command_key: v.idempotencyKey(body),
+          p_file_name: upload.fileName,
+          p_mime_type: upload.mimeType,
+          p_size: upload.size,
+          p_sha256: upload.sha256,
+        }),
+      );
+      return signed(created, "create_entry_evidence_upload");
+    }),
+
+    route("POST", "/conversions", async (c) => {
+      const body = await v.readBody(c.request, [
+        "sourceAccountId",
+        "amount",
+        "destinationCurrency",
+        "destinationAmount",
+        "quotedRate",
+        "provider",
+        "convertedAt",
+        "externalReference",
+        "notes",
+        "evidenceIds",
+        "idempotencyKey",
+      ]);
+      let quotedRate: string | null = null;
+      if (body.quotedRate !== undefined && body.quotedRate !== null) {
+        quotedRate = v.text(body, "quotedRate", 22);
+        if (!/^[0-9]{1,12}(\.[0-9]{1,8})?$/.test(quotedRate)) {
+          throw new ApiError("validation_error", { field: "quotedRate" });
+        }
+      }
+      return call("submit_conversion", {
+        ...commandInWorkspace(c),
+        p_source_account_id: v.uuid(body, "sourceAccountId"),
+        p_amount: v.decimal(body, "amount"),
+        p_destination_currency: v.currency(body, "destinationCurrency"),
+        p_destination_amount: v.decimal(body, "destinationAmount"),
+        p_quoted_rate: quotedRate,
+        p_provider: v.text(body, "provider", 100),
+        p_converted_at: moment(body, "convertedAt"),
+        p_external_reference: optionalText(body, "externalReference", 100),
+        p_notes: optionalText(body, "notes", 1000),
+        p_evidence_ids: entryEvidence(body),
+        p_idempotency_key: v.idempotencyKey(body),
+      });
+    }),
+
+    route("POST", "/adjustments", async (c) => {
+      const body = await v.readBody(c.request, [
+        "targetMembershipId",
+        "direction",
+        "currency",
+        "amount",
+        "reason",
+        "notes",
+        "evidenceIds",
+        "idempotencyKey",
+      ]);
+      const direction = v.text(body, "direction", 6);
+      if (direction !== "credit" && direction !== "debit") {
+        throw new ApiError("validation_error", { field: "direction" });
+      }
+      return call("submit_adjustment", {
+        ...commandInWorkspace(c),
+        p_target_membership_id: v.uuid(body, "targetMembershipId"),
+        p_direction: direction,
+        p_currency: v.currency(body, "currency"),
+        p_amount: v.decimal(body, "amount"),
+        p_reason: v.reason(body),
+        p_notes: optionalText(body, "notes", 1000),
+        p_evidence_ids: entryEvidence(body),
+        p_idempotency_key: v.idempotencyKey(body),
+      });
+    }),
+
+    route("GET", "/withdrawals/:id/returnable", (c) => {
+      onlyQuery(c.query, []);
+      return call("returnable_withdrawal", {
+        ...inWorkspace(c),
+        p_withdrawal_id: c.params.id,
+      });
+    }),
+
+    route("POST", "/withdrawals/:id/returns", async (c) => {
+      const body = await v.readBody(c.request, [
+        "amount",
+        "seenAt",
+        "returnedBy",
+        "bankReference",
+        "notes",
+        "evidenceIds",
+        "idempotencyKey",
+      ]);
+      return call("submit_returned_funds", {
+        ...commandInWorkspace(c),
+        p_withdrawal_id: c.params.id,
+        p_amount: v.decimal(body, "amount"),
+        p_seen_at: moment(body, "seenAt"),
+        p_returned_by: v.text(body, "returnedBy", 100),
+        p_bank_reference: optionalText(body, "bankReference", 100),
+        p_notes: optionalText(body, "notes", 1000),
+        p_evidence_ids: entryEvidence(body),
+        p_idempotency_key: v.idempotencyKey(body),
+      });
+    }),
+
+    // ── Reversals (W-15) ──
+    route("GET", "/reversals/preview", (c) => {
+      onlyQuery(c.query, ["reference"]);
+      const reference = queryPattern(
+        c.query,
+        "reference",
+        /^[A-Za-z0-9-]{11,20}$/,
+      );
+      if (reference === null) {
+        throw new ApiError("validation_error", { field: "reference" });
+      }
+      return call("reversal_preview", {
+        ...inWorkspace(c),
+        p_reference: reference,
+      });
+    }),
+
+    route("POST", "/reversals", async (c) => {
+      const body = await v.readBody(c.request, [
+        "transactionId",
+        "category",
+        "note",
+        "confirmReference",
+        "idempotencyKey",
+      ]);
+      const category = v.text(body, "category", 20);
+      if (!reversalCategories.includes(category)) {
+        throw new ApiError("validation_error", { field: "category" });
+      }
+      return call("reverse_transaction", {
+        ...commandInWorkspace(c),
+        p_transaction_id: v.uuid(body, "transactionId"),
+        p_category: category,
+        p_note: optionalText(body, "note", 500),
+        p_confirm_reference: v.text(body, "confirmReference", 20),
         p_idempotency_key: v.idempotencyKey(body),
       });
     }),
@@ -861,7 +1177,11 @@ export function createHandler(
       onlyQuery(c.query, ["status", "cursor", "limit"]);
       return call("my_pocket_transfers", {
         ...inWorkspace(c),
-        p_status: queryStatus(c.query, "status", ["open", "completed", "closed"]),
+        p_status: queryStatus(c.query, "status", [
+          "open",
+          "completed",
+          "closed",
+        ]),
         p_cursor: queryText(c.query, "cursor", 500),
         p_limit: queryLimit(c.query),
       });
