@@ -189,10 +189,6 @@ begin
   locked_people := array(select distinct user_id from org.memberships where office_id = office.id and status <> 'ended');
   perform org.lock_people(workspace.tenant_id, locked_people);
   perform org.lock_tree(workspace.tenant_id);
-  -- Pending invitations before the office row: create_invitation locks its
-  -- invitation rows first and the office (insert trigger) second, so both
-  -- commands take them in the same order.
-  perform 1 from org.invitations where office_id = office.id and status = 'pending' for update;
   select * into office from org.offices where id = office.id for no key update;
   -- Someone joined between the person locks and the office lock: never take a
   -- person lock after the office lock (deadlock with role changes); ask for a retry.
@@ -242,8 +238,12 @@ begin
     ended_ids := ended_ids || leader.id;
   end loop;
 
+  -- SKIP LOCKED: accept_invitation locks office → invitation but
+  -- create_invitation locks invitation → office, so no single order fits both.
+  -- A row held by a concurrent command is left to it: a create rolls back on
+  -- the closed office (insert trigger) and acceptance re-checks the office.
   for invitation in
-    select * from org.invitations where office_id = office.id and status = 'pending' for update
+    select * from org.invitations where office_id = office.id and status = 'pending' for update skip locked
   loop
     update org.invitations
     set status = 'revoked', revoked_at = now(), revoked_by = p_user_id, revoke_reason = clean_reason
