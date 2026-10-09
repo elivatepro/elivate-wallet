@@ -294,3 +294,18 @@ export async function humanReady(page: Page) {
 		timeout: 15_000
 	});
 }
+
+/**
+ * The /join "Choose a password" step. On a slow runner the server-rendered
+ * form can be filled before hydration resets it, which submits an empty
+ * password; retry until the next step ("Accept invitation") shows.
+ */
+export async function setJoinPassword(page: Page, password: string) {
+	const accept = page.getByRole('button', { name: 'Accept invitation' });
+	await expect(async () => {
+		if (await accept.isVisible()) return;
+		await page.getByLabel('New password').fill(password, { timeout: 3_000 });
+		await page.getByRole('button', { name: 'Set password' }).click({ timeout: 3_000 });
+		await expect(accept).toBeVisible({ timeout: 5_000 });
+	}).toPass({ timeout: 30_000 });
+}

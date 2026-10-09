@@ -9,6 +9,7 @@ import {
 	createConfirmedAccount,
 	expectAccessible,
 	inviteMember,
+	setJoinPassword,
 	recordIncome,
 	humanReady,
 	uniqueEmail
@@ -24,8 +25,7 @@ async function joinAsNewMember(page: Page, joinPath: string, email: string) {
 	await page.getByRole('button', { name: 'Verify email' }).click();
 	await page.goto(await confirmLinkFor(email, /Confirm your Elivate Wallet email/));
 	await page.getByRole('button', { name: 'Continue' }).click();
-	await page.getByLabel('New password').fill(PASSWORD);
-	await page.getByRole('button', { name: 'Set password' }).click();
+	await setJoinPassword(page, PASSWORD);
 	await page.getByRole('button', { name: 'Accept invitation' }).click();
 	await page.getByRole('link', { name: 'Let’s begin' }).click();
 	await page.getByLabel('PIN', { exact: true }).fill(PIN);

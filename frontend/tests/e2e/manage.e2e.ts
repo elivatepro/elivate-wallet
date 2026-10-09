@@ -8,8 +8,9 @@ import {
 	confirmLinkFor,
 	createConfirmedAccount,
 	expectAccessible,
-	inviteMember,
 	humanReady,
+	inviteMember,
+	setJoinPassword,
 	uniqueEmail
 } from './helpers';
 
@@ -47,8 +48,7 @@ test('payout accounts: list, add a second (cooling off), refuse a mismatch, remo
 	await page.getByRole('button', { name: 'Verify email' }).click();
 	await page.goto(await confirmLinkFor(member, /Confirm your Elivate Wallet email/));
 	await page.getByRole('button', { name: 'Continue' }).click();
-	await page.getByLabel('New password').fill(PASSWORD);
-	await page.getByRole('button', { name: 'Set password' }).click();
+	await setJoinPassword(page, PASSWORD);
 	await page.getByRole('button', { name: 'Accept invitation' }).click();
 	await page.getByRole('link', { name: 'Let’s begin' }).click();
 	await page.getByLabel('PIN', { exact: true }).fill(PIN);
