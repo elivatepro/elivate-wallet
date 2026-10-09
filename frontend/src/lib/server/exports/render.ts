@@ -105,7 +105,9 @@ interface LocalChromium {
 export function localRenderer(): PdfRenderer {
 	return {
 		async render(html, { preview }) {
-			const specifier = '@playwright/test';
+			// Built at run time so no bundler (vite, wrangler's esbuild) follows it
+			// into the Worker: Playwright exists only on a developer machine or CI.
+			const specifier = ['@playwright', 'test'].join('/');
 			const { chromium } = (await import(/* @vite-ignore */ specifier)) as {
 				chromium: LocalChromium;
 			};
