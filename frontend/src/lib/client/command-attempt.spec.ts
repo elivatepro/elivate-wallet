@@ -130,6 +130,23 @@ describe('CommandAttempt', () => {
 		expect(store.getItem(storageKey(scope, 'record_income'))).not.toBeNull();
 	});
 
+	it('while recovering, a PIN prompt says so and the same body goes again with the PIN', async () => {
+		const { attempt, sent } = harness(
+			['timeout', refused('step_up_required'), 'ok'],
+			[{ status: 'not_found', command: null }]
+		);
+		const key = attempt.key;
+		await attempt.send('ws-1', { amount: '1.00' });
+		await attempt.resend();
+		expect(attempt.recovering).toBe(true);
+		expect(attempt.awaitingPin).toBe(true);
+		attempt.reset();
+		expect(attempt.key).toBe(key);
+		const state = await attempt.resend({ pin: '1234' });
+		expect(state.kind).toBe('done');
+		expect(sent[2]?.body).toEqual({ amount: '1.00', pin: '1234', idempotencyKey: key });
+	});
+
 	it('a reload restores the attempt from the device and checks it', async () => {
 		const first = harness(['timeout'], []);
 		await first.attempt.send('ws-1', { amount: '1.00' });

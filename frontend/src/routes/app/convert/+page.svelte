@@ -87,10 +87,12 @@
 			void attempt.restore();
 		}
 	});
+	/** Recovery (F-03) stays on its own locked screen, including its PIN prompt. */
 	const recovering = $derived(
 		attempt.state.kind === 'unknown' ||
 			attempt.state.kind === 'checking' ||
-			attempt.state.kind === 'resolved'
+			attempt.state.kind === 'resolved' ||
+			(attempt.recovering && attempt.awaitingPin)
 	);
 	const result = $derived(attempt.state.kind === 'done' ? attempt.state.result : null);
 
