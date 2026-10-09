@@ -54,8 +54,12 @@
 
 	/** Only the newest read is applied (a slower, older tab must not win). */
 	let seq = 0;
+	/** A replacement first page is loading: its cursor isn't known yet. */
+	let loadingFirst = $state(false);
 	async function load(more = false) {
 		const mine = ++seq;
+		const listFor = filter;
+		if (!more) loadingFirst = true;
 		// Built and read once per call; not reactive state.
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const params = new URLSearchParams();
@@ -67,7 +71,8 @@
 			getJson(`${WithdrawalAppRoutes.mine}${query}`, WithdrawalPage)
 		);
 		loadingMore = false;
-		if (mine !== seq) return;
+		if (mine !== seq || listFor !== filter) return;
+		if (!more) loadingFirst = false;
 		if (Exit.isSuccess(exit)) {
 			page = exit.value;
 			items = more ? [...items, ...exit.value.items] : [...exit.value.items];
@@ -222,8 +227,11 @@
 			{/each}
 		</div>
 		{#if page?.nextCursor}
-			<button type="button" class="mm-btn more" disabled={loadingMore} onclick={() => load(true)}
-				>{loadingMore ? 'Loading…' : 'Show more'}</button
+			<button
+				type="button"
+				class="mm-btn more"
+				disabled={loadingMore || loadingFirst}
+				onclick={() => load(true)}>{loadingMore ? 'Loading…' : 'Show more'}</button
 			>
 		{/if}
 	{/if}

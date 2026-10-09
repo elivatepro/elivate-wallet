@@ -53,16 +53,21 @@
 
 	/** Only the newest read is applied (a slower, older tab must not win). */
 	let seq = 0;
+	/** A replacement first page is loading: its cursor isn't known yet. */
+	let loadingFirst = $state(false);
 	let loadingMore = $state(false);
 	async function load(more = false) {
 		const mine = ++seq;
+		const listFor = tab;
+		if (!more) loadingFirst = true;
 		const cursor = more && page?.nextCursor ? `&cursor=${encodeURIComponent(page.nextCursor)}` : '';
 		if (more) loadingMore = true;
 		const exit = await Effect.runPromiseExit(
 			getJson(`${WithdrawalAppRoutes.reviews}?tab=${tab}${cursor}`, ReviewPage)
 		);
 		loadingMore = false;
-		if (mine !== seq) return;
+		if (mine !== seq || listFor !== tab) return;
+		if (!more) loadingFirst = false;
 		if (Exit.isSuccess(exit)) {
 			page = exit.value;
 			items = more ? [...items, ...exit.value.items] : [...exit.value.items];
@@ -214,7 +219,7 @@
 						<button
 							type="button"
 							class="mm-btn sm more"
-							disabled={loadingMore}
+							disabled={loadingMore || loadingFirst}
 							onclick={() => load(true)}>{loadingMore ? 'Loading…' : 'Show more'}</button
 						>
 					{/if}

@@ -78,7 +78,10 @@
 	);
 	const sent = $derived(attempt.state.kind === 'done' ? attempt.state.result : null);
 
+	/** Bumped by every first-page reload; a pending next page from before is dropped. */
+	let movesVersion = 0;
 	async function load() {
+		movesVersion++;
 		const [c, m] = await Promise.all([
 			Effect.runPromiseExit(getJson(WithdrawalAppRoutes.choices, TransferChoices)),
 			Effect.runPromiseExit(getJson(`${WithdrawalAppRoutes.moves}?status=open`, TransferPage))
@@ -151,6 +154,7 @@
 	let loadingMore = $state(false);
 	async function moreMoves() {
 		if (!mine?.nextCursor) return;
+		const version = movesVersion;
 		loadingMore = true;
 		const exit = await Effect.runPromiseExit(
 			getJson(
@@ -159,7 +163,7 @@
 			)
 		);
 		loadingMore = false;
-		if (Exit.isSuccess(exit) && mine) {
+		if (Exit.isSuccess(exit) && mine && version === movesVersion) {
 			mine = { ...exit.value, items: [...mine.items, ...exit.value.items] };
 		}
 	}
