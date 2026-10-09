@@ -13,7 +13,7 @@ export function humanCheck(
 ): Promise<TurnstileOutcome> {
 	const config = turnstileConfig();
 	return verifyTurnstile(
-		{ secret: config.secret, fetch: event.fetch, url: config.url },
+		{ secret: config.secret, fetch: event.fetch, url: config.url, hostnames: config.hostnames },
 		form,
 		action,
 		event.request.headers.get('cf-connecting-ip')

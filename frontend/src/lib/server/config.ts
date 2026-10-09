@@ -1,6 +1,7 @@
 import {
 	SUPABASE_PUBLISHABLE_KEY,
 	SUPABASE_URL,
+	TURNSTILE_HOSTNAMES,
 	TURNSTILE_SECRET_KEY,
 	TURNSTILE_SITE_KEY,
 	TURNSTILE_SITEVERIFY_URL
@@ -27,10 +28,16 @@ export function turnstileConfig(): {
 	secret: string | undefined;
 	/** Loopback stand-in for local e2e only (env.ts refuses anything else). */
 	url: string | undefined;
+	/** Hostnames siteverify may report; empty refuses every token. */
+	hostnames: readonly string[];
 } {
 	return {
 		siteKey: TURNSTILE_SITE_KEY ?? null,
 		secret: TURNSTILE_SECRET_KEY,
-		url: TURNSTILE_SITEVERIFY_URL
+		url: TURNSTILE_SITEVERIFY_URL,
+		hostnames: (TURNSTILE_HOSTNAMES ?? '')
+			.split(',')
+			.map((host) => host.trim().toLowerCase())
+			.filter((host) => host.length > 0)
 	};
 }

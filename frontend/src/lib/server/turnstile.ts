@@ -32,6 +32,8 @@ export interface TurnstileConfig {
 	readonly fetch: typeof globalThis.fetch;
 	/** Defaults to Cloudflare's siteverify. */
 	readonly url?: string | undefined;
+	/** Hostnames the token may come from; empty refuses every token. */
+	readonly hostnames: readonly string[];
 }
 
 export async function verifyTurnstile(
@@ -66,6 +68,10 @@ export async function verifyTurnstile(
 		return { ok: false, reason: 'unavailable' };
 	}
 	if (!parsed.success) return { ok: false, reason: 'rejected' };
+	// A token solved on a site not on this deployment's allowlist is refused.
+	if (!parsed.hostname || !config.hostnames.includes(parsed.hostname.toLowerCase())) {
+		return { ok: false, reason: 'rejected' };
+	}
 	// The widget names its form; a token minted for another form is refused.
 	// (Cloudflare's test keys answer without an action, so empty is allowed.)
 	if (parsed.action && parsed.action !== action) return { ok: false, reason: 'rejected' };
