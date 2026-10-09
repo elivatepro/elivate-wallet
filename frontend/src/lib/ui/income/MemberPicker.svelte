@@ -9,7 +9,11 @@
 	import { Dialog } from 'bits-ui';
 	import Check from '@lucide/svelte/icons/check';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
-	import type { IncomeTarget, IncomeTargets } from '#lib/contract/income.js';
+	import type { IncomeTarget } from '#lib/contract/income.js';
+
+	/** What the picker shows; income, conversion and adjustment targets all fit. */
+	type Target = Pick<IncomeTarget, 'membershipId' | 'person' | 'role' | 'officeId' | 'officeName'>;
+	type TargetPage = { readonly items: ReadonlyArray<Target>; readonly nextCursor: string | null };
 	import { initials } from '#lib/income.js';
 
 	let {
@@ -23,21 +27,21 @@
 		onChange,
 		search
 	}: {
-		targets: ReadonlyArray<IncomeTarget>;
-		selected?: IncomeTarget | null;
+		targets: ReadonlyArray<Target>;
+		selected?: Target | null;
 		hasMore?: boolean;
 		loadingMore?: boolean;
 		disabled?: boolean;
 		error?: string | null;
 		onLoadMore: () => void;
-		onChange?: (target: IncomeTarget) => void;
+		onChange?: (target: Target) => void;
 		/** One page of server-side search results; null when the read failed. */
-		search: (query: string, cursor: string | null) => Promise<IncomeTargets | null>;
+		search: (query: string, cursor: string | null) => Promise<TargetPage | null>;
 	} = $props();
 
 	let open = $state(false);
 	let query = $state('');
-	let results = $state<IncomeTarget[]>([]);
+	let results = $state<Target[]>([]);
 	let resultsCursor = $state<string | null>(null);
 	let searching = $state(false);
 	let searchFailed = $state(false);
@@ -89,14 +93,13 @@
 		resultsCursor = page.nextCursor;
 	}
 
-	const label = (t: IncomeTarget) => t.person?.name ?? t.person?.uid ?? 'Member';
-	const detail = (t: IncomeTarget) =>
-		t.person ? `UID ${t.person.uid} · ${t.officeName}` : t.officeName;
+	const label = (t: Target) => t.person?.name ?? t.person?.uid ?? 'Member';
+	const detail = (t: Target) => (t.person ? `UID ${t.person.uid} · ${t.officeName}` : t.officeName);
 
 	const searchingNow = $derived(query.trim().length > 0);
 	const shown = $derived(searchingNow ? results : targets);
 
-	function choose(target: IncomeTarget) {
+	function choose(target: Target) {
 		selected = target;
 		onChange?.(target);
 		open = false;

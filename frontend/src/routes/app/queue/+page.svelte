@@ -7,6 +7,7 @@
 -->
 <script lang="ts">
 	import { getContext } from 'svelte';
+	import { page as appPage } from '$app/state';
 	import { Cause, Effect, Exit, Option } from 'effect';
 	import {
 		Withdrawal,
@@ -18,7 +19,13 @@
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { initials } from '#lib/activity.js';
 	import { formatMoney } from '#lib/money.js';
-	import { queueLine, withdrawalStage } from '#lib/withdrawals.js';
+	import {
+		checkDelayed,
+		currentRevision,
+		debited,
+		queueLine,
+		withdrawalStage
+	} from '#lib/withdrawals.js';
 	import RootHero from '#lib/ui/app/RootHero.svelte';
 	import Pill from '#lib/ui/money/Pill.svelte';
 	import QueueTabs from '#lib/ui/money/QueueTabs.svelte';
@@ -26,13 +33,25 @@
 	import '#lib/ui/money/money.css';
 
 	const shell = getContext<Shell>('shell');
+	/** Navigation hint only; the backend authorizes every command. */
+	const can = (permission: string) =>
+		shell.state.kind === 'ready' &&
+		(shell.state.view.capabilities?.permissions ?? []).includes(permission);
 	type Tab = 'action' | 'verifying' | 'completed' | 'closed';
 
-	let tab = $state<Tab>('action');
+	// Deep link (W09 "View withdrawal"): ?tab=completed&withdrawal=<id>.
+	const linkedTab = appPage.url.searchParams.get('tab');
+	let tab = $state<Tab>(
+		linkedTab === 'verifying' || linkedTab === 'completed' || linkedTab === 'closed'
+			? linkedTab
+			: 'action'
+	);
 	let page = $state<WithdrawalPage | null>(null);
 	let items = $state<WithdrawalType[]>([]);
 	let loadError = $state<string | null>(null);
-	let selectedId = $state<string | null>(null);
+	let selectedId = $state<string | null>(appPage.url.searchParams.get('withdrawal'));
+	/** The linked withdrawal opens once even when it isn't on the first page. */
+	let linked = appPage.url.searchParams.get('withdrawal');
 	let detail = $state<WithdrawalType | null>(null);
 	let notice = $state<string | null>(null);
 	let loadingMore = $state(false);
@@ -67,7 +86,9 @@
 			// Keep the selection when it's still listed, but always show its current state.
 			if (!more) {
 				const keep = items.some((w) => w.withdrawalId === selectedId);
-				void select(keep ? selectedId : (items[0]?.withdrawalId ?? null), keep);
+				if (linked) void select(linked, keep);
+				else void select(keep ? selectedId : (items[0]?.withdrawalId ?? null), keep);
+				linked = null;
 			}
 			return;
 		}
@@ -111,8 +132,36 @@
 		{ key: 'closed' as const, label: 'Rejected & cancelled' }
 	]);
 	const correcting = $derived(detail?.payout?.status === 'correction_required');
+	const firstName = (w: WithdrawalType) =>
+		(w.member?.name ?? w.member?.uid ?? 'The member').split(' ')[0];
 	const hero = $derived.by(() => {
 		if (!counts) return null;
+		// Paper v4 U04–U06: the selected withdrawal's state comes first.
+		if (detail?.status === 'completed') {
+			return {
+				pose: 'payout-done' as const,
+				title: `${formatMoney(debited(detail), 'NGN')} paid out`,
+				lead: `The receipt matched. ${firstName(detail)}’s balance is updated.`
+			};
+		}
+		if (detail?.status === 'approved' && detail.payout?.status === 'rejected') {
+			return {
+				pose: 'income-refused' as const,
+				title: 'A reviewer rejected the receipt',
+				lead: `${formatMoney(detail.reserved, 'NGN')} stays reserved. Record it again or cancel.`
+			};
+		}
+		if (
+			detail?.status === 'approved' &&
+			detail.payout?.status === 'verifying' &&
+			checkDelayed(currentRevision(detail.payout))
+		) {
+			return {
+				pose: 'load-error' as const,
+				title: 'We couldn’t read a receipt yet',
+				lead: 'We’ll keep trying. It doesn’t use your one fix.'
+			};
+		}
 		if (tab === 'action' && correcting) {
 			return {
 				pose: 'queue-correction' as const,
@@ -207,6 +256,7 @@
 			{#if detail && workspaceId}
 				<WithdrawalPanel
 					withdrawal={detail}
+					canReturn={can('record_returned_funds')}
 					{workspaceId}
 					canAct={shell.canAct}
 					onChanged={changed}

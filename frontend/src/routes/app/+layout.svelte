@@ -12,6 +12,8 @@
 	import { DropdownMenu, Popover } from 'bits-ui';
 	import Activity from '@lucide/svelte/icons/activity';
 	import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
+	import Repeat from '@lucide/svelte/icons/repeat';
+	import Undo2 from '@lucide/svelte/icons/undo-2';
 	import Bell from '@lucide/svelte/icons/bell';
 	import Building from '@lucide/svelte/icons/building-2';
 	import FileText from '@lucide/svelte/icons/file-text';
@@ -75,7 +77,11 @@
 		'/app/activity': 'Activity',
 		'/app/withdrawals/new': 'Withdrawals  /  New request',
 		'/app/withdrawals': 'Withdrawals',
+		'/app/queue/returns': 'Withdrawal queue  /  Returned funds',
 		'/app/queue': 'Withdrawal queue',
+		'/app/convert': 'Record conversion',
+		'/app/adjust': 'Members  /  Adjustment',
+		'/app/reversals': 'Reversals',
 		'/app/transfers': 'Transfers',
 		'/app/evidence': 'Evidence review',
 		'/app/split/move': 'Pockets & split  /  Move money',
@@ -110,6 +116,10 @@
 	const pushed = $derived(
 		path.startsWith('/app/notifications') ||
 			path.startsWith('/app/income') ||
+			path.startsWith('/app/convert') ||
+			path.startsWith('/app/adjust') ||
+			path.startsWith('/app/reversals') ||
+			path.startsWith('/app/queue/returns') ||
 			path.startsWith('/app/account') ||
 			(path.startsWith('/app/activity') && page.url.searchParams.has('tx'))
 	);
@@ -206,6 +216,15 @@
 					<ArrowLeftRight size={18} strokeWidth={1.5} aria-hidden="true" /><span>Transfers</span>
 				</a>
 			{/if}
+			{#if can('reverse_transaction')}
+				<a
+					class="side-item"
+					href="/app/reversals"
+					aria-current={path.startsWith('/app/reversals') ? 'page' : undefined}
+				>
+					<Undo2 size={18} strokeWidth={1.5} aria-hidden="true" /><span>Reversals</span>
+				</a>
+			{/if}
 			{#if can('review_financial_evidence')}
 				<a
 					class="side-item"
@@ -245,6 +264,15 @@
 					aria-current={path.startsWith('/app/income') ? 'page' : undefined}
 				>
 					<Download size={18} strokeWidth={1.5} aria-hidden="true" /><span>Record income</span>
+				</a>
+			{/if}
+			{#if can('perform_currency_conversion')}
+				<a
+					class="side-item"
+					href="/app/convert"
+					aria-current={path.startsWith('/app/convert') ? 'page' : undefined}
+				>
+					<Repeat size={18} strokeWidth={1.5} aria-hidden="true" /><span>Record conversion</span>
 				</a>
 			{/if}
 			{#if can('invite_members')}

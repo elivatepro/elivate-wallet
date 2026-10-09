@@ -1,6 +1,7 @@
 <!--
-	Record income outcome screens, Paper "App — Screens v4" J03 (posted), J04
-	(checking what happened) and J05 (couldn't record). Desktop: a 640×250 grain
+	Outcome screens, Paper "App — Screens v4" J03 (posted), J04 (checking what
+	happened), J05 (couldn't record), MV01–MV05 (money moves) and "App —
+	Screens v2" W09/W10 (sent for checking, with its status chip). Desktop: a 640×250 grain
 	stage with Root, then title, lead, actions and a mono footnote. Mobile: a
 	full-height screen with Root on the page grain and the actions at the
 	bottom, primary first.
@@ -15,6 +16,7 @@
 		title,
 		lead,
 		footnote = null,
+		chip = null,
 		alert,
 		actions
 	}: {
@@ -22,6 +24,8 @@
 		title: string;
 		lead: string;
 		footnote?: string | null;
+		/** W09 "Checking proof · no balance change yet". */
+		chip?: string | null;
 		alert?: Snippet;
 		actions: Snippet;
 	} = $props();
@@ -35,6 +39,7 @@
 		<RootImage {pose} class="stage-root" sizes="(min-width: 1024px) 190px, 210px" eager />
 	</div>
 	<div class="message">
+		{#if chip}<span class="chip">{chip}</span>{/if}
 		<h1 id="outcome-title" class="title">{title}</h1>
 		<p class="lead">{lead}</p>
 		{#if footnote}<p class="footnote footnote-mobile">{footnote}</p>{/if}
@@ -90,6 +95,16 @@
 		gap: 10px;
 		padding: 24px 28px 0;
 		text-align: center;
+	}
+
+	.chip {
+		padding: 3px 12px;
+		border-radius: var(--radius-pill);
+		background: color-mix(in oklab, var(--color-info) 18%, transparent);
+		color: var(--color-info);
+		font-size: 13px;
+		font-weight: var(--font-weight-medium);
+		line-height: 18px;
 	}
 
 	.title {

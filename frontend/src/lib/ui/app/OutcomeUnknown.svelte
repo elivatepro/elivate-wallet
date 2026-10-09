@@ -10,6 +10,8 @@
 <script lang="ts">
 	import type { AttemptControls } from '#lib/client/command-attempt.svelte.js';
 	import { attemptLabel } from '#lib/recovery.js';
+	import { pinProblem } from '#lib/payout.js';
+	import PinField from '#lib/ui/auth/PinField.svelte';
 	import CheckingPanel from './CheckingPanel.svelte';
 
 	let {
@@ -34,6 +36,26 @@
 	);
 	const resolution = $derived(s.kind === 'resolved' ? s.resolution : null);
 	const busy = $derived(s.kind === 'checking' || s.kind === 'sending');
+	/**
+	 * "Send again" asked for the PIN while recovering: the same saved attempt is
+	 * re-sent with it from here, never from the editable form (F-03).
+	 */
+	const needsPin = $derived(!!attempt.recovering && !!attempt.awaitingPin);
+	const pinMessage = $derived.by(() => {
+		const problem = s.kind === 'failed' ? pinProblem(s.failure) : null;
+		return problem?.kind === 'pin' ? problem.message : null;
+	});
+	let pinKey = $state(0);
+	async function resendWithPin(event: SubmitEvent) {
+		event.preventDefault();
+		const pin = String(new FormData(event.currentTarget as HTMLFormElement).get('pin') ?? '');
+		await attempt.resend(pin ? { pin } : {});
+		const next = attempt.state;
+		if (next.kind === 'failed' && pinProblem(next.failure)?.kind === 'locked') {
+			window.location.assign('/pin/locked');
+		}
+		pinKey++;
+	}
 
 	const title = $derived.by(() => {
 		switch (resolution?.kind) {
@@ -64,7 +86,9 @@
 			case 'conflict':
 				return 'We couldn’t match this attempt. Contact support with the attempt code below.';
 			default:
-				return `We’re confirming ${what}. Don’t send it again.`;
+				return needsPin
+					? `Enter your PIN to send ${what} again. It can only go through once.`
+					: `We’re confirming ${what}. Don’t send it again.`;
 		}
 	});
 
@@ -80,11 +104,19 @@
 	{busy}
 	footnote={pending ? `Attempt ${attemptLabel(pending.key)}` : null}
 >
-	{#if attempt.lastRefusal?._tag === 'BackendError'}
+	{#if needsPin}
+		<form id="outcome-pin" class="pin" onsubmit={resendWithPin} novalidate>
+			{#key pinKey}
+				<PinField id="outcome-pin-field" name="pin" label="Your PIN" error={pinMessage} />
+			{/key}
+		</form>
+	{:else if attempt.lastRefusal?._tag === 'BackendError'}
 		<p class="refusal" role="alert">{attempt.lastRefusal.message}</p>
 	{/if}
 	{#snippet actions()}
-		{#if resolution?.kind === 'not_committed' && resolution.canResend}
+		{#if needsPin}
+			<button type="submit" form="outcome-pin" class="primary" disabled={busy}>Send again</button>
+		{:else if resolution?.kind === 'not_committed' && resolution.canResend}
 			<button type="button" class="primary" disabled={busy} onclick={() => attempt.resend()}
 				>Send again</button
 			>
@@ -100,6 +132,10 @@
 </CheckingPanel>
 
 <style>
+	.pin {
+		width: 100%;
+	}
+
 	.refusal {
 		color: var(--color-danger);
 		font-size: var(--text-14);

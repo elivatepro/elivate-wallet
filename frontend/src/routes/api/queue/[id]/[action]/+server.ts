@@ -5,6 +5,7 @@
 // with the browser's idempotency key. Never retried here.
 import { Effect, type Schema } from 'effect';
 import {
+	CorrectPayoutCommand,
 	KeyCommand,
 	PayoutCommand,
 	ReasonCommand,
@@ -50,7 +51,7 @@ export const POST: RequestHandler = (event) => {
 		case 'payout':
 			return relay(event, PayoutCommand, WithdrawalRoutes.record(id), Withdrawal);
 		case 'correct':
-			return relay(event, PayoutCommand, WithdrawalRoutes.correct(id), Withdrawal);
+			return relay(event, CorrectPayoutCommand, WithdrawalRoutes.correct(id), Withdrawal);
 		case 'retry':
 			return relay(event, KeyCommand, WithdrawalRoutes.retry(id), Withdrawal);
 		default:

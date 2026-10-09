@@ -1,5 +1,6 @@
-// MoneyMovesApi (Blueprint 11): withdrawals, payouts, evidence review and
-// pocket moves on the `ledger` Edge Function. Reads retry; commands never do
+// MoneyMovesApi (Blueprints 11, 12): withdrawals, payouts, evidence review,
+// pocket moves, conversions, adjustments, returns and reversals on the
+// `ledger` Edge Function. Reads retry; commands never do
 // (the browser keeps the idempotency key). Payout receipts upload through
 // the signed-upload flow shared with income, and are read back through this
 // server so the browser never sees a storage URL.
@@ -7,6 +8,7 @@
 import { Context, Effect, Layer, Schedule, type Schema } from 'effect';
 import { isRetryableRead, TransportError } from '#lib/contract/errors.js';
 import { EvidenceFinalized } from '#lib/contract/income.js';
+import { EntryRoutes, type EntryKind } from '#lib/contract/entries.js';
 import { EvidenceUploadIntent, WithdrawalRoutes } from '#lib/contract/withdrawals.js';
 import { EdgeTransport, type EdgeFailure, type EdgeRoute } from './edge';
 import { putEvidence, type IncomeStorageOptions } from './apis-income';
@@ -19,11 +21,22 @@ const readPolicy = {
 
 /** Only the private evidence bucket's signed read path is ever followed. */
 const SIGNED_READ_PATH =
-	/^\/storage\/v1\/object\/sign\/financial-evidence\/[0-9a-f-]+\/payout\/[0-9a-f-]+$/;
+	/^\/storage\/v1\/object\/sign\/financial-evidence\/[0-9a-f-]+\/(payout|conversion|adjustment|returned_funds)\/[0-9a-f-]+$/;
 const RECEIPT_MAX_BYTES = 10 * 1024 * 1024;
 
 export interface PayoutReceiptUpload {
 	readonly withdrawalId: string;
+	readonly idempotencyKey: string;
+	readonly fileName: string;
+	readonly mimeType: string;
+	readonly bytes: Uint8Array<ArrayBuffer>;
+	readonly sha256: string;
+}
+
+/** Evidence for a conversion, adjustment or returned funds (Blueprint 12). */
+export interface EntryEvidenceUpload {
+	readonly kind: EntryKind;
+	readonly targetMembershipId: string;
 	readonly idempotencyKey: string;
 	readonly fileName: string;
 	readonly mimeType: string;
@@ -52,6 +65,10 @@ export interface MoneyMovesApiShape {
 	readonly uploadPayoutReceipt: (
 		membershipId: string,
 		upload: PayoutReceiptUpload
+	) => Effect.Effect<typeof EvidenceFinalized.Type, EdgeFailure>;
+	readonly uploadEntryEvidence: (
+		membershipId: string,
+		upload: EntryEvidenceUpload
 	) => Effect.Effect<typeof EvidenceFinalized.Type, EdgeFailure>;
 	/** Follows a signed receipt link from the Edge Function; bytes stay server-side. */
 	readonly fetchReceipt: (signedUrl: string) => Effect.Effect<ReceiptBytes, TransportError>;
@@ -83,39 +100,54 @@ export const MoneyMovesApiLive = (storage: IncomeStorageOptions) =>
 		Effect.gen(function* () {
 			const edge = yield* EdgeTransport;
 			const fn = 'ledger' as const;
+			/** Upload intent → bytes to the signed URL → finalize (the Edge Function re-reads them). */
+			const upload_ = (
+				membershipId: string,
+				route: EdgeRoute,
+				file: Omit<PayoutReceiptUpload, 'withdrawalId'>,
+				target: Record<string, string>
+			) =>
+				Effect.gen(function* () {
+					const intent = yield* edge.call(
+						{
+							fn,
+							route,
+							membershipId,
+							body: {
+								...target,
+								idempotencyKey: file.idempotencyKey,
+								fileName: file.fileName,
+								mimeType: file.mimeType,
+								size: file.bytes.length,
+								sha256: file.sha256
+							}
+						},
+						EvidenceUploadIntent
+					);
+					yield* putEvidence(storage, intent.uploadUrl, file.mimeType, file.bytes);
+					return yield* edge.call(
+						{
+							fn,
+							route: WithdrawalRoutes.finalizeUpload(intent.evidenceId),
+							membershipId,
+							body: {}
+						},
+						EvidenceFinalized
+					);
+				});
 			return {
 				read: (membershipId, route, query, schema) =>
 					edge.call({ fn, route, membershipId, query }, schema).pipe(Effect.retry(readPolicy)),
 				command: (membershipId, route, body, schema) =>
 					edge.call({ fn, route, membershipId, body }, schema),
 				uploadPayoutReceipt: (membershipId, upload) =>
-					Effect.gen(function* () {
-						const intent = yield* edge.call(
-							{
-								fn,
-								route: WithdrawalRoutes.createUpload,
-								membershipId,
-								body: {
-									withdrawalId: upload.withdrawalId,
-									idempotencyKey: upload.idempotencyKey,
-									fileName: upload.fileName,
-									mimeType: upload.mimeType,
-									size: upload.bytes.length,
-									sha256: upload.sha256
-								}
-							},
-							EvidenceUploadIntent
-						);
-						yield* putEvidence(storage, intent.uploadUrl, upload.mimeType, upload.bytes);
-						return yield* edge.call(
-							{
-								fn,
-								route: WithdrawalRoutes.finalizeUpload(intent.evidenceId),
-								membershipId,
-								body: {}
-							},
-							EvidenceFinalized
-						);
+					upload_(membershipId, WithdrawalRoutes.createUpload, upload, {
+						withdrawalId: upload.withdrawalId
+					}),
+				uploadEntryEvidence: (membershipId, upload) =>
+					upload_(membershipId, EntryRoutes.createUpload, upload, {
+						kind: upload.kind,
+						targetMembershipId: upload.targetMembershipId
 					}),
 				fetchReceipt: (signedUrl) =>
 					Effect.gen(function* () {

@@ -67,7 +67,7 @@
 	import ConfirmDialog from '#lib/ui/app/ConfirmDialog.svelte';
 	import FormAlert from '#lib/ui/auth/FormAlert.svelte';
 	import IncomeConfirm from '#lib/ui/income/IncomeConfirm.svelte';
-	import IncomeOutcome from '#lib/ui/income/IncomeOutcome.svelte';
+	import Outcome from '#lib/ui/app/Outcome.svelte';
 	import MemberPicker from '#lib/ui/income/MemberPicker.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
 
@@ -669,7 +669,7 @@
 />
 
 {#if phase === 'done' && result}
-	<IncomeOutcome
+	<Outcome
 		pose="income-posted"
 		title="Income posted"
 		lead={`${formatMoney(result.amount, result.currency)} is in ${resultFor || 'the member'}’s pockets now.`}
@@ -679,9 +679,9 @@
 			<a class="out-ghost" href={activityHref}>View in activity</a>
 			<button type="button" class="out-primary" onclick={recordAnother}>Record another</button>
 		{/snippet}
-	</IncomeOutcome>
+	</Outcome>
 {:else if phase === 'unknown' && pending && attempt}
-	<IncomeOutcome
+	<Outcome
 		pose="income-checking"
 		title="Checking what happened"
 		lead={`We’re confirming the ${formatMoney(pending.amount, pending.currency)} income for ${firstOf(attempt.target.name) ?? attempt.target.uid}. Don’t record it again.`}
@@ -708,9 +708,9 @@
 				onclick={() => checkAgain()}>Check again</button
 			>
 		{/snippet}
-	</IncomeOutcome>
+	</Outcome>
 {:else if phase === 'refused' && refusal}
-	<IncomeOutcome pose="income-refused" title="Couldn’t record this income" lead={refusal.lead}>
+	<Outcome pose="income-refused" title="Couldn’t record this income" lead={refusal.lead}>
 		{#snippet actions()}
 			{#if refusal?.aboutTarget}
 				<button type="button" class="out-ghost" onclick={backToForm}>Back to the form</button>
@@ -721,7 +721,7 @@
 				<button type="button" class="out-primary" onclick={backToForm}>Back to the form</button>
 			{/if}
 		{/snippet}
-	</IncomeOutcome>
+	</Outcome>
 {:else if !data && !loadError}
 	{@render bar()}
 	<div class="skeleton" aria-hidden="true"></div>

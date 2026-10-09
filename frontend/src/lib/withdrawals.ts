@@ -47,15 +47,26 @@ export function withdrawalStage(w: Withdrawal): { label: string; tone: Tone } {
 			return { label: 'Cancelled', tone: 'neutral' };
 		case 'approved': {
 			const p = w.payout;
-			if (!p || p.status === 'rejected') return { label: 'Approved · pay out', tone: 'info' };
+			if (!p) return { label: 'Approved · pay out', tone: 'info' };
+			// U06: the reviewer rejected the last receipt; the hold stays.
+			if (p.status === 'rejected') return { label: 'Receipt rejected', tone: 'danger' };
 			if (p.status === 'correction_required') return { label: 'Correction needed', tone: 'danger' };
 			if (p.status === 'needs_review') return { label: 'In review', tone: 'warning' };
-			if (currentRevision(p)?.check?.status === 'dead') {
-				return { label: 'Check delayed', tone: 'warning' };
-			}
+			if (checkDelayed(currentRevision(p))) return { label: 'Check delayed', tone: 'warning' };
 			return { label: 'Checking receipt', tone: 'info' };
 		}
 	}
+}
+
+/**
+ * U05: the receipt check failed for a technical reason and is being retried,
+ * or ran out of retries (`dead`, the approver can send it again). Never a
+ * used correction.
+ */
+export function checkDelayed(rev: PayoutRevision | null): boolean {
+	const c = rev?.check;
+	if (!c) return false;
+	return c.status === 'dead' || (!!c.lastError && (c.status === 'queued' || c.status === 'leased'));
 }
 
 /** The member's chip: approvers' sub-states collapse to "Approved". */

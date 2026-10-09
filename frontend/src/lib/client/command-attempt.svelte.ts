@@ -51,6 +51,10 @@ export type AttemptState<A> =
 export interface AttemptControls {
 	readonly state: AttemptState<unknown>;
 	readonly lastRefusal?: ApiFailure | null;
+	/** A kept attempt the PIN prompt refused (resend it with the PIN, never a new body). */
+	readonly awaitingPin?: boolean;
+	/** An earlier outcome is still being recovered. */
+	readonly recovering?: boolean;
 	check(): Promise<unknown>;
 	resend(options?: { pin?: string }): Promise<unknown>;
 	reset(): void;
@@ -154,6 +158,11 @@ export class CommandAttempt<
 		});
 	}
 
+	/** True while an earlier attempt's outcome is being recovered: it must never be discarded. */
+	get recovering(): boolean {
+		return this.#recovering;
+	}
+
 	/** True when a PIN prompt refused the kept attempt: resend it with the PIN, never a new body. */
 	get awaitingPin(): boolean {
 		const s = this.state;
@@ -208,9 +217,12 @@ export class CommandAttempt<
 		return this.check();
 	}
 
-	/** Back to a fresh form. Only once the outcome is settled. */
+	/**
+	 * Back to a fresh form. Only once the outcome is settled: a re-send refused
+	 * while recovering (e.g. a PIN prompt) keeps the original attempt.
+	 */
 	reset(): void {
-		if (this.blocked) return;
+		if (this.blocked || (this.#recovering && this.state.kind === 'failed')) return;
 		this.#settle();
 		this.state = { kind: 'idle' };
 	}

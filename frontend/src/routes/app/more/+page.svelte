@@ -19,6 +19,8 @@
 	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
 	import Download from '@lucide/svelte/icons/download';
 	import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
+	import Repeat from '@lucide/svelte/icons/repeat';
+	import Undo2 from '@lucide/svelte/icons/undo-2';
 	import Gavel from '@lucide/svelte/icons/gavel';
 	import ListChecks from '@lucide/svelte/icons/list-checks';
 	import Upload from '@lucide/svelte/icons/upload';
@@ -105,6 +107,13 @@
 				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
 			</a>
 		{/if}
+		{#if can('perform_currency_conversion')}
+			<a class="row" href="/app/convert">
+				<Repeat size={20} strokeWidth={1.8} aria-hidden="true" />
+				<span class="label">Record conversion</span>
+				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
+			</a>
+		{/if}
 		{#if can('initiate_own_withdrawal')}
 			<a class="row" href="/app/withdrawals">
 				<Upload size={20} strokeWidth={1.8} aria-hidden="true" />
@@ -123,6 +132,13 @@
 			<a class="row" href="/app/transfers">
 				<ArrowLeftRight size={20} strokeWidth={1.8} aria-hidden="true" />
 				<span class="label">Transfers</span>
+				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
+			</a>
+		{/if}
+		{#if can('reverse_transaction')}
+			<a class="row" href="/app/reversals">
+				<Undo2 size={20} strokeWidth={1.8} aria-hidden="true" />
+				<span class="label">Reversals</span>
 				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
 			</a>
 		{/if}

@@ -1,10 +1,10 @@
 <!--
 	Move between pockets (W-13), Paper "App — Screens v1" B05 (desktop) / B06
-	(mobile): Details → Review → Request sent. No PIN. The amount is held in
-	the source pocket until a leader approves (then it moves at once) or the
-	request is declined or cancelled. Debt can only receive what it owes.
-	"Request sent" (v4 MV01) awaits owner approval; until then it is a plain
-	stub on this layout, with my open requests and Cancel below.
+	(mobile): Details → Review → Request sent (Paper v4 MV01, approved
+	2026-10-09). No PIN. The amount is held in the source pocket until a leader
+	approves (then it moves at once) or the request is declined or cancelled.
+	Debt can only receive what it owes. My open requests, with Cancel, are
+	listed under the form.
 -->
 <script lang="ts">
 	import { getContext } from 'svelte';
@@ -26,6 +26,7 @@
 	import { formatMoney, isZero, sumMoney } from '#lib/money.js';
 	import { isUnknownOutcome } from '#lib/recovery.js';
 	import { moveMessage, moveTitle, transferStage, withinRequested } from '#lib/withdrawals.js';
+	import Outcome from '#lib/ui/app/Outcome.svelte';
 	import OutcomeUnknown from '#lib/ui/app/OutcomeUnknown.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
 	import Pill from '#lib/ui/money/Pill.svelte';
@@ -190,15 +191,6 @@
 		if (failure && !isUnknownOutcome(failure)) cancelKey = newKey();
 		notice = moveMessage(failure);
 	}
-
-	function again() {
-		attempt.reset();
-		step = 'details';
-		amountText = '';
-		toId = null;
-		choices = null;
-		void load();
-	}
 </script>
 
 <svelte:head><title>Move money · Elivate Wallet</title></svelte:head>
@@ -210,6 +202,18 @@
 		backHref="/app/split/move"
 		backLabel="Back to pocket moves"
 	/>
+{:else if sent}
+	<Outcome
+		pose="pocket-move"
+		title="Move requested"
+		lead={`${money(sent.amount, sent.currency)} from ${sent.from.name} to ${sent.to.name} is held until your leader approves.`}
+		footnote={sent.reference}
+	>
+		{#snippet actions()}
+			<a class="out-ghost" href="/app/split" onclick={() => attempt.reset()}>Back to pockets</a>
+			<a class="out-primary" href="/app/activity" onclick={() => attempt.reset()}>View activity</a>
+		{/snippet}
+	</Outcome>
 {:else}
 	<div class="mm-page">
 		<h1 class="mm-title" tabindex="-1">Move between pockets</h1>
@@ -225,20 +229,7 @@
 
 		{#if notice}<p class="mm-notice" role="status">{notice}</p>{/if}
 
-		{#if sent}
-			<section class="mm-card sent">
-				<span class="mm-pill warning">Requested · waiting for approval</span>
-				<p class="mm-big">{money(sent.amount, sent.currency)}</p>
-				<p class="mm-note">
-					{moveTitle(sent)}. It’s held in {sent.from.name} until a leader approves; then it moves at once.
-					Reference <span class="mm-ref">{sent.reference}</span>
-				</p>
-				<div class="mm-actions">
-					<a class="mm-btn" href="/app/split">Back to pockets</a>
-					<button type="button" class="mm-btn primary" onclick={again}>Move more</button>
-				</div>
-			</section>
-		{:else if !choices && !loadError}
+		{#if !choices && !loadError}
 			<div class="mm-skeleton" aria-hidden="true"></div>
 		{:else if loadError || !choices}
 			<p class="mm-empty" role="alert">{loadError}</p>
@@ -533,11 +524,6 @@
 		bottom: -10px;
 		width: 160px;
 		height: 214px;
-	}
-
-	.sent {
-		align-items: flex-start;
-		gap: 12px;
 	}
 
 	.static {

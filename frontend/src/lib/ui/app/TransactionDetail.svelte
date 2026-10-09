@@ -13,6 +13,7 @@
 	import X from '@lucide/svelte/icons/x';
 	import type { Currency, TransactionDetail } from '#lib/contract/ledger.js';
 	import { statusLabel, statusTone, typeLabel } from '#lib/activity.js';
+	import { formatRate } from '#lib/entries.js';
 	import { formatMoney, hiddenMoney, isZero, sumMoney } from '#lib/money.js';
 
 	let {
@@ -20,6 +21,7 @@
 		variant = 'panel',
 		owner = null,
 		hideAmounts = false,
+		reverseHref = null,
 		onClose
 	}: {
 		detail: TransactionDetail;
@@ -27,6 +29,8 @@
 		/** Managed view: whose wallet this is ("Kemi Okafor"); null for your own. */
 		owner?: string | null;
 		hideAmounts?: boolean;
+		/** President only (W-15): where "Reverse this transaction" goes. */
+		reverseHref?: string | null;
 		onClose?: () => void;
 	} = $props();
 
@@ -139,6 +143,45 @@
 			<div class="row">
 				<dt>From</dt>
 				<dd>{detail.income.source}</dd>
+			</div>
+		{/if}
+		{#if detail.entry?.conversion}
+			<div class="row">
+				<dt>Converted</dt>
+				<dd>
+					{money(detail.entry.amount, detail.entry.currency)} → {money(
+						detail.entry.conversion.destinationAmount,
+						detail.entry.conversion.destinationCurrency
+					)}
+				</dd>
+			</div>
+			<div class="row">
+				<dt>Rate</dt>
+				<dd>
+					{formatRate(
+						detail.entry.conversion.effectiveRate,
+						detail.entry.conversion.rateQuote,
+						detail.entry.conversion.rateBase
+					)}
+				</dd>
+			</div>
+		{/if}
+		{#if detail.entry?.reason}
+			<div class="row">
+				<dt>Reason</dt>
+				<dd>{detail.entry.reason}</dd>
+			</div>
+		{/if}
+		{#if detail.entry?.kind === 'returned_funds' && detail.entry.provider}
+			<div class="row">
+				<dt>Returned by</dt>
+				<dd>{detail.entry.provider}</dd>
+			</div>
+		{/if}
+		{#if detail.entry?.withdrawal}
+			<div class="row center">
+				<dt>Withdrawal</dt>
+				<dd class="ref"><span class="mono">{detail.entry.withdrawal.reference}</span></dd>
 			</div>
 		{/if}
 		{#if currency}
@@ -265,6 +308,9 @@
 		<div class="block">{@render rows()}</div>
 		{#if split.length || journal?.lines?.length}<div class="block">{@render splitBlock()}</div>{/if}
 		{#if reversed}<div class="block">{@render historyBlock()}</div>{/if}
+		{#if reverseHref}<div class="block">
+				<a class="reverse" href={reverseHref}>Reverse this transaction</a>
+			</div>{/if}
 	</aside>
 {:else}
 	<article class="page" aria-label="Transaction {detail.reference}">
@@ -301,11 +347,23 @@
 			{#if split.length || journal?.lines?.length}<div class="card">
 					{@render splitBlock()}
 				</div>{/if}
+			{#if reverseHref}<a class="reverse" href={reverseHref}>Reverse this transaction</a>{/if}
 		</div>
 	</article>
 {/if}
 
 <style>
+	.reverse {
+		color: var(--color-danger);
+		font-size: 14px;
+		font-weight: var(--font-weight-medium);
+		text-decoration: none;
+	}
+
+	.reverse:hover {
+		text-decoration: underline;
+	}
+
 	.panel {
 		display: flex;
 		flex-direction: column;
