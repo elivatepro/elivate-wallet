@@ -15,7 +15,12 @@ const actor: Actor = {
   sessionId: "00000000-0000-0000-0000-0000001400a1",
 };
 
-function setup(rpcResult: RpcResult = { data: { unusual: false }, error: null }) {
+const APP_SECRET = "app-server-secret-for-tests";
+
+function setup(
+  rpcResult: RpcResult = { data: { unusual: false }, error: null },
+  appServerSecret: string | null = APP_SECRET,
+) {
   const calls: { fn: string; args: Record<string, unknown> }[] = [];
   const logs: LogEntry[] = [];
   const deps: Deps = {
@@ -28,14 +33,19 @@ function setup(rpcResult: RpcResult = { data: { unusual: false }, error: null })
     sendResetLink: () => Promise.resolve(),
     log: (entry) => logs.push(entry),
     allowedOrigins: [],
+    appServerSecret,
   };
   return { handler: createHandler(deps), calls, logs };
 }
 
-const post = (path: string, body: unknown, token = "good") =>
+const post = (path: string, body: unknown, token = "good", secret: string | null = APP_SECRET) =>
   new Request(`http://localhost/functions/v1/security${path}`, {
     method: "POST",
-    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    headers: {
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json",
+      ...(secret ? { "x-app-server-secret": secret } : {}),
+    },
     body: JSON.stringify(body),
   });
 
@@ -188,4 +198,20 @@ Deno.test("record a password change: database conflicts keep their reason", asyn
   const response = await handler(post("/password/changed", { recovery: true }));
   assertEquals(response.status, 409);
   assertEquals((await response.json()).error.details.reason, "password_change_not_authorized");
+});
+
+Deno.test("record a sign-in: only the app server may write one (shared secret)", async () => {
+  for (
+    const [secret, configured] of [
+      [null, APP_SECRET],
+      ["wrong-secret", APP_SECRET],
+      [APP_SECRET, null],
+    ] as const
+  ) {
+    const { handler, calls } = setup(undefined, configured);
+    const response = await handler(post("/sign-ins", signIn, "good", secret));
+    assertEquals(response.status, 403);
+    assertEquals((await response.json()).error.details, { reason: "app_server_only" });
+    assertEquals(calls.length, 0);
+  }
 });

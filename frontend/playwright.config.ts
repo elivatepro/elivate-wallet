@@ -37,7 +37,9 @@ export default defineConfig({
 			TURNSTILE_SITEVERIFY_URL: 'http://127.0.0.1:54399/turnstile/v0/siteverify',
 			// Blueprint 14: the sign-in place comes from x-e2e-city / x-e2e-country
 			// (local only; refused unless SUPABASE_URL is a loopback address).
-			E2E_GEO_HEADERS: '1'
+			E2E_GEO_HEADERS: '1',
+			// Generated per run by scripts/e2e-local.sh (also given to the functions).
+			APP_SERVER_SECRET: process.env.APP_SERVER_SECRET ?? ''
 		}
 	}
 });

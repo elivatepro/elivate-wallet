@@ -1,4 +1,5 @@
 import {
+	APP_SERVER_SECRET,
 	E2E_GEO_HEADERS,
 	SUPABASE_PUBLISHABLE_KEY,
 	SUPABASE_URL,
@@ -52,3 +53,6 @@ export function geoTestHeaders(): boolean {
 	const host = new URL(SUPABASE_URL).hostname;
 	return host === '127.0.0.1' || host === 'localhost';
 }
+
+/** Blueprint 14: the secret the security function requires for sign-in records. */
+export const appServerSecret = (): string | undefined => APP_SERVER_SECRET;

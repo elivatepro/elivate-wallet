@@ -105,7 +105,9 @@ test('sign-ins record the place; a new place and device is unusual and sends A07
 	await shot(page, 'Z07-devices-unusual-desktop');
 	await page.setViewportSize(MOBILE);
 	await page.reload();
-	await expect(unusual.getByText(/New device and location · Abuja \(approx\.\)/)).toBeVisible();
+	await expect(
+		unusual.getByText(/New device and location · Abuja \(approx\.\) · .* · still signed in/)
+	).toBeVisible();
 	await shot(page, 'S04-devices-unusual-mobile');
 
 	// The bell has the personal item.

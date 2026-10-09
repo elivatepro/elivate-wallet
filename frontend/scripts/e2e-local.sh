@@ -46,6 +46,10 @@ export INVITATION_TOKEN_SECRET
 # catcher (Mailpit). No real email is ever sent.
 OUTBOX_WORKER_SECRET="$(openssl rand -hex 32)"
 export OUTBOX_WORKER_SECRET
+# Blueprint 14: only the app server may record sign-ins; it and the security
+# function share this per-run secret.
+APP_SERVER_SECRET="$(openssl rand -hex 32)"
+export APP_SERVER_SECRET
 {
   echo "PIN_HMAC_SECRET=$(openssl rand -hex 32)"
   echo "INVITATION_TOKEN_SECRET=$INVITATION_TOKEN_SECRET"
@@ -58,6 +62,7 @@ export OUTBOX_WORKER_SECRET
   echo "PAYSTACK_SECRET_KEY=sk_test_e2elocal0000000000"
   echo "PAYSTACK_TEST_ORIGIN=http://host.docker.internal:54399"
   echo "OUTBOX_WORKER_SECRET=$OUTBOX_WORKER_SECRET"
+  echo "APP_SERVER_SECRET=$APP_SERVER_SECRET"
   echo "CLOUDFLARE_ACCOUNT_ID=e2e-local"
   echo "CLOUDFLARE_EMAIL_API_TOKEN=e2e-local-email"
   echo "CLOUDFLARE_API_TEST_ORIGIN=http://host.docker.internal:54399"

@@ -9,6 +9,7 @@ import { ApiError, failure, isErrorCode, success } from "../_shared/http.ts";
 import { renderEmail, TemplateError } from "../_shared/email/templates.ts";
 import type { EmailTransport, SendOutcome } from "../_shared/email/cloudflare.ts";
 import { joinLink } from "../_shared/invite_token.ts";
+import { sameSecret } from "../_shared/secret.ts";
 
 export type RpcResult =
   | { readonly data: unknown; readonly error: null }
@@ -68,20 +69,6 @@ interface Claimed {
   readonly params: Record<string, unknown>;
   readonly to: string;
   readonly tokenId: string | null;
-}
-
-const encoder = new TextEncoder();
-
-async function sameSecret(given: string, expected: string): Promise<boolean> {
-  const [a, b] = await Promise.all([
-    crypto.subtle.digest("SHA-256", encoder.encode(given)),
-    crypto.subtle.digest("SHA-256", encoder.encode(expected)),
-  ]);
-  const x = new Uint8Array(a);
-  const y = new Uint8Array(b);
-  let diff = 0;
-  for (let i = 0; i < x.length; i++) diff |= (x[i] ?? 0) ^ (y[i] ?? 0);
-  return diff === 0;
 }
 
 function parseClaimed(data: unknown): Claimed[] {

@@ -7,7 +7,13 @@
 -->
 <script lang="ts">
 	import type { UnusualSignIn } from '#lib/contract/security.js';
-	import { placeLabel, signInTime, unusualReason, unusualStatus } from '#lib/devices.js';
+	import {
+		placeLabel,
+		signedInState,
+		signInTime,
+		unusualReason,
+		unusualStatus
+	} from '#lib/devices.js';
 
 	let { items }: { items: ReadonlyArray<UnusualSignIn> } = $props();
 
@@ -50,7 +56,8 @@
 								>{[
 									sentence(reason),
 									placeLabel(item.city, item.country, true),
-									signInTime(item.signedInAt)
+									signInTime(item.signedInAt),
+									signedInState(item)
 								]
 									.filter(Boolean)
 									.join(' · ')}</span

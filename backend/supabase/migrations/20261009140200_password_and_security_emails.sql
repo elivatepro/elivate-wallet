@@ -152,8 +152,14 @@ begin
     ) then
       perform identity.fail('conflict', jsonb_build_object('reason', 'password_change_not_authorized'));
     end if;
+    -- Two overlapping calls: the unique index decides, and the loser gets the
+    -- same conflict as a later replay (never an internal error).
     insert into identity.password_changes (user_id, session_id, method, authorized_at, changed_at)
-    values (p_user_id, p_session_id, 'recovery', changed, changed);
+    values (p_user_id, p_session_id, 'recovery', changed, changed)
+    on conflict (session_id) where method = 'recovery' do nothing;
+    if not found then
+      perform identity.fail('conflict', jsonb_build_object('reason', 'password_change_already_recorded'));
+    end if;
   end if;
 
   perform audit.record('password.changed', p_user_id, p_session_id, p_user_id,

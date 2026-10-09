@@ -9,6 +9,7 @@ import {
   isErrorCode,
   success,
 } from "../_shared/http.ts";
+import { sameSecret } from "../_shared/secret.ts";
 import * as v from "../_shared/validate.ts";
 
 export interface Actor {
@@ -40,6 +41,12 @@ export interface Deps {
   sendResetLink(userId: string): Promise<void>;
   log(entry: LogEntry): void;
   readonly allowedOrigins: readonly string[];
+  /**
+   * Blueprint 14: shared secret only the app server (the Worker) holds. Sign-in
+   * records carry the IP and place Cloudflare saw, so a user token alone may
+   * not write them. Null refuses every sign-in record (fail closed).
+   */
+  readonly appServerSecret?: string | null;
 }
 
 type Route = (
@@ -214,6 +221,10 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
     // Blueprint 14: the app server records each new Auth session (before the
     // PIN) with the IP and approximate location Cloudflare saw.
     "POST /sign-ins": async (request, actor, requestId) => {
+      const given = request.headers.get("x-app-server-secret");
+      if (!deps.appServerSecret || !given || !(await sameSecret(given, deps.appServerSecret))) {
+        throw new ApiError("authorization_denied", { reason: "app_server_only" });
+      }
       const body = await v.readBody(request, [
         "method",
         "ip",

@@ -100,14 +100,17 @@ export interface SecurityApiShape {
 		pinConfirm: string;
 	}) => Effect.Effect<SecurityState, EdgeFailure>;
 	/** Blueprint 14: record a new Auth session (before the PIN). Never retried. */
-	readonly recordSignIn: (input: {
-		method: SignInMethod;
-		ip: string | null;
-		city: string | null;
-		country: string | null;
-		device: string;
-		userAgent: string | null;
-	}) => Effect.Effect<typeof SignInRecorded.Type, EdgeFailure>;
+	readonly recordSignIn: (
+		input: {
+			method: SignInMethod;
+			ip: string | null;
+			city: string | null;
+			country: string | null;
+			device: string;
+			userAgent: string | null;
+		},
+		appServerSecret: string
+	) => Effect.Effect<typeof SignInRecorded.Type, EdgeFailure>;
 	readonly overview: Effect.Effect<SecurityOverview, EdgeFailure>;
 	/** Never retried: a wrong PIN counts against the 5 attempts. */
 	readonly authorizePasswordChange: (input: {
@@ -172,8 +175,11 @@ export const SecurityApiLive = Layer.effect(
 						edge.call({ fn: 'security', route: SecurityRoutes.pinChange, body }, SecurityState)
 					)
 				),
-			recordSignIn: (input) =>
-				edge.call({ fn: 'security', route: SecurityRoutes.signIns, body: input }, SignInRecorded),
+			recordSignIn: (input, appServerSecret) =>
+				edge.call(
+					{ fn: 'security', route: SecurityRoutes.signIns, body: input, appServerSecret },
+					SignInRecorded
+				),
 			overview: edge
 				.call({ fn: 'security', route: SecurityRoutes.overview }, SecurityOverview)
 				.pipe(Effect.retry(readPolicy)),

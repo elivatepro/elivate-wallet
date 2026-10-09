@@ -154,8 +154,12 @@ export function signInTime(iso: string, { locale, timeZone }: DateOptions = {}):
 	return `${day}, ${time}`;
 }
 
+/** "this device", "still signed in" or "now signed out". */
+export function signedInState(item: UnusualLike): string {
+	return item.current ? 'this device' : item.signedIn ? 'still signed in' : 'now signed out';
+}
+
 /** "Signed in 3 Oct, 22:14 · now signed out" (Paper Z07/S03). */
 export function unusualStatus(item: UnusualLike, options: DateOptions = {}): string {
-	const state = item.current ? 'this device' : item.signedIn ? 'still signed in' : 'now signed out';
-	return `Signed in ${signInTime(item.signedInAt, options)} · ${state}`;
+	return `Signed in ${signInTime(item.signedInAt, options)} · ${signedInState(item)}`;
 }

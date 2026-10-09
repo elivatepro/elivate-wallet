@@ -45,6 +45,7 @@ const handler = createHandler({
     if (sent.error) throw new Error("reset email not sent");
   },
   log: (entry) => console.log(JSON.stringify(entry)),
+  appServerSecret: Deno.env.get("APP_SERVER_SECRET") || null,
   allowedOrigins: (Deno.env.get("CORS_ORIGINS") ?? "").split(",").map((o) => o.trim()).filter(
     Boolean,
   ),

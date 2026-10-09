@@ -56,7 +56,7 @@ Unusual (Q3): `new_location` when the sign-in has a city or country and no earli
 ### B2. Commands and routes (`security` Edge Function, verified JWT)
 | Route | Command | Input / checks | Result |
 |---|---|---|---|
-| `POST /sign-ins` | `api.record_sign_in` | `method`, `ip?`, `city?`, `country?`, `device`, `userAgent?`; live session (before the PIN); IP parsed as IPv4/IPv6; unknown fields rejected | `{ unusual }`; idempotent per session; audit `session.signed_in` (method and reasons, never the IP); unusual → A07 + bell |
+| `POST /sign-ins` | `api.record_sign_in` | **app server only** (`x-app-server-secret` = `APP_SERVER_SECRET`, compared in constant time; missing → `authorization_denied`, reason `app_server_only`) plus the user token; `method`, `ip?`, `city?`, `country?`, `device`, `userAgent?`; live session (before the PIN); IP parsed as IPv4/IPv6; unknown fields rejected | `{ unusual }`; idempotent per session; audit `session.signed_in` (method and reasons, never the IP); unusual → A07 + bell |
 | `GET /overview` | `api.security_overview` | gate `ready` | `{ passwordChangedAt, unusualSignIns[] }` (newest 10: device, city, country, reasons, signedInAt, signedIn, current) |
 | `GET /sessions` | `api.list_sessions` | unchanged | each session gains `city`, `country` |
 | `POST /password/authorize` | `api.authorize_password_change` | `pin`; gate `ready`; same counter/lock as `verify_pin` | `{ ok: true, changeId }` or `pin_incorrect`/`pin_locked` (committed) |
@@ -66,7 +66,7 @@ Unusual (Q3): `new_location` when the sign-in has a city or country and no earli
 Errors reuse the envelope: `validation_error`, `pin_incorrect` (403, `attemptsRemaining`), `pin_locked` (423), `conflict` with `details.reason` `password_change_not_authorized` / `password_change_already_recorded`.
 
 ### B3. App server (BFF)
-- **Recording a sign-in.** After `signInWithPassword` (`password`) and after every `/auth/confirm` `verifyOtp` (`sign_up`, `email_link`, `recovery`), the server posts `/security/sign-ins` with the IP from `CF-Connecting-IP`, `city`/`country` from the Worker's `request.cf`, the device label and the user agent. Best effort: a failure never blocks sign-in. Local e2e only (`E2E_GEO_HEADERS=1` with a loopback Supabase URL): location from `x-e2e-city`/`x-e2e-country`.
+- **Recording a sign-in.** After `signInWithPassword` (`password`) and after every `/auth/confirm` `verifyOtp` (`sign_up`, `email_link`, `recovery`), the server posts `/security/sign-ins` with the IP from `CF-Connecting-IP`, `city`/`country` from the Worker's `request.cf`, the device label and the user agent. Best effort: a failure never blocks sign-in. Only the app server holds `APP_SERVER_SECRET` (Worker secret and Edge secret, same value), so a user token alone cannot write or dodge its own history (review finding). Local e2e only (`E2E_GEO_HEADERS=1` with a loopback Supabase URL): location from `x-e2e-city`/`x-e2e-country`.
 - **`POST /api/account/password`** `{ password, pin }` (JSON, signed in, not retried): password rules as sign-up → `/password/authorize` → `auth.updateUser({ password })` (supported Auth path; Auth signs out every other session) → `/password/changed` → `{ changedAt }`. `same_password` and weak passwords map to `validation_error` with a reason.
 - **Reset:** `/reset-password` saves, records `/password/changed` with `recovery: true`, and shows Z10; "Continue to PIN" goes to the gate.
 - `GET /api/account` adds `security: { passwordChangedAt, unusualSignIns }`.
