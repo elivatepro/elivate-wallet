@@ -245,6 +245,8 @@ Submission atomically creates request + exact reservation; it posts no withdrawa
 
 ## W-12 — Currency conversion (standalone or linked)
 
+**Built 2026-10-09 (Blueprint 12):** the leader records the rate actually used with evidence (owner decision 2026-10-08: no rate tolerance or reference-rate check); the converted amount is held from submission; the case goes straight to the assigned Financial Evidence Reviewer (no automated comparison policy exists, U-07), who clears (posts both journals) or rejects (hold released). Linked withdrawal conversion is not built: withdrawals are Naira only (owner decision 2026-10-05).
+
 **Actor:** Scoped non-owner `perform_currency_conversion` holder; not a default holder self-service action.
 
 **Facts:** Target wallet/origin, logical pocket, different supported source/destination currencies, positive exact source and actual received destination amounts, quoted/provider rate where available, derived effective rate, provider, observed timestamp, evidence, optional external reference and explicit known fee/currency/deduction facts.
@@ -277,7 +279,9 @@ Before approval, **wallet holder or initiating actor** may cancel; authorized ap
 
 ## W-14 — Administrative adjustment
 
-**Actor:** Scoped non-owner `manual_credit_debit_adjustment` holder; W/P defaults; always step-up. Protected President-only setting controls evidence requirement for future submissions, secure default required.
+**Owner decision (2026-10-08), built 2026-10-09 (Blueprint 12):** reason, PIN and at least one evidence file always (no evidence setting); the case goes straight to the assigned Financial Evidence Reviewer; the member is notified (slice 8 sends it from the audit event).
+
+**Actor:** Scoped non-owner `manual_credit_debit_adjustment` holder; W/P defaults; always step-up. Evidence is always required (owner decision above).
 
 **Purpose:** Exceptional correction not represented by Income/Transfer/Conversion/Withdrawal/Returned Funds. A known wrong posted transaction uses W-15, not a disguising adjustment.
 
@@ -293,6 +297,8 @@ Before approval, **wallet holder or initiating actor** may cancel; authorized ap
 
 **Owner decision (2026-10-08):** in activity a reversal is its own row (REV reference, opposite sign) and the original shows a "Reversed" status with a link to it (Blueprint 08 reads `metadata.reversesTransactionId` on the reversal's ledger transaction).
 
+**Built 2026-10-09 (Blueprint 12):** the high-risk confirmation is the original reference typed back; income, pocket moves, conversions, adjustments, returned funds and reversals (reinstatement) can be reversed; a completed withdrawal cannot (use W-16).
+
 **Actor:** Tenant's President via protected non-delegable `reverse_transaction`, fresh step-up, high-risk confirmation and mandatory reason/category.
 
 **Target:** An eligible effective posted Financial Transaction, not a pending request/evidence workflow. Pending workflows use their cancellation/rejection paths.
@@ -306,6 +312,8 @@ Preserve original and new reversal with `reverses_transaction_id`. Correct repla
 **Acceptance:** Same-key reversal posts once; double-reversal/race/conflicting key is prevented. Current funds/holds are respected. Original line amounts survive policy changes. History displays Original → Reversal → Corrected/Reinstatement, never deleted rows.
 
 ## W-16 — Returned funds after completed payout
+
+**Built 2026-10-09 (Blueprint 12):** remaining returnable = sent + fee − returns in effect (a reversed return no longer counts); open returns count against it at submission; the case goes straight to the assigned Financial Evidence Reviewer.
 
 **Actor:** Non-owner scoped `record_returned_funds`; TL/D/W/P defaults, separate from original approver authority.
 

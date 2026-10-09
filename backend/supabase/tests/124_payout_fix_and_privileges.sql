@@ -1,8 +1,9 @@
--- Blueprint 12 — B6 124: the payout fix keeps its receipt (Paper U03); the new
--- tables stay private, the new functions are service-only or invoker helpers.
+-- Blueprint 12 — B6 124: the payout fix keeps its receipt (Paper U03); a member
+-- wallet names its memberships; the new tables stay private, the new functions
+-- are service-only or invoker helpers.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(11);
+select plan(12);
 
 create function pg_temp.u(n int) returns uuid language sql immutable as
   $$ select ('10000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
@@ -198,6 +199,11 @@ select is((api.correct_payout(pg_temp.u(3), pg_temp.s(3), pg_temp.ws(3), pg_temp
 select is(pg_temp.fails($$ select api.correct_payout(pg_temp.u(3), pg_temp.s(3), pg_temp.ws(3), pg_temp.id('p'),
   '2000.00', null, to_char(now() at time zone 'Africa/Lagos', 'YYYY-MM-DD'), null, null, null, pg_temp.k()) $$),
   'conflict:payout_state', 'only one fix');
+
+-- ── Member wallet names each membership (1) ──
+select is(api.managed_wallet(pg_temp.u(3), pg_temp.s(3), pg_temp.ws(3),
+  (select id from ledger.wallets where owner_user_id = pg_temp.u(4)))->'memberships'->0->>'membershipId',
+  pg_temp.id('m4')::text, 'a member wallet names the membership for Convert / Adjust');
 
 -- ── Privileges (5) ──
 select ok(

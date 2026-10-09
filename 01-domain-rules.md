@@ -176,7 +176,7 @@ Debit adjustments and reversals recheck current availability at posting rather t
 
 ## E-01 — Financial evidence and trusted Storage
 
-Evidence is mandatory for manually asserted material external financial facts: manual income, conversion, payout completion and returned funds. Adjustment evidence follows the President-only future-submission setting, default required; reason is always mandatory. Internal transfer needs no evidence. Pure internal reversal relies on original immutable history plus reason/confirmation; external-fact reversal needs evidence.
+Evidence is mandatory for manually asserted material external financial facts: manual income, conversion, payout completion and returned funds. Adjustment evidence is always required (owner decision 2026-10-08), and so is the reason. Internal transfer needs no evidence. Pure internal reversal relies on original immutable history plus reason/confirmation; external-fact reversal needs evidence.
 
 A trusted provider event can be machine evidence only under an approved authoritative integration; a user-typed provider reference is not that exception.
 

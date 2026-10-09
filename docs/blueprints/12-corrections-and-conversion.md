@@ -29,6 +29,15 @@ Part A is for the owner. Part B is the build spec.
 | Q8 | Adjustment reason | A list of common reasons plus "Other" with your own words (Paper shows a list). Reversal: reason list + note. |
 | Q9 | Notifications | Not sent now (slice 8). Every step writes an audit event (`conversion.submitted/posted/rejected`, `adjustment.*`, `returned_funds.*`, `transaction.reversed`) carrying the member's membership, so slice 8 can send the M-series emails and bell items. |
 
+### Paper
+Built directly from approved designs: "App — Screens v1" B07/B08, E05/E06, E07/E08; "App — Screens v2" W07–W10; "App — Screens v4" MV01–MV05 and U01–U07 (approved 2026-10-09; they replace the slice 4 stubs). New Root poses exported from those files: magnifier, party popper, balance scale, two coins, U-turn sign, boomerang, mailbox.
+
+**Deviations (say if you want them redrawn or changed):**
+- Mobile B08/E06/E08: one column of the desktop fields with the summary list above the button; the drawn mobile hero cards (B08 From/To card, E06 amount card with Root, E08 "Reversal will post" card) are not built yet. W08's "Can still come back" card is built.
+- Reversals: Paper has the form only, so "Reversals" opens it with a reference lookup in place of the original-transaction card until one is chosen; the transaction detail also links "Reverse this transaction" (President).
+- Provider (B07) is a text field with suggestions, not a fixed list; dates and times use the device's own picker.
+- The adjustment reason is a list with "Other" for your own words (E05 shows a list).
+
 ### Not in it
 - Emails and bell items (slice 8). Statements (slice 6).
 - A list of a leader's pending conversions/adjustments/returns: Paper has none; they're in the review queue and, once posted, in activity.
@@ -75,4 +84,6 @@ Errors: existing codes only; new cases `conflict` + `details.reason` (`entry_sta
 Routes `/app/convert` (B07/B08 → MV04), `/app/adjust` (E05/E06 → MV02 → MV03), `/app/queue/returns` (W07/W08 → W09/W10), `/app/reversals` (E07/E08 → MV05). Entry points: wallet "Convert"/"Adjust" next to Move, a member's detail, a completed withdrawal ("Record returned funds"), a transaction detail ("Reverse", President). Evidence page shows the new case kinds. `WithdrawalPanel` follows U01–U07; `/app/split/move` result follows MV01. Commands use `CommandAttempt` and the try-without-PIN pattern.
 
 ### B6. Checks
-pgTAP `120_` conversions, `121_` adjustments, `122_` returned funds, `123_` reversals, `124_` review of entries and payout fix, `125_` privileges. Deno: routes. Vitest: rate/money helpers. Playwright: convert → review → posted; adjust → review; returned funds; reverse; payout U-flow.
+pgTAP `120_` conversions, `121_` adjustments, `122_` returned funds, `123_` reversals, `124_` payout fix, member-wallet memberships and privileges. Deno `entry_routes_test.ts`. Vitest `entries.spec.ts` (exact rates, difference from quote, moments, messages) and the signed upload paths. Playwright `corrections.e2e.ts` (convert and adjust from a member wallet → reviewer clears; payout → returned funds → reviewer clears; reverse an income) and `withdrawals.e2e.ts` (U01 reveal, U02 record with fee, U03 one fix keeping the receipt, U04 completed; MV01).
+
+Also: migration `20261009120500` adds `membershipId` to a member wallet's memberships so "Convert" and "Adjust" open for that membership.
