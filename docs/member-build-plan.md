@@ -92,6 +92,8 @@ build updates the affected contract line (`00-product.md` U-table, `01-domain-ru
 ## Owner decisions during the build (2026-10-08/09)
 
 Paper `App — Screens v4 (member build)` batch 1 (N, Q, J, Z) is approved; Z01 is superseded.
+Batch 2 (U01–U07 payouts, MV01–MV05 money moves, PL billing, NB bell, WK support chat) is
+approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
 
 - **Offices:** an office closes only with no active members, no offices below and no money
   held; any remaining memberships are archived. Role change changes the role only; office
