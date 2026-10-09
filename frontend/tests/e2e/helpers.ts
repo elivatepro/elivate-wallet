@@ -66,7 +66,8 @@ async function apiSession(email: string, password: string, pin: string) {
 		fn: string,
 		path: string,
 		body?: unknown,
-		membershipId?: string
+		membershipId?: string,
+		method?: 'PATCH'
 	): Promise<T> => {
 		const headers: Record<string, string> = {
 			authorization: `Bearer ${token}`,
@@ -75,7 +76,7 @@ async function apiSession(email: string, password: string, pin: string) {
 		if (body !== undefined) headers['content-type'] = 'application/json';
 		if (membershipId) headers['x-membership'] = membershipId;
 		const response = await fetch(`${SUPABASE_URL}/functions/v1/${fn}${path}`, {
-			method: body === undefined ? 'GET' : 'POST',
+			method: method ?? (body === undefined ? 'GET' : 'POST'),
 			headers,
 			body: body === undefined ? undefined : JSON.stringify(body)
 		});
@@ -417,22 +418,96 @@ async function asPresident(page: Page, email: string, network: string) {
 	await page.getByRole('button', { name: new RegExp(`${network}.*President Team`) }).click();
 }
 
-export const walletPeople = { PASSWORD, PIN, joinAsNewMember, signInAs, asPresident };
+/**
+ * The same member as joinAsNewMember, set up through the real Edge Functions
+ * instead of the screens (invitation accepted, NIN verified by the fake
+ * provider, profile, payout account). For tests where joining is only setup;
+ * the join screens themselves are covered by onboarding/invitations/wallet.
+ */
+async function memberWithAccount(
+	founder: { email: string; password: string; pin: string },
+	network: string,
+	email: string
+) {
+	const { joinPath } = await inviteMember(founder, network, email);
+	const token = joinPath.split('#t=')[1] ?? '';
+	await createConfirmedAccount(email, PASSWORD, PIN);
+	const api = await apiSession(email, PASSWORD, PIN);
+	await api.call('invitations', '/accept', { token, idempotencyKey: key() });
+	await api.call('identity', '/nin/verify', { nin: verifiableNin() });
+	await api.call(
+		'identity',
+		'/profile',
+		{ phone: '+2348032145678', rank: 'Distributor', idempotencyKey: key() },
+		undefined,
+		'PATCH'
+	);
+	const workspaces = await api.call<Array<{ membershipId: string; role: string }>>(
+		'org',
+		'/workspaces'
+	);
+	const membership = workspaces.find((w) => w.role === 'member')!.membershipId;
+	// The bank list is filled from the (fake) provider on first read, as the screen does.
+	await api.call('payout', '/banks', undefined, membership);
+	const lookup = await api.call<{ lookupId: string }>(
+		'payout',
+		'/lookups',
+		{ bankCode: '058', accountNumber: '0123456789', idempotencyKey: key() },
+		membership
+	);
+	await api.call(
+		'payout',
+		'/accounts',
+		{ lookupId: lookup.lookupId, confirmed: true, idempotencyKey: key() },
+		membership
+	);
+	await api.close();
+}
 
-/** Stands in for the payout-checker worker: lease the queued check and report a match. */
-export function finishCheckAsMatch() {
+export const walletPeople = {
+	PASSWORD,
+	PIN,
+	joinAsNewMember,
+	memberWithAccount,
+	signInAs,
+	asPresident
+};
+
+/**
+ * Stands in for the payout-checker worker for ONE member's withdrawal: leases
+ * that payout's queued check (never another test's, so files can run in
+ * parallel) and reports a match, or a payment-date mismatch.
+ */
+export function finishCheck(memberEmail: string, outcome: 'match' | 'date-mismatch' = 'match') {
+	const mismatch = outcome === 'date-mismatch';
 	localSql(`do $$
 declare
-  job jsonb := api.claim_payout_checks('e2e', 1)->0;
-  paid text := (select r.paid_on::text from finance.payout_checks c
-                join finance.payout_revisions r on r.id = c.revision_id
-                where c.id = (job->>'checkId')::uuid);
+  token uuid := gen_random_uuid();
+  check_id uuid;
+  rev finance.payout_revisions;
+  w finance.withdrawals;
+  paid date;
 begin
-  perform api.finish_payout_check((job->>'checkId')::uuid, (job->>'leaseToken')::uuid, 'match',
-    jsonb_build_object('paymentDate', paid, 'receipt', jsonb_build_object(
-      'amount', job->'expected'->>'amount', 'currency', 'NGN', 'recipientAccount', '0123456789',
-      'recipientName', job->'expected'->>'recipientName', 'transactionDate', paid,
+  select c.id into check_id from finance.payout_checks c
+  join finance.payouts p on p.id = c.payout_id
+  join finance.withdrawals wd on wd.id = p.withdrawal_id
+  join auth.users u on u.id = wd.owner_user_id
+  where u.email = '${memberEmail}' and c.status = 'queued'
+  order by c.created_at desc limit 1;
+  update finance.payout_checks
+  set status = 'leased', lease_token = token, lease_expires_at = now() + interval '2 minutes',
+      attempts = attempts + 1, next_attempt_at = null
+  where id = check_id;
+  select r.* into rev from finance.payout_checks c join finance.payout_revisions r on r.id = c.revision_id
+  where c.id = check_id;
+  select wd.* into w from finance.payouts p join finance.withdrawals wd on wd.id = p.withdrawal_id
+  where p.id = rev.payout_id;
+  paid := rev.paid_on - ${mismatch ? 1 : 0};
+  perform api.finish_payout_check(check_id, token, '${mismatch ? 'mismatch' : 'match'}',
+    jsonb_build_object('paymentDate', paid::text, 'receipt', jsonb_build_object(
+      'amount', trim_scale(rev.amount)::text, 'currency', 'NGN', 'recipientAccount', '0123456789',
+      'recipientName', w.account_name, 'transactionDate', paid::text,
       'paymentStatus', 'successful', 'confidence', 'high')),
-    '{}'::text[], 'e2e-stub', 'strict-single-receipt-v1');
+    ${mismatch ? "array['paymentDate_mismatch']" : "'{}'::text[]"}, 'e2e-stub', 'strict-single-receipt-v1');
 end $$`);
 }

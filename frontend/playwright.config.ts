@@ -6,8 +6,11 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
 	testDir: 'tests/e2e',
 	testMatch: '**/*.e2e.ts',
+	// Files run side by side; tests inside a file stay in order (each file is
+	// `serial`). Every test makes its own network and people, and the shared
+	// helpers act only on their own rows, so files don't affect each other.
 	fullyParallel: false,
-	workers: 1,
+	workers: Number(process.env.E2E_WORKERS ?? (process.env.CI ? 2 : 3)),
 	retries: process.env.CI ? 1 : 0,
 	reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
 	use: {

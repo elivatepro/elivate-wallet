@@ -23,8 +23,14 @@ cleanup() {
 trap cleanup EXIT
 
 cd "$backend"
+# A stack that is already running may hold data from earlier runs: reset it.
+# A fresh start already applied every migration to an empty database, so CI
+# (always fresh) skips the second replay.
+if supabase status >/dev/null 2>&1; then already_running=1; else already_running=""; fi
 supabase start --exclude studio,imgproxy,logflare,vector,supavisor
-supabase db reset --local --yes >/dev/null
+if [ -n "$already_running" ] || [ -z "${CI:-}" ]; then
+  supabase db reset --local --yes >/dev/null
+fi
 
 # Values printed by the local stack (local defaults, not secrets).
 eval "$(supabase status -o env | grep -E '^(API_URL|ANON_KEY)=')"

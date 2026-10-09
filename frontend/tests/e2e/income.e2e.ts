@@ -7,14 +7,13 @@ import { type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 import {
 	completeIdentityAndProfile,
-	confirmLinkFor,
 	createConfirmedAccount,
 	expectAccessible,
 	expectNoHorizontalScroll,
 	inviteMember,
-	setJoinPassword,
 	humanReady,
-	uniqueEmail
+	uniqueEmail,
+	walletPeople
 } from './helpers';
 
 const PASSWORD = 'correct-horse-battery';
@@ -26,26 +25,6 @@ const RECEIPT = {
 };
 
 test.describe.configure({ mode: 'serial' });
-
-async function joinAsNewMember(page: Page, joinPath: string, email: string) {
-	await page.goto(joinPath);
-	await page.getByRole('button', { name: 'Verify email' }).click();
-	await page.goto(await confirmLinkFor(email, /Confirm your Elivate Wallet email/));
-	await page.getByRole('button', { name: 'Continue' }).click();
-	await setJoinPassword(page, PASSWORD);
-	await page.getByRole('button', { name: 'Accept invitation' }).click();
-	await page.getByRole('link', { name: 'Let’s begin' }).click();
-	await page.getByLabel('PIN', { exact: true }).fill(PIN);
-	await page.getByLabel('Repeat PIN').fill(PIN);
-	await page.getByRole('button', { name: 'Save PIN' }).click();
-	await completeIdentityAndProfile(page);
-	await page.getByLabel('Bank').selectOption('058');
-	await page.getByLabel('Account number').fill('0123456789');
-	await page.getByRole('button', { name: 'Check account' }).click();
-	await page.getByRole('button', { name: 'Save account' }).click();
-	await page.getByRole('link', { name: 'Go to my wallet' }).click();
-	await expect(page).toHaveURL(/\/app$/);
-}
 
 async function signInAs(page: Page, email: string) {
 	await page.context().clearCookies();
@@ -86,8 +65,8 @@ test('the President records income for a member with a receipt', async ({ page }
 	const founder = { email: uniqueEmail('income-f'), password: PASSWORD, pin: PIN };
 	await createConfirmedAccount(founder.email, PASSWORD, PIN);
 	const member = uniqueEmail('income-m');
-	const { joinPath } = await inviteMember(founder, 'Income Test Network', member);
-	await joinAsNewMember(page, joinPath, member);
+	await walletPeople.memberWithAccount(founder, 'Income Test Network', member);
+	await signInAs(page, member);
 	// A member can't record income: no nav entry.
 	await expect(page.getByRole('link', { name: 'Record income' })).toHaveCount(0);
 
@@ -134,8 +113,7 @@ test('an unknown outcome survives a reload and is recovered with the same key', 
 	const founder = { email: uniqueEmail('unknown-f'), password: PASSWORD, pin: PIN };
 	await createConfirmedAccount(founder.email, PASSWORD, PIN);
 	const member = uniqueEmail('unknown-m');
-	const { joinPath } = await inviteMember(founder, 'Unknown Test Network', member);
-	await joinAsNewMember(page, joinPath, member);
+	await walletPeople.memberWithAccount(founder, 'Unknown Test Network', member);
 	await asPresident(page, founder.email, 'Unknown Test Network');
 	await page.goto('/app/income');
 	await fillIncome(page, '2500.50');

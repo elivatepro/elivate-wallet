@@ -8,16 +8,14 @@ import { expect, test } from './fixtures';
 import {
 	createConfirmedAccount,
 	expectAccessible,
-	inviteMember,
-	localSql,
 	recordIncome,
 	shot,
-	finishCheckAsMatch,
+	finishCheck,
 	uniqueEmail,
 	walletPeople
 } from './helpers';
 
-const { PASSWORD, PIN, joinAsNewMember, signInAs, asPresident } = walletPeople;
+const { PASSWORD, PIN, memberWithAccount, signInAs, asPresident } = walletPeople;
 const RECEIPT = {
 	name: 'access-transfer.pdf',
 	mimeType: 'application/pdf',
@@ -26,30 +24,12 @@ const RECEIPT = {
 
 test.describe.configure({ mode: 'serial' });
 
-/** Stands in for the payout-checker worker: the receipt shows another payment date. */
-function finishCheckAsDateMismatch() {
-	localSql(`do $$
-declare
-  job jsonb := api.claim_payout_checks('e2e', 1)->0;
-  paid date := (select r.paid_on from finance.payout_checks c
-                join finance.payout_revisions r on r.id = c.revision_id
-                where c.id = (job->>'checkId')::uuid);
-begin
-  perform api.finish_payout_check((job->>'checkId')::uuid, (job->>'leaseToken')::uuid, 'mismatch',
-    jsonb_build_object('paymentDate', (paid - 1)::text, 'receipt', jsonb_build_object(
-      'amount', job->'expected'->>'amount', 'currency', 'NGN', 'recipientAccount', '0123456789',
-      'recipientName', job->'expected'->>'recipientName', 'transactionDate', (paid - 1)::text,
-      'paymentStatus', 'successful', 'confidence', 'high')),
-    array['paymentDate_mismatch'], 'e2e-stub', 'strict-single-receipt-v1');
-end $$`);
-}
-
 test('a withdrawal is requested, approved, paid out and verified', async ({ page }) => {
 	const founder = { email: uniqueEmail('wd-f'), password: PASSWORD, pin: PIN };
 	await createConfirmedAccount(founder.email, PASSWORD, PIN);
 	const member = uniqueEmail('wd-m');
-	const { joinPath } = await inviteMember(founder, 'Withdraw Test Network', member);
-	await joinAsNewMember(page, joinPath, member);
+	await memberWithAccount(founder, 'Withdraw Test Network', member);
+	await signInAs(page, member);
 	await recordIncome(founder, member, '10000.00');
 
 	// Member: M06 → M07 (PIN) → M08.
@@ -107,7 +87,7 @@ test('a withdrawal is requested, approved, paid out and verified', async ({ page
 	await expect(panel.getByText('Checking receipt')).toBeVisible();
 
 	// The receipt shows another date (stubbed worker): U03, the one fix keeps the receipt.
-	finishCheckAsDateMismatch();
+	finishCheck(member, 'date-mismatch');
 	await page.getByRole('tab', { name: /Needs action/ }).click();
 	await expect(panel.getByText('Correction needed · 1 left')).toBeVisible();
 	await panel.getByRole('button', { name: 'Fix the date' }).click();
@@ -119,7 +99,7 @@ test('a withdrawal is requested, approved, paid out and verified', async ({ page
 	await expect(page.getByText(/^Sent again\./)).toBeVisible();
 
 	// The second check matches, completing the withdrawal (U04).
-	finishCheckAsMatch();
+	finishCheck(member);
 	await page.getByRole('tab', { name: 'Completed' }).click();
 	await expect(panel.getByText('Completed', { exact: true })).toBeVisible();
 	await expect(page.getByRole('heading', { name: '₦1,500.00 paid out' })).toBeVisible();
@@ -134,8 +114,8 @@ test('a pocket move is requested and approved', async ({ page }) => {
 	const founder = { email: uniqueEmail('mv-f'), password: PASSWORD, pin: PIN };
 	await createConfirmedAccount(founder.email, PASSWORD, PIN);
 	const member = uniqueEmail('mv-m');
-	const { joinPath } = await inviteMember(founder, 'Move Test Network', member);
-	await joinAsNewMember(page, joinPath, member);
+	await memberWithAccount(founder, 'Move Test Network', member);
+	await signInAs(page, member);
 	await recordIncome(founder, member, '1000.00');
 
 	await page.goto('/app');
