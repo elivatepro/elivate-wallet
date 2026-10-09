@@ -197,6 +197,18 @@ export function present(item: NotificationItem, hide = false): BellEntry {
 		// Blueprint 14: A06–A08 as personal items. Never an IP.
 		case 'security.password_changed':
 			return entry('Password changed', 'Not you? Secure your account now.', 'warning', 'lock');
+		// Blueprint 15: a big statement or report finished (M15) or couldn't finish.
+		case 'export.statement_ready':
+			return entry('Statement ready', join(p.title, p.currency), 'success', 'check');
+		case 'export.report_ready':
+			return entry('Report ready', join(p.title, p.currency, p.format), 'success', 'check');
+		case 'export.failed':
+			return entry(
+				p.what === 'report' ? 'Couldn’t finish your report' : 'Couldn’t finish your statement',
+				join(p.title, p.currency, 'Try again'),
+				'danger',
+				'x'
+			);
 		case 'security.pin_changed':
 			return entry('PIN changed', 'Not you? Reset your PIN now.', 'warning', 'lock');
 		case 'security.new_sign_in':

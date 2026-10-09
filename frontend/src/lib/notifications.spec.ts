@@ -86,6 +86,42 @@ describe('bell wording (Paper NB01/S01)', () => {
 		).toBe('Returned funds not posted');
 	});
 
+	it('statements and reports: ready opens the files page; failures say so', () => {
+		const ready = present(
+			item('export.statement_ready', {
+				title: 'September 2026',
+				currency: 'NGN',
+				format: 'PDF statement',
+				reference: 'STM-4V9B-0412',
+				path: '/app/statements',
+				what: 'statement'
+			})
+		);
+		expect(ready).toMatchObject({
+			title: 'Statement ready',
+			line: 'September 2026 · NGN',
+			href: '/app/statements'
+		});
+		const report = present(
+			item('export.report_ready', {
+				title: 'Q3 2026',
+				currency: 'USD',
+				format: 'Office report PDF',
+				path: '/app/reports'
+			})
+		);
+		expect(report.line).toBe('Q3 2026 · USD · Office report PDF');
+		const failed = present(
+			item('export.failed', {
+				title: 'Q3 2026',
+				currency: 'USD',
+				what: 'report',
+				path: '/app/reports'
+			})
+		);
+		expect(failed).toMatchObject({ title: 'Couldn’t finish your report', tone: 'danger' });
+	});
+
 	it('older person emails get readable items', () => {
 		expect(
 			present(item('payout_account.alert', { action: 'name_mismatch', bankName: 'GTBank' })).tone

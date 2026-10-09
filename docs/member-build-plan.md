@@ -143,6 +143,14 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
 - **Receipt check (2026-10-09):** model `gpt-5-mini`, in secret `OPENAI_RECEIPT_MODEL`. The
   payment date compares the calendar date printed on the receipt; convert to UTC only when
   the receipt prints a time zone.
+- **Statements and reports (slice 6, 2026-10-09, Blueprint 15):** WAT for periods and printed
+  times (CSV also carries UTC); PDFs rendered with Cloudflare Browser Rendering from the app
+  Worker (approved addition to the stack; Workers Paid); network name + initial tile until
+  slice 10; leadership: office report PDF, transactions CSV and member balances CSV, whole
+  scope or one member; every file is one complete-or-fail job, M15 + bell above 1,000 rows,
+  hard limits PDF 5,000 / CSV 50,000 rows ("Too large"); private R2, files removed after 7
+  days; downloads streamed by the app server, audited, PIN for leadership reports only;
+  statements for any network the person holds or held money in. Paper S10–S14 drafts approved.
 - **Sequencing:** one slice at a time, each new slice in its own thread. Order: 4 → 5 → 8 →
   slice 9 follow-up (IP storage, signed-in password change, PIN-change email, sign-out
   choice after reset) → 6 → 7 → 10.

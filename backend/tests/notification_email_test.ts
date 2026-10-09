@@ -184,6 +184,19 @@ const samples: ReadonlyArray<readonly [string, Record<string, string>, string, s
     "Your Wallet PIN was changed.",
     "pin-changed",
   ],
+  [
+    "money.statement_ready",
+    {
+      network: "Cedar Network",
+      title: "September 2026",
+      currency: "NGN",
+      format: "PDF statement",
+      chip: "Statement",
+      path: "/app/statements",
+    },
+    "Your statement is ready.",
+    "statement-ready",
+  ],
 ];
 
 Deno.test("every notification email renders on the Paper layout with its own pose", () => {

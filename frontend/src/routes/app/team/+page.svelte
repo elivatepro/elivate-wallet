@@ -6,7 +6,7 @@
 
 	Withdrawal pieces of T01/T04 (Review withdrawals, Payouts completed, Needs
 	your action, the payouts bars) arrive with the withdrawals slice; "Export
-	report" with statements; "Recently opened" has no decided data source.
+	report" opens Reports (Blueprint 15); "Recently opened" has no decided data source.
 -->
 <script lang="ts">
 	import { getContext } from 'svelte';
@@ -14,6 +14,7 @@
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import Plus from '@lucide/svelte/icons/plus';
 	import UserPlus from '@lucide/svelte/icons/user-plus';
+	import FileDown from '@lucide/svelte/icons/file-down';
 	import { LeadershipOverview, type Currency } from '#lib/contract/ledger.js';
 	import { getJson } from '#lib/client/api.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
@@ -183,6 +184,17 @@
 					<span class="sc-text"
 						><span class="sc-title">Invite a member</span><span class="sc-sub"
 							>Into {overview.scope.name}</span
+						></span
+					>
+				</a>
+			{/if}
+			{#if can('view_scoped_financial_reports') || can('export_scoped_reports')}
+				<!-- Paper T01 "Export report · This month, NGN" (Blueprint 15). -->
+				<a class="shortcut" href="/app/reports">
+					<span class="tile" aria-hidden="true"><FileDown size={20} strokeWidth={1.8} /></span>
+					<span class="sc-text"
+						><span class="sc-title">Export report</span><span class="sc-sub"
+							>This month, {currency ?? 'NGN'}</span
 						></span
 					>
 				</a>

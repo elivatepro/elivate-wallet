@@ -56,7 +56,7 @@ export function localSql(sql: string): string {
 const key = () => crypto.randomUUID();
 
 /** A signed-in API session for setup steps, with the PIN already verified. */
-async function apiSession(email: string, password: string, pin: string) {
+export async function apiSession(email: string, password: string, pin: string) {
 	const supabase = createClient(SUPABASE_URL, PUBLISHABLE_KEY, {
 		auth: { persistSession: false, autoRefreshToken: false }
 	});
