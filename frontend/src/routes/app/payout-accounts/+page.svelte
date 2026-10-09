@@ -7,6 +7,7 @@
 -->
 <script lang="ts">
 	import { getContext } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { Cause, Effect, Exit, Option } from 'effect';
 	import { DropdownMenu } from 'bits-ui';
 	import Check from '@lucide/svelte/icons/check';
@@ -17,6 +18,7 @@
 	import Landmark from '@lucide/svelte/icons/landmark';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Star from '@lucide/svelte/icons/star';
+	import Replace from '@lucide/svelte/icons/replace';
 	import Trash from '@lucide/svelte/icons/trash-2';
 	import X from '@lucide/svelte/icons/x';
 	import { PayoutAccountsView, payoutPrimaryPath, payoutRemovePath } from '#lib/contract/app.js';
@@ -36,6 +38,8 @@
 		pinProblem
 	} from '#lib/payout.js';
 	import ConfirmDialog from '#lib/ui/app/ConfirmDialog.svelte';
+	import RootDialog from '#lib/ui/account/RootDialog.svelte';
+	import { setReplaceIntent } from '#lib/client/replace-intent.js';
 	import RootImage from '#lib/ui/RootImage.svelte';
 
 	const shell = getContext<Shell>('shell');
@@ -45,12 +49,13 @@
 	let now = $state(Date.now());
 	let notice = $state<string | null>(null);
 
-	type Pending = { kind: 'primary' | 'remove'; account: PayoutAccount };
+	type Pending = { kind: 'primary' | 'remove' | 'replace'; account: PayoutAccount };
 	let pending = $state<Pending | null>(null);
 	let dialogOpen = $state(false);
 	let busy = $state(false);
 	let dialogError = $state<string | null>(null);
 	let pinError = $state<string | null>(null);
+	let pinTry = $state(0);
 	let commandKey = newKey();
 	/** The request the current key belongs to; a different one gets a new key. */
 	let keyFor = '';
@@ -103,6 +108,15 @@
 	async function confirm({ reason, pin }: { reason: string; pin: string | undefined }) {
 		if (!pending || shell.state.kind !== 'ready') return;
 		const { kind, account } = pending;
+		if (kind === 'replace') {
+			// Z05: reason + PIN here, then the lookup of the new account (W-17).
+			if (!pin) return void (pinError = 'Enter your 4-digit PIN.');
+			setReplaceIntent({ payoutAccountId: account.payoutAccountId, reason, pin });
+			dialogOpen = false;
+			await goto(`/app/payout-accounts/add?replace=${account.payoutAccountId}`);
+			return;
+		}
+		if (kind === 'remove' && !pin) return void (pinError = 'Enter your 4-digit PIN.');
 		const workspaceId = shell.state.view.workspace.membershipId;
 		busy = true;
 		dialogError = null;
@@ -142,7 +156,10 @@
 		const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
 		const problem = pinProblem(failure);
 		if (problem?.kind === 'locked') return void window.location.assign('/pin/locked');
-		if (problem) return void (pinError = problem.message);
+		if (problem) {
+			pinTry += 1;
+			return void (pinError = problem.message);
+		}
 		// Unknown outcome keeps the same key for the retry (W-00); a refusal gets a new one.
 		if (isRefusal(failure)) {
 			keyFor = '';
@@ -249,6 +266,15 @@
 											<span class="menu-label">Make primary</span>
 										</DropdownMenu.Item>
 									{/if}
+									<!-- Replace (W-17): new lookup + reason + PIN. Undrawn in Paper; waits on approval. -->
+									<DropdownMenu.Item
+										class="menu-row"
+										disabled={!shell.canAct}
+										onSelect={() => setTimeout(() => ask('replace', account))}
+									>
+										<Replace size={16} strokeWidth={1.8} aria-hidden="true" />
+										<span class="menu-label">Replace account</span>
+									</DropdownMenu.Item>
 									<DropdownMenu.Item
 										class="menu-row danger"
 										disabled={!shell.canAct}
@@ -272,18 +298,38 @@
 </div>
 
 {#if pending}
-	<ConfirmDialog
-		bind:open={dialogOpen}
-		title={pending.kind === 'primary' ? 'Make this your primary account?' : 'Remove this account?'}
-		summary={accountTitle(pending.account)}
-		confirmLabel={pending.kind === 'primary' ? 'Make primary' : 'Remove account'}
-		needsReason={pending.kind === 'remove'}
-		tone={pending.kind === 'remove' ? 'danger' : 'accent'}
-		{busy}
-		error={dialogError}
-		{pinError}
-		onConfirm={confirm}
-	/>
+	{#if pending.kind === 'primary'}
+		<ConfirmDialog
+			bind:open={dialogOpen}
+			title="Make this your primary account?"
+			summary={accountTitle(pending.account)}
+			confirmLabel="Make primary"
+			needsReason={false}
+			{busy}
+			error={dialogError}
+			{pinError}
+			onConfirm={confirm}
+		/>
+	{:else}
+		<!-- Paper "App — Screens v4" Z05 (replace) / Z06 (remove): reason + PIN. -->
+		<RootDialog
+			bind:open={dialogOpen}
+			pose={pending.kind === 'replace' ? 'dialog-replace' : 'dialog-remove'}
+			title={`${pending.kind === 'replace' ? 'Replace' : 'Remove'} ${accountTitle(pending.account)}`}
+			summary={pending.kind === 'replace'
+				? 'You’ll look up the new account next'
+				: 'Requests already sent to it stay as they are'}
+			confirmLabel={pending.kind === 'replace' ? 'Continue' : 'Remove account'}
+			tone={pending.kind === 'replace' ? 'accent' : 'danger'}
+			needsReason
+			needsPin
+			{busy}
+			{pinTry}
+			error={dialogError}
+			{pinError}
+			onConfirm={confirm}
+		/>
+	{/if}
 {/if}
 
 <style>

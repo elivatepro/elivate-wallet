@@ -21,5 +21,28 @@ export const variables = defineEnvVars({
 	SUPABASE_PUBLISHABLE_KEY: {
 		description: 'Supabase publishable (anon) key. Never a secret or service-role key.',
 		schema: (value: string | undefined) => (value === '' ? undefined : value)
+	},
+	// Cloudflare Turnstile on sign-in, sign-up and forgot-password (Blueprint 10).
+	// Worker secrets on the deployed app; Cloudflare's documented test keys for
+	// local development and e2e. Missing keys fail closed (the forms refuse).
+	TURNSTILE_SITE_KEY: {
+		description: 'Turnstile widget site key (public; rendered into the auth forms).',
+		schema: (value: string | undefined) => (value === '' ? undefined : value)
+	},
+	TURNSTILE_SITEVERIFY_URL: {
+		description:
+			'Local e2e only: a loopback siteverify stand-in. Anything else is refused; unset uses Cloudflare.',
+		schema: (value: string | undefined) => {
+			if (value === undefined || value === '') return undefined;
+			const url = new URL(value);
+			if (url.hostname !== '127.0.0.1' && url.hostname !== 'localhost') {
+				throw new Error('TURNSTILE_SITEVERIFY_URL may only point at a local stand-in');
+			}
+			return url.toString();
+		}
+	},
+	TURNSTILE_SECRET_KEY: {
+		description: 'Turnstile secret key for server-side siteverify. Never sent to the browser.',
+		schema: (value: string | undefined) => (value === '' ? undefined : value)
 	}
 });

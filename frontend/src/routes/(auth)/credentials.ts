@@ -28,7 +28,29 @@ export function readCredentials(
 		: { ok: true, email, password };
 }
 
-export function authMessage(kind: AuthFailure['kind'], form: 'sign-in' | 'sign-up'): string {
+/** Email only (forgot password). Same rule as readCredentials. */
+export function readEmail(
+	form: FormData
+): { ok: true; email: string } | { ok: false; email: string; error: string } {
+	const email = String(form.get('email') ?? '')
+		.trim()
+		.toLowerCase();
+	return EMAIL.test(email) && email.length <= 254
+		? { ok: true, email }
+		: { ok: false, email, error: 'Enter a valid email address.' };
+}
+
+/** A new password (recovery): same limits as sign-up. Null when acceptable. */
+export function newPasswordError(password: string): string | null {
+	if (password.length < MIN_PASSWORD) return `Use at least ${MIN_PASSWORD} characters.`;
+	if (password.length > MAX_PASSWORD) return 'That password is too long.';
+	return null;
+}
+
+export function authMessage(
+	kind: AuthFailure['kind'],
+	form: 'sign-in' | 'sign-up' | 'recovery'
+): string {
 	switch (kind) {
 		case 'invalid_credentials':
 			return 'We couldn’t sign you in. Check your details and try again.';
@@ -43,6 +65,8 @@ export function authMessage(kind: AuthFailure['kind'], form: 'sign-in' | 'sign-u
 		case 'unavailable':
 			return form === 'sign-in'
 				? 'We couldn’t sign you in right now. Try again shortly.'
-				: 'We couldn’t create your account right now. Try again shortly.';
+				: form === 'recovery'
+					? 'We couldn’t send reset instructions right now. Try again shortly.'
+					: 'We couldn’t create your account right now. Try again shortly.';
 	}
 }

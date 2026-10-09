@@ -8,10 +8,13 @@
 	import Field from '#lib/ui/auth/Field.svelte';
 	import FormAlert from '#lib/ui/auth/FormAlert.svelte';
 	import PrimaryButton from '#lib/ui/auth/PrimaryButton.svelte';
+	import Turnstile from '#lib/ui/auth/Turnstile.svelte';
 	import type { PageProps } from './$types';
 
-	let { form }: PageProps = $props();
+	let { data, form }: PageProps = $props();
 	let busy = $state(false);
+	let turnstile: Turnstile | undefined = $state();
+	let checkFailed = $state(false);
 
 	// Nobody is signed in here, so no cached wallet data may remain on this
 	// device (decision 36a: erased on sign-out).
@@ -30,6 +33,8 @@
 		return async ({ update }) => {
 			await update({ reset: false });
 			busy = false;
+			// Each Turnstile token verifies once; get a fresh one for a retry.
+			turnstile?.reset();
 		};
 	}}
 >
@@ -53,15 +58,46 @@
 			placeholder="Enter your password"
 			autocomplete="current-password"
 			error={form?.errors?.password}
+		>
+			{#snippet trailing()}<a class="forgot" href="/forgot-password">Forgot password?</a>{/snippet}
+		</Field>
+		<Turnstile
+			bind:this={turnstile}
+			bind:failed={checkFailed}
+			siteKey={data.turnstileSiteKey}
+			action="sign-in"
+			retryLabel="sign in"
+			theme={data.theme === 'system' ? 'auto' : data.theme}
 		/>
 	</div>
 	<div class="actions">
-		<PrimaryButton label="Sign in" {busy} />
+		<PrimaryButton label="Sign in" {busy} disabled={checkFailed} />
 		<AltLink prompt="New to Elivate?" label="Start your network" href="/sign-up" />
 	</div>
 </form>
 
 <style>
+	/* Paper "Authentication v2" 02/03: #FF9872 on dark, #B74725 on light. */
+	.forgot {
+		display: inline-flex;
+		align-items: center;
+		min-height: var(--hit-min);
+		color: #ff9872;
+		font-size: var(--text-14);
+		line-height: var(--leading-20);
+		text-decoration: none;
+	}
+
+	:global([data-theme='light']) .forgot {
+		color: #b74725;
+	}
+
+	@media (prefers-color-scheme: light) {
+		:global([data-theme='system']) .forgot {
+			color: #b74725;
+		}
+	}
+
 	form,
 	.fields,
 	.actions {

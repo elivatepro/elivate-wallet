@@ -114,6 +114,26 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       throw new Error("verify_pin returned an unexpected result");
     },
 
+    // Blueprint 10: change the PIN while signed in (current PIN, then the new one twice).
+    "POST /pin/change": async (request, actor, requestId) => {
+      const body = await v.readBody(request, ["currentPin", "pin", "pinConfirm"]);
+      const current = v.pin(body, "currentPin");
+      const next = v.matchingPins(body);
+      if (next === current) {
+        throw new ApiError("validation_error", { field: "pin", reason: "same_pin" });
+      }
+      const result = await call("change_pin", {
+        ...base(actor, requestId),
+        p_current_pin_hmac: await deps.pinHmac(current),
+        p_new_pin_hmac: await deps.pinHmac(next),
+      }) as { ok?: boolean; code?: unknown; attemptsRemaining?: unknown; state?: unknown };
+      if (result?.ok === true) return result.state;
+      if (result?.code === "pin_incorrect" || result?.code === "pin_locked") {
+        throw new ApiError(result.code, { attemptsRemaining: result.attemptsRemaining });
+      }
+      throw new Error("change_pin returned an unexpected result");
+    },
+
     "POST /pin/reset/request": async (request, actor, requestId) => {
       await v.readBody(request, []);
       const result = await call("request_pin_reset", base(actor, requestId));

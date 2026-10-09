@@ -1,10 +1,11 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import {
 	completeIdentityAndProfile,
 	confirmLinkFor,
 	createNetworkFor,
 	expectAccessible,
 	expectNoHorizontalScroll,
+	humanReady,
 	uniqueEmail
 } from './helpers';
 
@@ -22,6 +23,7 @@ test('sign-up → email confirm → PIN setup → workspace picker → shell, th
 	await page.goto('/sign-up');
 	await page.getByLabel('Email address').fill(email);
 	await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
+	await humanReady(page);
 	await page.getByRole('button', { name: 'Create account' }).click();
 	await expect(page.getByRole('heading', { name: 'Check your inbox' })).toBeVisible();
 
@@ -78,6 +80,7 @@ test('sign-up → email confirm → PIN setup → workspace picker → shell, th
 
 	await page.getByLabel('Email address').fill(email);
 	await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
+	await humanReady(page);
 	await page.getByRole('button', { name: 'Sign in' }).click();
 	await expect(page).toHaveURL(/\/pin$/);
 	await page.getByLabel('PIN', { exact: true }).fill('0000');
@@ -93,6 +96,7 @@ test('sign-in keeps one generic message for wrong credentials (W-01)', async ({ 
 	await page.goto('/sign-in');
 	await page.getByLabel('Email address').fill(uniqueEmail('nobody'));
 	await page.getByLabel('Password', { exact: true }).fill('not-the-password');
+	await humanReady(page);
 	await page.getByRole('button', { name: 'Sign in' }).click();
 	await expect(page.getByRole('alert')).toHaveText(
 		'We couldn’t sign you in. Check your details and try again.'
@@ -126,6 +130,7 @@ test.describe('320 px, both themes: accessible and no horizontal scroll', () => 
 		await page.goto('/sign-up');
 		await page.getByLabel('Email address').fill(email);
 		await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
+		await humanReady(page);
 		await page.getByRole('button', { name: 'Create account' }).click();
 		await page.goto(await confirmLinkFor(email, /Confirm your Elivate Wallet email/));
 		await expectAccessible(page);

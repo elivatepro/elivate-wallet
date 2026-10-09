@@ -11,8 +11,15 @@
 	// A Magic Link is a PIN reset unless an invitation is open in this browser.
 	const isJoin = $derived(data.type === 'magiclink' && data.joining);
 	const isReset = $derived(data.type === 'magiclink' && !data.joining);
+	const isRecovery = $derived(data.type === 'recovery');
 	const title = $derived(
-		isReset ? 'Reset your PIN' : isJoin ? 'Continue joining' : 'Confirm your email'
+		isRecovery
+			? 'Reset your password'
+			: isReset
+				? 'Reset your PIN'
+				: isJoin
+					? 'Continue joining'
+					: 'Confirm your email'
 	);
 </script>
 
@@ -21,7 +28,7 @@
 </svelte:head>
 
 <AuthHeading
-	eyebrow={isReset ? 'Reset PIN' : isJoin ? 'Invitation' : 'Verify email'}
+	eyebrow={isRecovery ? 'Recovery' : isReset ? 'Reset PIN' : isJoin ? 'Invitation' : 'Verify email'}
 	{title}
 	lead="Press Continue to finish on this device."
 />

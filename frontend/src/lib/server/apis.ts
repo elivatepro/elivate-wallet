@@ -32,7 +32,9 @@ import {
 	PinResetRequested,
 	PinSetRequest,
 	PinVerifyRequest,
+	Revoked,
 	SecurityRoutes,
+	Sessions,
 	SecurityState
 } from '#lib/contract/security.js';
 import { Role, Uuid } from '#lib/contract/common.js';
@@ -81,6 +83,17 @@ export interface SecurityApiShape {
 		pin: string;
 		pinConfirm: string;
 	}) => Effect.Effect<SecurityState, EdgeFailure>;
+	/** Blueprint 10: signed-in devices, signing them out, changing the PIN. */
+	readonly sessions: Effect.Effect<typeof Sessions.Type, EdgeFailure>;
+	readonly revokeSessions: (
+		input: { sessionId: string } | { allOthers: true }
+	) => Effect.Effect<typeof Revoked.Type, EdgeFailure>;
+	/** Never retried: a wrong current PIN counts against the 5 attempts. */
+	readonly changePin: (input: {
+		currentPin: string;
+		pin: string;
+		pinConfirm: string;
+	}) => Effect.Effect<SecurityState, EdgeFailure>;
 }
 
 export class SecurityApi extends Context.Service<SecurityApi, SecurityApiShape>()('SecurityApi') {}
@@ -116,6 +129,25 @@ export const SecurityApiLive = Layer.effect(
 							{ fn: 'security', route: SecurityRoutes.pinResetComplete, body },
 							SecurityState
 						)
+					)
+				),
+			sessions: edge
+				.call({ fn: 'security', route: SecurityRoutes.sessions }, Sessions)
+				.pipe(Effect.retry(readPolicy)),
+			revokeSessions: (input) =>
+				edge.call({ fn: 'security', route: SecurityRoutes.sessionsRevoke, body: input }, Revoked),
+			changePin: (input) =>
+				(Schema.is(Pin)(input.currentPin)
+					? validate(PinSetRequest, { pin: input.pin, pinConfirm: input.pinConfirm })
+					: Effect.fail(localValidation('currentPin'))
+				).pipe(
+					Effect.flatMap((pins) =>
+						input.currentPin === pins.pin
+							? Effect.fail(localValidation('pin', 'same_pin'))
+							: Effect.succeed({ currentPin: input.currentPin, ...pins })
+					),
+					Effect.flatMap((body) =>
+						edge.call({ fn: 'security', route: SecurityRoutes.pinChange, body }, SecurityState)
 					)
 				)
 		};

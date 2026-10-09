@@ -2,7 +2,8 @@
 // join link, as a new person and as an existing account, and from the in-app
 // "Invitations for you" list. Local stack only, synthetic data.
 
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import {
 	completeIdentityAndProfile,
 	confirmLinkFor,
@@ -10,6 +11,7 @@ import {
 	expectAccessible,
 	expectNoHorizontalScroll,
 	inviteMember,
+	humanReady,
 	uniqueEmail
 } from './helpers';
 
@@ -28,6 +30,7 @@ async function signIn(page: Page, email: string, password = PASSWORD) {
 	await page.goto('/sign-in');
 	await page.getByLabel('Email address').fill(email);
 	await page.getByLabel('Password', { exact: true }).fill(password);
+	await humanReady(page);
 	await page.getByRole('button', { name: 'Sign in' }).click();
 }
 
