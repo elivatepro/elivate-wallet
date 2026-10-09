@@ -89,7 +89,16 @@ export type RootPose =
 	| 'convert'
 	| 'reverse'
 	| 'returned-funds'
-	| 'returned-checking';
+	| 'returned-checking'
+	// Paper "Statements & reports v1" (Blueprint 15): paper stack (S10), heavy
+	// box (S08), chart pointer (S05/S12), folder stack (S05 dialog), wheelbarrow
+	// (S06), peeking page (S09).
+	| 'statements'
+	| 'statements-big'
+	| 'reports'
+	| 'export-report'
+	| 'export-mobile'
+	| 'statement-preview';
 
 /** Rendered Root size on mobile gate screens (Paper: 120×160, 150×200, 180×240). */
 export type RootSize = 'sm' | 'md' | 'lg';
@@ -181,7 +190,13 @@ export const ROOT_HEIGHTS: Record<RootPose, number> = {
 	convert: 527,
 	reverse: 527,
 	'returned-funds': 520,
-	'returned-checking': 499
+	'returned-checking': 499,
+	statements: 525,
+	'statements-big': 525,
+	reports: 525,
+	'export-report': 525,
+	'export-mobile': 525,
+	'statement-preview': 525
 };
 
 export const rootSrc = (pose: RootPose) => `/root/${pose}.webp`;

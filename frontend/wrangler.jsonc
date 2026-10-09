@@ -18,7 +18,15 @@
 	"observability": { "enabled": true },
 	// Private profile photos (Blueprint 06 B4). R2 must be enabled on the
 	// account and the bucket created before the next deploy.
-	"r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "elivate-wallet-dev-photos" }],
+	"r2_buckets": [
+		{ "binding": "PHOTOS", "bucket_name": "elivate-wallet-dev-photos" },
+		// Statements and reports (Blueprint 15): private; a lifecycle rule removes
+		// files after 7 days (owner decision Q6).
+		{ "binding": "EXPORTS", "bucket_name": "elivate-wallet-dev-exports" }
+	],
+	// Cloudflare Browser Rendering for PDF statements and reports (Blueprint 15,
+	// owner decision Q2; Workers Paid).
+	"browser": { "binding": "BROWSER" },
 	"routes": [{ "pattern": "app.elivatewallet.com", "custom_domain": true }],
 	"workers_dev": false,
 	"preview_urls": false

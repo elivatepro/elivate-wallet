@@ -59,6 +59,7 @@ const handler = createHandler({
   },
   openAccount: (owner, ciphertext, keyVersion) => accountCrypto.open(owner, ciphertext, keyVersion),
   log: (entry) => console.log(JSON.stringify(entry)),
+  appServerSecret: Deno.env.get("APP_SERVER_SECRET") || null,
   allowedOrigins: (Deno.env.get("CORS_ORIGINS") ?? "").split(",").map((o) => o.trim()).filter(
     Boolean,
   ),

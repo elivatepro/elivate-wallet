@@ -56,6 +56,16 @@ export const variables = defineEnvVars({
 			'Local e2e only ("1"): take the sign-in location from x-e2e-city / x-e2e-country. Ignored unless SUPABASE_URL is a loopback address.',
 		schema: (value: string | undefined) => value === '1'
 	},
+	EXPORTS_WORKER_SECRET: {
+		description:
+			'Shared secret of the export runner (Blueprint 15): pg_cron/pg_net calls /internal/exports/run with it, and the runner calls the exports-worker Edge Function with it. Missing: no files are made.',
+		schema: (value: string | undefined) => (value === '' ? undefined : value)
+	},
+	E2E_LOCAL_EXPORTS: {
+		description:
+			"Local e2e only: a directory for generated files, rendered with Playwright's Chromium instead of the R2 and Browser Rendering bindings. Ignored unless SUPABASE_URL is a loopback address.",
+		schema: (value: string | undefined) => (value === '' ? undefined : value)
+	},
 	TURNSTILE_SECRET_KEY: {
 		description: 'Turnstile secret key for server-side siteverify. Never sent to the browser.',
 		schema: (value: string | undefined) => (value === '' ? undefined : value)

@@ -9,6 +9,8 @@
 	import Bell from '@lucide/svelte/icons/bell';
 	import Building from '@lucide/svelte/icons/building-2';
 	import FileText from '@lucide/svelte/icons/file-text';
+	import FileIcon from '@lucide/svelte/icons/file';
+	import ChartColumn from '@lucide/svelte/icons/chart-column';
 	import Shield from '@lucide/svelte/icons/shield';
 	import Users from '@lucide/svelte/icons/users';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
@@ -100,6 +102,18 @@
 			<span class="label">Payout accounts</span>
 			<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
 		</a>
+		<a class="row" href="/app/statements">
+			<FileIcon size={20} strokeWidth={1.8} aria-hidden="true" />
+			<span class="label">Statements</span>
+			<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
+		</a>
+		{#if can('view_scoped_financial_reports') || can('export_scoped_reports')}
+			<a class="row" href="/app/reports">
+				<ChartColumn size={20} strokeWidth={1.8} aria-hidden="true" />
+				<span class="label">Reports</span>
+				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
+			</a>
+		{/if}
 		{#if can('record_income')}
 			<a class="row" href="/app/income">
 				<Download size={20} strokeWidth={1.8} aria-hidden="true" />

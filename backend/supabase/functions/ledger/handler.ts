@@ -12,6 +12,7 @@ import {
 } from "../_shared/http.ts";
 import * as v from "../_shared/validate.ts";
 import { evidenceMimeTypes, sha256Hex, sniffMime } from "../_shared/evidence.ts";
+import { sameSecret } from "../_shared/secret.ts";
 
 export { sniffMime };
 
@@ -64,6 +65,8 @@ export interface Deps {
   ): Promise<string>;
   log(entry: LogEntry): void;
   readonly allowedOrigins: readonly string[];
+  /** APP_SERVER_SECRET: only the app server may learn a file's storage key. */
+  readonly appServerSecret?: string | null;
 }
 
 interface Context {
@@ -341,6 +344,31 @@ function record(value: unknown): Record<string, unknown> {
     throw new Error("unexpected result");
   }
   return value as Record<string, unknown>;
+}
+
+// Statements and reports (Blueprint 15): one network and currency per file,
+// WAT periods; the database checks meaning (whole months, started periods).
+const periodKinds = ["month", "quarter", "year", "year_to_date", "custom"];
+const datePattern = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
+
+function periodArgs(source: { get(field: string): unknown }): Record<string, unknown> {
+  const kind = source.get("periodKind");
+  const from = source.get("from");
+  const to = source.get("to");
+  if (typeof kind !== "string" || !periodKinds.includes(kind)) {
+    throw new ApiError("validation_error", { field: "periodKind" });
+  }
+  if (typeof from !== "string" || !datePattern.test(from)) {
+    throw new ApiError("validation_error", { field: "from" });
+  }
+  if (typeof to !== "string" || !datePattern.test(to)) {
+    throw new ApiError("validation_error", { field: "to" });
+  }
+  return { p_period_kind: kind, p_from: from, p_to: to };
+}
+
+function bodySource(body: v.Body) {
+  return { get: (field: string) => body[field] };
 }
 
 export function createHandler(
@@ -891,6 +919,136 @@ export function createHandler(
       const url = await deps.signDownload(objectPath, 60);
       if (!url) throw new Error("signing the receipt failed");
       return { ...rest, url, expiresIn: 60 };
+    }),
+
+    // ── Statements and reports (Blueprint 15, W-18) ──
+    route("GET", "/statements/options", (c) => {
+      onlyQuery(c.query, []);
+      return call("statement_options", actorArgs(c));
+    }),
+
+    route("GET", "/statements", (c) => {
+      onlyQuery(c.query, ["cursor", "limit"]);
+      return call("my_exports", {
+        ...actorArgs(c),
+        p_cursor: queryText(c.query, "cursor", 500),
+        p_limit: queryLimit(c.query),
+      });
+    }),
+
+    route("POST", "/statements", async (c) => {
+      const body = await v.readBody(c.request, [
+        "tenantId",
+        "currency",
+        "periodKind",
+        "from",
+        "to",
+        "format",
+        "idempotencyKey",
+      ]);
+      const format = v.text(body, "format", 3);
+      if (format !== "pdf" && format !== "csv") {
+        throw new ApiError("validation_error", { field: "format" });
+      }
+      return call("create_statement", {
+        ...actorArgs(c),
+        p_tenant_id: body.tenantId === undefined || body.tenantId === null
+          ? null
+          : v.uuid(body, "tenantId"),
+        p_currency: v.currency(body, "currency"),
+        ...periodArgs(bodySource(body)),
+        p_format: format,
+        p_idempotency_key: v.idempotencyKey(body),
+        p_request_id: c.requestId,
+      });
+    }),
+
+    route("GET", "/reports/overview", (c) => {
+      onlyQuery(c.query, ["currency", "periodKind", "from", "to"]);
+      const currency = queryPattern(c.query, "currency", /^[A-Z]{3}$/);
+      if (currency === null) throw new ApiError("validation_error", { field: "currency" });
+      return call("report_overview", {
+        ...inWorkspace(c),
+        p_currency: currency,
+        ...periodArgs(c.query),
+      });
+    }),
+
+    route("GET", "/reports", (c) => {
+      onlyQuery(c.query, ["cursor", "limit"]);
+      return call("workspace_exports", {
+        ...inWorkspace(c),
+        p_cursor: queryText(c.query, "cursor", 500),
+        p_limit: queryLimit(c.query),
+      });
+    }),
+
+    route("POST", "/reports", async (c) => {
+      const body = await v.readBody(c.request, [
+        "kind",
+        "memberWalletId",
+        "currency",
+        "periodKind",
+        "from",
+        "to",
+        "idempotencyKey",
+      ]);
+      const kind = v.text(body, "kind", 30);
+      if (!["office_pdf", "transactions_csv", "member_balances_csv"].includes(kind)) {
+        throw new ApiError("validation_error", { field: "kind" });
+      }
+      return call("create_report", {
+        ...commandInWorkspace(c),
+        p_kind: kind,
+        p_member_wallet_id: body.memberWalletId === undefined || body.memberWalletId === null
+          ? null
+          : v.uuid(body, "memberWalletId"),
+        p_currency: v.currency(body, "currency"),
+        ...periodArgs(bodySource(body)),
+        p_idempotency_key: v.idempotencyKey(body),
+      });
+    }),
+
+    route("GET", "/exports/:id", (c) => {
+      onlyQuery(c.query, []);
+      return call("export_file", { ...actorArgs(c), p_export_id: c.params.id });
+    }),
+
+    route("POST", "/exports/:id/retry", async (c) => {
+      await v.readBody(c.request, []);
+      return call("retry_export", {
+        ...actorArgs(c),
+        p_export_id: c.params.id,
+        p_request_id: c.requestId,
+      });
+    }),
+
+    // The storage key goes to the app server only, which streams the file.
+    route("POST", "/exports/:id/download", async (c) => {
+      const given = c.request.headers.get("x-app-server-secret");
+      if (!deps.appServerSecret || !given || !(await sameSecret(given, deps.appServerSecret))) {
+        throw new ApiError("authorization_denied", { reason: "app_server_only" });
+      }
+      const body = await v.readBody(c.request, ["part"]);
+      const part = body.part === undefined ? "file" : v.text(body, "part", 10);
+      if (part !== "file" && part !== "preview") {
+        throw new ApiError("validation_error", { field: "part" });
+      }
+      const target = record(
+        await call("authorize_export_download", {
+          ...actorArgs(c),
+          p_export_id: c.params.id,
+          p_part: part,
+          p_request_id: c.requestId,
+        }),
+      );
+      if (
+        typeof target.objectKey !== "string" ||
+        !/^exports\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(pdf|csv)(\.png)?$/.test(target.objectKey)
+      ) {
+        throw new Error("authorize_export_download returned an unexpected key");
+      }
+      return target;
     }),
 
     // ── Evidence review (W-11) ──

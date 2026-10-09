@@ -18,6 +18,7 @@ cleanup() {
   [ -n "$serve_pid" ] && kill "$serve_pid" 2>/dev/null || true
   [ -n "$fake_pid" ] && kill "$fake_pid" 2>/dev/null || true
   rm -f "$env_file"
+  [ -n "${E2E_LOCAL_EXPORTS:-}" ] && rm -rf "$E2E_LOCAL_EXPORTS"
   (cd "$backend" && supabase stop --no-backup >/dev/null 2>&1) || true
 }
 trap cleanup EXIT
@@ -50,6 +51,13 @@ export OUTBOX_WORKER_SECRET
 # function share this per-run secret.
 APP_SERVER_SECRET="$(openssl rand -hex 32)"
 export APP_SERVER_SECRET
+# Blueprint 15: the export runner (app server) and the exports-worker function
+# share this per-run secret; files go to a temp directory and are rendered with
+# Playwright's Chromium (no R2 or Browser Rendering locally).
+EXPORTS_WORKER_SECRET="$(openssl rand -hex 32)"
+export EXPORTS_WORKER_SECRET
+E2E_LOCAL_EXPORTS="$(mktemp -d)"
+export E2E_LOCAL_EXPORTS
 {
   echo "PIN_HMAC_SECRET=$(openssl rand -hex 32)"
   echo "INVITATION_TOKEN_SECRET=$INVITATION_TOKEN_SECRET"
@@ -63,6 +71,7 @@ export APP_SERVER_SECRET
   echo "PAYSTACK_TEST_ORIGIN=http://host.docker.internal:54399"
   echo "OUTBOX_WORKER_SECRET=$OUTBOX_WORKER_SECRET"
   echo "APP_SERVER_SECRET=$APP_SERVER_SECRET"
+  echo "EXPORTS_WORKER_SECRET=$EXPORTS_WORKER_SECRET"
   echo "CLOUDFLARE_ACCOUNT_ID=e2e-local"
   echo "CLOUDFLARE_EMAIL_API_TOKEN=e2e-local-email"
   echo "CLOUDFLARE_API_TEST_ORIGIN=http://host.docker.internal:54399"

@@ -17,6 +17,8 @@
 	import Bell from '@lucide/svelte/icons/bell';
 	import Building from '@lucide/svelte/icons/building-2';
 	import FileText from '@lucide/svelte/icons/file-text';
+	import FileIcon from '@lucide/svelte/icons/file';
+	import ChartColumn from '@lucide/svelte/icons/chart-column';
 	import Shield from '@lucide/svelte/icons/shield';
 	import Users from '@lucide/svelte/icons/users';
 	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
@@ -113,6 +115,8 @@
 		'/app/team': 'Team overview',
 		'/app/wallets': 'Member wallets',
 		'/app/payout-accounts': 'Payout accounts',
+		'/app/statements': 'Statements',
+		'/app/reports': 'Reports',
 		'/app/income': 'Record income',
 		'/app/invitations': 'Invitations',
 		'/app/split': 'Pockets & split',
@@ -146,10 +150,14 @@
 			path.startsWith('/app/reversals') ||
 			path.startsWith('/app/queue/returns') ||
 			path.startsWith('/app/account') ||
+			path.startsWith('/app/statements') ||
+			path.startsWith('/app/reports') ||
 			(path.startsWith('/app/activity') && page.url.searchParams.has('tx'))
 	);
 	/** Leadership views (W-07); the backend authorizes every read. */
 	const leader = $derived(can('view_managed_wallets') || can('view_scoped_financial_reports'));
+	/** Blueprint 15: the Reports page (S05/S12); the backend authorizes every read. */
+	const reports = $derived(can('view_scoped_financial_reports') || can('export_scoped_reports'));
 	const tabMore = $derived(path.startsWith('/app/more'));
 	/** Only Home needs workspace data; More and Notifications keep their controls. */
 	const needsData = $derived(path === '/app');
@@ -275,12 +283,28 @@
 					<WalletIcon size={18} strokeWidth={1.5} aria-hidden="true" /><span>Member wallets</span>
 				</a>
 			{/if}
+			{#if reports}
+				<a
+					class="side-item"
+					href="/app/reports"
+					aria-current={path.startsWith('/app/reports') ? 'page' : undefined}
+				>
+					<ChartColumn size={18} strokeWidth={1.5} aria-hidden="true" /><span>Reports</span>
+				</a>
+			{/if}
 			<a
 				class="side-item"
 				href="/app/payout-accounts"
 				aria-current={path.startsWith('/app/payout-accounts') ? 'page' : undefined}
 			>
 				<Landmark size={18} strokeWidth={1.5} aria-hidden="true" /><span>Payout accounts</span>
+			</a>
+			<a
+				class="side-item"
+				href="/app/statements"
+				aria-current={path.startsWith('/app/statements') ? 'page' : undefined}
+			>
+				<FileIcon size={18} strokeWidth={1.5} aria-hidden="true" /><span>Statements</span>
 			</a>
 			{#if can('record_income')}
 				<a

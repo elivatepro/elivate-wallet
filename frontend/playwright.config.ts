@@ -39,7 +39,11 @@ export default defineConfig({
 			// (local only; refused unless SUPABASE_URL is a loopback address).
 			E2E_GEO_HEADERS: '1',
 			// Generated per run by scripts/e2e-local.sh (also given to the functions).
-			APP_SERVER_SECRET: process.env.APP_SERVER_SECRET ?? ''
+			APP_SERVER_SECRET: process.env.APP_SERVER_SECRET ?? '',
+			// Blueprint 15: export runner secret and the local file directory
+			// (local only; refused unless SUPABASE_URL is a loopback address).
+			EXPORTS_WORKER_SECRET: process.env.EXPORTS_WORKER_SECRET ?? '',
+			E2E_LOCAL_EXPORTS: process.env.E2E_LOCAL_EXPORTS ?? ''
 		}
 	}
 });

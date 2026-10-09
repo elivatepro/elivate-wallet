@@ -363,6 +363,8 @@ Reports and statements carry the team logo, team name, Elivate Wallet branding a
 
 Exports include only authorized data and safe destination/evidence fields. Complete traversal or fail clearly; never download a partial report as complete. Handle export limits as explicit limits, not silent truncation. Protect generated file access and long-running jobs.
 
+**Built 2026-10-09 (Blueprint 15):** WAT periods and printed times (CSV also carries the UTC timestamp); personal PDF statements (Paper S01/S02/S07) and transaction CSVs; leadership office report PDF (S03/S04), transactions CSV and member balances CSV for the whole scope or one member; every file is one complete-or-fail background job (Postgres prepares every row in one transaction, the app Worker renders with Cloudflare Browser Rendering and stores in private R2 for 7 days); M15 + bell above 1,000 rows; hard limits PDF 5,000 / CSV 50,000 rows ("Too large"); downloads streamed by the app server, re-authorized and audited, with the PIN for leadership reports.
+
 **Acceptance:** Equal timestamps do not skip records; mid-export authorization/read failure does not produce misleading partial output. Per-currency totals reconcile to their defined posted movements. PDF/CSV do not leak other tenants, full bank data, credentials or fake statement balances. Empty valid report differs from unavailable transport.
 
 ## W-19 — Subscription, capacity, Billing Owner and paid Extras

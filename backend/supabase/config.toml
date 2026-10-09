@@ -454,6 +454,11 @@ verify_jwt = false
 [functions.payout-checker]
 verify_jwt = false
 
+# Blueprint 15: called by the app Worker's export runner with
+# EXPORTS_WORKER_SECRET, never a user JWT.
+[functions.exports-worker]
+verify_jwt = false
+
 [functions.ledger]
 verify_jwt = true
 

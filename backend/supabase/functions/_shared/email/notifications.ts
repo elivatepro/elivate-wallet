@@ -1,6 +1,6 @@
 // Notification emails (Blueprint 13): Paper "Emails — Transactional v2"
-// M01–M14, M16–M18 (approved 2026-10-09), T01, A10–A12 and (Blueprint 14) the
-// A06–A08 security emails, on the shared
+// M01–M14, M16–M18 (approved 2026-10-09), T01, A10–A12, (Blueprint 14) the
+// A06–A08 security emails and (Blueprint 15) M15 Statement ready, on the shared
 // layout. Money emails show the exact amount and the public reference only
 // (P-06): never balances, account digits, bank details, reasons or evidence.
 // Buttons open the in-app path carried by the event, from an allow-list.
@@ -178,7 +178,52 @@ function simple(
   };
 }
 
+const periodTitle =
+  /^(Q[1-4] )?[0-9]{4}( so far)?$|^[A-Z][a-z]+ [0-9]{4}$|^[0-9]{1,2} [A-Z][a-z]{2}( [0-9]{4})? – [0-9]{1,2} [A-Z][a-z]{2} [0-9]{4}$/;
+const formatLabels = [
+  "PDF statement",
+  "CSV of transactions",
+  "Office report PDF",
+  "Transactions CSV",
+  "Member balances CSV",
+];
+
 export const notificationRenderers: Readonly<Record<string, Renderer>> = {
+  // M15 (Blueprint 15): a statement or leadership report finished in the
+  // background. Hero = the period; mono line = currency and format. Never
+  // amounts, balances or a file link: the button opens the app page.
+  "money.statement_ready": (params, context) => {
+    onlyParams(params, ["network", "title", "currency", "format", "chip", "path"]);
+    const title = param(params, "title", 40);
+    const currency = param(params, "currency", 3);
+    const format = param(params, "format", 40);
+    const chip = param(params, "chip", 20);
+    if (
+      !periodTitle.test(title) || !/^[A-Z]{3}$/.test(currency) || !formatLabels.includes(format)
+    ) {
+      throw new TemplateError("template.param_invalid");
+    }
+    if (chip !== "Statement" && chip !== "Report") {
+      throw new TemplateError("template.param_invalid");
+    }
+    const what = chip === "Statement" ? "statement" : "report";
+    return build(
+      {
+        network: param(params, "network", 100),
+        subject: `Your ${what} is ready`,
+        chip,
+        status: { label: "Ready", tone: "success" },
+        display: title,
+        reference: `${currency} · ${format}`,
+        root: "statement-ready",
+        headline: `Your ${what} is ready.`,
+        line: "Download it securely from Wallet.",
+        button: `Get ${what}`,
+      },
+      params,
+      context,
+    );
+  },
   // M01
   "money.income_posted": simple({
     subject: "Income is in your pockets",

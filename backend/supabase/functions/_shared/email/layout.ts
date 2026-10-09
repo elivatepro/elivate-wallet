@@ -50,7 +50,9 @@ export type RootPose =
   | "membership-ended"
   // Blueprint 14: A07 and A08.
   | "new-sign-in"
-  | "pin-changed";
+  | "pin-changed"
+  // Blueprint 15: M15.
+  | "statement-ready";
 
 export type StatusTone = "success" | "warning" | "danger" | "muted";
 
@@ -150,7 +152,7 @@ export function renderLayout(input: EmailLayout): string {
     };">${escapeHtml(input.status.label)}</td>`
     : "";
   const reference = input.reference
-    ? `<div style="padding-top:6px;word-break:break-all;overflow-wrap:anywhere;font-family:${mono};font-size:13px;line-height:16px;color:#A9B0B3;">${
+    ? `<div style="padding-top:6px;word-break:normal;overflow-wrap:anywhere;font-family:${mono};font-size:13px;line-height:16px;color:#A9B0B3;">${
       escapeHtml(input.reference)
     }</div>`
     : "";

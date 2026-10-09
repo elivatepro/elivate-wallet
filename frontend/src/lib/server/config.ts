@@ -1,6 +1,8 @@
 import {
 	APP_SERVER_SECRET,
 	E2E_GEO_HEADERS,
+	E2E_LOCAL_EXPORTS,
+	EXPORTS_WORKER_SECRET,
 	SUPABASE_PUBLISHABLE_KEY,
 	SUPABASE_URL,
 	TURNSTILE_HOSTNAMES,
@@ -56,3 +58,17 @@ export function geoTestHeaders(): boolean {
 
 /** Blueprint 14: the secret the security function requires for sign-in records. */
 export const appServerSecret = (): string | undefined => APP_SERVER_SECRET;
+
+/** Blueprint 15: the export runner's shared secret (Worker secret; Vault and Edge hold the same). */
+export const exportsWorkerSecret = (): string | undefined => EXPORTS_WORKER_SECRET;
+
+/**
+ * Blueprint 15: local e2e stores files on disk and renders with Playwright's
+ * Chromium, only against a loopback Supabase. The deployed Worker uses R2 and
+ * Browser Rendering.
+ */
+export function localExportsDir(): string | null {
+	if (!E2E_LOCAL_EXPORTS || !SUPABASE_URL) return null;
+	const host = new URL(SUPABASE_URL).hostname;
+	return host === '127.0.0.1' || host === 'localhost' ? E2E_LOCAL_EXPORTS : null;
+}
