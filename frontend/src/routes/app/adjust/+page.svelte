@@ -82,7 +82,8 @@
 		attempt.state.kind === 'unknown' ||
 			attempt.state.kind === 'checking' ||
 			attempt.state.kind === 'resolved' ||
-			(attempt.recovering && attempt.awaitingPin)
+			// Its PIN prompt and the re-send in flight stay on the locked screen too.
+			(attempt.recovering && (attempt.awaitingPin || attempt.state.kind === 'sending'))
 	);
 	const result = $derived(attempt.state.kind === 'done' ? attempt.state.result : null);
 	const failureOf = <A, E>(exit: Exit.Exit<A, E>) =>
