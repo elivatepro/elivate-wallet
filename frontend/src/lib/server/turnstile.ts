@@ -63,9 +63,17 @@ export async function verifyTurnstile(
 			// Workers reject 'error'; a redirect is not ok and fails closed below.
 			redirect: 'manual'
 		});
-		if (!response.ok) return { ok: false, reason: 'unavailable' };
+		if (!response.ok) {
+			console.warn('turnstile: siteverify answered HTTP', response.status);
+			return { ok: false, reason: 'unavailable' };
+		}
 		parsed = Schema.decodeUnknownSync(SiteverifyResponse)(await response.json());
-	} catch {
+	} catch (error) {
+		// The message only (never the token or secret) so failures are diagnosable.
+		console.warn(
+			'turnstile: siteverify failed:',
+			error instanceof Error ? error.message : 'unknown'
+		);
 		return { ok: false, reason: 'unavailable' };
 	}
 	if (!parsed.success) return { ok: false, reason: 'rejected' };
