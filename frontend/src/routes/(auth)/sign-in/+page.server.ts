@@ -6,20 +6,57 @@ import { clearWorkspace, readJoinToken } from '#lib/server/cookies.js';
 import { failureOf, redirectForFailure } from '#lib/server/flow.js';
 import { runApi } from '#lib/server/request.js';
 import { GATE_PATHS } from '#lib/gate.js';
+import { humanCheck, turnstileSiteKey } from '#lib/server/human-check.js';
+import { turnstileMessage } from '#lib/server/turnstile.js';
 import { authMessage, readCredentials } from '../credentials';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ locals }) => {
-	// Signed-in people skip the form; the gate page decides where they belong.
-	if (await locals.session()) redirect(303, '/workspaces');
-	return {};
+export const load: PageServerLoad = async (event) => {
+	const session = await event.locals.session();
+	if (session) {
+		// Signed-in people skip the form; the gate page decides where they belong.
+		// A session signed out from another device (Blueprint 10) still has a
+		// validly signed token in its cookie: the backend refuses it, so forget
+		// it here instead of bouncing between this page and /workspaces.
+		const exit = await runApi(
+			event,
+			session,
+			Effect.gen(function* () {
+				return yield* (yield* SecurityApi).state;
+			})
+		);
+		const failure = Exit.isFailure(exit) ? failureOf(exit) : null;
+		const signedOut =
+			failure !== null &&
+			((failure._tag === 'BackendError' && failure.code === 'authentication_required') ||
+				(failure._tag === 'TransportError' && failure.status === 401));
+		if (!signedOut) redirect(303, '/workspaces');
+		await event.locals
+			.supabase()
+			.auth.signOut({ scope: 'local' })
+			.catch(() => undefined);
+		for (const { name } of event.cookies.getAll()) {
+			if (name.startsWith('ew-auth')) event.cookies.delete(name, { path: '/' });
+		}
+		clearWorkspace(event.cookies);
+	}
+	return { turnstileSiteKey: turnstileSiteKey() };
 };
 
 export const actions: Actions = {
 	default: async (event) => {
-		const credentials = readCredentials(await event.request.formData());
+		const form = await event.request.formData();
+		const credentials = readCredentials(form);
 		if (!credentials.ok) return fail(400, { email: credentials.email, errors: credentials.errors });
 		const { email, password } = credentials;
+		// Turnstile before Auth sees the password (Blueprint 10).
+		const human = await humanCheck(event, form, 'sign-in');
+		if (!human.ok) {
+			return fail(human.reason === 'unavailable' ? 503 : 400, {
+				email,
+				message: turnstileMessage(human)
+			});
+		}
 
 		const supabase = event.locals.supabase();
 		const { error } = await supabase.auth.signInWithPassword({ email, password });

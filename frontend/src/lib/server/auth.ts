@@ -12,6 +12,11 @@ export interface AuthConfig {
 	readonly publishableKey: string;
 	readonly secureCookies: boolean;
 	readonly fetch: typeof globalThis.fetch;
+	/**
+	 * The browser's User-Agent, forwarded so Auth records the real device for
+	 * Devices & sessions (Blueprint 10). No IP is forwarded.
+	 */
+	readonly userAgent?: string | null;
 }
 
 export function createAuthClient(cookies: Cookies, config: AuthConfig): SupabaseClient {
@@ -34,7 +39,10 @@ export function createAuthClient(cookies: Cookies, config: AuthConfig): Supabase
 		},
 		// @supabase/ssr always uses PKCE; email links use token_hash + verifyOtp, which needs no verifier.
 		auth: { detectSessionInUrl: false, autoRefreshToken: false },
-		global: { fetch: config.fetch }
+		global: {
+			fetch: config.fetch,
+			...(config.userAgent ? { headers: { 'user-agent': config.userAgent.slice(0, 300) } } : {})
+		}
 	});
 }
 

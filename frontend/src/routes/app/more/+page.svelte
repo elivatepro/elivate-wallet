@@ -22,6 +22,7 @@
 	import LogOut from '@lucide/svelte/icons/log-out';
 	import Moon from '@lucide/svelte/icons/moon';
 	import UserRound from '@lucide/svelte/icons/user-round';
+	import UserCog from '@lucide/svelte/icons/user-cog';
 	import { THEME_LABELS, type Appearance } from '#lib/client/appearance.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { ROLE_LABELS } from '#lib/labels.js';
@@ -159,6 +160,11 @@
 <section class="group" aria-labelledby="account-label">
 	<h2 class="eyebrow" id="account-label">Account</h2>
 	<div class="card">
+		<a class="row" href="/app/account">
+			<UserCog size={20} strokeWidth={1.8} aria-hidden="true" />
+			<span class="label">Profile & security</span>
+			<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
+		</a>
 		<button type="button" class="row" onclick={nextTheme}>
 			<Moon size={20} strokeWidth={1.8} aria-hidden="true" />
 			<span class="label">Appearance</span>

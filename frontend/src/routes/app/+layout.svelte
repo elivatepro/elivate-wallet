@@ -7,6 +7,7 @@
 -->
 <script lang="ts">
 	import { onMount, setContext } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { page, updated } from '$app/state';
 	import { DropdownMenu, Popover } from 'bits-ui';
 	import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
@@ -27,6 +28,7 @@
 	import LogOut from '@lucide/svelte/icons/log-out';
 	import RotateCw from '@lucide/svelte/icons/rotate-cw';
 	import UserRound from '@lucide/svelte/icons/user-round';
+	import UserCog from '@lucide/svelte/icons/user-cog';
 	import WifiOff from '@lucide/svelte/icons/wifi-off';
 	import { Appearance, THEME_LABELS } from '#lib/client/appearance.svelte.js';
 	import { purgeAllDeviceData, staleLabel } from '#lib/client/device-cache.js';
@@ -60,6 +62,10 @@
 	const path = $derived(page.url.pathname);
 	/** Navigation hint only; every command is still authorized by the backend. */
 	const TITLES: Record<string, string> = {
+		// Blueprint 10 (Paper S03/S05 breadcrumbs); most specific first.
+		'/app/account/devices': 'Profile & security  /  Devices & sessions',
+		'/app/account/pin': 'Profile & security  /  Transaction PIN',
+		'/app/account': 'Profile & security',
 		'/app/payout-accounts': 'Payout accounts',
 		'/app/income': 'Record income',
 		'/app/invitations': 'Invitations',
@@ -86,7 +92,11 @@
 	const president = $derived(summary?.role === 'president_team_member');
 	const leads = $derived(president || can('manage_members') || can('view_managed_wallets'));
 	/** Pushed pages (mobile Notifications) have their own nav bar and no tabs. */
-	const pushed = $derived(path.startsWith('/app/notifications') || path.startsWith('/app/income'));
+	const pushed = $derived(
+		path.startsWith('/app/notifications') ||
+			path.startsWith('/app/income') ||
+			path.startsWith('/app/account')
+	);
 	const tabMore = $derived(path.startsWith('/app/more'));
 	/** Only Home needs workspace data; More and Notifications keep their controls. */
 	const needsData = $derived(path === '/app');
@@ -281,6 +291,11 @@
 									>
 								{/snippet}
 							</DropdownMenu.CheckboxItem>
+							<!-- Paper "App — Screens v3" account menu: Profile & security (Blueprint 10). -->
+							<DropdownMenu.Item class="menu-row" onSelect={() => goto('/app/account')}>
+								<UserCog size={16} strokeWidth={1.8} aria-hidden="true" />
+								<span class="menu-label">Profile & security</span>
+							</DropdownMenu.Item>
 						</div>
 						<div class="pop-divider"></div>
 						<div class="appearance">

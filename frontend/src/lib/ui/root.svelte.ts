@@ -50,7 +50,14 @@ export type RootPose =
 	| 'office-close'
 	| 'office-closed'
 	| 'member-role'
-	| 'office-place';
+	| 'office-place'
+	| 'account-security'
+	| 'account-devices'
+	| 'account-pin-change'
+	| 'dialog-replace'
+	| 'dialog-remove'
+	| 'dialog-sign-out'
+	| 'dialog-profile';
 
 /** Rendered Root size on mobile gate screens (Paper: 120×160, 150×200, 180×240). */
 export type RootSize = 'sm' | 'md' | 'lg';
@@ -105,7 +112,18 @@ export const ROOT_HEIGHTS: Record<RootPose, number> = {
 	'office-close': 512,
 	'office-closed': 521,
 	'member-role': 442,
-	'office-place': 512
+	'office-place': 512,
+	// Paper "App — Screens v1" B09/B10 (Profile & security, padlock) and
+	// "App — Screens v2" S03/S04 (juggling devices), S05/S06 (shh, secret).
+	'account-security': 525,
+	'account-devices': 525,
+	'account-pin-change': 525,
+	// Paper "App — Screens v4" Z04–Z07 dialogs (reused poses, flagged on the layers):
+	// relay baton (B01), coin back in slot (W03), sleep mask (X05), name badge (R05).
+	'dialog-replace': 525,
+	'dialog-remove': 525,
+	'dialog-sign-out': 525,
+	'dialog-profile': 525
 };
 
 export const rootSrc = (pose: RootPose) => `/root/${pose}.webp`;

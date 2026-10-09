@@ -46,3 +46,28 @@ export async function relayCommand<S extends Schema.ConstraintDecoder<{ pin?: st
 	}
 	return respond(await runApi(event, session, withPin(body.pin, program(membershipId, body))));
 }
+
+/**
+ * Account-level commands (Blueprint 10: sessions, PIN change, profile): no
+ * workspace is involved, so there is no workspace echo. Same-origin JSON only
+ * (a cross-site form cannot send `application/json`), signed in, body decoded,
+ * envelope relayed. Never retried here.
+ */
+export async function relayAccountCommand<S extends Schema.ConstraintDecoder<unknown>, A>(
+	event: RequestEvent,
+	schema: S,
+	program: (body: S['Type']) => Effect.Effect<A, EdgeFailure, ApiServices>
+): Promise<Response> {
+	const session = await event.locals.session();
+	if (!session) return respondError(unauthenticated());
+	if (!event.request.headers.get('content-type')?.startsWith('application/json')) {
+		return respondError(invalidRequest('body'));
+	}
+	let body: S['Type'];
+	try {
+		body = Schema.decodeUnknownSync(schema)(await event.request.json());
+	} catch {
+		return respondError(invalidRequest('body'));
+	}
+	return respond(await runApi(event, session, program(body)));
+}

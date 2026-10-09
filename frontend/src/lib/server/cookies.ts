@@ -81,3 +81,21 @@ export function joinPasswordNeeded(cookies: Cookies): boolean {
 export function clearJoinPasswordNeeded(cookies: Cookies): void {
 	cookies.delete(JOIN_PASSWORD_COOKIE, { path: '/' });
 }
+
+// Password recovery (Blueprint 10). Set when a Recovery link was confirmed on
+// /auth/confirm, so /reset-password knows this session came from that email.
+// Not authentication: the Auth session itself is what lets the password
+// change. Short-lived and HttpOnly; cleared once the new password is saved.
+export const RECOVERY_COOKIE = 'ew_recovery';
+
+export function markRecovery(cookies: Cookies, secure: boolean): void {
+	cookies.set(RECOVERY_COOKIE, '1', { ...base(secure), httpOnly: true, maxAge: 60 * 15 });
+}
+
+export function recoveryPending(cookies: Cookies): boolean {
+	return cookies.get(RECOVERY_COOKIE) === '1';
+}
+
+export function clearRecovery(cookies: Cookies): void {
+	cookies.delete(RECOVERY_COOKIE, { path: '/' });
+}

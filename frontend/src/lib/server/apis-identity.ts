@@ -126,11 +126,16 @@ export interface PayoutApiShape {
 	) => Effect.Effect<ReadonlyArray<PayoutAccount>, EdgeFailure>;
 	readonly lookup: (
 		membershipId: string,
-		input: { bankCode: string; accountNumber: string; idempotencyKey: string }
+		input: {
+			bankCode: string;
+			accountNumber: string;
+			replacesPayoutAccountId?: string;
+			idempotencyKey: string;
+		}
 	) => Effect.Effect<typeof Lookup.Type, EdgeFailure>;
 	readonly confirm: (
 		membershipId: string,
-		input: { lookupId: string; idempotencyKey: string }
+		input: { lookupId: string; reason?: string; idempotencyKey: string }
 	) => Effect.Effect<PayoutAccount, EdgeFailure>;
 	readonly setPrimary: (
 		membershipId: string,

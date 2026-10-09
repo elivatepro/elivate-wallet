@@ -16,7 +16,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 				supabaseUrl: config.supabaseUrl,
 				publishableKey: config.publishableKey,
 				secureCookies: event.locals.secureCookies,
-				fetch: event.fetch
+				fetch: event.fetch,
+				userAgent: event.request.headers.get('user-agent')
 			});
 		}
 		return client;

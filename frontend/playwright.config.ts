@@ -22,7 +22,12 @@ export default defineConfig({
 		timeout: 180_000,
 		env: {
 			SUPABASE_URL: process.env.SUPABASE_URL ?? '',
-			SUPABASE_PUBLISHABLE_KEY: process.env.SUPABASE_PUBLISHABLE_KEY ?? ''
+			SUPABASE_PUBLISHABLE_KEY: process.env.SUPABASE_PUBLISHABLE_KEY ?? '',
+			// Cloudflare's documented always-pass Turnstile test keys (Blueprint 10).
+			TURNSTILE_SITE_KEY: '1x00000000000000000000AA',
+			TURNSTILE_SECRET_KEY: '1x0000000000000000000000000000000AA',
+			// The fake providers (scripts/e2e-local.sh) answer siteverify locally.
+			TURNSTILE_SITEVERIFY_URL: 'http://127.0.0.1:54399/turnstile/v0/siteverify'
 		}
 	}
 });

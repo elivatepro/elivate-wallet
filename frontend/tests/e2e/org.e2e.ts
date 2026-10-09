@@ -9,6 +9,7 @@ import {
 	createConfirmedAccount,
 	expectAccessible,
 	expectNoHorizontalScroll,
+	humanReady,
 	inviteMember,
 	uidOf,
 	uniqueEmail
@@ -24,6 +25,7 @@ async function signInAsPresident(page: Page, email: string, network: string) {
 	await page.goto('/sign-in');
 	await page.getByLabel('Email address').fill(email);
 	await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
+	await humanReady(page);
 	await page.getByRole('button', { name: 'Sign in' }).click();
 	await page.getByLabel('PIN', { exact: true }).fill(PIN);
 	await page.getByRole('button', { name: 'Verify' }).click();
