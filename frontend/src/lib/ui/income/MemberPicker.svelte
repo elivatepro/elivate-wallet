@@ -53,6 +53,10 @@
 		clearTimeout(timer);
 		const q = query.trim();
 		generation += 1;
+		// Old matches must not stay selectable while the new search runs.
+		results = [];
+		resultsCursor = null;
+		searchFailed = false;
 		if (!q) {
 			searching = false;
 			searchFailed = false;
@@ -75,6 +79,7 @@
 		if (!q || !resultsCursor) return;
 		const mine = generation;
 		searching = true;
+		searchFailed = false;
 		const page = await search(q.slice(0, 100), resultsCursor);
 		if (mine !== generation) return;
 		searching = false;
@@ -161,15 +166,14 @@
 								</button>
 							</li>
 						{:else}
-							{#if searchingNow && !searching}
-								<li class="none">
-									{searchFailed
-										? 'We couldn’t search right now. Try again.'
-										: `No member matches “${query.trim()}”.`}
-								</li>
+							{#if searchingNow && !searching && !searchFailed}
+								<li class="none">No member matches “{query.trim()}”.</li>
 							{/if}
 						{/each}
 					</ul>
+					{#if searchingNow && searchFailed}
+						<p class="none" role="alert">We couldn’t search right now. Try again.</p>
+					{/if}
 					{#if searchingNow ? !!resultsCursor : hasMore}
 						<button
 							type="button"
