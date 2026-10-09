@@ -41,7 +41,10 @@
 		shell.state.kind === 'ready' ? shell.state.view.workspace.membershipId : null
 	);
 
+	/** Only the newest read is applied (a slower, older tab must not win). */
+	let seq = 0;
 	async function load(more = false) {
+		const mine = ++seq;
 		// Built and read once per call; not reactive state.
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const params = new URLSearchParams({ tab });
@@ -51,6 +54,7 @@
 			getJson(`${WithdrawalAppRoutes.queue}?${params}`, WithdrawalPage)
 		);
 		loadingMore = false;
+		if (mine !== seq) return;
 		if (Exit.isSuccess(exit)) {
 			page = exit.value;
 			items = more ? [...items, ...exit.value.items] : [...exit.value.items];

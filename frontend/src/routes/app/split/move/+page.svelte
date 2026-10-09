@@ -95,7 +95,7 @@
 					? 'Pocket moves aren’t open to you in this network.'
 					: 'We couldn’t load your pockets.';
 		}
-		if (Exit.isSuccess(m)) mine = m.value;
+		if (Exit.isSuccess(m)) mine = { ...m.value, items: [...m.value.items] };
 	}
 	$effect(() => {
 		if (shell.state.kind === 'ready' && !choices && !loadError) void load();
@@ -145,6 +145,22 @@
 			attempt.reset();
 			error = moveMessage(state.failure);
 			step = 'details';
+		}
+	}
+
+	let loadingMore = $state(false);
+	async function moreMoves() {
+		if (!mine?.nextCursor) return;
+		loadingMore = true;
+		const exit = await Effect.runPromiseExit(
+			getJson(
+				`${WithdrawalAppRoutes.moves}?status=open&cursor=${encodeURIComponent(mine.nextCursor)}`,
+				TransferPage
+			)
+		);
+		loadingMore = false;
+		if (Exit.isSuccess(exit) && mine) {
+			mine = { ...exit.value, items: [...mine.items, ...exit.value.items] };
 		}
 	}
 
@@ -425,6 +441,11 @@
 						</div>
 					{/each}
 				</div>
+				{#if mine.nextCursor}
+					<button type="button" class="mm-btn sm more" disabled={loadingMore} onclick={moreMoves}
+						>{loadingMore ? 'Loading…' : 'Show more'}</button
+					>
+				{/if}
 			</section>
 		{/if}
 	</div>
@@ -517,6 +538,10 @@
 
 	.static {
 		cursor: default;
+	}
+
+	.more {
+		align-self: center;
 	}
 
 	@media (min-width: 1024px) {

@@ -9,7 +9,7 @@ import type {
 	PocketTransfer,
 	Withdrawal
 } from '#lib/contract/withdrawals.js';
-import { formatMoney } from '#lib/money.js';
+import { formatMoney, sumMoney } from '#lib/money.js';
 
 export type Tone = 'warning' | 'info' | 'success' | 'danger' | 'neutral';
 
@@ -23,6 +23,15 @@ export const destinationTitle = (w: Pick<Withdrawal, 'destination'>) =>
 export function currentRevision(payout: Payout | null): PayoutRevision | null {
 	if (!payout?.revisions?.length) return null;
 	return payout.revisions.find((r) => r.revision === payout.revision) ?? null;
+}
+
+/**
+ * What actually left the pocket: sent + fee of the completed payout (Q2: it
+ * may be less than requested; the rest of the hold is released).
+ */
+export function debited(w: Withdrawal): string {
+	const rev = w.status === 'completed' ? currentRevision(w.payout) : null;
+	return rev ? sumMoney([rev.amount, rev.fee ?? '0']) : w.amount;
 }
 
 /** Where the withdrawal is, as one chip (W01 member view and T03 queue). */

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Withdrawal } from '#lib/contract/withdrawals.js';
 import {
 	calendarDate,
+	debited,
 	fixLabel,
 	memberStage,
 	mismatchedFields,
@@ -70,6 +71,16 @@ describe('money and dates', () => {
 		expect(withinRequested('47950.00', '50.00', '48000.00')).toBe(true);
 		expect(withinRequested('47950.01', '50', '48000')).toBe(false);
 		expect(withinRequested('48000', null, '48000.00')).toBe(true);
+	});
+
+	it('shows what left the pocket, not what was requested', () => {
+		const done = {
+			status: 'completed',
+			amount: '1500.00',
+			payout: { revision: 1, revisions: [{ revision: 1, amount: '1000.00', fee: null }] }
+		} as unknown as Withdrawal;
+		expect(debited(done)).toBe('1000.00');
+		expect(debited(base)).toBe(base.amount);
 	});
 
 	it('never shifts a calendar date', () => {

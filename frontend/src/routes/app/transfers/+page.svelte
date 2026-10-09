@@ -39,18 +39,27 @@
 	const workspaceId = $derived(
 		shell.state.kind === 'ready' ? shell.state.view.workspace.membershipId : null
 	);
-	const items = $derived(page?.items ?? []);
+	let items = $state<TransferPage['items'][number][]>([]);
+	let loadingMore = $state(false);
 	const selected = $derived(items.find((t) => t.transferId === selectedId) ?? null);
 
-	async function load() {
+	/** Only the newest read is applied (a slower, older tab must not win). */
+	let seq = 0;
+	async function load(more = false) {
+		const mine = ++seq;
+		const cursor = more && page?.nextCursor ? `&cursor=${encodeURIComponent(page.nextCursor)}` : '';
+		if (more) loadingMore = true;
 		const exit = await Effect.runPromiseExit(
-			getJson(`${WithdrawalAppRoutes.transfers}?tab=${tab}`, TransferPage)
+			getJson(`${WithdrawalAppRoutes.transfers}?tab=${tab}${cursor}`, TransferPage)
 		);
+		loadingMore = false;
+		if (mine !== seq) return;
 		if (Exit.isSuccess(exit)) {
 			page = exit.value;
+			items = more ? [...items, ...exit.value.items] : [...exit.value.items];
 			loadError = null;
-			if (!exit.value.items.some((t) => t.transferId === selectedId)) {
-				selectedId = exit.value.items[0]?.transferId ?? null;
+			if (!items.some((t) => t.transferId === selectedId)) {
+				selectedId = items[0]?.transferId ?? null;
 			}
 			return;
 		}
@@ -170,6 +179,14 @@
 							</button>
 						{/each}
 					</div>
+					{#if page.nextCursor}
+						<button
+							type="button"
+							class="mm-btn sm more"
+							disabled={loadingMore}
+							onclick={() => load(true)}>{loadingMore ? 'Loading…' : 'Show more'}</button
+						>
+					{/if}
 				{/if}
 				{#if tab === 'waiting' && page.counts.open > 0}
 					<RootHero
@@ -286,6 +303,10 @@
 <style>
 	.grow {
 		flex: 1;
+	}
+
+	.more {
+		align-self: center;
 	}
 
 	.who {

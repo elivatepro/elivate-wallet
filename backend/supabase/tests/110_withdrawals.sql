@@ -3,7 +3,7 @@
 -- correction, review (W-11), completion posting; replays and authority.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(63);
+select plan(64);
 
 create function pg_temp.u(n int) returns uuid language sql immutable as
   $$ select ('10000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
@@ -101,7 +101,8 @@ begin
   where p.id = p_payout;
   return api.finish_payout_check((item->>'checkId')::uuid, (item->>'leaseToken')::uuid, p_outcome,
     jsonb_build_object('paymentDate', rev.paid_on::text, 'receipt', jsonb_build_object(
-      'amount', trim_scale(rev.amount)::text, 'currency', 'NGN', 'recipientAccount', '0123456789',
+      -- Untidy but equal values, normalized the same way as the worker's comparison.
+      'amount', ' ' || trim_scale(rev.amount)::text, 'currency', 'ngn ', 'recipientAccount', '012 345 6789',
       'recipientName', 'ADA OBI', 'paymentStatus', 'successful', 'confidence', 'high')),
     case when p_outcome = 'match' then '{}'::text[] else array['recipientName_mismatch'] end,
     'gpt-5-mini', 'strict-single-receipt-v1');
@@ -263,7 +264,7 @@ create temp table w4 as select pg_temp.wd(4, '400.00') as r;
 insert into ids select 'w4', (r->>'withdrawalId')::uuid from w4;
 select lives_ok($$ select api.approve_withdrawal(pg_temp.u(2), pg_temp.s(2), pg_temp.ws(2), pg_temp.id('w4'), pg_temp.k()) $$,
   'the Director over the subtree approves');
-create temp table p4 as select pg_temp.record(2, pg_temp.id('w4'), '400.00') as r;
+create temp table p4 as select pg_temp.record(2, pg_temp.id('w4'), '400.00', null, 'p4-record-key-000001') as r;
 insert into ids select 'p4', (r->'payout'->>'payoutId')::uuid from p4;
 create temp table claim1 as select api.claim_payout_checks('test-worker', 10) as r;
 select is((select jsonb_array_length(r) from claim1), 1, 'one check is ready');
@@ -288,6 +289,10 @@ where payout_id = pg_temp.id('p4') and status = 'leased';
 set local session_replication_role = origin;
 select is((pg_temp.finish(pg_temp.id('p4'), 'match')->>'status'), 'completed', 'a full match completes at once');
 select is((select status from finance.withdrawals where id = pg_temp.id('w4')), 'completed', 'and the withdrawal');
+select is((api.record_payout(pg_temp.u(2), pg_temp.s(2), pg_temp.ws(2), pg_temp.id('w4'), '400.00', null,
+    to_char(now() at time zone 'Africa/Lagos', 'YYYY-MM-DD'), '000014261005', null,
+    (select (r->'payout'->'revisions'->0->'receipt'->>'evidenceId')::uuid from p4), 'p4-record-key-000001')->>'replayed'),
+  'true', 'a same-key retry after completion gets its saved result');
 
 -- ── Approved cancel (2) ──
 create temp table w5 as select pg_temp.wd(4, '50.00') as r;

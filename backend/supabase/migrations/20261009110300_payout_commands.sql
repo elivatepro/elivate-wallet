@@ -151,7 +151,10 @@ begin
     perform identity.fail('validation_error', jsonb_build_object('field', 'paidOn'));
   end;
   if p_paid_on !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' or v_paid > today + 1
-    or v_paid < (p_w.approved_at at time zone finance.payout_zone())::date then
+    -- The earlier of the approval's Lagos and UTC dates: a receipt that prints
+    -- a time zone is compared on its UTC date (owner decision 2026-10-09).
+    or v_paid < least((p_w.approved_at at time zone finance.payout_zone())::date,
+                      (p_w.approved_at at time zone 'UTC')::date) then
     perform identity.fail('validation_error', jsonb_build_object('field', 'paidOn'));
   end if;
   return jsonb_build_object(
@@ -250,9 +253,8 @@ begin
   workspace := authz.require_workspace(p_user_id, p_membership_id);
   w := finance.withdrawal_in(workspace.tenant_id, p_withdrawal_id);
   perform finance.require_payout_actor(p_user_id, workspace, w);
-  if w.status <> 'approved' then
-    perform identity.fail('conflict', jsonb_build_object('reason', 'withdrawal_state', 'status', w.status));
-  end if;
+  -- State is checked after the replay lookup (under the lock), so a same-key
+  -- retry still gets its saved result after the withdrawal completed.
   facts := finance.payout_facts(w, p_amount, p_fee_amount, p_paid_on, p_bank_reference, p_notes);
   if p_evidence_id is null then
     perform identity.fail('evidence_required');
@@ -662,10 +664,11 @@ begin
   -- A match is re-checked here against what was recorded (defence in depth).
   if p_outcome = 'match' then
     receipt := p_facts->'receipt';
-    digits := regexp_replace(coalesce(receipt->>'recipientAccount', ''), '[ -]', '', 'g');
-    if receipt->>'amount' is null or receipt->>'amount' !~ '^[0-9]{1,20}(\.[0-9]{1,18})?$'
-      or (receipt->>'amount')::numeric <> rev.amount
-      or receipt->>'currency' is distinct from 'NGN'
+    -- Same normalization as the worker's comparison (payout-checker/compare.ts).
+    digits := regexp_replace(coalesce(receipt->>'recipientAccount', ''), '[[:space:]-]', '', 'g');
+    if btrim(receipt->>'amount') is null or btrim(receipt->>'amount') !~ '^[0-9]{1,20}(\.[0-9]{1,18})?$'
+      or btrim(receipt->>'amount')::numeric <> rev.amount
+      or upper(btrim(receipt->>'currency')) is distinct from 'NGN'
       or digits !~ '^[0-9]+$' or right(digits, 4) <> w.account_last4
       or receipt->>'paymentStatus' is distinct from 'successful'
       or receipt->>'confidence' is distinct from 'high'

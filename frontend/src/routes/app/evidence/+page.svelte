@@ -51,15 +51,24 @@
 		shell.state.kind === 'ready' ? shell.state.view.workspace.membershipId : null
 	);
 
-	async function load() {
+	/** Only the newest read is applied (a slower, older tab must not win). */
+	let seq = 0;
+	let loadingMore = $state(false);
+	async function load(more = false) {
+		const mine = ++seq;
+		const cursor = more && page?.nextCursor ? `&cursor=${encodeURIComponent(page.nextCursor)}` : '';
+		if (more) loadingMore = true;
 		const exit = await Effect.runPromiseExit(
-			getJson(`${WithdrawalAppRoutes.reviews}?tab=${tab}`, ReviewPage)
+			getJson(`${WithdrawalAppRoutes.reviews}?tab=${tab}${cursor}`, ReviewPage)
 		);
+		loadingMore = false;
+		if (mine !== seq) return;
 		if (Exit.isSuccess(exit)) {
 			page = exit.value;
-			items = [...exit.value.items];
+			items = more ? [...items, ...exit.value.items] : [...exit.value.items];
 			loadError = null;
-			if (!items.some((c) => c.payoutId === selected?.payoutId)) void select(items[0] ?? null);
+			if (!more && !items.some((c) => c.payoutId === selected?.payoutId))
+				void select(items[0] ?? null);
 			return;
 		}
 		const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
@@ -201,6 +210,14 @@
 							</button>
 						{/each}
 					</div>
+					{#if page?.nextCursor}
+						<button
+							type="button"
+							class="mm-btn sm more"
+							disabled={loadingMore}
+							onclick={() => load(true)}>{loadingMore ? 'Loading…' : 'Show more'}</button
+						>
+					{/if}
 				{/if}
 				{#if tab === 'assigned' && counts?.assigned}
 					<RootHero
@@ -349,6 +366,10 @@
 <style>
 	.grow {
 		flex: 1;
+	}
+
+	.more {
+		align-self: center;
 	}
 
 	.who {
