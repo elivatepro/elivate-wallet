@@ -63,6 +63,7 @@ export const GET: RequestHandler = (event) => {
 			return {
 				member,
 				balances,
+				walletId: wallet._tag === 'Some' && workspace ? wallet.value.walletId : null,
 				offices:
 					offices._tag === 'Some'
 						? offices.value.items.map((o) => ({ id: o.id, name: o.name, type: o.type }))

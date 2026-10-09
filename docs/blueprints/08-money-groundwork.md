@@ -13,7 +13,7 @@ Part A is for the owner: what this slice does, in plain language. Part B is the 
    - **It went through** → the app shows the result (and its reference, e.g. `INC-7F2K-0931`).
    - **It didn't go through** → "Send again" re-sends the very same attempt; the server can only ever act on it once.
    - **Still unsure** (a reload that lost the form) → "Check again" until the original request can no longer be running.
-   A new attempt is only started after a clear answer. Signing out erases kept attempts.
+   A new attempt is only started after a clear answer. A kept attempt stays on the device for up to 24 hours, also after sign-out (owner decision 2026-10-09), so it can still be checked.
 2. **Activity.** Every movement of your money in the selected network, newest first, grouped by month with the month's money in / money out per currency (never added across currencies). Search by name (income source), reference (with or without dashes, any case) or amount (`180000`, `₦180,000.00`); Money in / Money out; currency, status, pocket and date filters. Nothing is filtered until you choose. On desktop a transaction opens in a side panel; on mobile it opens full screen.
 3. **Transaction detail.** Status, signed amount, type, from, to, date, who recorded it, the copyable reference and the exact split into pockets it was posted with.
 4. **Team overview** for leaders (Team Leader, Director, World Team, President Team): income recorded this month (with the change vs last month), money reserved for open requests, available, active members and pending invitations, and income per week — for the selected currency only. Members you can't view are left out of the totals and the app says so.
@@ -36,10 +36,11 @@ Built from Paper "App — Screens v1": M03 (activity + side panel), M04 (mobile 
 | # | Question | Choice | Why |
 |---|---|---|---|
 | D1 | What does the "what happened?" lookup reveal? | Only the fate (committed / cancelled / not found), the command name, when, and the public reference. The full result comes from a same-key replay of the command, which re-checks current permission, session and PIN window. | F-03: protected replay results only under current authority. |
-| D2 | Where is an unresolved attempt kept? | On the device (localStorage), per person, workspace and command, for at most 24 h; erased at sign-out; never the PIN, password, tokens or full account numbers. | F-03, W-25. Matches the income slice's own store. |
+| D2 | Where is an unresolved attempt kept? | On the device (localStorage), per person, workspace and command, for at most 24 h, also across sign-out (owner decision 2026-10-09); never the PIN, password, tokens or full account numbers. | F-03, W-25. Matches the income slice's own store. |
 | D3 | When is "not found" final without the original form? | 60 s after it was sent (beyond every timeout on the way). With the form kept, "Send again" is offered at once (safe: same key). | W-00 "no replacement key until resolved". |
 | D4 | Which statuses can activity be filtered by? | The durable ledger statuses that exist: `posted`. Reversal (W-15) and withdrawal slices add theirs. | Don't invent statuses. |
 | D5 | Months and date filters in which time zone? | The browser's zone, sent explicitly (`tz`); without it the existing inclusive UTC dates are kept. | 02 W-18: label local calendar filters accurately. |
+| — | Owner (2026-10-09) | Member wallets are also opened from a member's detail (Wallet card → Open). | Owner decision. |
 | D7 | Owner (2026-10-08): reversals | Own row (REV, opposite sign) **and** a `reversed` status with a link on the original (Q03). The reversal slice posts a ledger transaction of type `reversal` with `metadata.reversesTransactionId`; activity and detail read that link (`ledger.reversed_by`). | Owner decision. |
 | D8 | Owner (2026-10-08): activity filters | Backend search and status filter; the mobile sheet has the type filter too, matching desktop (types: income, reversal). | Owner decision. |
 | D9 | Owner (2026-10-08): member wallets | Own menu item and from Members; leaders see the per-pocket breakdown; the list shows available per currency, never mixed. | Owner decision. |

@@ -9,6 +9,7 @@ import {
 	createConfirmedAccount,
 	expectAccessible,
 	expectNoHorizontalScroll,
+	fillSettled,
 	humanReady,
 	inviteMember,
 	recordIncome,
@@ -54,7 +55,7 @@ test('a member searches and filters activity and opens a transaction', async ({ 
 	await page.getByRole('button', { name: 'Verify email' }).click();
 	await page.goto(await confirmLinkFor(member, /Confirm your Elivate Wallet email/));
 	await page.getByRole('button', { name: 'Continue' }).click();
-	await page.getByLabel('New password').fill(PASSWORD);
+	await fillSettled(page, 'New password', PASSWORD);
 	await page.getByRole('button', { name: 'Set password' }).click();
 	await page.getByRole('button', { name: 'Accept invitation' }).click();
 	await page.getByRole('link', { name: 'Let’s begin' }).click();

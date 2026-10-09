@@ -278,7 +278,13 @@
 			<div class="side-col">
 				{#if view.balances}
 					<section class="o-card o-card-pad wallet" aria-labelledby="wallet-heading">
-						<h2 id="wallet-heading" class="card-title">Wallet</h2>
+						<div class="wallet-head">
+							<h2 id="wallet-heading" class="card-title">Wallet</h2>
+							{#if view.walletId}<a
+									class="wallet-open"
+									href={`/app/wallets?wallet=${view.walletId}`}>Open</a
+								>{/if}
+						</div>
 						{#each view.balances as balance (balance.currency)}
 							<div class="balance">
 								<span class="o-label o-mono">{balance.currency} balance</span>
@@ -397,6 +403,19 @@
 {/if}
 
 <style>
+	.wallet-head {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+	}
+
+	.wallet-open {
+		color: var(--color-accent);
+		font-size: 15px;
+		font-weight: var(--font-weight-medium);
+		text-decoration: none;
+	}
+
 	.currently {
 		font-size: 13px;
 	}
