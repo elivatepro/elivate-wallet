@@ -11,6 +11,9 @@ export default defineConfig({
 	// helpers act only on their own rows, so files don't affect each other.
 	fullyParallel: false,
 	workers: Number(process.env.E2E_WORKERS ?? (process.env.CI ? 2 : 3)),
+	// Whole money flows take ~30 s on CI's 2-core runner, more with two files
+	// side by side; each expect keeps its own short timeout.
+	timeout: 90_000,
 	retries: process.env.CI ? 1 : 0,
 	reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
 	use: {
