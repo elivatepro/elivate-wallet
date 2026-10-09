@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { createCloudflareTransport } from "../_shared/email/cloudflare.ts";
+import { localTestOrigin } from "../_shared/name_lookup.ts";
 import { createInviteTokens } from "../_shared/invite_token.ts";
 import { createHandler, type EmailSetup } from "./handler.ts";
 
@@ -28,13 +29,17 @@ async function emailSetup(): Promise<EmailSetup | null> {
   const tokenSecret = optional("INVITATION_TOKEN_SECRET");
   if (!accountId || !apiToken || !fromAddress || !appOrigin || !tokenSecret) return null;
   const tokens = await createInviteTokens(tokenSecret);
+  // Local end-to-end only (scripts/e2e-local.sh): a fake Cloudflare that hands
+  // each message to the local mail catcher. Ignored unless it is a loopback
+  // or host.docker.internal origin, so a hosted project always uses Cloudflare.
+  const testBase = localTestOrigin(optional("CLOUDFLARE_API_TEST_ORIGIN") ?? undefined);
   return {
     transport: createCloudflareTransport({
       accountId,
       apiToken,
       fromAddress,
       fromName: optional("EMAIL_FROM_NAME") ?? "Elivate Wallet",
-    }),
+    }, testBase ? { apiBase: `${testBase}/client/v4` } : {}),
     token: (tokenId) => tokens.token(tokenId),
     appOrigin,
   };

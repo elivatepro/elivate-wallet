@@ -1,5 +1,6 @@
 // Routes for the `identity` Edge Function (Blueprint 06 — B3): the signed-in
-// person's profile, NIN verification and leader review. The raw NIN exists
+// person's profile, NIN verification and leader review, and the bell
+// (Blueprint 13). The raw NIN exists
 // only in memory here: the database receives a keyed fingerprint and the last
 // 4 digits. Logs carry route, status, code and latency only.
 
@@ -313,6 +314,65 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
     }),
 
     route("POST", "/nin/reviews/:id/decide", (c) => decide(c, workspace(c.request))),
+
+    // Blueprint 13: the bell for the selected workspace (its network plus
+    // personal items). The badge poll does not count as activity.
+    route("GET", "/notifications", (c) => {
+      onlyQuery(c.query, ["view", "cursor", "limit"]);
+      const view = c.query.get("view") ?? "all";
+      if (view !== "all" && view !== "unread") {
+        throw new ApiError("validation_error", { field: "view" });
+      }
+      const cursor = c.query.get("cursor");
+      if (cursor !== null && !/^[A-Za-z0-9+/=]{1,400}$/.test(cursor)) {
+        throw new ApiError("validation_error", { field: "cursor" });
+      }
+      const limit = c.query.get("limit");
+      if (limit !== null && !/^[1-9][0-9]?$|^100$/.test(limit)) {
+        throw new ApiError("validation_error", { field: "limit" });
+      }
+      return callObject("my_notifications", {
+        ...actorArgs(c),
+        p_membership_id: workspace(c.request),
+        p_view: view,
+        p_cursor: cursor,
+        p_limit: limit === null ? null : Number(limit),
+      });
+    }),
+
+    route("GET", "/notifications/unread", (c) => {
+      onlyQuery(c.query, []);
+      return callObject("my_notification_count", {
+        ...actorArgs(c),
+        p_membership_id: workspace(c.request),
+      });
+    }),
+
+    route("POST", "/notifications/read", async (c) => {
+      const body = await v.readBody(c.request, ["ids", "all"]);
+      const all = body.all === true;
+      if (body.all !== undefined && typeof body.all !== "boolean") {
+        throw new ApiError("validation_error", { field: "all" });
+      }
+      let ids: string[] | null = null;
+      if (body.ids !== undefined) {
+        const value = body.ids;
+        if (
+          !Array.isArray(value) || value.length < 1 || value.length > 100 ||
+          !value.every((id) => typeof id === "string" && uuidPattern.test(id))
+        ) {
+          throw new ApiError("validation_error", { field: "ids" });
+        }
+        ids = value.map((id: string) => id.toLowerCase());
+      }
+      if (all === (ids !== null)) throw new ApiError("validation_error", { field: "ids" });
+      return callObject("mark_notifications_read", {
+        ...actorArgs(c),
+        p_membership_id: workspace(c.request),
+        p_ids: ids,
+        p_all: all,
+      });
+    }),
 
     route("GET", "/admin/nin/reviews", (c) => {
       onlyQuery(c.query, []);

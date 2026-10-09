@@ -62,11 +62,17 @@ function providerCode(body: Record<string, unknown> | null): string {
 
 export function createCloudflareTransport(
   config: CloudflareConfig,
-  options: { readonly fetch?: FetchLike; readonly timeoutMs?: number } = {},
+  options: {
+    readonly fetch?: FetchLike;
+    readonly timeoutMs?: number;
+    /** Local end-to-end only: a fake Cloudflare on a loopback origin. */
+    readonly apiBase?: string;
+  } = {},
 ): EmailTransport {
   const doFetch: FetchLike = options.fetch ?? ((input, init) => fetch(input, init));
   const timeoutMs = options.timeoutMs ?? 15_000;
-  const url = `${apiBase}/accounts/${encodeURIComponent(config.accountId)}/email/sending/send`;
+  const base = options.apiBase ?? apiBase;
+  const url = `${base}/accounts/${encodeURIComponent(config.accountId)}/email/sending/send`;
 
   return {
     async send(email: OutgoingEmail): Promise<SendOutcome> {

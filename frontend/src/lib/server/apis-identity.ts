@@ -30,6 +30,14 @@ import {
 	type Bank,
 	type PayoutAccount
 } from '#lib/contract/payout.js';
+import {
+	MarkedRead,
+	NotificationPage,
+	NotificationRoutes,
+	UnreadCount,
+	type MarkReadCommand,
+	type NotificationView
+} from '#lib/contract/notifications.js';
 import { EdgeTransport, type EdgeFailure } from './edge';
 
 const readPolicy = {
@@ -72,6 +80,16 @@ export interface IdentityApiShape {
 		reviewId: string,
 		input: { decision: 'approve' | 'reject'; reason: string; idempotencyKey: string }
 	) => Effect.Effect<typeof ReviewDecided.Type, EdgeFailure>;
+	/** Blueprint 13: the bell for the selected workspace. */
+	readonly notifications: (
+		membershipId: string,
+		query: { view: NotificationView; cursor?: string; limit?: number }
+	) => Effect.Effect<NotificationPage, EdgeFailure>;
+	readonly unread: (membershipId: string) => Effect.Effect<number, EdgeFailure>;
+	readonly markRead: (
+		membershipId: string,
+		body: MarkReadCommand
+	) => Effect.Effect<typeof MarkedRead.Type, EdgeFailure>;
 }
 
 export class IdentityApi extends Context.Service<IdentityApi, IdentityApiShape>()('IdentityApi') {}
@@ -112,7 +130,30 @@ export const IdentityApiLive = Layer.effect(
 					.call({ fn, route: IdentityRoutes.reviews, membershipId }, PendingReviews)
 					.pipe(Effect.retry(readPolicy)),
 			decide: (membershipId, reviewId, input) =>
-				edge.call({ fn, route: decideRoute(reviewId), body: input, membershipId }, ReviewDecided)
+				edge.call({ fn, route: decideRoute(reviewId), body: input, membershipId }, ReviewDecided),
+			notifications: (membershipId, query) =>
+				edge
+					.call(
+						{
+							fn,
+							route: NotificationRoutes.list,
+							membershipId,
+							query: {
+								view: query.view,
+								...(query.cursor ? { cursor: query.cursor } : {}),
+								...(query.limit ? { limit: String(query.limit) } : {})
+							}
+						},
+						NotificationPage
+					)
+					.pipe(Effect.retry(readPolicy)),
+			unread: (membershipId) =>
+				edge.call({ fn, route: NotificationRoutes.unread, membershipId }, UnreadCount).pipe(
+					Effect.retry(readPolicy),
+					Effect.map((r) => r.unread)
+				),
+			markRead: (membershipId, body) =>
+				edge.call({ fn, route: NotificationRoutes.read, body, membershipId }, MarkedRead)
 		};
 	})
 );

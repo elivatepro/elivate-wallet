@@ -117,6 +117,13 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
   pause still get paid out.
 - **Needs your action** bell items are both live tasks (they clear when done) and ordinary
   read/unread notifications.
+- **Notifications (slice 8, 2026-10-09):** approval and review emails/tasks go to everyone who
+  can act (approvers by `approve_withdrawal`/`approve_pocket_transfer` over the member; every
+  assigned reviewer in scope, never the submitter); the owner always hears about their own
+  money, even their own actions; no opt-out; the bell shows the selected network plus
+  personal items; events with no drawn email got new emails M16 Conversion posted, M17 Payout
+  receipt rejected and M18 Not posted (with generated Root poses, approved); A10–A12 are sent
+  too; `support@elivatewallet.com` is live.
 - **Full-network export** download requires the PIN.
 - **Payout recording** has the optional fee field (U02).
 - **Currency conversion (W-12)** starts from its own leader tab/menu item and from a

@@ -33,13 +33,19 @@ if [ -n "$already_running" ] || [ -z "${CI:-}" ]; then
 fi
 
 # Values printed by the local stack (local defaults, not secrets).
-eval "$(supabase status -o env | grep -E '^(API_URL|ANON_KEY)=')"
+eval "$(supabase status -o env | grep -E '^(API_URL|ANON_KEY|MAILPIT_URL)=')"
+export MAILPIT_URL="${MAILPIT_URL:-http://127.0.0.1:54324}"
 
 # Throwaway secrets, generated per run and never stored. The invitation secret
 # is also handed to Playwright: the local stack sends no application email, so
 # the join tests rebuild the link from the token id exactly as the worker does.
 INVITATION_TOKEN_SECRET="$(openssl rand -hex 32)"
 export INVITATION_TOKEN_SECRET
+# Blueprint 13: the tests call the outbox worker with this secret; it sends
+# through the fake Cloudflare in fake-providers.mjs into the local mail
+# catcher (Mailpit). No real email is ever sent.
+OUTBOX_WORKER_SECRET="$(openssl rand -hex 32)"
+export OUTBOX_WORKER_SECRET
 {
   echo "PIN_HMAC_SECRET=$(openssl rand -hex 32)"
   echo "INVITATION_TOKEN_SECRET=$INVITATION_TOKEN_SECRET"
@@ -51,6 +57,11 @@ export INVITATION_TOKEN_SECRET
   echo "NUBAN_KYC_BASE_URL=http://host.docker.internal:54399"
   echo "PAYSTACK_SECRET_KEY=sk_test_e2elocal0000000000"
   echo "PAYSTACK_TEST_ORIGIN=http://host.docker.internal:54399"
+  echo "OUTBOX_WORKER_SECRET=$OUTBOX_WORKER_SECRET"
+  echo "CLOUDFLARE_ACCOUNT_ID=e2e-local"
+  echo "CLOUDFLARE_EMAIL_API_TOKEN=e2e-local-email"
+  echo "CLOUDFLARE_API_TEST_ORIGIN=http://host.docker.internal:54399"
+  echo "EMAIL_FROM_ADDRESS=noreply@elivatewallet.com"
   echo "APP_ORIGIN=http://127.0.0.1:3000"
   echo "PIN_RESET_REDIRECT_URL=http://127.0.0.1:3000/auth/confirm"
   echo "CORS_ORIGINS="

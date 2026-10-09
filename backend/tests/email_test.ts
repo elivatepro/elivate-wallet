@@ -88,7 +88,7 @@ Deno.test("invitation email escapes names and follows the Paper A02 layout", () 
   assert(email.html.includes(`${appUrl}/email/hero.jpg`), "hero band");
   assert(email.html.includes("Powered by Elivate Wallet"));
   assert(email.html.includes(`href="${joinUrl}"`));
-  assertEquals((email.html.match(/<a /g) ?? []).length, 1, "one button");
+  assertEquals((email.html.match(/class="ew-button"/g) ?? []).length, 1, "one button");
 });
 
 Deno.test("invitation email has a plain-text part", () => {
@@ -178,6 +178,20 @@ Deno.test("request shape: endpoint, bearer token, named sender and correlation h
     text: "Hi",
     headers: { "X-Elivate-Outbox": "outbox:e1:1" },
   });
+});
+
+Deno.test("a local test base replaces only the API origin", async () => {
+  const { fetch, seen } = fakeFetch(() =>
+    json(200, { success: true, result: { delivered: ["new@example.test"], message_id: "<m2@cf>" } })
+  );
+  await createCloudflareTransport(config, {
+    fetch,
+    apiBase: "http://host.docker.internal:54399/client/v4",
+  }).send(message);
+  assertEquals(
+    seen[0]?.url,
+    "http://host.docker.internal:54399/client/v4/accounts/acct-123/email/sending/send",
+  );
 });
 
 Deno.test("status classification", async () => {
