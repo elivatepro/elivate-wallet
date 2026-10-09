@@ -10,10 +10,19 @@ import {
 	markRecovery,
 	readJoinToken
 } from '#lib/server/cookies.js';
+import { recordSignIn } from '#lib/server/sign-ins.js';
+import type { SignInMethod } from '#lib/contract/security.js';
 import type { Actions, PageServerLoad } from './$types';
 
 const LINK_TYPES = ['signup', 'email', 'magiclink', 'recovery'] as const;
 type LinkType = (typeof LINK_TYPES)[number];
+
+const METHODS = {
+	signup: 'sign_up',
+	email: 'sign_up',
+	magiclink: 'email_link',
+	recovery: 'recovery'
+} as const satisfies Record<LinkType, SignInMethod>;
 
 const TOKEN_HASH = /^[A-Za-z0-9_-]{8,256}$/;
 
@@ -32,7 +41,8 @@ export const load: PageServerLoad = ({ url, cookies }) => {
 };
 
 export const actions: Actions = {
-	default: async ({ request, locals, cookies }) => {
+	default: async (event) => {
+		const { request, locals, cookies } = event;
 		const form = await request.formData();
 		const link = parse(form.get('token_hash'), form.get('type'));
 		if (!link) redirect(303, '/auth/link-expired');
@@ -41,6 +51,8 @@ export const actions: Actions = {
 			.supabase()
 			.auth.verifyOtp({ token_hash: link.tokenHash, type: link.type });
 		if (error) redirect(303, '/auth/link-expired');
+		// Blueprint 14: every emailed link opens a new session; record it.
+		await recordSignIn(event, METHODS[link.type]);
 
 		clearWorkspace(cookies);
 		// Password recovery (Blueprint 10): the Recovery link signs the person in

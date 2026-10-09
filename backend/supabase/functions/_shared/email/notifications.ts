@@ -1,5 +1,6 @@
 // Notification emails (Blueprint 13): Paper "Emails — Transactional v2"
-// M01–M14, M16–M18 (approved 2026-10-09), T01 and A10–A12, on the shared
+// M01–M14, M16–M18 (approved 2026-10-09), T01, A10–A12 and (Blueprint 14) the
+// A06–A08 security emails, on the shared
 // layout. Money emails show the exact amount and the public reference only
 // (P-06): never balances, account digits, bank details, reasons or evidence.
 // Buttons open the in-app path carried by the event, from an allow-list.
@@ -74,6 +75,39 @@ function subjectOf(params: Params): (typeof subjects)[keyof typeof subjects] {
   const value = param(params, "subject", 20);
   if (!(value in subjects)) throw new TemplateError("template.param_invalid");
   return subjects[value as keyof typeof subjects];
+}
+
+/** "7 Oct 2026, 09:20 UTC" (Paper A06/A08 hero line; short so 320 px wraps at a space). */
+function heroDateTime(iso: string): string {
+  const date = new Date(iso);
+  if (!/^\d{4}-\d{2}-\d{2}T/.test(iso) || Number.isNaN(date.getTime())) {
+    throw new TemplateError("template.param_invalid");
+  }
+  const day = date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+  const time = date.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "UTC",
+  });
+  return `${day}, ${time} UTC`;
+}
+
+const regions = new Intl.DisplayNames(["en"], { type: "region" });
+
+/** "Nigeria" from "NG"; nothing for Cloudflare's unknown/Tor codes. */
+function countryName(code: string | undefined): string | undefined {
+  if (!code || !/^[A-Z]{2}$/.test(code) || code === "XX") return undefined;
+  try {
+    return regions.of(code);
+  } catch {
+    return undefined;
+  }
 }
 
 interface Spec {
@@ -494,6 +528,76 @@ export const notificationRenderers: Readonly<Record<string, Renderer>> = {
         headline: "You have a new role.",
         line: `${param(params, "actor", nameMax)} made you ${label} for ${office}.`,
         button: "Open Wallet",
+      },
+      params,
+      context,
+    );
+  },
+  // A06 (Elivate-branded). Both a signed-in change and a reset.
+  "security.password_changed": (params, context) => {
+    onlyParams(params, ["at", "path"]);
+    return build(
+      {
+        network: null,
+        subject: "Your Elivate Wallet password was changed",
+        chip: "Security",
+        status: { label: "Changed", tone: "warning" },
+        display: "Password changed",
+        reference: heroDateTime(param(params, "at", 40)),
+        root: "password-changed",
+        headline: "Your password was changed.",
+        line: "Not you? Secure your account now.",
+        button: "Secure my account",
+      },
+      params,
+      context,
+    );
+  },
+  // A07: an unusual sign-in (new device, or new place). Never the IP.
+  "security.new_sign_in": (params, context) => {
+    onlyParams(params, ["device", "city", "country", "reason", "path"]);
+    const reason = param(params, "reason", 20);
+    if (reason !== "new_device" && reason !== "new_location") {
+      throw new TemplateError("template.param_invalid");
+    }
+    const place = optional(params, "city", 100) ?? countryName(optional(params, "country", 2));
+    const newDevice = reason === "new_device";
+    return build(
+      {
+        network: null,
+        subject: newDevice
+          ? "New sign-in to your Elivate Wallet"
+          : "Your Elivate Wallet signed in from a new place",
+        chip: "Security",
+        status: { label: newDevice ? "New device" : "New location", tone: "warning" },
+        display: "New sign-in",
+        reference: [param(params, "device", 60), place].filter(Boolean).join(" · "),
+        root: "new-sign-in",
+        headline: newDevice
+          ? "A new device signed in."
+          : "Your account signed in from a new place.",
+        line: "Don’t recognise it? Sign out other sessions.",
+        button: "Review sessions",
+      },
+      params,
+      context,
+    );
+  },
+  // A08
+  "security.pin_changed": (params, context) => {
+    onlyParams(params, ["at", "path"]);
+    return build(
+      {
+        network: null,
+        subject: "Your Wallet PIN was changed",
+        chip: "Security",
+        status: { label: "Changed", tone: "warning" },
+        display: "PIN changed",
+        reference: heroDateTime(param(params, "at", 40)),
+        root: "pin-changed",
+        headline: "Your Wallet PIN was changed.",
+        line: "Not you? Reset your PIN now.",
+        button: "Review security",
       },
       params,
       context,

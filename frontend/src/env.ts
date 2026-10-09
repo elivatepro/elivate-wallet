@@ -46,6 +46,16 @@ export const variables = defineEnvVars({
 			'Comma-separated hostnames a Turnstile token may come from. Empty refuses every token.',
 		schema: (value: string | undefined) => (value === '' ? undefined : value)
 	},
+	APP_SERVER_SECRET: {
+		description:
+			'Shared secret only this app server holds; lets it record sign-ins (Blueprint 14). Missing: no sign-in history is written.',
+		schema: (value: string | undefined) => (value === '' ? undefined : value)
+	},
+	E2E_GEO_HEADERS: {
+		description:
+			'Local e2e only ("1"): take the sign-in location from x-e2e-city / x-e2e-country. Ignored unless SUPABASE_URL is a loopback address.',
+		schema: (value: string | undefined) => value === '1'
+	},
 	TURNSTILE_SECRET_KEY: {
 		description: 'Turnstile secret key for server-side siteverify. Never sent to the browser.',
 		schema: (value: string | undefined) => (value === '' ? undefined : value)

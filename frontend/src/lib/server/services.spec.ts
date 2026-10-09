@@ -76,6 +76,34 @@ describe('EdgeTransport', () => {
 		);
 		expect(calls[0]?.headers.has('x-membership')).toBe(false);
 	});
+
+	it('sends the app-server secret only on the sign-in record (Blueprint 14)', async () => {
+		const { fetcher, calls } = fakeFetch([
+			{ status: 200, body: fx.success({ unusual: false }) },
+			{ status: 200, body: fx.success({ passwordChangedAt: null, unusualSignIns: [] }) }
+		]);
+		await run(
+			Effect.gen(function* () {
+				const security = yield* SecurityApi;
+				yield* security.recordSignIn(
+					{
+						method: 'password',
+						ip: '102.89.1.10',
+						city: 'Lagos',
+						country: 'NG',
+						device: 'Mac · Chrome',
+						userAgent: null
+					},
+					'app-secret'
+				);
+				return yield* security.overview;
+			}),
+			fetcher
+		);
+		expect(calls[0]?.url.pathname).toBe('/functions/v1/security/sign-ins');
+		expect(calls[0]?.headers.get('x-app-server-secret')).toBe('app-secret');
+		expect(calls[1]?.headers.has('x-app-server-secret')).toBe(false);
+	});
 });
 
 describe('SecurityApi', () => {

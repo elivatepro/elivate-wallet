@@ -113,3 +113,35 @@ describe('bell wording (Paper NB01/S01)', () => {
 		expect(when(new Date(2025, 8, 22, 18, 31).toISOString(), now)).toBe('22 Sept 2025 · 18:31');
 	});
 });
+
+describe('security items (Blueprint 14)', () => {
+	it('A06/A08 are personal warnings that open Profile & security', () => {
+		const pw = present(
+			item('security.password_changed', { at: '2026-10-09T10:00:00Z', path: '/app/account' })
+		);
+		expect(pw.title).toBe('Password changed');
+		expect(pw.href).toBe('/app/account');
+		expect(pw.icon).toBe('lock');
+		expect(present(item('security.pin_changed', { path: '/app/account' })).title).toBe(
+			'PIN changed'
+		);
+	});
+
+	it('A07 shows the device and place, never an IP', () => {
+		const entry = present(
+			item('security.new_sign_in', {
+				device: 'Windows · Edge',
+				city: 'Abuja',
+				country: 'NG',
+				reason: 'new_location',
+				path: '/app/account/devices'
+			})
+		);
+		expect(entry.title).toBe('Sign-in from a new place');
+		expect(entry.line).toBe('Windows · Edge · Abuja (approx.)');
+		expect(entry.href).toBe('/app/account/devices');
+		expect(
+			present(item('security.new_sign_in', { device: 'Mac · Chrome', reason: 'new_device' })).title
+		).toBe('New sign-in');
+	});
+});

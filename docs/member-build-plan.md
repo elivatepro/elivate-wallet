@@ -111,6 +111,12 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
 - **Password:** build changing the password while signed in. After a password reset, the
   person chooses whether to sign out other devices.
 - **PIN change** sends a security email.
+- **Slice 9 follow-up (2026-10-09, Blueprint 14):** location shown as city, country from
+  Cloudflare (the IP is stored, never shown); sign-in records are never deleted; "unusual" =
+  a new city/country or a new device (never the first sign-in); emails A06 Password changed,
+  A07 New sign-in (unusual only), A08 PIN changed; the signed-in password change needs the PIN
+  only. Supabase Auth always signs out other sessions on a password change, so the "choose
+  whether to sign out other devices" decision became: always sign out, and say so (Z09, Z10).
 - **Billing:** seat upgrade costs the price difference × days left in the paid year ÷ 365.
   A founder may skip the trial and pay for any launch band directly. Paused networks give
   leaders and the Billing Owner a pay-to-reactivate view; withdrawals approved before the

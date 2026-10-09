@@ -159,6 +159,31 @@ const samples: ReadonlyArray<readonly [string, Record<string, string>, string, s
     "Your membership has ended.",
     "membership-ended",
   ],
+  // Blueprint 14: A06–A08.
+  [
+    "security.password_changed",
+    { at: "2026-10-07T08:14:00Z", path: "/app/account" },
+    "Your password was changed.",
+    "password-changed",
+  ],
+  [
+    "security.new_sign_in",
+    {
+      device: "Windows · Chrome",
+      city: "Lagos",
+      country: "NG",
+      reason: "new_device",
+      path: "/app/account/devices",
+    },
+    "A new device signed in.",
+    "new-sign-in",
+  ],
+  [
+    "security.pin_changed",
+    { at: "2026-10-07T08:20:00Z", path: "/app/account" },
+    "Your Wallet PIN was changed.",
+    "pin-changed",
+  ],
 ];
 
 Deno.test("every notification email renders on the Paper layout with its own pose", () => {

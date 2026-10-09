@@ -7,6 +7,7 @@ import { failureOf, redirectForFailure } from '#lib/server/flow.js';
 import { runApi } from '#lib/server/request.js';
 import { GATE_PATHS } from '#lib/gate.js';
 import { humanCheck, turnstileSiteKey } from '#lib/server/human-check.js';
+import { recordSignIn } from '#lib/server/sign-ins.js';
 import { turnstileMessage } from '#lib/server/turnstile.js';
 import { authMessage, readCredentials } from '../credentials';
 import type { Actions, PageServerLoad } from './$types';
@@ -72,6 +73,8 @@ export const actions: Actions = {
 		clearWorkspace(event.cookies);
 		const session = await event.locals.session();
 		if (!session) return fail(503, { email, message: authMessage('unavailable', 'sign-in') });
+		// Blueprint 14: where and on what this session signed in.
+		await recordSignIn(event, 'password');
 
 		const exit = await runApi(
 			event,

@@ -19,6 +19,8 @@ export interface EdgeCall {
 	readonly body?: unknown;
 	readonly query?: Readonly<Record<string, string>>;
 	readonly membershipId?: string;
+	/** Blueprint 14: the app-server-only secret for routes that require it. */
+	readonly appServerSecret?: string;
 }
 
 export type EdgeFailure = BackendError | TransportError | ContractViolation;
@@ -54,6 +56,7 @@ export function makeEdgeTransport(options: EdgeTransportOptions): EdgeTransportS
 			const headers: Record<string, string> = { apikey: options.publishableKey };
 			if (options.accessToken) headers.authorization = `Bearer ${options.accessToken}`;
 			if (call.membershipId) headers['x-membership'] = call.membershipId;
+			if (call.appServerSecret) headers['x-app-server-secret'] = call.appServerSecret;
 			return requestJson(
 				{
 					fetch: options.fetch,

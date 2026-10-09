@@ -32,10 +32,15 @@ import {
 	PinResetRequested,
 	PinSetRequest,
 	PinVerifyRequest,
+	PasswordChangeAuthorized,
+	PasswordChanged,
 	Revoked,
+	SecurityOverview,
 	SecurityRoutes,
 	Sessions,
-	SecurityState
+	SecurityState,
+	SignInRecorded,
+	type SignInMethod
 } from '#lib/contract/security.js';
 import { Role, Uuid } from '#lib/contract/common.js';
 import { EdgeTransport, type EdgeFailure } from './edge';
@@ -94,6 +99,26 @@ export interface SecurityApiShape {
 		pin: string;
 		pinConfirm: string;
 	}) => Effect.Effect<SecurityState, EdgeFailure>;
+	/** Blueprint 14: record a new Auth session (before the PIN). Never retried. */
+	readonly recordSignIn: (
+		input: {
+			method: SignInMethod;
+			ip: string | null;
+			city: string | null;
+			country: string | null;
+			device: string;
+			userAgent: string | null;
+		},
+		appServerSecret: string
+	) => Effect.Effect<typeof SignInRecorded.Type, EdgeFailure>;
+	readonly overview: Effect.Effect<SecurityOverview, EdgeFailure>;
+	/** Never retried: a wrong PIN counts against the 5 attempts. */
+	readonly authorizePasswordChange: (input: {
+		pin: string;
+	}) => Effect.Effect<typeof PasswordChangeAuthorized.Type, EdgeFailure>;
+	readonly recordPasswordChange: (
+		input: { changeId: string } | { recovery: true }
+	) => Effect.Effect<PasswordChanged, EdgeFailure>;
 }
 
 export class SecurityApi extends Context.Service<SecurityApi, SecurityApiShape>()('SecurityApi') {}
@@ -149,6 +174,28 @@ export const SecurityApiLive = Layer.effect(
 					Effect.flatMap((body) =>
 						edge.call({ fn: 'security', route: SecurityRoutes.pinChange, body }, SecurityState)
 					)
+				),
+			recordSignIn: (input, appServerSecret) =>
+				edge.call(
+					{ fn: 'security', route: SecurityRoutes.signIns, body: input, appServerSecret },
+					SignInRecorded
+				),
+			overview: edge
+				.call({ fn: 'security', route: SecurityRoutes.overview }, SecurityOverview)
+				.pipe(Effect.retry(readPolicy)),
+			authorizePasswordChange: (input) =>
+				validate(PinVerifyRequest, input).pipe(
+					Effect.flatMap((body) =>
+						edge.call(
+							{ fn: 'security', route: SecurityRoutes.passwordAuthorize, body },
+							PasswordChangeAuthorized
+						)
+					)
+				),
+			recordPasswordChange: (input) =>
+				edge.call(
+					{ fn: 'security', route: SecurityRoutes.passwordChanged, body: input },
+					PasswordChanged
 				)
 		};
 	})

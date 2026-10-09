@@ -74,7 +74,9 @@ test('forgot password → Recovery email → new password → PIN', async ({ pag
 	await expect(page.getByText('Use at least 8 characters.')).toBeVisible();
 	await fillSettled(page, 'New password', NEW_PASSWORD);
 	await page.getByRole('button', { name: 'Save new password' }).click();
-	// PIN as usual after a recovery.
+	// Z10 (Blueprint 14), then the PIN as usual after a recovery.
+	await expect(page.getByRole('heading', { name: 'Password changed' })).toBeVisible();
+	await page.getByRole('link', { name: 'Continue to PIN' }).click();
 	await expect(page).toHaveURL(/\/pin(\?.*)?$/);
 
 	// The new password works, the old one does not.

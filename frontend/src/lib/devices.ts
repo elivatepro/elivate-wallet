@@ -1,6 +1,7 @@
-// Device rows for Devices & sessions (Paper S03/S04, B09/B10). The backend
-// gives only the browser's user agent and times (no IP or location,
-// Blueprint 01 B4), so the label is a best-effort "Device · Browser".
+// Device rows for Devices & sessions (Paper S03/S04, B09/B10, v4 Z07). The
+// label is a best-effort "Device · Browser" from the user agent; Blueprint 14
+// adds the approximate city and country Cloudflare saw at sign-in (the IP is
+// never sent to the browser) and the "Unusual sign-ins" wording.
 
 export type DeviceKind = 'phone' | 'tablet' | 'laptop';
 
@@ -92,4 +93,73 @@ export function maskPhone(phone: string | null): string | null {
 	const last4 = digits.slice(-4);
 	const prefix = phone.startsWith('+') ? `+${digits.slice(0, 3)} ` : '';
 	return `${prefix}•• •••• ${last4}`;
+}
+
+const REGIONS = new Intl.DisplayNames(['en'], { type: 'region' });
+
+/** "Nigeria" from "NG"; null for unknown codes (Cloudflare XX, Tor T1). */
+export function countryName(code: string | null): string | null {
+	if (!code || !/^[A-Z]{2}$/.test(code) || code === 'XX') return null;
+	try {
+		const name = REGIONS.of(code);
+		return name && name !== code ? name : null;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * "Lagos, Nigeria (approx.)" (desktop, Paper S03/Z07) or "Lagos (approx.)"
+ * (mobile, S04); null when Cloudflare gave no location.
+ */
+export function placeLabel(
+	city: string | null,
+	country: string | null,
+	short = false
+): string | null {
+	const nation = countryName(country);
+	const parts = short ? [city ?? nation] : [city, nation];
+	const place = parts.filter((p): p is string => !!p).join(', ');
+	return place ? `${place} (approx.)` : null;
+}
+
+export interface UnusualLike {
+	readonly device: string;
+	readonly reasons: ReadonlyArray<'new_location' | 'new_device'>;
+	readonly signedInAt: string;
+	readonly current: boolean;
+	readonly signedIn: boolean;
+}
+
+/** "new location", "new device" or both, as Paper's row suffix. */
+export function unusualReason(item: UnusualLike): string {
+	const location = item.reasons.includes('new_location');
+	const device = item.reasons.includes('new_device');
+	if (location && device) return 'new device and location';
+	return device ? 'new device' : 'new location';
+}
+
+/** "3 Oct, 22:14" in the device's time zone (or the one given, for tests). */
+export function signInTime(iso: string, { locale, timeZone }: DateOptions = {}): string {
+	const date = new Date(iso);
+	const day = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', timeZone }).format(
+		date
+	);
+	const time = new Intl.DateTimeFormat(locale, {
+		hour: '2-digit',
+		minute: '2-digit',
+		hourCycle: 'h23',
+		timeZone
+	}).format(date);
+	return `${day}, ${time}`;
+}
+
+/** "this device", "still signed in" or "now signed out". */
+export function signedInState(item: UnusualLike): string {
+	return item.current ? 'this device' : item.signedIn ? 'still signed in' : 'now signed out';
+}
+
+/** "Signed in 3 Oct, 22:14 · now signed out" (Paper Z07/S03). */
+export function unusualStatus(item: UnusualLike, options: DateOptions = {}): string {
+	return `Signed in ${signInTime(item.signedInAt, options)} · ${signedInState(item)}`;
 }
