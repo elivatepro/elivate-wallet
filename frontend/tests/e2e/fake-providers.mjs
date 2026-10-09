@@ -29,6 +29,11 @@ createServer((req, res) => {
 		}
 		return json(res, 404, { status: false, message: 'NIN not found' });
 	}
+	// Turnstile siteverify (Blueprint 10), reached by the app server under
+	// `vite preview`: any non-empty token passes, like Cloudflare's test secret.
+	if (url.pathname === '/turnstile/v0/siteverify' && req.method === 'POST') {
+		return json(res, 200, { success: true, hostname: 'example.com', action: '' });
+	}
 	if (url.pathname === '/bank') {
 		return json(res, 200, {
 			status: true,

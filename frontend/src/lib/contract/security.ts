@@ -45,5 +45,7 @@ export const SecurityRoutes = {
 	pinResetRequest: { method: 'POST', path: '/pin/reset/request' },
 	pinResetComplete: { method: 'POST', path: '/pin/reset/complete' },
 	sessions: { method: 'GET', path: '/sessions' },
-	sessionsRevoke: { method: 'POST', path: '/sessions/revoke' }
+	sessionsRevoke: { method: 'POST', path: '/sessions/revoke' },
+	// Blueprint 10.
+	pinChange: { method: 'POST', path: '/pin/change' }
 } as const;

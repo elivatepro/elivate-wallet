@@ -10,8 +10,8 @@
 //     prints the Management API PATCH body for /v1/projects/{ref}/config/auth
 //     (templates and subjects only; never `supabase config push`).
 //
-// Link formats are unchanged: sign-up and Magic Link use token_hash links to
-// /auth/confirm (decision 38); the others keep {{ .ConfirmationURL }}.
+// Sign-up, Magic Link and Recovery use token_hash links to
+// /auth/confirm (decision 38, Blueprint 10); the others keep {{ .ConfirmationURL }}.
 
 import { type EmailLayout, renderLayout } from "../supabase/functions/_shared/email/layout.ts";
 
@@ -136,7 +136,11 @@ export const authTemplates: readonly AuthTemplate[] = [
       root: "reset",
       headline: "Choose a new password.",
       line: "Didn't ask for this? You can ignore this email.",
-      button: { label: "Reset password", url: "{{ .ConfirmationURL }}" },
+      // Blueprint 10: token_hash link to the POST Continue page, like sign-up.
+      button: {
+        label: "Reset password",
+        url: `${site}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery`,
+      },
     }),
   },
   {

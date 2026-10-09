@@ -1,13 +1,15 @@
 // Payout accounts (Y02, W-17) and leaders' invitation management (I01/I02,
 // W-03). Local stack only, synthetic data.
 
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import {
 	completeIdentityAndProfile,
 	confirmLinkFor,
 	createConfirmedAccount,
 	expectAccessible,
 	inviteMember,
+	humanReady,
 	uniqueEmail
 } from './helpers';
 
@@ -21,6 +23,7 @@ async function signInAs(page: Page, email: string) {
 	await page.goto('/sign-in');
 	await page.getByLabel('Email address').fill(email);
 	await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
+	await humanReady(page);
 	await page.getByRole('button', { name: 'Sign in' }).click();
 	await page.getByLabel('PIN', { exact: true }).fill(PIN);
 	await page.getByRole('button', { name: 'Verify' }).click();
@@ -103,7 +106,7 @@ test('payout accounts: list, add a second (cooling off), refuse a mismatch, remo
 	// Remove it: reason + PIN.
 	await page.getByRole('button', { name: 'Options for Test Bank •• 4455' }).click();
 	await page.getByRole('menuitem', { name: 'Remove account' }).click();
-	const dialog = page.getByRole('dialog', { name: 'Remove this account?' });
+	const dialog = page.getByRole('dialog', { name: 'Remove Test Bank •• 4455' });
 	await dialog.getByLabel('Reason').fill('Added by mistake.');
 	await dialog.getByLabel('Your PIN').fill(PIN);
 	await dialog.getByRole('button', { name: 'Remove account' }).click();

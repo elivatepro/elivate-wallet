@@ -28,8 +28,12 @@ export const GET: RequestHandler = async (event) => {
 };
 
 export const POST: RequestHandler = (event) =>
-	relayCommand(event, PayoutConfirmCommand, (membershipId, { lookupId, idempotencyKey }) =>
+	relayCommand(event, PayoutConfirmCommand, (membershipId, { lookupId, reason, idempotencyKey }) =>
 		Effect.gen(function* () {
-			return yield* (yield* PayoutApi).confirm(membershipId, { lookupId, idempotencyKey });
+			return yield* (yield* PayoutApi).confirm(membershipId, {
+				lookupId,
+				...(reason === undefined ? {} : { reason }),
+				idempotencyKey
+			});
 		})
 	);
