@@ -161,7 +161,7 @@ export const MoneyMovesApiLive = (storage: IncomeStorageOptions) =>
 							try: () =>
 								storage.fetch(url, {
 									headers: { apikey: storage.publishableKey },
-									redirect: 'error',
+									redirect: 'manual', // Workers reject 'error'; a 3xx is not ok and fails below
 									cache: 'no-store',
 									signal: AbortSignal.timeout(30_000)
 								}),
