@@ -39,7 +39,7 @@ describe('withdrawal stages', () => {
 		expect(withdrawalStage(withPayout('verifying', 'dead')).label).toBe('Check delayed');
 		expect(withdrawalStage(withPayout('correction_required')).label).toBe('Correction needed');
 		expect(withdrawalStage(withPayout('needs_review')).label).toBe('In review');
-		expect(withdrawalStage(withPayout('rejected')).label).toBe('Approved · pay out');
+		expect(withdrawalStage(withPayout('rejected')).label).toBe('Receipt rejected');
 	});
 
 	it('shows members a plain Approved', () => {

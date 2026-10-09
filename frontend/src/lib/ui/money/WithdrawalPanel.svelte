@@ -1,10 +1,11 @@
 <!--
 	Withdrawal detail panel for approvers, Paper "App — Screens v1" C01
-	(requested: approve / reject), T03 (approved: reveal + record payout),
-	C05 (checking receipt), C07 (correction needed: compare, fix once).
-	The v4 U01–U07 payout compositions await owner approval (batch 2); until
-	then the payout steps follow v1 T03, and "Check delayed", "In review" and
-	"Cancel approved withdrawal" (reason + PIN) are plain stubs on this layout.
+	(requested: approve / reject) and C05 (checking receipt), and "App —
+	Screens v4" U01–U07 (approved 2026-10-09): show the account number (PIN,
+	U01), revealed with Hide and the record form with the optional bank fee
+	(U02), the one fix of what didn't match, keeping the receipt, or a new
+	receipt (U03), verified (U04), check delayed (U05), receipt rejected by the
+	reviewer (U06) and cancel with reason + PIN (U07).
 
 	PIN: tried without first; on step_up_required the PIN dialog opens and the
 	same command is sent again with it (the 5-minute proof then covers the
@@ -14,7 +15,6 @@
 <script lang="ts">
 	import { Cause, Effect, Exit, Option } from 'effect';
 	import Lock from '@lucide/svelte/icons/lock';
-	import Copy from '@lucide/svelte/icons/copy';
 	import Upload from '@lucide/svelte/icons/upload';
 	import FileText from '@lucide/svelte/icons/file-text';
 	import type { ApiFailure } from '#lib/contract/errors.js';
@@ -37,6 +37,7 @@
 	import { isUnknownOutcome } from '#lib/recovery.js';
 	import {
 		calendarDate,
+		checkDelayed,
 		currentRevision,
 		destinationTitle,
 		fixLabel,
@@ -47,8 +48,8 @@
 		withdrawalStage,
 		withinRequested
 	} from '#lib/withdrawals.js';
-	import ConfirmDialog from '#lib/ui/app/ConfirmDialog.svelte';
 	import RootDialog from '#lib/ui/account/RootDialog.svelte';
+	import type { RootPose } from '#lib/ui/root.svelte.js';
 	import Pill from './Pill.svelte';
 
 	let {
@@ -66,7 +67,13 @@
 	const w = $derived(withdrawal);
 	const stage = $derived(withdrawalStage(w));
 	const payout = $derived(w.payout && w.payout.status !== 'rejected' ? w.payout : null);
-	const rev = $derived(currentRevision(payout));
+	/** U06: the last payout record, rejected by the reviewer; the hold stays. */
+	const rejected = $derived(
+		w.status === 'approved' && w.payout?.status === 'rejected' ? w.payout : null
+	);
+	const shown = $derived(payout ?? rejected);
+	const rev = $derived(currentRevision(shown));
+	const delayed = $derived(payout?.status === 'verifying' && checkDelayed(rev));
 	const steps = $derived(progress(w));
 	const naira = (a: string) => formatMoney(a, 'NGN');
 	const when = (iso: string) =>
@@ -79,6 +86,12 @@
 	let error = $state<string | null>(null);
 	let busy = $state(false);
 	let mode = $state<'view' | 'record' | 'correct'>('view');
+	/** U03: the one fix of the mismatched fields, keeping the receipt. */
+	let fixOpen = $state(false);
+	let fixError = $state<string | null>(null);
+	let fixPinError = $state<string | null>(null);
+	let fixTry = $state(0);
+	let fixKey = newKey();
 	let sentText = $state('');
 	let feeText = $state('');
 	let paidOn = $state(localToday());
@@ -119,14 +132,16 @@
 	// ── PIN dialog shared by every protected step ──
 	let pinOpen = $state(false);
 	let pinError = $state<string | null>(null);
+	let stepTry = $state(0);
 	let pinTitle = $state('');
 	let pinSummary = $state('');
 	let pinLabel = $state('Confirm');
+	let pinPose = $state<RootPose>('payout-reveal');
 	let pending: ((pin: string | undefined) => Promise<void>) | null = null;
 
 	/** Runs `run` without a PIN; on step_up_required asks for it and runs again. */
 	async function withStepUp(
-		copy: { title: string; summary: string; label: string },
+		copy: { title: string; summary: string; label: string; pose?: RootPose },
 		run: (pin: string | undefined) => Promise<ApiFailure | null>
 	) {
 		error = null;
@@ -139,6 +154,7 @@
 			pinTitle = copy.title;
 			pinSummary = copy.summary;
 			pinLabel = copy.label;
+			pinPose = copy.pose ?? 'queue';
 			pinError = null;
 			pending = async (pin) => {
 				busy = true;
@@ -150,7 +166,10 @@
 				}
 				const p = pinProblem(again);
 				if (p?.kind === 'locked') return void window.location.assign('/pin/locked');
-				if (p) return void (pinError = p.message);
+				if (p) {
+					stepTry++;
+					return void (pinError = p.message);
+				}
 				pinOpen = false;
 				error = moveMessage(again);
 			};
@@ -236,9 +255,10 @@
 	function reveal() {
 		void withStepUp(
 			{
-				title: 'Enter your transaction PIN',
-				summary: `To see the full account number for ${destinationTitle(w)}`,
-				label: 'Reveal'
+				title: 'Show account number',
+				summary: 'Only you see it. It hides again when you leave',
+				label: 'Show number',
+				pose: 'payout-reveal'
 			},
 			async (pin) => {
 				const exit = await Effect.runPromiseExit(
@@ -257,14 +277,6 @@
 				return failureOf(exit);
 			}
 		);
-	}
-
-	let copied = $state(false);
-	async function copyNumber() {
-		if (!revealed) return;
-		await navigator.clipboard.writeText(revealed.accountNumber);
-		copied = true;
-		setTimeout(() => (copied = false), 2000);
 	}
 
 	// ── T03 / C07: record or correct ──
@@ -301,9 +313,10 @@
 		const correcting = mode === 'correct' && payout;
 		void withStepUp(
 			{
-				title: 'Enter your transaction PIN',
-				summary: `To submit ${naira(sent)} sent to ${destinationTitle(w)} for verification`,
-				label: 'Submit for verification'
+				title: 'Confirm with your PIN',
+				summary: `${naira(sent)} sent to ${destinationTitle(w)}, checked against the receipt`,
+				label: 'Submit for verification',
+				pose: 'queue-checking'
 			},
 			async (pin) => {
 				// 1. The receipt, bound to this command's key (once per key and file).
@@ -359,15 +372,72 @@
 		);
 	}
 
+	// ── U03: the one fix, keeping the receipt ──
+	const fixFields = $derived(
+		[...mismatchedFields(rev?.check?.reasons ?? [])].filter(
+			(f): f is 'amount' | 'date' => f === 'amount' || f === 'date'
+		)
+	);
+	let fixAmount = $state('');
+	let fixDate = $state('');
+	function openFix() {
+		if (!rev) return;
+		fixAmount = `₦${groupAmount(rev.amount)}`;
+		fixDate = rev.paidOn;
+		fixError = null;
+		fixPinError = null;
+		fixOpen = true;
+	}
+
+	async function sendFix(pin: string | undefined) {
+		if (!payout || !rev) return;
+		const amount = parseAmount(fixAmount, 2);
+		if (!amount) return void (fixError = 'Enter the amount you sent.');
+		if (!withinRequested(amount, rev.fee, w.amount)) {
+			return void (fixError = `Amount sent plus fee can’t be more than ${naira(w.amount)}.`);
+		}
+		if (!/^\d{4}-\d{2}-\d{2}$/.test(fixDate) || fixDate > localToday()) {
+			return void (fixError = 'Check the date paid.');
+		}
+		busy = true;
+		fixError = null;
+		fixPinError = null;
+		const exit = await act('correct', payout.payoutId, {
+			amount,
+			...(rev.fee ? { fee: rev.fee } : {}),
+			paidOn: fixDate,
+			...(rev.bankReference ? { bankReference: rev.bankReference } : {}),
+			...(rev.notes ? { notes: rev.notes } : {}),
+			...(pin ? { pin } : {}),
+			idempotencyKey: fixKey
+		});
+		busy = false;
+		if (Exit.isSuccess(exit)) {
+			fixOpen = false;
+			fixKey = newKey();
+			return onChanged(exit.value, 'Sent again. The receipt is checked against your fix.');
+		}
+		const failure = failureOf(exit);
+		const problem = pinProblem(failure ?? undefined);
+		if (problem?.kind === 'locked') return void window.location.assign('/pin/locked');
+		if (problem) {
+			fixTry++;
+			return void (fixPinError = problem.message);
+		}
+		if (failure && !isUnknownOutcome(failure)) fixKey = newKey();
+		fixError = moveMessage(failure ?? undefined);
+	}
+
 	// ── Check delayed: send it again ──
 	let retryKey = newKey();
 	function retryCheck() {
 		if (!payout) return;
 		void withStepUp(
 			{
-				title: 'Enter your transaction PIN',
-				summary: 'To check the receipt again',
-				label: 'Check again'
+				title: 'Check the receipt again',
+				summary: 'It doesn’t use your one fix',
+				label: 'Check again',
+				pose: 'load-error'
 			},
 			async (pin) => {
 				const exit = await act('retry', payout.payoutId, {
@@ -385,6 +455,25 @@
 	}
 
 	const facts = $derived(rev?.check?.facts ?? null);
+	const ago = (iso: string) => {
+		const minutes = Math.max(1, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+		return minutes < 60 ? `${minutes} min ago` : when(iso);
+	};
+	const shortDay = (iso: string) =>
+		new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(new Date(iso));
+	/** The line under the receipt name (U04 "Checked …", U05 "… we’ll try again", U06 "Rejected …"). */
+	const receiptLine = $derived.by(() => {
+		if (!rev || !shown) return '';
+		const attempt = rev.revision === 2 ? ' · 2nd attempt' : '';
+		if (shown.status === 'rejected' && shown.review) {
+			const by = shown.review.reviewer?.name ?? shown.review.reviewer?.uid ?? 'the reviewer';
+			return `Rejected ${shortDay(shown.review.decidedAt)} by ${by}${attempt}`;
+		}
+		if (delayed && rev.check?.status !== 'dead')
+			return `Sent ${ago(rev.createdAt)} · we’ll try again`;
+		if (rev.check?.finishedAt) return `Checked ${when(rev.check.finishedAt)}${attempt}`;
+		return `Sent ${ago(rev.createdAt)}${attempt}`;
+	});
 	const reasons = $derived(rev?.check?.reasons ?? []);
 	const bad = $derived(mismatchedFields(reasons));
 	const receiptHref = (revision: number) =>
@@ -406,17 +495,19 @@
 		<div class="mm-spread base">
 			<span class="mm-big">{naira(w.amount)}</span>
 			<span class="mm-muted"
-				>{payout ? `to ${w.destination.bankName ?? 'bank'}` : `from ${w.pocket.name}`}</span
+				>{shown || w.status === 'completed'
+					? `to ${w.destination.bankName ?? 'bank'}`
+					: `from ${w.pocket.name}`}</span
 			>
 		</div>
-		{#if w.status === 'approved' && !payout}
+		{#if w.status === 'approved' && !shown}
 			<ol class="mm-steps" aria-label="Progress">
 				{#each steps as s (s.label)}<li class={s.state}>{s.label}</li>{/each}
 			</ol>
 		{/if}
 	</div>
 
-	{#if w.status === 'requested' || (w.status === 'approved' && payout) || w.status === 'completed'}
+	{#if w.status === 'requested' || (w.status === 'approved' && shown && mode === 'view') || w.status === 'completed'}
 		<div class="mm-section">
 			<div class="mm-spread who">
 				<span class="mm-avatar lg">{initials(w.member?.name, w.member?.uid ?? '')}</span>
@@ -448,7 +539,7 @@
 		</div>
 	{/if}
 
-	{#if w.status === 'requested' || (w.status === 'approved' && !payout)}
+	{#if w.status === 'requested' || (w.status === 'approved' && (!shown || mode === 'record'))}
 		<div class="mm-section">
 			<span class="mm-label">Send to</span>
 			<div class="mm-box">
@@ -465,9 +556,8 @@
 					<span class="mm-box-sub">{w.destination.accountName}</span>
 				</div>
 				{#if revealed}
-					<button type="button" class="mm-btn sm" onclick={copyNumber}>
-						<Copy size={14} />
-						{copied ? 'Copied' : 'Copy'}
+					<button type="button" class="mm-btn sm" onclick={() => (revealed = null)}>
+						<Lock size={14} /> Hide
 					</button>
 				{:else if w.can.reveal}
 					<button type="button" class="mm-btn sm" disabled={!canAct || busy} onclick={reveal}>
@@ -479,14 +569,16 @@
 			</div>
 			{#if w.status === 'approved'}
 				<p class="mm-note">
-					Pay this from your bank app, then record what you actually sent below.
+					{revealed
+						? 'Pay this from your bank app, then record what you sent.'
+						: 'Pay this from your bank app, then record what you actually sent below.'}
 				</p>
 			{/if}
 		</div>
 	{/if}
 
-	{#if payout && mode === 'view' && rev}
-		{#if payout.status === 'correction_required' || payout.status === 'needs_review'}
+	{#if shown && mode === 'view' && rev}
+		{#if shown.status === 'correction_required' || shown.status === 'needs_review' || shown.status === 'rejected'}
 			<div class="mm-section">
 				<div class="mm-compare">
 					<span></span><span class="h">You recorded</span><span class="h">Receipt shows</span>
@@ -498,22 +590,24 @@
 					<span class="k" class:row-bad={bad.has('date')}>Date paid</span>
 					<span class:row-bad={bad.has('date')}>{calendarDate(rev.paidOn)}</span>
 					<span class:row-bad={bad.has('date')} class={bad.has('date') ? 'bad' : 'ok'}
-						>{facts?.transactionDate ?? '—'}</span
+						>{facts?.transactionDate ? calendarDate(facts.transactionDate) : '—'}</span
 					>
 					<span class="k" class:row-bad={bad.has('account')}>Account</span>
 					<span class:row-bad={bad.has('account')}>•• {w.destination.accountLast4}</span>
 					<span class:row-bad={bad.has('account')} class={bad.has('account') ? 'bad' : 'ok'}
 						>{facts?.recipientAccount ? `•• ${facts.recipientAccount.slice(-4)}` : '—'}</span
 					>
-					<span class="k" class:row-bad={bad.has('name')}>Name</span>
-					<span class:row-bad={bad.has('name')}>{w.destination.accountName}</span>
-					<span class:row-bad={bad.has('name')} class={bad.has('name') ? 'bad' : 'ok'}
-						>{facts?.recipientName ?? '—'}</span
-					>
+					{#if bad.has('name')}
+						<span class="k row-bad">Name</span>
+						<span class="row-bad">{w.destination.accountName}</span>
+						<span class="row-bad bad">{facts?.recipientName ?? '—'}</span>
+					{/if}
 				</div>
-				<ul class="reasons">
-					{#each reasons as r (r)}<li>{reasonText(r)}</li>{/each}
-				</ul>
+				{#if reasons.length && shown.status !== 'rejected'}
+					<ul class="reasons">
+						{#each reasons as r (r)}<li>{reasonText(r)}</li>{/each}
+					</ul>
+				{/if}
 			</div>
 		{:else}
 			<div class="mm-section">
@@ -522,7 +616,7 @@
 				</div>
 				{#if rev.fee}
 					<div class="mm-spread">
-						<span class="mm-muted">Fee</span><span class="mm-value">{naira(rev.fee)}</span>
+						<span class="mm-muted">Bank fee</span><span class="mm-value">{naira(rev.fee)}</span>
 					</div>
 				{/if}
 				<div class="mm-spread">
@@ -549,14 +643,14 @@
 						target="_blank"
 						rel="noopener">{rev.receipt.name}</a
 					>
-					<span class="mm-box-sub"
-						>{rev.revision === 2 ? '2nd attempt · ' : ''}{rev.check?.finishedAt
-							? `Checked ${when(rev.check.finishedAt)}`
-							: `Sent ${when(rev.createdAt)}`}</span
-					>
+					<span class="mm-box-sub">{receiptLine}</span>
 				</div>
-				{#if rev.check?.status === 'dead'}
+				{#if shown.status === 'rejected'}
+					<Pill label="Rejected" tone="danger" />
+				{:else if rev.check?.status === 'dead'}
 					<Pill label="Check delayed" tone="warning" />
+				{:else if delayed}
+					<Pill label="Retrying" tone="warning" />
 				{:else if rev.check?.outcome === 'mismatch'}
 					<Pill label="Didn’t match" tone="danger" />
 				{:else if rev.check?.outcome === 'match'}
@@ -565,32 +659,36 @@
 					<Pill label="Checking" tone="info" />
 				{/if}
 			</div>
-			{#if payout.status === 'needs_review'}
+			{#if shown.status === 'needs_review'}
 				<p class="mm-note">
 					A Financial Evidence Reviewer decides now. The amount stays reserved until then.
 				</p>
 			{:else if rev.check?.status === 'dead'}
-				<p class="mm-note">We couldn’t check the receipt after several tries. Check it again.</p>
+				<p class="mm-note">We couldn’t read the receipt after several tries. Check it again.</p>
+			{:else if shown.status === 'rejected' && shown.review}
+				<p class="mm-note">“{shown.review.reason}”</p>
 			{/if}
 		</div>
-		{#if payout.status === 'verifying' && rev.check?.status !== 'dead'}
+		{#if shown.status === 'verifying' || w.status === 'completed'}
 			<div class="mm-section">
 				<ol class="mm-steps" aria-label="Progress">
 					<li class="done">Requested</li>
 					<li class="done">Approved</li>
 					<li class="done">Recorded</li>
-					<li class="current">Checking</li>
+					<li class={w.status === 'completed' ? 'done' : 'current'}>
+						{w.status === 'completed' ? 'Verified' : 'Checking'}
+					</li>
 				</ol>
 			</div>
 		{/if}
 	{/if}
 
-	{#if (w.status === 'approved' && !payout && w.can.record) || mode !== 'view'}
+	{#if (w.status === 'approved' && !shown && w.can.record) || mode !== 'view'}
 		<form class="mm-section" onsubmit={submitPayout} novalidate>
-			<span class="mm-label">{mode === 'correct' ? 'Fix the record' : 'Record payout'}</span>
+			<span class="mm-label">{mode === 'correct' ? 'New receipt' : 'Record payout'}</span>
 			{#if mode === 'correct'}
 				<p class="mm-note">
-					You can fix this once. Upload the receipt again (the same file is fine) and correct what
+					This is your one fix before a reviewer looks. Upload the new receipt and correct what
 					didn’t match.
 				</p>
 			{/if}
@@ -605,21 +703,21 @@
 				</label>
 			</div>
 			<label class="mm-field">
-				<span class="mm-field-label">Transfer fee <span class="mm-muted">· optional</span></span>
+				<span class="mm-field-label">Bank reference</span>
+				<input
+					class="mm-input mono"
+					maxlength="100"
+					bind:value={bankReference}
+					autocomplete="off"
+				/>
+			</label>
+			<label class="mm-field">
+				<span class="mm-field-label">Bank fee (optional)</span>
 				<input
 					class="mm-input"
 					inputmode="decimal"
 					placeholder="₦0.00"
 					bind:value={feeText}
-					autocomplete="off"
-				/>
-			</label>
-			<label class="mm-field">
-				<span class="mm-field-label">Bank reference <span class="mm-muted">· optional</span></span>
-				<input
-					class="mm-input mono"
-					maxlength="100"
-					bind:value={bankReference}
 					autocomplete="off"
 				/>
 			</label>
@@ -648,7 +746,7 @@
 			{#if fieldError}<p class="mm-error" role="alert">{fieldError}</p>{/if}
 			{#if error}<p class="mm-error" role="alert">{error}</p>{/if}
 			<div class="mm-actions">
-				{#if mode === 'correct'}
+				{#if mode !== 'view'}
 					<button type="button" class="mm-btn" onclick={() => (mode = 'view')}>Back</button>
 				{/if}
 				<button type="submit" class="mm-btn primary" disabled={!canAct || busy}>
@@ -689,7 +787,6 @@
 					disabled={!canAct}
 					onclick={() => {
 						resetForm(true);
-						sentText = rev ? `₦${groupAmount(rev.amount)}` : sentText;
 						mode = 'correct';
 					}}>New receipt</button
 				>
@@ -698,6 +795,7 @@
 					class="mm-btn primary"
 					disabled={!canAct}
 					onclick={() => {
+						if (fixFields.length) return openFix();
 						resetForm(true);
 						mode = 'correct';
 					}}>{fixLabel(reasons)}</button
@@ -709,8 +807,32 @@
 					>Check the receipt again</button
 				>
 			</div>
+		{:else if rejected && w.can.record}
+			<div class="mm-section mm-actions">
+				{#if w.can.cancel}
+					<button
+						type="button"
+						class="mm-btn"
+						disabled={!canAct}
+						onclick={() => {
+							dialogError = null;
+							dialogPinError = null;
+							cancelOpen = true;
+						}}>Cancel withdrawal</button
+					>
+				{/if}
+				<button
+					type="button"
+					class="mm-btn primary"
+					disabled={!canAct}
+					onclick={() => {
+						resetForm();
+						mode = 'record';
+					}}>Record again</button
+				>
+			</div>
 		{/if}
-		{#if w.can.cancel && w.status === 'approved'}
+		{#if w.can.cancel && w.status === 'approved' && !shown}
 			<div class="mm-section">
 				<button
 					type="button"
@@ -736,16 +858,53 @@
 	{/if}
 </section>
 
-<ConfirmDialog
+<RootDialog
 	bind:open={pinOpen}
+	pose={pinPose}
 	title={pinTitle}
 	summary={pinSummary}
 	confirmLabel={pinLabel}
-	needsReason={false}
+	needsPin
+	pinTry={stepTry}
 	{busy}
 	{pinError}
 	onConfirm={({ pin }) => pending?.(pin)}
 />
+
+<RootDialog
+	bind:open={fixOpen}
+	pose="queue-correction"
+	title={fixLabel(reasons)}
+	summary="This is your one fix before a reviewer looks"
+	confirmLabel="Send again"
+	needsPin
+	pinTry={fixTry}
+	{busy}
+	error={fixError}
+	pinError={fixPinError}
+	onConfirm={({ pin }) => sendFix(pin)}
+>
+	{#snippet fields()}
+		{#if fixFields.includes('amount')}
+			<div class="rd-field">
+				<label class="rd-label" for="fix-amount">Amount sent</label>
+				<input
+					id="fix-amount"
+					class="rd-input"
+					inputmode="decimal"
+					autocomplete="off"
+					bind:value={fixAmount}
+				/>
+			</div>
+		{/if}
+		{#if fixFields.includes('date')}
+			<div class="rd-field">
+				<label class="rd-label" for="fix-date">Date paid</label>
+				<input id="fix-date" class="rd-input" type="date" max={localToday()} bind:value={fixDate} />
+			</div>
+		{/if}
+	{/snippet}
+</RootDialog>
 
 <RootDialog
 	bind:open={rejectOpen}
@@ -764,8 +923,8 @@
 <RootDialog
 	bind:open={cancelOpen}
 	pose="dialog-remove"
-	title="Cancel approved withdrawal?"
-	summary="Only if no money was sent. The hold is released."
+	title="Cancel this withdrawal"
+	summary="Only if no money was sent"
 	confirmLabel="Cancel withdrawal"
 	cancelLabel="Keep it"
 	tone="danger"

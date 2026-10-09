@@ -287,24 +287,24 @@
 		line-height: var(--leading-20);
 	}
 
-	.rd-field {
+	.rd-fields :global(.rd-field) {
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
 	}
 
-	.rd-label {
+	.rd-fields :global(.rd-label) {
 		color: #d5dadb;
 		font-size: var(--text-14);
 		font-weight: var(--font-weight-medium);
 		line-height: var(--leading-20);
 	}
 
-	:global([data-theme='light']) .rd-label {
+	:global([data-theme='light']) .rd-fields :global(.rd-label) {
 		color: var(--color-text);
 	}
 
-	.rd-input {
+	.rd-fields :global(.rd-input) {
 		height: 48px;
 		padding: 0 14px;
 		border: 1px solid #2a2f31;
@@ -316,12 +316,12 @@
 		line-height: var(--leading-20);
 	}
 
-	.rd-input:focus {
+	.rd-fields :global(.rd-input:focus) {
 		outline: none;
 		border-color: var(--color-accent);
 	}
 
-	.rd-input[aria-invalid='true'] {
+	.rd-fields :global(.rd-input[aria-invalid='true']) {
 		border-color: var(--color-danger);
 	}
 
@@ -360,7 +360,7 @@
 	}
 
 	:global([data-theme='light']) .rd-cell,
-	:global([data-theme='light']) .rd-input {
+	:global([data-theme='light']) .rd-fields :global(.rd-input) {
 		border-color: var(--color-border);
 		background: var(--color-raised);
 	}

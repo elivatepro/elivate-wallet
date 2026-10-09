@@ -75,11 +75,44 @@ export function uploadPayoutReceipt(
 	path: string,
 	onProgress?: (fraction: number) => void
 ): Effect.Effect<typeof EvidenceFinalized.Type, ApiFailure> {
+	return uploadEvidence(input, {}, workspaceId, path, onProgress);
+}
+
+/** Evidence for a conversion, adjustment or returned funds (Blueprint 12). */
+export function uploadEntryEvidence(
+	input: {
+		file: File;
+		kind: 'conversion' | 'adjustment' | 'returned_funds';
+		targetMembershipId: string;
+		idempotencyKey: string;
+		pin?: string;
+	},
+	workspaceId: string,
+	path: string,
+	onProgress?: (fraction: number) => void
+): Effect.Effect<typeof EvidenceFinalized.Type, ApiFailure> {
+	return uploadEvidence(
+		input,
+		{ kind: input.kind, targetMembershipId: input.targetMembershipId },
+		workspaceId,
+		path,
+		onProgress
+	);
+}
+
+function uploadEvidence(
+	input: { file: File; idempotencyKey: string; pin?: string },
+	fields: Record<string, string>,
+	workspaceId: string,
+	path: string,
+	onProgress?: (fraction: number) => void
+): Effect.Effect<typeof EvidenceFinalized.Type, ApiFailure> {
 	const route = `POST ${path}`;
 	return Effect.gen(function* () {
 		const body = new FormData();
 		body.set('idempotencyKey', input.idempotencyKey);
 		if (input.pin) body.set('pin', input.pin);
+		for (const [name, value] of Object.entries(fields)) body.set(name, value);
 		body.set('file', input.file, input.file.name);
 		const reply = yield* Effect.tryPromise({
 			try: () => sendForm(path, body, workspaceId, onProgress),
