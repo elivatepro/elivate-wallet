@@ -1,15 +1,16 @@
 <!--
 	Signed-in devices, Paper "App — Screens v2" S03 (desktop rows: icon tile,
-	device, activity column, 200 px action lane) and S04 (mobile rows). Only
-	what the backend returns is shown: no location or sign-in history yet
-	(Blueprint 01 shows no IP). "This device" cannot be signed out here.
+	device, approximate location, activity column, 200 px action lane) and S04
+	(mobile rows: "Lagos (approx.) · 2 h ago"). The location comes from the
+	sign-in (Blueprint 14); the IP is never shown. Without a location the row
+	says when the device signed in. "This device" cannot be signed out here.
 -->
 <script lang="ts">
 	import Laptop from '@lucide/svelte/icons/laptop';
 	import Smartphone from '@lucide/svelte/icons/smartphone';
 	import Tablet from '@lucide/svelte/icons/tablet';
 	import type { SessionSummary } from '#lib/contract/security.js';
-	import { activityLabel, describeDevice } from '#lib/devices.js';
+	import { activityLabel, describeDevice, placeLabel } from '#lib/devices.js';
 	import RootDialog from './RootDialog.svelte';
 
 	let {
@@ -71,14 +72,25 @@
 			{#each sessions as session (session.sessionId)}
 				{@const device = describeDevice(session.userAgent)}
 				{@const Icon = icons[device.kind]}
+				{@const place = placeLabel(session.city, session.country)}
+				{@const short = [
+					placeLabel(session.city, session.country, true),
+					activityLabel(session.lastActiveAt, now, {}, true)
+				]
+					.filter(Boolean)
+					.join(' · ')}
 				<li class="row">
 					<span class="icon" aria-hidden="true"><Icon size={20} strokeWidth={1.8} /></span>
 					<span class="who">
-						<span class="name">{device.label}</span>
+						<span class="name"
+							>{device.label}{#if session.reasons.length > 0}<span class="flag"
+									>{session.reasons.includes('new_location') ? 'New location' : 'New device'}</span
+								>{/if}</span
+						>
 						<span class="sub"
-							><span class="mob">{activityLabel(session.lastActiveAt, now, {}, true)}</span><span
-								class="desk"
-								>Signed in {activityLabel(session.createdAt, now, {}, true) || 'recently'}</span
+							><span class="mob">{short}</span><span class="desk"
+								>{place ??
+									`Signed in ${activityLabel(session.createdAt, now, {}, true) || 'recently'}`}</span
 							></span
 						>
 					</span>
@@ -187,6 +199,24 @@
 		color: var(--color-text);
 		font-size: 15px;
 		line-height: 20px;
+	}
+
+	/* Paper B09: an unusual sign-in is flagged on its row. */
+	.flag {
+		display: inline-block;
+		margin-left: 8px;
+		padding: 2px 8px;
+		border-radius: var(--radius-pill);
+		background: #3a1f1f;
+		color: var(--color-danger);
+		font-size: 11px;
+		font-weight: var(--font-weight-medium);
+		line-height: var(--leading-16);
+		vertical-align: 1px;
+	}
+
+	:global([data-theme='light']) .flag {
+		background: color-mix(in oklab, var(--color-danger) 12%, transparent);
 	}
 
 	.sub {

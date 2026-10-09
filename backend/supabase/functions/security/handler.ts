@@ -58,6 +58,45 @@ function routeWithId(routeKey: string): { key: string; id?: string } {
   return { key: `${found[1]}:id${found[3]}`, id: (found[2] ?? "").toLowerCase() };
 }
 
+const signInMethods: readonly string[] = ["password", "email_link", "recovery", "sign_up"];
+
+const ipv4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+const ipv6 = /^[0-9A-Fa-f:.]{2,45}$/;
+
+/** Absent or null → null; otherwise one host address (Postgres makes the final check). */
+function optionalIp(body: v.Body): string | null {
+  const value = body.ip;
+  if (value === undefined || value === null) return null;
+  if (
+    typeof value !== "string" || !(ipv4.test(value) || (value.includes(":") && ipv6.test(value)))
+  ) {
+    throw new ApiError("validation_error", { field: "ip" });
+  }
+  return value;
+}
+
+/** Display text without control characters (the database refuses them too). */
+function plainText(body: v.Body, field: string, max: number): string {
+  const value = v.text(body, field, max);
+  // deno-lint-ignore no-control-regex
+  if (/[\u0000-\u001f\u007f]/.test(value)) throw new ApiError("validation_error", { field });
+  return value;
+}
+
+function optionalText(body: v.Body, field: string, max: number): string | null {
+  const value = body[field];
+  return value === undefined || value === null ? null : plainText(body, field, max);
+}
+
+function optionalCountry(body: v.Body): string | null {
+  const value = body.country;
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string" || !/^[A-Z][A-Z0-9]$/.test(value)) {
+    throw new ApiError("validation_error", { field: "country" });
+  }
+  return value;
+}
+
 function parseDetails(raw: string | null | undefined): Details {
   if (!raw) return {};
   try {
@@ -169,6 +208,66 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
         ...base(actor, requestId),
         p_target_session_id: allOthers ? null : v.uuid(body, "sessionId"),
         p_all_others: allOthers,
+      });
+    },
+
+    // Blueprint 14: the app server records each new Auth session (before the
+    // PIN) with the IP and approximate location Cloudflare saw.
+    "POST /sign-ins": async (request, actor, requestId) => {
+      const body = await v.readBody(request, [
+        "method",
+        "ip",
+        "city",
+        "country",
+        "device",
+        "userAgent",
+      ]);
+      const method = v.text(body, "method", 20);
+      if (!signInMethods.includes(method)) {
+        throw new ApiError("validation_error", { field: "method" });
+      }
+      return call("record_sign_in", {
+        ...base(actor, requestId),
+        p_method: method,
+        p_ip: optionalIp(body),
+        p_city: optionalText(body, "city", 100),
+        p_country: optionalCountry(body),
+        p_device: plainText(body, "device", 60),
+        p_user_agent: optionalText(body, "userAgent", 1000)?.slice(0, 300) ?? null,
+      });
+    },
+
+    "GET /overview": (_r, actor) =>
+      call("security_overview", { p_user_id: actor.userId, p_session_id: actor.sessionId }),
+
+    // Blueprint 14: change the password while signed in. Step 1 proves the
+    // PIN; the app server then saves the password through Supabase Auth and
+    // records it (step 2). The password never reaches this function.
+    "POST /password/authorize": async (request, actor, requestId) => {
+      const pin = v.pin(await v.readBody(request, ["pin"]), "pin");
+      const result = await call("authorize_password_change", {
+        ...base(actor, requestId),
+        p_pin_hmac: await deps.pinHmac(pin),
+      }) as { ok?: boolean; code?: unknown; attemptsRemaining?: unknown; changeId?: unknown };
+      if (result?.ok === true && typeof result.changeId === "string") {
+        return { changeId: result.changeId };
+      }
+      if (result?.code === "pin_incorrect" || result?.code === "pin_locked") {
+        throw new ApiError(result.code, { attemptsRemaining: result.attemptsRemaining });
+      }
+      throw new Error("authorize_password_change returned an unexpected result");
+    },
+
+    "POST /password/changed": async (request, actor, requestId) => {
+      const body = await v.readBody(request, ["changeId", "recovery"]);
+      const recovery = body.recovery === true;
+      if (recovery === ("changeId" in body) || ("recovery" in body && !recovery)) {
+        throw new ApiError("validation_error", { field: "changeId" });
+      }
+      return call("record_password_change", {
+        ...base(actor, requestId),
+        p_change_id: recovery ? null : v.uuid(body, "changeId"),
+        p_recovery: recovery,
       });
     },
 

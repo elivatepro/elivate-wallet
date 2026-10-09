@@ -1,10 +1,10 @@
 <!--
 	Profile & security, Paper "App — Screens v1" B09 (desktop) / B10 (mobile):
-	identity hero, Profile card (Edit), Security card (Change PIN) and the
-	signed-in devices. Edit profile is the Paper "App — Screens v4" Z04 dialog
-	(owner approved 2026-10-08; no time zone, owner decision). No password row
-	(changing the password while signed in is not in this slice; recovery is on
-	the sign-in page). Read live, never cached on device.
+	identity hero, Profile card (Edit), Security card (Password, Change PIN)
+	and the signed-in devices. Edit profile is the Paper "App — Screens v4" Z04
+	dialog (owner approved 2026-10-08; no time zone, owner decision). The
+	Password row opens the signed-in change (Blueprint 14, Paper Z08). Read
+	live, never cached on device.
 -->
 <script lang="ts">
 	import { getContext, onMount } from 'svelte';
@@ -42,6 +42,17 @@
 		shell.state.kind === 'ready' || shell.state.kind === 'offline' ? shell.state.summary : null
 	);
 	const name = $derived(view ? shownName(view.profile) : null);
+	/** Paper B09: "Changed 12 Jul 2026". */
+	const passwordHint = $derived.by(() => {
+		const at = view?.security.passwordChangedAt;
+		if (!at) return 'Used to sign in';
+		const day = new Date(at).toLocaleDateString('en-GB', {
+			day: 'numeric',
+			month: 'short',
+			year: 'numeric'
+		});
+		return `Changed ${day}`;
+	});
 	const legalName = $derived.by(() => {
 		const legal = view?.profile.identity.legalName;
 		return legal ? [legal.given, ...legal.middle, legal.surname].join(' ') : null;
@@ -262,6 +273,14 @@
 				<div class="card-head">
 					<h2 class="card-title">Security</h2>
 				</div>
+				<a class="row tall" href="/app/account/password">
+					<span class="stack">
+						<span class="label-strong">Password</span>
+						<span class="hint">{passwordHint}</span>
+					</span>
+					<span class="pill">Change</span>
+					<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
+				</a>
 				<a class="row tall" href="/app/account/pin">
 					<span class="stack">
 						<span class="label-strong">Transaction PIN</span>

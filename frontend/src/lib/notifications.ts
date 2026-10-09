@@ -6,11 +6,12 @@
 import type { Currency } from '#lib/contract/ledger.js';
 import type { NotificationItem } from '#lib/contract/notifications.js';
 import { ROLE_LABELS } from '#lib/labels.js';
+import { placeLabel } from '#lib/devices.js';
 import { formatMoney, hiddenMoney } from '#lib/money.js';
 
 export type BellTone = 'warning' | 'success' | 'danger' | 'neutral';
 export type BellIcon =
-	'up' | 'down' | 'check' | 'x' | 'swap' | 'undo' | 'review' | 'person' | 'bank';
+	'up' | 'down' | 'check' | 'x' | 'swap' | 'undo' | 'review' | 'person' | 'bank' | 'lock';
 
 export interface BellEntry {
 	readonly title: string;
@@ -192,6 +193,18 @@ export function present(item: NotificationItem, hide = false): BellEntry {
 				p.bankName ?? '',
 				p.action === 'name_mismatch' ? 'danger' : 'warning',
 				'bank'
+			);
+		// Blueprint 14: A06–A08 as personal items. Never an IP.
+		case 'security.password_changed':
+			return entry('Password changed', 'Not you? Secure your account now.', 'warning', 'lock');
+		case 'security.pin_changed':
+			return entry('PIN changed', 'Not you? Reset your PIN now.', 'warning', 'lock');
+		case 'security.new_sign_in':
+			return entry(
+				p.reason === 'new_location' ? 'Sign-in from a new place' : 'New sign-in',
+				join(p.device, placeLabel(p.city ?? null, p.country ?? null, true) ?? undefined),
+				'warning',
+				'lock'
 			);
 		default:
 			return entry('Update', '', 'neutral', 'check');

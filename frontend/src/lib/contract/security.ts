@@ -24,9 +24,43 @@ export const SessionSummary = Schema.Struct({
 	createdAt: IsoDateTime,
 	lastActiveAt: Schema.NullOr(IsoDateTime),
 	userAgent: Schema.NullOr(Schema.String),
-	current: Schema.Boolean
+	current: Schema.Boolean,
+	// Blueprint 14: approximate location from the sign-in (never the IP).
+	city: Schema.NullOr(Schema.String),
+	country: Schema.NullOr(Schema.String),
+	/** Why this session's sign-in was unusual; empty when it wasn't. */
+	reasons: Schema.Array(Schema.Literals(['new_location', 'new_device']))
 });
 export const Sessions = Schema.Array(SessionSummary);
+
+/** Blueprint 14: how the app server signed this session in. */
+export const SignInMethod = Schema.Literals(['password', 'email_link', 'recovery', 'sign_up']);
+export type SignInMethod = typeof SignInMethod.Type;
+
+export const SignInRecorded = Schema.Struct({ unusual: Schema.Boolean });
+
+export const UnusualSignIn = Schema.Struct({
+	signInId: Uuid,
+	signedInAt: IsoDateTime,
+	device: Schema.String,
+	city: Schema.NullOr(Schema.String),
+	country: Schema.NullOr(Schema.String),
+	reasons: Schema.Array(Schema.Literals(['new_location', 'new_device'])),
+	current: Schema.Boolean,
+	signedIn: Schema.Boolean
+});
+export type UnusualSignIn = typeof UnusualSignIn.Type;
+
+/** GET /overview (Paper B09, Z07): last password change and unusual sign-ins. */
+export const SecurityOverview = Schema.Struct({
+	passwordChangedAt: Schema.NullOr(IsoDateTime),
+	unusualSignIns: Schema.Array(UnusualSignIn)
+});
+export type SecurityOverview = typeof SecurityOverview.Type;
+
+export const PasswordChangeAuthorized = Schema.Struct({ changeId: Uuid });
+export const PasswordChanged = Schema.Struct({ changedAt: IsoDateTime });
+export type PasswordChanged = typeof PasswordChanged.Type;
 
 export const Revoked = Schema.Struct({ revoked: Schema.Int });
 
@@ -47,5 +81,10 @@ export const SecurityRoutes = {
 	sessions: { method: 'GET', path: '/sessions' },
 	sessionsRevoke: { method: 'POST', path: '/sessions/revoke' },
 	// Blueprint 10.
-	pinChange: { method: 'POST', path: '/pin/change' }
+	pinChange: { method: 'POST', path: '/pin/change' },
+	// Blueprint 14.
+	signIns: { method: 'POST', path: '/sign-ins' },
+	overview: { method: 'GET', path: '/overview' },
+	passwordAuthorize: { method: 'POST', path: '/password/authorize' },
+	passwordChanged: { method: 'POST', path: '/password/changed' }
 } as const;

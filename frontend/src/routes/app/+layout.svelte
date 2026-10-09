@@ -97,6 +97,7 @@
 		// Blueprint 10 (Paper S03/S05 breadcrumbs); most specific first.
 		'/app/account/devices': 'Profile & security  /  Devices & sessions',
 		'/app/account/pin': 'Profile & security  /  Transaction PIN',
+		'/app/account/password': 'Profile & security  /  Password',
 		'/app/account': 'Profile & security',
 		'/app/activity': 'Activity',
 		'/app/withdrawals/new': 'Withdrawals  /  New request',

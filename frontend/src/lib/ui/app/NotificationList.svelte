@@ -11,6 +11,7 @@
 	import Check from '@lucide/svelte/icons/check';
 	import FileSearch from '@lucide/svelte/icons/file-search';
 	import Landmark from '@lucide/svelte/icons/landmark';
+	import LockKeyhole from '@lucide/svelte/icons/lock-keyhole';
 	import Undo2 from '@lucide/svelte/icons/undo-2';
 	import UserRound from '@lucide/svelte/icons/user-round';
 	import X from '@lucide/svelte/icons/x';
@@ -39,7 +40,8 @@
 		undo: Undo2,
 		review: FileSearch,
 		person: UserRound,
-		bank: Landmark
+		bank: Landmark,
+		lock: LockKeyhole
 	};
 
 	const list = $derived(bell.list.kind === 'ready' ? bell.list : null);

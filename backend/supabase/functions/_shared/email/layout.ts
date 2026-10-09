@@ -47,7 +47,10 @@ export type RootPose =
   | "invitation-accepted"
   | "account-status"
   | "role-changed"
-  | "membership-ended";
+  | "membership-ended"
+  // Blueprint 14: A07 and A08.
+  | "new-sign-in"
+  | "pin-changed";
 
 export type StatusTone = "success" | "warning" | "danger" | "muted";
 

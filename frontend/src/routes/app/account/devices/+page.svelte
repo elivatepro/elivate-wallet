@@ -1,9 +1,9 @@
 <!--
-	Devices & sessions, Paper "App — Screens v2" S03 (desktop) / S04 (mobile).
-	Sign out one other device or all others (W-22, Blueprint 01 B4); their PIN
-	windows close with them. Not shown until the backend has the data: the
-	approximate location and the "Unusual sign-ins" list (no IP is kept,
-	Blueprint 01; sign-in history is an open item).
+	Devices & sessions, Paper "App — Screens v2" S03 (desktop) / S04 (mobile)
+	and v4 Z07. Sign out one other device or all others (W-22, Blueprint 01
+	B4); their PIN windows close with them. Blueprint 14: each device's
+	approximate location and the "Unusual sign-ins" list (new place or new
+	device), linking to Change password.
 -->
 <script lang="ts">
 	import { getContext, onMount } from 'svelte';
@@ -16,6 +16,7 @@
 	import AccountHero from '#lib/ui/account/AccountHero.svelte';
 	import PageBar from '#lib/ui/account/PageBar.svelte';
 	import SessionList from '#lib/ui/account/SessionList.svelte';
+	import UnusualSignIns from '#lib/ui/account/UnusualSignIns.svelte';
 	import FormAlert from '#lib/ui/auth/FormAlert.svelte';
 
 	const shell = getContext<Shell>('shell');
@@ -110,6 +111,9 @@
 			heading="Active sessions"
 			onRevoke={revoke}
 		/>
+		{#if view.security.unusualSignIns.length > 0}
+			<UnusualSignIns items={view.security.unusualSignIns} />
+		{/if}
 	{/if}
 </div>
 

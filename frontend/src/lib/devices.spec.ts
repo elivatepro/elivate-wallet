@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { activityLabel, describeDevice, initials, maskPhone } from './devices';
+import { countryName, placeLabel, unusualReason, unusualStatus } from './devices';
 
 const IPHONE =
 	'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
@@ -47,5 +48,37 @@ describe('initials and maskPhone', () => {
 		expect(maskPhone('+2348012344410')).toBe('+234 •• •••• 4410');
 		expect(maskPhone('08012344410')).toBe('•• •••• 4410');
 		expect(maskPhone(null)).toBeNull();
+	});
+});
+
+describe('location and unusual sign-ins (Blueprint 14)', () => {
+	it('names the place like Paper, never an IP', () => {
+		expect(placeLabel('Lagos', 'NG')).toBe('Lagos, Nigeria (approx.)');
+		expect(placeLabel('Lagos', 'NG', true)).toBe('Lagos (approx.)');
+		expect(placeLabel(null, 'GH', true)).toBe('Ghana (approx.)');
+		expect(placeLabel(null, 'XX')).toBeNull();
+		expect(placeLabel(null, null)).toBeNull();
+		expect(countryName('T1')).toBeNull();
+	});
+
+	it('says why and when', () => {
+		const base = {
+			device: 'Windows · Edge',
+			signedInAt: '2026-10-03T22:14:00Z',
+			current: false,
+			signedIn: false
+		};
+		expect(unusualReason({ ...base, reasons: ['new_location'] })).toBe('new location');
+		expect(unusualReason({ ...base, reasons: ['new_device'] })).toBe('new device');
+		expect(unusualReason({ ...base, reasons: ['new_location', 'new_device'] })).toBe(
+			'new device and location'
+		);
+		const utc = { locale: 'en-GB', timeZone: 'UTC' };
+		expect(unusualStatus({ ...base, reasons: ['new_location'] }, utc)).toBe(
+			'Signed in 3 Oct, 22:14 · now signed out'
+		);
+		expect(unusualStatus({ ...base, signedIn: true, reasons: ['new_device'] }, utc)).toBe(
+			'Signed in 3 Oct, 22:14 · still signed in'
+		);
 	});
 });

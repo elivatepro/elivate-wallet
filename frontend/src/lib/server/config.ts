@@ -1,4 +1,5 @@
 import {
+	E2E_GEO_HEADERS,
 	SUPABASE_PUBLISHABLE_KEY,
 	SUPABASE_URL,
 	TURNSTILE_HOSTNAMES,
@@ -40,4 +41,14 @@ export function turnstileConfig(): {
 			.map((host) => host.trim().toLowerCase())
 			.filter((host) => host.length > 0)
 	};
+}
+
+/**
+ * Blueprint 14: local e2e may supply the sign-in location in headers, and only
+ * against a loopback Supabase. The deployed Worker always uses Cloudflare's.
+ */
+export function geoTestHeaders(): boolean {
+	if (E2E_GEO_HEADERS !== true || !SUPABASE_URL) return false;
+	const host = new URL(SUPABASE_URL).hostname;
+	return host === '127.0.0.1' || host === 'localhost';
 }

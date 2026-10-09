@@ -96,6 +96,19 @@ export function recoveryPending(cookies: Cookies): boolean {
 	return cookies.get(RECOVERY_COOKIE) === '1';
 }
 
+/**
+ * Blueprint 14: the new password is saved; /reset-password then shows the
+ * Z10 confirmation (other devices signed out, PIN next) instead of the form,
+ * and the form can no longer be submitted. Expires with the recovery window.
+ */
+export function markRecoverySaved(cookies: Cookies, secure: boolean): void {
+	cookies.set(RECOVERY_COOKIE, 'saved', { ...base(secure), httpOnly: true, maxAge: 60 * 15 });
+}
+
+export function recoverySaved(cookies: Cookies): boolean {
+	return cookies.get(RECOVERY_COOKIE) === 'saved';
+}
+
 export function clearRecovery(cookies: Cookies): void {
 	cookies.delete(RECOVERY_COOKIE, { path: '/' });
 }
