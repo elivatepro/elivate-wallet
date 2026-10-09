@@ -142,6 +142,37 @@ export const TransactionDetail = Schema.Struct({
 				})
 			)
 		})
+	),
+	/** Blueprint 12: the conversion / adjustment / returned-funds facts. */
+	entry: Schema.optionalKey(
+		Schema.NullOr(
+			Schema.Struct({
+				kind: Schema.Literals(['conversion', 'adjustment', 'returned_funds']),
+				direction: Schema.Literals(['credit', 'debit']),
+				currency: Currency,
+				amount: Money,
+				conversion: Schema.NullOr(
+					Schema.Struct({
+						destinationCurrency: Currency,
+						destinationAmount: Money,
+						rateBase: Currency,
+						rateQuote: Currency,
+						effectiveRate: Schema.String,
+						quotedRate: Schema.NullOr(Schema.String)
+					})
+				),
+				provider: Schema.NullOr(Schema.String),
+				externalReference: Schema.NullOr(Schema.String),
+				reason: Schema.NullOr(Schema.String),
+				withdrawal: Schema.NullOr(Schema.Struct({ withdrawalId: Uuid, reference: Schema.String })),
+				reviewedBy: Person
+			})
+		)
+	),
+	reversal: Schema.optionalKey(
+		Schema.NullOr(
+			Schema.Struct({ category: Schema.String, note: Schema.NullOr(Schema.String), reversedBy: Person })
+		)
 	)
 });
 export type TransactionDetail = typeof TransactionDetail.Type;

@@ -10,6 +10,7 @@ import { IdempotencyKey } from './invitations';
 import { Money } from './ledger';
 import { OptionalPin } from './app';
 import { PayoutAccount } from './payout';
+import { EntryCase, EntryKind } from './entries';
 
 const Named = Schema.Struct({ id: Uuid, name: Schema.String });
 const PocketRef = Schema.Struct({ pocketId: Uuid, name: Schema.String });
@@ -217,8 +218,12 @@ export const ReviewCase = Schema.Struct({
 });
 export type ReviewCase = typeof ReviewCase.Type;
 
+/** One queue for payouts and, since Blueprint 12, conversions, adjustments and returns. */
+export const ReviewItem = Schema.Union([ReviewCase, EntryCase]);
+export type ReviewItem = typeof ReviewItem.Type;
+
 export const ReviewPage = Schema.Struct({
-	items: Schema.Array(ReviewCase),
+	items: Schema.Array(ReviewItem),
 	nextCursor: Schema.NullOr(Schema.String),
 	counts: Schema.Struct({
 		assigned: Schema.Int,
@@ -339,8 +344,15 @@ export const PayoutInput = Schema.Struct({
 export type PayoutInput = typeof PayoutInput.Type;
 export const PayoutCommand = Schema.Struct({ ...PayoutInput.fields, pin: OptionalPin });
 export type PayoutCommand = typeof PayoutCommand.Type;
+/** The one fix (Paper U03): without evidenceId the first receipt is kept. */
+export const CorrectPayoutCommand = Schema.Struct({
+	...PayoutCommand.fields,
+	evidenceId: Schema.optionalKey(Uuid)
+});
+export type CorrectPayoutCommand = typeof CorrectPayoutCommand.Type;
 
 export const ReviewDecision = Schema.Struct({
+	kind: Schema.optionalKey(EntryKind),
 	decision: Schema.Literals(['clear', 'reject']),
 	reason: Reason,
 	idempotencyKey: IdempotencyKey

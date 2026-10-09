@@ -79,7 +79,17 @@ export type RootPose =
 	| 'queue-correction'
 	| 'evidence-review'
 	| 'pocket-move'
-	| 'transfers';
+	| 'transfers'
+	// Paper "App — Screens v4" U01 (magnifier), U04 (party popper), MV02–MV05
+	// (balance scale, two coins, U-turn sign); "App — Screens v2" W07
+	// (boomerang), W09 (mailbox).
+	| 'payout-reveal'
+	| 'payout-done'
+	| 'adjust'
+	| 'convert'
+	| 'reverse'
+	| 'returned-funds'
+	| 'returned-checking';
 
 /** Rendered Root size on mobile gate screens (Paper: 120×160, 150×200, 180×240). */
 export type RootSize = 'sm' | 'md' | 'lg';
@@ -164,7 +174,14 @@ export const ROOT_HEIGHTS: Record<RootPose, number> = {
 	'queue-correction': 524,
 	'evidence-review': 524,
 	'pocket-move': 525,
-	transfers: 524
+	transfers: 524,
+	'payout-reveal': 522,
+	'payout-done': 523,
+	adjust: 524,
+	convert: 527,
+	reverse: 527,
+	'returned-funds': 520,
+	'returned-checking': 499
 };
 
 export const rootSrc = (pose: RootPose) => `/root/${pose}.webp`;

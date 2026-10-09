@@ -1,6 +1,7 @@
-// Clear (posts the withdrawal) or reject a review case, with a reason. No PIN.
+// Clear (posts the withdrawal or the entry) or reject a review case, with a
+// reason. `kind` names a conversion, adjustment or returned-funds case. No PIN.
 import { Effect } from 'effect';
-import { ReviewCase, ReviewDecision, WithdrawalRoutes } from '#lib/contract/withdrawals.js';
+import { ReviewDecision, ReviewItem, WithdrawalRoutes } from '#lib/contract/withdrawals.js';
 import { MoneyMovesApi } from '#lib/server/apis-withdrawals.js';
 import { relayCommand } from '#lib/server/command.js';
 import { validId } from '#lib/server/money-endpoints.js';
@@ -16,7 +17,7 @@ export const POST: RequestHandler = (event) => {
 				membershipId,
 				WithdrawalRoutes.decide(id),
 				body,
-				ReviewCase
+				ReviewItem
 			);
 		})
 	);

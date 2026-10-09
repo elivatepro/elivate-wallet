@@ -1,6 +1,7 @@
 // Evidence review queue (W-11, Paper v1 C09/C10): payouts whose receipt did
-// not match twice. Only people with an active reviewer assignment; never a
-// case they submitted or one about their own withdrawal.
+// not match twice, and conversions, adjustments and returned funds (Blueprint
+// 12). Only people with an active reviewer assignment; never a case they
+// submitted or one about their own money.
 import { ReviewPage, WithdrawalRoutes } from '#lib/contract/withdrawals.js';
 import { CURSOR, ledgerRead, relayRead } from '#lib/server/money-endpoints.js';
 import type { RequestHandler } from './$types';
