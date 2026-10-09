@@ -45,7 +45,8 @@ const RULES: Record<string, (v: string) => boolean> = {
 	from: (v) => DATE.test(v),
 	to: (v) => DATE.test(v),
 	tz: (v) => v.length <= 64 && TZ.test(v),
-	cursor: (v) => v.length > 0 && v.length <= 500
+	cursor: (v) => v.length > 0 && v.length <= 500,
+	limit: (v) => /^[0-9]{1,3}$/.test(v) && Number(v) >= 1 && Number(v) <= 100
 };
 
 /** Parses the activity filters; returns the offending field name on a bad value. */
@@ -60,5 +61,6 @@ export function parseActivityQuery(
 		if (!rule || !rule(value)) return { invalid: key };
 		query[key] = value;
 	}
-	return { query: query as ActivityQuery };
+	const { limit, ...rest } = query;
+	return { query: { ...(rest as ActivityQuery), ...(limit ? { limit: Number(limit) } : {}) } };
 }

@@ -479,6 +479,11 @@
 						<button type="button" class="more" onclick={() => load()}>Try again</button>
 						{#if reference}<p class="ref-note">Reference <span>{reference}</span></p>{/if}
 					</div>
+				{:else if failure}
+					<div class="retry" role="alert">
+						<p class="ref-note">We couldn’t apply these filters. {failure}</p>
+						<button type="button" class="more" onclick={() => load()}>Try again</button>
+					</div>
 				{:else if !loaded}
 					<div class="skeleton" aria-hidden="true"></div>
 					<p class="visually-hidden" role="status">Loading activity</p>

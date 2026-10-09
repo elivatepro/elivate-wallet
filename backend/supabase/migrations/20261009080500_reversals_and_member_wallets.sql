@@ -387,6 +387,9 @@ begin
       join org.offices o on o.id = m.office_id
       where m.tenant_id = workspace.tenant_id and m.user_id = owner and m.status <> 'ended'
         and m.role <> 'president_team_member'
+        -- Only memberships the leader may see (the same per-office check as the segments).
+        and ledger.segment_visible(p_user_id, 'view_managed_wallets', workspace.tenant_id, m.office_id, owner,
+          workspace.id)
     ), '[]'::jsonb),
     'networks', ledger.wallet_networks(p_wallet_id, workspace.tenant_id, ids)
   );

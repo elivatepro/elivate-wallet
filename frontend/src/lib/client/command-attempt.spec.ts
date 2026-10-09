@@ -107,6 +107,15 @@ describe('CommandAttempt', () => {
 		expect(attempt.key).not.toBe(key);
 	});
 
+	it('after a PIN prompt the kept body goes again with the same key', async () => {
+		const { attempt, sent } = harness([refused('step_up_required'), 'ok'], []);
+		const key = attempt.key;
+		await attempt.send('ws-1', { amount: '1.00' });
+		expect(attempt.awaitingPin).toBe(true);
+		expect((await attempt.resend({ pin: '1234' })).kind).toBe('done');
+		expect(sent[1]?.body).toEqual({ amount: '1.00', pin: '1234', idempotencyKey: key });
+	});
+
 	it('a reload restores the attempt from the device and checks it', async () => {
 		const first = harness(['timeout'], []);
 		await first.attempt.send('ws-1', { amount: '1.00' });

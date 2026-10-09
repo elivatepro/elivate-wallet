@@ -611,7 +611,7 @@
 			<a
 				class="ghost"
 				href={result.walletId
-					? `/app/wallets?wallet=${result.walletId}&tx=${result.transactionId}`
+					? `/app/wallets?wallet=${result.walletId}&view=activity&tx=${result.transactionId}`
 					: '/app/wallets'}>View in activity</a
 			>
 		</div>

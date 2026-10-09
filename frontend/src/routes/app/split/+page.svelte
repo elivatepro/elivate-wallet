@@ -59,6 +59,11 @@
 				: null
 	});
 	let restored = false;
+	/** The dialog's PIN goes with the kept attempt (same key, same body), not a new edit. */
+	let pinForResend = false;
+	$effect(() => {
+		if (!dialogOpen) pinForResend = false;
+	});
 	$effect(() => {
 		if (shell.state.kind === 'ready' && !restored) {
 			restored = true;
@@ -82,6 +87,7 @@
 			s.failure._tag === 'BackendError' &&
 			s.failure.code === 'step_up_required'
 		) {
+			pinForResend = true;
 			dialogOpen = true;
 			pinError = 'Enter your PIN to confirm.';
 		}
@@ -181,19 +187,22 @@
 		busy = true;
 		dialogError = null;
 		pinError = null;
-		const body = {
-			expectedVersion: view.allocation.version,
-			pockets: rows.map((r) => ({
-				pocketId: r.pocketId,
-				name: r.name.trim(),
-				basisPoints: basisPoints(r.percent) ?? 0
-			})),
-			reason
-		};
-		const state = await attempt.send(shell.state.view.workspace.membershipId, body, {
-			pin,
-			summary: 'split change'
-		});
+		const state =
+			pinForResend && attempt.awaitingPin
+				? await attempt.resend({ pin })
+				: await attempt.send(
+						shell.state.view.workspace.membershipId,
+						{
+							expectedVersion: view.allocation.version,
+							pockets: rows.map((r) => ({
+								pocketId: r.pocketId,
+								name: r.name.trim(),
+								basisPoints: basisPoints(r.percent) ?? 0
+							})),
+							reason
+						},
+						{ pin, summary: 'split change' }
+					);
 		busy = false;
 		if (state.kind === 'done') return;
 		if (state.kind !== 'failed') {

@@ -99,6 +99,8 @@ export class CommandAttempt<
 	/** The exact body sent with the current key (memory only; includes no PIN). */
 	#body: Record<string, unknown> | null = null;
 	#replaying = false;
+	#lastWorkspace: string | null = null;
+	#lastSummary: string | null = null;
 	readonly #o: CommandAttemptOptions<S>;
 	readonly #store: AttemptStore | null;
 	readonly #now: () => number;
@@ -139,11 +141,23 @@ export class CommandAttempt<
 	/** Re-sends the SAME key and body (after "not committed", or a PIN prompt). */
 	async resend(options: { pin?: string } = {}): Promise<AttemptState<S['Type']>> {
 		const attempt = this.#pending();
-		if (!attempt || !this.#body) return this.state;
-		return this.#dispatch(attempt.workspaceId, this.#body, {
+		const workspaceId = attempt?.workspaceId ?? this.#lastWorkspace;
+		if (!workspaceId || !this.#body) return this.state;
+		return this.#dispatch(workspaceId, this.#body, {
 			pin: options.pin,
-			summary: attempt.summary
+			summary: attempt?.summary ?? this.#lastSummary
 		});
+	}
+
+	/** True when a PIN prompt refused the kept attempt: resend it with the PIN, never a new body. */
+	get awaitingPin(): boolean {
+		const s = this.state;
+		return (
+			s.kind === 'failed' &&
+			this.#body !== null &&
+			s.failure._tag === 'BackendError' &&
+			(s.failure.code === 'step_up_required' || s.failure.code === 'pin_incorrect')
+		);
 	}
 
 	/** Asks the backend what happened to the pending attempt. */
@@ -208,6 +222,8 @@ export class CommandAttempt<
 		if (scope && this.#store) clearAttempt(this.#store, scope, this.#o.command);
 		this.#key = newKey();
 		this.#body = null;
+		this.#lastWorkspace = null;
+		this.#lastSummary = null;
 	}
 
 	async #dispatch(
@@ -224,6 +240,8 @@ export class CommandAttempt<
 			body: this.#o.persistBody === false ? null : body
 		};
 		this.#body = body;
+		this.#lastWorkspace = workspaceId;
+		this.#lastSummary = attempt.summary;
 		// Kept BEFORE dispatch (F-03), so a reload mid-flight can still recover.
 		const scope = this.#o.scope();
 		if (scope && this.#store) saveAttempt(this.#store, scope, attempt);

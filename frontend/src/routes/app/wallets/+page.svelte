@@ -57,11 +57,18 @@
 		return () => clearTimeout(timer);
 	});
 
+	let listCtrl: AbortController | null = null;
 	async function loadList(more = false) {
+		listCtrl?.abort();
+		const ctrl = new AbortController();
+		listCtrl = ctrl;
 		const p = new SvelteURLSearchParams();
 		if (applied) p.set('q', applied);
 		if (more && list?.nextCursor) p.set('cursor', list.nextCursor);
-		const exit = await Effect.runPromiseExit(getJson(`/api/wallets?${p}`, ManagedWalletPage));
+		const exit = await Effect.runPromiseExit(
+			getJson(`/api/wallets?${p}`, ManagedWalletPage, ctrl.signal)
+		);
+		if (ctrl.signal.aborted) return;
 		if (Exit.isSuccess(exit)) {
 			items = more ? [...items, ...exit.value.items] : [...exit.value.items];
 			list = exit.value;
