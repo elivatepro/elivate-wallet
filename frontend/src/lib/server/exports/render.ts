@@ -16,7 +16,33 @@ export interface PdfRenderer {
 }
 
 const A4 = { width: 794, height: 1123 };
-const PDF_OPTIONS = { format: 'A4', printBackground: true, preferCSSPageSize: true } as const;
+
+/** The footer strings the document carries on <main> (already HTML-escaped). */
+function footerOf(html: string): { left: string; right: string } {
+	const left = /data-footer-left="([^"]*)"/.exec(html)?.[1] ?? '';
+	const right = /data-footer-right="([^"]*)"/.exec(html)?.[1] ?? '';
+	return { left, right };
+}
+
+/**
+ * Paper's footer on every page: network · Powered by Elivate Wallet · contact,
+ * and "REF · Page x of y" (Chrome fills pageNumber/totalPages).
+ */
+export function footerTemplate(html: string): string {
+	const { left, right } = footerOf(html);
+	return `<div style="width:100%;padding:0 56px;box-sizing:border-box;-webkit-print-color-adjust:exact;font-family:Lexend,Helvetica,Arial,sans-serif;font-size:11px;line-height:16px;color:#8A9396"><div style="display:flex;justify-content:space-between;gap:16px;padding-top:12px;border-top:1px solid #E6E9EA"><span>${left}</span><span style="white-space:nowrap">${right} · Page <span class="pageNumber"></span> of <span class="totalPages"></span></span></div></div>`;
+}
+
+const pdfOptions = (html: string) =>
+	({
+		format: 'A4',
+		printBackground: true,
+		preferCSSPageSize: true,
+		displayHeaderFooter: true,
+		headerTemplate: '<span></span>',
+		footerTemplate: footerTemplate(html),
+		margin: { top: '48px', right: '56px', bottom: '64px', left: '56px' }
+	}) as const;
 
 /** On screen the page has no @page margins: pad like page 1 so the preview matches it. */
 const SCREEN_CSS = '@media screen{body{padding:48px 56px}}';
@@ -72,7 +98,7 @@ export function browserRenderer(binding: BrowserBinding): PdfRenderer {
 				await page.setViewport(A4);
 				await page.setContent(withScreenCss(html), { waitUntil: 'load' });
 				await page.evaluate('document.fonts.ready');
-				const pdf = new Uint8Array(await page.pdf(PDF_OPTIONS));
+				const pdf = new Uint8Array(await page.pdf(pdfOptions(html)));
 				let png: Uint8Array | null = null;
 				if (preview) {
 					await page.evaluate(pageOneScript(countPages(pdf)));
@@ -91,7 +117,7 @@ interface LocalChromium {
 		newPage(options: { viewport: typeof A4 }): Promise<{
 			setContent(html: string, options: { waitUntil: 'load' }): Promise<void>;
 			evaluate(script: string): Promise<unknown>;
-			pdf(options: typeof PDF_OPTIONS): Promise<Uint8Array>;
+			pdf(options: ReturnType<typeof pdfOptions>): Promise<Uint8Array>;
 			screenshot(options: {
 				type: 'png';
 				clip: { x: number; y: number } & typeof A4;
@@ -116,7 +142,7 @@ export function localRenderer(): PdfRenderer {
 				const page = await browser.newPage({ viewport: A4 });
 				await page.setContent(withScreenCss(html), { waitUntil: 'load' });
 				await page.evaluate('document.fonts.ready');
-				const pdf = new Uint8Array(await page.pdf(PDF_OPTIONS));
+				const pdf = new Uint8Array(await page.pdf(pdfOptions(html)));
 				let png: Uint8Array | null = null;
 				if (preview) {
 					await page.evaluate(pageOneScript(countPages(pdf)));

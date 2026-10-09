@@ -5,7 +5,7 @@ import { guardText, memberBalancesCsv, statementCsv, toCsv } from './csv';
 import { badges, description, detail } from './describe';
 import { reportMembers, reportSummary, statementRows, statementSummary } from './fixtures';
 import { cssString, escapeHtml, reportHtml, statementHtml } from './html';
-import { countPages } from './render';
+import { countPages, footerTemplate } from './render';
 import { readAllRows, runJob, type WorkerClient } from './runner';
 import type { ExportStorage } from './storage';
 
@@ -142,6 +142,23 @@ describe('pdf html', () => {
 		writeFileSync(`${dir}/report.html`, reportHtml(reportSummary, reportMembers));
 		writeFileSync(`${dir}/statement.csv`, statementCsv(statementSummary, statementRows));
 		writeFileSync(`${dir}/members.csv`, memberBalancesCsv(reportSummary, reportMembers));
+	});
+});
+
+describe('page footer', () => {
+	it('carries the network, the reference and Chrome page numbers, escaped', () => {
+		const html = statementHtml(
+			{ ...statementSummary, network: { ...statementSummary.network, name: 'Cedar <b>' } },
+			statementRows
+		);
+		const footer = footerTemplate(html);
+		expect(footer).toContain(
+			'Cedar &lt;b&gt; · Powered by Elivate Wallet · support@elivatewallet.com'
+		);
+		expect(footer).toContain(
+			'STM-4V9B-0412 · Page <span class="pageNumber"></span> of <span class="totalPages"></span>'
+		);
+		expect(html).not.toMatch(/@bottom-|@top-/);
 	});
 });
 
