@@ -12,8 +12,7 @@ import {
 	createConfirmedAccount,
 	expectAccessible,
 	expectNoHorizontalScroll,
-	finishCheckAsMatch,
-	inviteMember,
+	finishCheck,
 	localSql,
 	recordIncome,
 	shot,
@@ -21,7 +20,7 @@ import {
 	walletPeople
 } from './helpers';
 
-const { PASSWORD, PIN, joinAsNewMember, signInAs, asPresident } = walletPeople;
+const { PASSWORD, PIN, memberWithAccount, signInAs, asPresident } = walletPeople;
 const PROOF = {
 	name: 'grey-conversion.pdf',
 	mimeType: 'application/pdf',
@@ -67,8 +66,7 @@ test('a conversion and an adjustment are checked by an evidence reviewer', async
 	const founder = { email: uniqueEmail('cv-f'), password: PASSWORD, pin: PIN };
 	await createConfirmedAccount(founder.email, PASSWORD, PIN);
 	const member = uniqueEmail('cv-m');
-	const { joinPath } = await inviteMember(founder, network, member);
-	await joinAsNewMember(page, joinPath, member);
+	await memberWithAccount(founder, network, member);
 	await recordIncome(founder, member, '1000.00', 'USD');
 	await recordIncome(founder, member, '10000.00');
 	const reviewer = uniqueEmail('cv-r');
@@ -124,7 +122,11 @@ test('a conversion and an adjustment are checked by an evidence reviewer', async
 	await shot(page, 'MV03-adjustment-sent');
 
 	// The reviewer clears both; nothing posted before.
-	expect(localSql(`select count(*) from finance.entries where status = 'posted'`)).toBe('0');
+	expect(
+		localSql(
+			`select count(*) from finance.entries where status = 'posted' and id in (select e.id from finance.entries e join auth.users u on u.id = e.owner_user_id where u.email = '${member}')`
+		)
+	).toBe('0');
 	await asPresident(page, reviewer, network);
 	await page.goto('/app/evidence');
 	await expect(page.getByRole('button', { name: /Conversion · USD → NGN/ })).toBeVisible();
@@ -134,7 +136,11 @@ test('a conversion and an adjustment are checked by an evidence reviewer', async
 	await shot(page, 'C09-evidence-conversion');
 	await clearCase(page, /Conversion · USD → NGN/, /^Cleared\. CNV-/);
 	await clearCase(page, /Adjustment · credit/, /^Cleared\. ADJ-/);
-	expect(localSql(`select count(*) from finance.entries where status = 'posted'`)).toBe('2');
+	expect(
+		localSql(
+			`select count(*) from finance.entries where status = 'posted' and id in (select e.id from finance.entries e join auth.users u on u.id = e.owner_user_id where u.email = '${member}')`
+		)
+	).toBe('2');
 });
 
 test('money comes back from a payout, and an income is reversed', async ({ page }) => {
@@ -142,8 +148,7 @@ test('money comes back from a payout, and an income is reversed', async ({ page 
 	const founder = { email: uniqueEmail('rt-f'), password: PASSWORD, pin: PIN };
 	await createConfirmedAccount(founder.email, PASSWORD, PIN);
 	const member = uniqueEmail('rt-m');
-	const { joinPath } = await inviteMember(founder, network, member);
-	await joinAsNewMember(page, joinPath, member);
+	await memberWithAccount(founder, network, member);
 	await recordIncome(founder, member, '10000.00');
 	await recordIncome(founder, member, '100.00');
 	const reviewer = uniqueEmail('rt-r');
@@ -151,6 +156,7 @@ test('money comes back from a payout, and an income is reversed', async ({ page 
 	await addReviewer(founder, reviewer);
 
 	// The member withdraws ₦1,500 (M06/M07).
+	await signInAs(page, member);
 	await page.goto('/app/withdrawals/new');
 	await page.getByRole('radio', { name: /Point Value/ }).click();
 	await page.getByLabel('Amount').fill('1500');
@@ -177,7 +183,7 @@ test('money comes back from a payout, and an income is reversed', async ({ page 
 		await recPin.getByRole('button', { name: 'Submit for verification' }).click();
 	}
 	await expect(page.getByText(/^Sent for verification/)).toBeVisible();
-	finishCheckAsMatch();
+	finishCheck(member);
 
 	// W07 → W09: from the completed withdrawal.
 	await page.goto('/app/queue?tab=completed');
