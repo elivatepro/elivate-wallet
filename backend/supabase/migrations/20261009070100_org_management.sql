@@ -189,6 +189,10 @@ begin
   locked_people := array(select distinct user_id from org.memberships where office_id = office.id and status <> 'ended');
   perform org.lock_people(workspace.tenant_id, locked_people);
   perform org.lock_tree(workspace.tenant_id);
+  -- Pending invitations before the office row: create_invitation locks its
+  -- invitation rows first and the office (insert trigger) second, so both
+  -- commands take them in the same order.
+  perform 1 from org.invitations where office_id = office.id and status = 'pending' for update;
   select * into office from org.offices where id = office.id for no key update;
   -- Someone joined between the person locks and the office lock: never take a
   -- person lock after the office lock (deadlock with role changes); ask for a retry.
@@ -213,6 +217,10 @@ begin
   ) then
     perform identity.fail('conflict', jsonb_build_object('reason', 'office_not_empty'));
   end if;
+  -- Lock what is left on the office before reading its money: income and
+  -- other ledger commands hold the target membership FOR SHARE while posting,
+  -- so this waits for them; afterwards they see the membership ended.
+  perform 1 from org.memberships where office_id = office.id and status <> 'ended' for update;
   if exists (
     select 1 from ledger.balances b
     where b.office_id = office.id and (b.posted <> 0 or b.reserved <> 0)
@@ -325,6 +333,62 @@ begin
 
   return identity.store_result(p_user_id, p_idempotency_key, 'change_membership_role', request,
     jsonb_build_object('endedMembershipId', target.id, 'membershipId', created.id, 'role', p_role));
+end;
+$$;
+
+-- assign_reviewer (replaced): reads the target membership FOR SHARE, so it
+-- waits for a concurrent close/role change and never assigns an ended one.
+create or replace function api.assign_reviewer(
+  p_user_id uuid,
+  p_session_id uuid,
+  p_membership_id uuid,
+  p_target_membership_id uuid,
+  p_reason text,
+  p_idempotency_key text,
+  p_request_id text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  workspace org.memberships;
+  target org.memberships;
+  clean_reason text;
+  request jsonb;
+  replayed jsonb;
+  assignment_id uuid;
+begin
+  perform org.require_writer(p_user_id, p_session_id, true);
+  workspace := authz.require_workspace(p_user_id, p_membership_id);
+  perform authz.require_president(workspace);
+  target := org.membership_in_tenant(workspace.tenant_id, p_target_membership_id);
+  clean_reason := identity.require_reason(p_reason);
+
+  request := jsonb_build_object('targetMembershipId', target.id, 'reason', clean_reason);
+  replayed := identity.replay(p_user_id, p_idempotency_key, 'assign_reviewer', request);
+  if replayed is not null then
+    return replayed;
+  end if;
+
+  select * into target from org.memberships where id = target.id for share;
+  if target.status <> 'active' then
+    perform identity.fail('conflict', jsonb_build_object('reason', 'membership_not_active'));
+  end if;
+  begin
+    insert into authz.reviewer_assignments (tenant_id, membership_id, assigned_by, reason)
+    values (workspace.tenant_id, target.id, p_user_id, clean_reason)
+    returning id into assignment_id;
+  exception when unique_violation then
+    perform identity.fail('conflict', jsonb_build_object('reason', 'already_reviewer'));
+  end;
+  perform org.bump_authz_version(workspace.tenant_id);
+  perform audit.record_tenant(workspace.tenant_id, p_user_id, 'reviewer.assigned', 'reviewer_assignment', assignment_id::text,
+    clean_reason, p_safe_after => jsonb_build_object('membershipId', target.id), p_request_id => p_request_id);
+
+  return identity.store_result(p_user_id, p_idempotency_key, 'assign_reviewer', request,
+    jsonb_build_object('assignmentId', assignment_id));
 end;
 $$;
 
@@ -655,7 +719,7 @@ begin
   for fn in
     select p.oid::regprocedure from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'api'
-      and p.proname in ('close_office', 'change_membership_role', 'list_offices', 'office_detail',
+      and p.proname in ('close_office', 'change_membership_role', 'list_offices', 'office_detail', 'assign_reviewer',
                         'list_members', 'member_detail')
   loop
     execute format('revoke all on function %s from public, anon, authenticated', fn);

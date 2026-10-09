@@ -373,7 +373,11 @@ export function describeOrgFailure(failure: ApiFailure | undefined): Outcome {
 		case 'not_found':
 			return { kind: 'message', text: 'We couldn’t find that. Check the UID or reload.' };
 		case 'idempotency_conflict':
-			return { kind: 'message', text: 'Something changed. Try again.' };
+			// The earlier attempt (same key) may have gone through with other details.
+			return {
+				kind: 'message',
+				text: 'Your earlier attempt may already have been saved. Reload to check, then try again.'
+			};
 		case 'validation_error':
 			if (details.field === 'reason') {
 				return { kind: 'message', text: 'Give a reason (3–500 characters).' };
