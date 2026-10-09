@@ -171,7 +171,11 @@ export const TransactionDetail = Schema.Struct({
 	),
 	reversal: Schema.optionalKey(
 		Schema.NullOr(
-			Schema.Struct({ category: Schema.String, note: Schema.NullOr(Schema.String), reversedBy: Person })
+			Schema.Struct({
+				category: Schema.String,
+				note: Schema.NullOr(Schema.String),
+				reversedBy: Person
+			})
 		)
 	)
 });
@@ -260,7 +264,15 @@ export const ManagedWallet = Schema.Struct({
 	walletId: Uuid,
 	person: Person,
 	memberships: Schema.optionalKey(
-		Schema.Array(Schema.Struct({ role: Role, officeName: Schema.String, status: Schema.String }))
+		Schema.Array(
+			Schema.Struct({
+				/** Blueprint 12: opens Convert / Adjust for this membership. */
+				membershipId: Schema.optionalKey(Uuid),
+				role: Role,
+				officeName: Schema.String,
+				status: Schema.String
+			})
+		)
 	),
 	networks: Schema.Array(WalletNetwork)
 });

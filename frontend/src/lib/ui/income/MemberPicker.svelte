@@ -94,8 +94,7 @@
 	}
 
 	const label = (t: Target) => t.person?.name ?? t.person?.uid ?? 'Member';
-	const detail = (t: Target) =>
-		t.person ? `UID ${t.person.uid} · ${t.officeName}` : t.officeName;
+	const detail = (t: Target) => (t.person ? `UID ${t.person.uid} · ${t.officeName}` : t.officeName);
 
 	const searchingNow = $derived(query.trim().length > 0);
 	const shown = $derived(searchingNow ? results : targets);

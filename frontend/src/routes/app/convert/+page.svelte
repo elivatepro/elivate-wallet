@@ -138,6 +138,8 @@
 	}
 
 	async function search(query: string, cursor: string | null) {
+		// Built and read once per call; not reactive state.
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const params = new URLSearchParams({ kind: 'conversion', q: query });
 		if (cursor) params.set('cursor', cursor);
 		const exit = await Effect.runPromiseExit(

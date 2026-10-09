@@ -29,6 +29,10 @@
 	import RootImage from '#lib/ui/RootImage.svelte';
 
 	const shell = getContext<Shell>('shell');
+	/** Navigation hints only; the backend authorizes every command. */
+	const can = (permission: string) =>
+		shell.state.kind === 'ready' &&
+		(shell.state.view.capabilities?.permissions ?? []).includes(permission);
 	const DOTS = ['#ff7f4f', '#43c48b', '#82b8e8', '#f2b85e', '#a9b0b3', '#c9a3ff'];
 
 	const walletParam = $derived(page.url.searchParams.get('wallet'));
@@ -120,6 +124,13 @@
 	const name = $derived(person?.name ?? person?.uid ?? 'Member');
 	const firstName = $derived(person?.name?.split(' ')[0] ?? name);
 	const membership = $derived(view?.wallet.memberships?.[0] ?? null);
+	/** "Convert" next to Move (owner decision 2026-10-09) and "Adjust", for an active membership. */
+	const actionFor = $derived(
+		view?.wallet.memberships?.find((m) => m.status === 'active' && m.membershipId)?.membershipId ??
+			null
+	);
+	const canConvert = $derived(!!actionFor && can('perform_currency_conversion'));
+	const canAdjust = $derived(!!actionFor && can('manual_credit_debit_adjustment'));
 	const subtitle = $derived(
 		[person?.uid, membership ? ROLE_LABELS[membership.role] : null, membership?.officeName]
 			.filter(Boolean)
@@ -168,7 +179,12 @@
 	<a class="back" href="/app/wallets?wallet={wallet}"
 		><ChevronLeft size={18} strokeWidth={2} aria-hidden="true" />{person ? name : 'Wallet'}</a
 	>
-	<ActivityBrowser {wallet} owner={person?.name ?? null} heading={`${firstName}’s activity`} />
+	<ActivityBrowser
+		{wallet}
+		owner={person?.name ?? null}
+		heading={`${firstName}’s activity`}
+		canReverse={can('reverse_transaction')}
+	/>
 {:else if wallet}
 	<a class="back mobile-only" href="/app/wallets"
 		><ChevronLeft size={18} strokeWidth={2} aria-hidden="true" />Member wallets</a
@@ -222,6 +238,14 @@
 					</div>
 				{/if}
 			</section>
+		{/if}
+
+		{#if canConvert || canAdjust}
+			<div class="w-actions">
+				{#if canConvert}<a class="w-action" href={`/app/convert?member=${actionFor}`}>Convert</a
+					>{/if}
+				{#if canAdjust}<a class="w-action" href={`/app/adjust?member=${actionFor}`}>Adjust</a>{/if}
+			</div>
 		{/if}
 
 		<div class="lower">
@@ -371,6 +395,29 @@
 {/if}
 
 <style>
+	.w-actions {
+		display: flex;
+		gap: 10px;
+		margin-top: 16px;
+	}
+
+	.w-action {
+		display: inline-flex;
+		align-items: center;
+		height: 40px;
+		padding: 0 18px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-pill);
+		color: var(--color-text);
+		font-size: 14px;
+		font-weight: var(--font-weight-medium);
+		text-decoration: none;
+	}
+
+	.w-action:hover {
+		border-color: var(--color-accent);
+	}
+
 	.desktop-only {
 		display: none;
 	}

@@ -56,11 +56,14 @@
 		withdrawal,
 		workspaceId,
 		canAct,
+		canReturn = false,
 		onChanged
 	}: {
 		withdrawal: WithdrawalType;
 		workspaceId: string;
 		canAct: boolean;
+		/** W-16: offers "Record returned funds" on a completed withdrawal. */
+		canReturn?: boolean;
 		onChanged: (next: WithdrawalType | null, notice?: string) => void;
 	} = $props();
 
@@ -843,6 +846,13 @@
 						dialogPinError = null;
 						cancelOpen = true;
 					}}>Cancel this withdrawal (no payout made)</button
+				>
+			</div>
+		{/if}
+		{#if w.status === 'completed' && canReturn}
+			<div class="mm-section">
+				<a class="mm-link" href={`/app/queue/returns?withdrawal=${w.withdrawalId}`}
+					>Money came back? Record returned funds</a
 				>
 			</div>
 		{/if}

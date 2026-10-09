@@ -17,8 +17,9 @@ export const GET: RequestHandler = (event) =>
 export const POST: RequestHandler = (event) => {
 	const id = event.params.id;
 	if (!validId(id)) return Promise.resolve(respondError(invalidRequest('id')));
-	return relayCommand(event, ReturnCommand, (membershipId, { pin: _pin, ...body }) =>
+	return relayCommand(event, ReturnCommand, (membershipId, { pin, ...body }) =>
 		Effect.gen(function* () {
+			void pin; // used for the step-up only (relayCommand)
 			return yield* (yield* MoneyMovesApi).command(
 				membershipId,
 				EntryRoutes.returns(id),

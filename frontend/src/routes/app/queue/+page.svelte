@@ -7,6 +7,7 @@
 -->
 <script lang="ts">
 	import { getContext } from 'svelte';
+	import { page as appPage } from '$app/state';
 	import { Cause, Effect, Exit, Option } from 'effect';
 	import {
 		Withdrawal,
@@ -32,13 +33,23 @@
 	import '#lib/ui/money/money.css';
 
 	const shell = getContext<Shell>('shell');
+	/** Navigation hint only; the backend authorizes every command. */
+	const can = (permission: string) =>
+		shell.state.kind === 'ready' &&
+		(shell.state.view.capabilities?.permissions ?? []).includes(permission);
 	type Tab = 'action' | 'verifying' | 'completed' | 'closed';
 
-	let tab = $state<Tab>('action');
+	// Deep link (W09 "View withdrawal"): ?tab=completed&withdrawal=<id>.
+	const linkedTab = appPage.url.searchParams.get('tab');
+	let tab = $state<Tab>(
+		linkedTab === 'verifying' || linkedTab === 'completed' || linkedTab === 'closed'
+			? linkedTab
+			: 'action'
+	);
 	let page = $state<WithdrawalPage | null>(null);
 	let items = $state<WithdrawalType[]>([]);
 	let loadError = $state<string | null>(null);
-	let selectedId = $state<string | null>(null);
+	let selectedId = $state<string | null>(appPage.url.searchParams.get('withdrawal'));
 	let detail = $state<WithdrawalType | null>(null);
 	let notice = $state<string | null>(null);
 	let loadingMore = $state(false);
@@ -241,6 +252,7 @@
 			{#if detail && workspaceId}
 				<WithdrawalPanel
 					withdrawal={detail}
+					canReturn={can('record_returned_funds')}
 					{workspaceId}
 					canAct={shell.canAct}
 					onChanged={changed}

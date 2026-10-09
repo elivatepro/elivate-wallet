@@ -54,17 +54,25 @@
 	let {
 		wallet = null,
 		owner = null,
-		heading = 'Activity'
+		heading = 'Activity',
+		canReverse = false
 	}: {
 		/** Managed wallet id; null for your own activity. */
 		wallet?: string | null;
 		/** Managed view: the owner's name for the detail copy. */
 		owner?: string | null;
 		heading?: string;
+		/** President (W-15): a posted transaction offers "Reverse" (backend re-checks). */
+		canReverse?: boolean;
 	} = $props();
 
 	const shell = getContext<Shell>('shell');
 	const tz = browserTimeZone();
+	/** A completed withdrawal is corrected with returned funds, never reversed (W-15). */
+	const reverseHref = (d: TransactionDetail) =>
+		canReverse && d.status === 'posted' && d.type !== 'withdrawal'
+			? `/app/reversals?reference=${d.reference}`
+			: null;
 
 	let query = $state('');
 	let appliedQuery = $state('');
@@ -419,6 +427,7 @@
 			{detail}
 			variant="page"
 			{owner}
+			reverseHref={reverseHref(detail)}
 			hideAmounts={shell.hideAmounts}
 			onClose={() => history.back()}
 		/>
@@ -586,6 +595,7 @@
 					<TransactionDetailView
 						{detail}
 						{owner}
+						reverseHref={reverseHref(detail)}
 						hideAmounts={shell.hideAmounts}
 						onClose={() => select(null)}
 					/>

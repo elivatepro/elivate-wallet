@@ -7,8 +7,9 @@ import { relayCommand } from '#lib/server/command.js';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = (event) =>
-	relayCommand(event, AdjustmentCommand, (membershipId, { pin: _pin, ...body }) =>
+	relayCommand(event, AdjustmentCommand, (membershipId, { pin, ...body }) =>
 		Effect.gen(function* () {
+			void pin; // used for the step-up only (relayCommand)
 			return yield* (yield* MoneyMovesApi).command(
 				membershipId,
 				EntryRoutes.adjustments,
