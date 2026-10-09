@@ -1,70 +1,87 @@
 # Elivate Wallet 2.0 — Agent Instructions
 
-These instructions are for any coding agent or model working in this repository. Keep decisions model-agnostic and grounded in the repository; do not assume a particular editor, agent plugin, or MCP connector is available.
+Model-agnostic rules for any agent in this repo. History lives in Git and `docs/`; keep this
+file short and current.
 
-## Active access boundary: Paper design authorized; frontend source excluded
+## Boundaries
 
-The owner has explicitly opened the Paper design phase for the existing `Elivate Wallet` file, using the screenshots supplied in the design request and the existing Elivate logo asset as references. This authorization is limited to that Paper file and design task. Do not open, clone, fetch, search, summarize, or otherwise inspect frontend source or UI implementations. In particular, the legacy frontend at `https://github.com/elivatepro/elivate-wallet-legacy` remains out of scope; the owner provided that link to identify the frontend, not to authorize access to it. Do not access it unless the owner later explicitly changes this boundary.
-
-The owner explicitly authorized this design-system task in Paper. For subsequent work, inspect or edit Paper only when the owner requests a design task. During backend-only work, do not read or modify Paper. For authorized Paper work, use the active Paper guide and only synthetic or safely masked product data. If a task cannot be completed without frontend source access, explain the specific dependency and ask before crossing this boundary. Product-contract files already present in this workspace may be read as requirements context.
+- **Frontend source is out of scope.** Never open, fetch or summarize the legacy frontend
+  (`elivatepro/elivate-wallet-legacy`) or other UI implementations. `legacy-backend/` is a
+  read-only reference for porting proven logic; never build or deploy it.
+- **Paper:** only when the owner requests a design task (or a build step needs a drawn
+  screen's exact values). Inspect before editing; synthetic or masked data only.
+- **Production is off-limits.** "Prod" means the dev Supabase project plus the live Worker.
+- **Secrets:** never in Git, Paper, chat, logs, URLs or this file. Repo-root `.env` (ignored)
+  holds local values; copy them into secret stores without printing them.
+- **Data:** never query or export real user or financial rows; review uses code and schema.
+- **Never run `supabase config push`** (it overwrites dashboard Auth/SMTP settings). Change
+  Auth only via the Management API for specific fields.
 
 ## Start here
 
-1. Read `00-product.md` for product scope and settled decisions.
-2. Before touching authorization, identity, money, evidence, billing, or other protected workflows, read the relevant sections of `01-domain-rules.md` and the complete applicable workflow(s) in `02-workflows.md`.
-3. Inspect the current source, Git status, scripts, and environment setup before changing files or choosing tools. Do not infer implementation details from old previews or this instruction file when the repository says otherwise.
+1. `00-product.md` (scope, settled decisions), then the relevant parts of
+   `01-domain-rules.md` and the full applicable workflow in `02-workflows.md` before touching
+   auth, identity, money, evidence or billing.
+2. `docs/member-build-plan.md` before any member slice; its "Owner decisions during the
+   build" section is binding.
+3. Check `git status`, scripts and current source before changing anything. The owner's
+   latest decision overrides the pack; update the affected contract line. Report conflicts
+   between code and contract; never invent unresolved decisions (P-09).
 
-Use the product pack as the approved product contract. The user’s latest explicit decision can supersede it; update the affected contract instead of leaving competing rules. Existing backend schemas, functions, and transport definitions describe the implementation and wire format, but do not silently override approved product behavior. If they conflict, report the exact conflict and pause only the dependent change. Do not invent decisions marked unresolved in P-09.
+## Stack (decided)
 
-## Current project decisions
+- Supabase (Auth + Postgres + Edge Functions, Deno). Postgres owns authorization and money.
+- Frontend `frontend/`: SvelteKit 3, Svelte 5, Effect 4 (the library), TypeScript 6, pnpm,
+  Node 24; SvelteKit BFF with HttpOnly session cookies; plain CSS + Emberlit tokens, Bits UI,
+  Lucide, self-hosted Lexend. Hosted on Cloudflare Worker `elivate-wallet-app`
+  (app.elivatewallet.com, private R2 `PHOTOS`). Do not reopen the stack.
+- Email: Cloudflare (Auth via SMTP; app email via REST through the outbox with the Paper
+  "Emails — Transactional v2" layout in `_shared/email/layout.ts`). Paystack for yearly
+  billing (test mode on dev). Automated member payouts stay deferred.
+- Design: Paper file `Elivate Wallet` (Emberlit, dark default + light, coral mark, Root
+  poses only). A screen with a Paper composition is built directly; one without is drafted
+  in Paper and approved first. Before building a screen, check `frontend/src/routes` so an
+  existing screen is extended, not rebuilt. Accepted deviations from Paper: single-screen
+  PIN entry, wizard progress bar inside the panel, native bank select.
 
-- Product: **Elivate Wallet 2.0**, also called Wallet by Elivate 2.0.
-- Frontend direction: Svelte + TypeScript + Effect. Effect is the TypeScript library, not Svelte’s `$effect` rune. Do not switch to React or reopen the selected stack.
-- Supabase is the authentication and backend platform. PostgreSQL is authoritative for authorization and financial state; the frontend presents trusted reads and orchestrates approved commands.
-- Cloudflare Email Service is the selected outbound email provider. Paystack is selected for yearly subscriptions; automated member payouts remain deferred. See the product pack for the exact boundaries.
-- The owner approved the Emberlit visual system in `00-product.md` P-06 and the existing Paper file `Elivate Wallet`: `Design system` and `Authentication v2` pages (v2 adopted 2026-10-08), dark default, full light counterpart, Lexend, coral Elivate mark and responsive product patterns. Styling implementation is decided (plain CSS + Emberlit tokens, Bits UI, Lucide, self-hosted Lexend); only unshown route compositions remain open under U-12.
-- Frontend stack decided 2026-10-08 (P-04): SvelteKit 3.0.x, Effect 4.0.x, TypeScript 6.0, pnpm, Node 24 LTS, hybrid rendering (server-rendered auth/onboarding, client-rendered PWA shell behind a SvelteKit BFF with HttpOnly session cookies), Cloudflare Workers hosting (live at app.elivatewallet.com since 2026-10-08). Native packaging and launch dates remain open under U-10; do not guess them.
+## Backend rules
 
-## Workspace snapshot
+- Only `api.*` functions are `security definer` (owner-accepted exception: three ledger
+  trigger checks); every function sets `search_path = ''`. Private schemas stay private.
+- Validate all transport and provider input/output at runtime. Reuse existing envelopes,
+  routes, permissions and error codes (`conflict` + `details.reason` for new cases).
+- Preserve exact money and currency provenance, tenant isolation, idempotency, evidence,
+  audit and F-03 recovery rules. No direct client writes to protected tables.
 
-Snapshot (refreshed 2026-10-09, Phase 3 member build, after PRs #23–#29). Preserve user-provided files; do not regenerate or discard them.
+## Environments
 
-- **Repository:** product contract (`00-product.md`, `01-domain-rules.md`, `02-workflows.md`), `design-backlog.md` (Paper handoff), `Assets/`, `docs/` (blueprints in `docs/blueprints/`, audit in `docs/backend-audit-2026-10-07.md`), `backend/` (the new Supabase project, built slice by slice from owner-approved blueprints) and `legacy-backend/` (imported legacy backend, read-only reference for porting proven logic; never built or deployed). Only the legacy `backend/` folder was designated as source; the rest of the legacy repo, including its frontend, stays out of scope. `frontend/` (SvelteKit app, decided stack in P-04).
-- **Supabase:** one development project, ref `crljnkdwkxkwgvhxfrbl`; no production project yet (to be created before the first public deploy). Merged and deployed there (2026-10-08): slices 01 (sign-in + PIN), 02 (offices, memberships, authorization), the tidy-up, 03 (invitations + email outbox), 04 (wallets, pockets, ledger, income) 05 (payout accounts), the ledger commit-time checks fix (#15) and 06 (NIN verification, leader review, profile, onboarding workspace read; #17, applied 2026-10-08 with `supabase db push --linked`); migrations up to `20261009060100`; functions `security`, `org`, `invitations`, `outbox-worker`, `ledger`, `payout`, `identity`. The dev project has no users yet. pg_cron runs `outbox.trigger_worker()` every minute (Vault entries `outbox_worker_url`, `outbox_worker_secret`); the database was restarted 2026-10-08 (owner-approved) to revive a stale pg_cron launcher. Do not run `supabase config push`: it would overwrite dashboard-managed Auth settings, including the Cloudflare SMTP setup.
-- **Email:** Supabase Auth email on the development project sends through Cloudflare SMTP (`smtp.mx.cloudflare.net`); Resend is retired. Application email (invitations, payout-account alerts) uses the Cloudflare REST API with its own token (W-21) through the outbox; `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_EMAIL_API_TOKEN` are set on dev (2026-10-08), and the path works: an owner-approved test (2026-10-08, one `identity.nin_review_decided` event queued by SQL to the owner's test inbox, dedupe key `manual-test:2026-10-08:owner-inbox:1`) went out through pg_cron → `outbox-worker` → Cloudflare with HTTP 200 and a provider message id. Inbox delivery is for the owner to confirm; no real invitation has been sent yet (dev has no users). Every email now uses the Paper "Emails — Transactional v2" layout (#20, deployed 2026-10-08): outbox emails via `_shared/email/layout.ts`, images from `APP_ORIGIN/email/` (`frontend/static/email/`), and all 13 dev Auth templates and subjects applied through the Management API from `backend/scripts/auth-email-templates.ts --payload` (templates and subjects only). The Magic Link template branches on `RedirectTo` (`{SiteURL}/join` = invitation sign-in, otherwise PIN reset). NIN review outcomes email the reviewed person (`identity.nin_review_decided`). Dev still sends the Supabase "password changed" notice, which new invitees receive when they set their first password on `/join`. Dev Auth (owner-approved 2026-10-08, via the Management API, not `config push`): site URL `https://app.elivatewallet.com`, redirect allow-list `https://app.elivatewallet.com/**` and `http://127.0.0.1:3000/**`; Confirm-signup and Magic-link templates use `token_hash` links to `/auth/confirm`; `APP_ORIGIN` and `PIN_RESET_REDIRECT_URL` point at `https://app.elivatewallet.com`.
-- **Development project cleanup (2026-10-08, owner-approved):** legacy secrets `ELIVATE_APP_ORIGIN`, `NUBAN_API_KEY`, `OPENAI_API_KEY`, `OPENAI_RECEIPT_MODEL`, `PAYOUT_VERIFIER_SECRET` removed; `CORS_ORIGINS` narrowed to local origins (`localhost`/`127.0.0.1` on ports 5173 and 3000).
-- **Deferred by the owner:** the first real sign-up, the first platform admin and the signed-in call test on the development project. Open risk until then: whether the Edge gateway's `verify_jwt` accepts the project's ES256 user tokens.
-- **Phase 2 (2026-10-08):** tidy-up, slices 03–05, the frontend foundation (`frontend/`, M1: sign-in → PIN → workspace picker; deployed 2026-10-08 by owner decision to the Cloudflare Worker `elivate-wallet-app` at `https://app.elivatewallet.com`, replacing the legacy app, and backed by the development Supabase project until production exists; deploy with `pnpm exec wrangler deploy` in `frontend/`, Worker secrets `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`) and the production runbook (`docs/production-readiness.md`) are merged. Dev secrets set: `PAYSTACK_SECRET_KEY` (test), `NUBAN_KYC_API_KEY`, `NIN_FINGERPRINT_KEY`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_EMAIL_API_TOKEN`, `PAYOUT_ACCOUNT_ENC_KEY`, `PAYOUT_ACCOUNT_HMAC_KEY`, `INVITATION_TOKEN_SECRET`, `OUTBOX_WORKER_SECRET`, `APP_ORIGIN`, `EMAIL_FROM_*`. Design pass done and deployed 2026-10-08 (PR #13): Paper "App — Screens v3" G01–G12/H01–H09/I/L/Y approved by the owner (existing Root poses only; reuses flagged on the layers), onboarding wizard page reordered to W-02 (PIN first), Root poses served 1×/2× WebP from `frontend/static/root/`, gate screens, workspace picker with "Invitations for you" and the signed-in shell rebuilt to match. Merged and deployed 2026-10-08 (owner-approved, in order): #16 `/join` + invitation e2e, #17 backend slice 06, #18 onboarding wizard (W-02) + profile name in the shell, #19 ledger Home, pockets & split, payout accounts, invitation resend/revoke and the NIN reviews page; local e2e 18/18. The app Worker binds the private R2 bucket `elivate-wallet-dev-photos` as `PHOTOS` (profile photos, no public r2.dev URL). Owner-accepted deviations: three ledger trigger checks run as definer (#15, an exception to "only `api.*` is definer"); single-screen PIN entry, wizard progress bar inside the panel and a native bank select (vs Paper). Owner deploy approval covered #16–#20 only; confirm before the next deploy. Past reserved migration ranges: tidy-up `2026100900xxxx`, 03 `2026100901xxxx`, 04 `2026100902xxxx`, 05 `2026100903xxxx`, ledger fix `2026100904xxxx`, 06 `2026100905xxxx`, email follow-up `2026100906xxxx`; pgTAP files `009_`, `030_`–`039_`, `040_`–`049_`, `050_`–`059_`, `060_`–`069_`.
-- **Phase 3, member build (2026-10-08/09):** scope, owner decisions, design rule and shipping rule are in `docs/member-build-plan.md` (read it before any member slice; its "Owner decisions during the build" section is binding). Merged and deployed to dev: #23 record income (slice 3, blueprint 09), #25 account and security (slice 9, blueprint 10: change PIN, Turnstile on sign-in/sign-up/forgot-password with Worker secrets `TURNSTILE_SITE_KEY`/`TURNSTILE_SECRET_KEY`, forgot password, profile edit, devices, payout replace/remove; Recovery Auth template now token_hash), #24 org management (slice 1, blueprint 07: close office, role change, offices/members/roles/audit UI), #26 money groundwork (slice 2, blueprint 08: F-03 command-outcome recovery `frontend/src/lib/recovery.ts`, activity search/filters, reversals view, team overview, member wallets). Dev migrations now up to `20261009100100` (applied with `db push --linked --include-all` because slices merge out of timestamp order); functions changed: `org`, `ledger`, `security`. Open: PR #27 (slice 3 follow-up: network-wide member search + Paper v4 J01–J05, branch `feature/09b-income-followup`, worktree `../elivate-wallet-worktrees/09b-income`) has merge conflicts with main. Paper `App — Screens v4 (member build)`: batch 1 (N, Q, J, Z) approved; batch 2 (U payouts, MV money moves, PL billing, NB bell, WK support chat) drawn and **awaiting owner approval**.
-- **Next (owner decision 2026-10-09):** one slice at a time, each in its own thread, no parallel agents (they exhaust the usage limit). Order: finish #27 → slice 4 withdrawals/payouts → 5 transfers/corrections/conversion → 8 notifications → slice 9 follow-up (store session IP, signed-in password change, PIN-change email, sign-out choice after reset) → 6 statements → 7 billing → 10 workspace settings. Per slice: worktree under `../elivate-wallet-worktrees/<nn-name>`, one reserved migration range per slice (next free: `2026100911xxxx` for slice 4, `2026100912xxxx` slice 5, then 13, 14…; pgTAP `110_`, `120_`…), blueprint `docs/blueprints/NN-*.md` (next number 11), merge when CI is green and deploy to dev from a fresh detached `origin/main` checkout, then smoke-test without creating users or sending email. Owner deploy approval for dev covers this member build; production stays off-limits.
-- **Checks:** CI is `.github/workflows/backend.yml` (fresh replay + pgTAP + lint via `backend/scripts/verify-database.sh`) plus `deno task check` in `backend/`. Locally the same script runs with Colima (`colima start`); worktrees share one local stack, so serialize runs with the `/tmp/elivate-supabase.lock` directory lock.
-- **Build order** stays pilot-journey (P-02): auth + PIN (done) → offices/memberships/authorization (done) → ledger/income → withdrawals/payout/verification → statements.
+- **Dev Supabase project:** ref `crljnkdwkxkwgvhxfrbl` (no users yet; no production project).
+  pg_cron runs workers through Vault URL/secret entries. Dev Auth site URL and redirects
+  point at `https://app.elivatewallet.com` (plus `http://127.0.0.1:3000/**`).
+- **Worker secrets:** `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `TURNSTILE_SITE_KEY`,
+  `TURNSTILE_SECRET_KEY`.
+- **Deferred by the owner:** first real sign-up, first platform admin, signed-in call test
+  (open risk: Edge `verify_jwt` with ES256 user tokens).
 
-## Backend and product rules
+## How a slice ships
 
-- Supabase Auth authenticates; PostgreSQL authorizes and owns financial truth. Preserve the product pack's tenant isolation, exact-money, evidence, idempotency, and recovery rules.
-- Use only approved, scoped backend reads and command APIs. Keep private schemas private; never expose service-role credentials, worker credentials, or provider secrets to public clients. Do not introduce direct public-client writes to protected tables.
-- Validate all untrusted transport input and output at runtime. TypeScript annotations do not validate network or provider responses. Match existing API envelopes and error codes; do not invent endpoint, RPC, permission, or error-code names.
-- Keep sensitive data out of URLs, logs, analytics, traces, screenshots, and design examples. Backend review normally needs code and schema metadata only; do not query or export real user or financial records.
-- Preserve exact monetary values and currency provenance. Never combine currencies into a misleading total or present demo values as live data.
-- Preserve approved scope, authorization boundaries, auditability, and deferred-feature limits described in P-05, `01-domain-rules.md`, and the applicable workflows. Do not infer product semantics from a deployed implementation when the contract explicitly leaves them unresolved.
+- One slice at a time, no parallel agents. Worktree `../elivate-wallet-worktrees/<nn-name>`,
+  blueprint `docs/blueprints/NN-*.md`, one migration range `20261009NNxxxx` and pgTAP range
+  per slice (slice 4: `11`/`110_`; then `12`/`120_`, …). Next order: 4 → 5 → 8 → 9
+  follow-up → 6 → 7 → 10.
+- Checks: `backend/scripts/verify-database.sh` (fresh replay + pgTAP + lint, as CI) and
+  `deno task check` in `backend/`; frontend `pnpm check`, `pnpm lint`, `pnpm test:unit`,
+  `pnpm test:e2e`. Local stack runs on Colima and is shared: hold the
+  `/tmp/elivate-supabase.lock` directory while using it.
+- PR per slice, linked to the thread. When CI is green: merge, then deploy to dev from a
+  fresh `origin/main`: `supabase db push --linked --include-all` (from `backend/`), deploy
+  changed functions, `pnpm exec wrangler deploy` in `frontend/`. Smoke-test without creating
+  users or sending email. Owner approval for dev deploys covers the member build.
+- Report what ran and what didn't. Don't reset, force-push or discard others' work.
 
-## Supabase access and changes
+## Status (2026-10-09)
 
-- Use only the owner-designated Supabase project. A project name/ref is an identifier, not a credential. If the target is unclear, ask for the project ref before inspecting project data.
-- Prefer the connected Supabase integration or an owner-configured local CLI/session. Do not ask the owner to paste secrets into chat or commit them. Never place credentials, access tokens, database passwords, or service-role keys in `AGENTS.md`, source, Paper, or Git. Keep local secrets in an ignored environment file or secret manager; document required variable names with empty placeholders only.
-- Read-only inspection of schema, migrations, Edge Functions, policies, and safe project configuration is appropriate for backend review. Do not inspect production data rows.
-- Do not apply migrations, execute mutating SQL, deploy functions, alter auth/email settings, reset/restore/delete projects or branches, or change production data unless the owner explicitly requested that specific operation. Report intended scope and environment before an approved backend mutation.
-- Match existing validated request/response and error contracts. Do not invent endpoint, RPC, permission, or error-code names. Keep private implementation details behind approved trusted interfaces.
-
-## Paper design boundary
-
-Paper work requires explicit design-phase authorization. The owner approved the `Elivate Wallet` system documented in `00-product.md` P-06 and adopted the auth compositions on its `Authentication v2` page (2026-10-08). During backend-only work, do not inspect or edit Paper files. For a new Paper task, follow the active Paper tool's guide, inspect the selected file before editing, and use only synthetic or safely masked product data.
-
-## Working safely across models and sessions
-
-- Check `git status` before edits and preserve user changes. Do not reset, clean, overwrite, force-push, or discard work that is not yours. Use the repository’s established branch/worktree conventions when available; if the expected base branch is absent, explain the constraint and keep the user’s current files intact.
-- Prefer small, focused changes. Read relevant code and nearby conventions before adding abstractions, dependencies, or generated files. Do not fabricate a build command, runtime version, or package manager when source configuration is absent.
-- Use existing project checks that match the change and report what ran and what did not. Do not claim a check passed without running it. Avoid unrelated refactors and dependency upgrades.
-- When blocked by a real contract gap or conflict, state the specific affected behavior and ask only the decision needed to proceed; continue independent work.
-- At handoff, summarize changed files, decisions made, checks performed, and unresolved questions. Update this file when an owner-approved decision changes the workflow or the workspace snapshot becomes stale.
+Merged and on dev: backend slices 01–06, frontend M1, member-build slices 1, 2, 3 (+#27
+follow-up) and 9. Paper `App — Screens v4`: batch 1 (N, Q, J, Z) approved; batch 2 (U
+payouts, MV money moves, PL billing, NB bell, WK support chat) awaiting owner approval.
+In progress: slice 4 withdrawals/payouts (`feature/11-withdrawals`, blueprint 11).
