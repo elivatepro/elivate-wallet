@@ -6,6 +6,7 @@
 	"Ask support" is left out until the support slice lands.
 -->
 <script lang="ts">
+	import { page } from '$app/state';
 	import Check from '@lucide/svelte/icons/check';
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 	import Copy from '@lucide/svelte/icons/copy';
@@ -62,12 +63,53 @@
 			new Date(detail.postedAt)
 		)
 	);
+	const reversed = $derived(detail.reversedBy ?? null);
+	const short = (iso: string) =>
+		new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(new Date(iso));
 	const lead = $derived.by(() => {
+		if (detail.reverses) return `Reversal of ${detail.reverses.reference}.`;
 		if (!detail.income) return null;
+		if (reversed)
+			return `Income from ${detail.income.source}. Reversed on ${short(reversed.postedAt)}.`;
 		const by = recorder ? `, recorded by ${recorder}` : '';
 		const whose = owner ? 'their' : 'your';
 		return `Income from ${detail.income.source}${by} and split across ${whose} pockets.`;
 	});
+	/** Same page, another transaction (keeps ?wallet= for managed views). */
+	const hrefFor = (id: string) => {
+		const url = new URL(page.url.href);
+		url.searchParams.set('tx', id);
+		return `${url.pathname}${url.search}`;
+	};
+	const stamp = (iso: string) =>
+		new Intl.DateTimeFormat('en-GB', {
+			day: 'numeric',
+			month: 'short',
+			year: 'numeric',
+			hour: '2-digit',
+			minute: '2-digit'
+		})
+			.format(new Date(iso))
+			.replace(' at ', ', ');
+	const history = $derived(
+		[
+			reversed
+				? {
+						tone: 'danger',
+						title: `Reversed · ${reversed.reference}`,
+						sub: `${stamp(reversed.postedAt)} · taken back from ${owner ? 'their' : 'your'} pockets`
+					}
+				: null,
+			{
+				tone: 'success',
+				title: `Posted to ${owner ? 'their' : 'your'} pockets`,
+				sub: stamp(detail.postedAt)
+			},
+			recorder
+				? { tone: 'muted', title: `Recorded by ${recorder}`, sub: stamp(detail.postedAt) }
+				: null
+		].filter((h) => h !== null)
+	);
 	const split = $derived(
 		(detail.income?.allocations ?? [])
 			.map((a, i) => ({ ...a, dot: DOTS[i % DOTS.length] }))
@@ -113,6 +155,16 @@
 				<dt>Recorded by</dt>
 				<dd>{recorder}</dd>
 			</div>{/if}
+		{#if detail.reverses}
+			<div class="row center">
+				<dt>Reverses</dt>
+				<dd class="ref">
+					<a class="mono link" href={hrefFor(detail.reverses.transactionId)}
+						>{detail.reverses.reference}</a
+					>
+				</dd>
+			</div>
+		{/if}
 		<div class="row center">
 			<dt>Reference</dt>
 			<dd class="ref">
@@ -131,7 +183,31 @@
 				</button>
 			</dd>
 		</div>
+		{#if reversed}
+			<div class="row center">
+				<dt>Reversed by</dt>
+				<dd class="ref">
+					<a class="mono link" href={hrefFor(reversed.transactionId)}>{reversed.reference}</a>
+				</dd>
+			</div>
+		{/if}
 	</dl>
+{/snippet}
+
+{#snippet historyBlock()}
+	<section class="split" aria-label="History">
+		<p class="kicker">History</p>
+		<ol class="history">
+			{#each history as h (h.title)}
+				<li>
+					<span class="dot {h.tone}" aria-hidden="true"></span>
+					<span class="h-text"
+						><span class="h-title">{h.title}</span><span class="h-sub">{h.sub}</span></span
+					>
+				</li>
+			{/each}
+		</ol>
+	</section>
 {/snippet}
 
 {#snippet splitBlock()}
@@ -181,11 +257,14 @@
 					</button>
 				{/if}
 			</div>
-			{#if currency}<p class="amount">{money(amount, currency, true)}</p>{/if}
+			{#if currency}<p class="amount" class:struck={!!reversed}>
+					{money(amount, currency, true)}
+				</p>{/if}
 			{#if lead}<p class="lead">{lead}</p>{/if}
 		</div>
 		<div class="block">{@render rows()}</div>
 		{#if split.length || journal?.lines?.length}<div class="block">{@render splitBlock()}</div>{/if}
+		{#if reversed}<div class="block">{@render historyBlock()}</div>{/if}
 	</aside>
 {:else}
 	<article class="page" aria-label="Transaction {detail.reference}">
@@ -212,7 +291,9 @@
 			<p class="hero-sub">
 				{typeLabel(detail.type)}{detail.income ? ` · ${detail.income.source}` : ''}
 			</p>
-			{#if currency}<h1 class="hero-amount" tabindex="-1">{money(amount, currency, true)}</h1>{/if}
+			{#if currency}<h1 class="hero-amount" class:struck={!!reversed} tabindex="-1">
+					{money(amount, currency, true)}
+				</h1>{/if}
 			<span class="pill {tone} big">{statusLabel(detail.status)}</span>
 		</div>
 		<div class="cards">
@@ -288,6 +369,65 @@
 	.pill.success {
 		background: color-mix(in oklab, var(--color-success) 16%, var(--color-surface));
 		color: var(--color-success);
+	}
+
+	.pill.danger {
+		background: color-mix(in oklab, var(--color-danger) 16%, var(--color-surface));
+		color: var(--color-danger);
+	}
+
+	.struck {
+		color: var(--color-muted);
+		text-decoration: line-through;
+		text-decoration-thickness: 2px;
+	}
+
+	.link {
+		color: var(--color-accent);
+		text-decoration: none;
+	}
+
+	.history {
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
+	}
+
+	.history li {
+		display: flex;
+		align-items: flex-start;
+		gap: 12px;
+	}
+
+	.history .dot {
+		margin-top: 5px;
+		background: var(--color-muted);
+	}
+
+	.history .dot.danger {
+		background: var(--color-danger);
+	}
+
+	.history .dot.success {
+		background: var(--color-success);
+	}
+
+	.h-text {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.h-title {
+		color: var(--color-text);
+		font-size: 13px;
+		line-height: 16px;
+	}
+
+	.h-sub {
+		color: var(--color-muted);
+		font-size: var(--text-12);
+		line-height: 16px;
 	}
 
 	.pill.big {

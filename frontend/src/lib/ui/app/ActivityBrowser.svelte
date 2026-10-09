@@ -13,7 +13,7 @@
 	import { page } from '$app/state';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	import { Cause, Effect, Exit, Option } from 'effect';
-	import { DropdownMenu } from 'bits-ui';
+	import { Dialog, DropdownMenu } from 'bits-ui';
 	import ArrowDown from '@lucide/svelte/icons/arrow-down';
 	import ArrowUp from '@lucide/svelte/icons/arrow-up';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
@@ -41,12 +41,14 @@
 		monthTotals,
 		STATUS_LABELS,
 		statusLabel,
+		TYPE_FILTERS,
 		statusTone,
 		typeLabel,
 		type DateRange
 	} from '#lib/activity.js';
 	import { formatMoney, hiddenMoney } from '#lib/money.js';
 	import RootHero from '#lib/ui/app/RootHero.svelte';
+	import RootImage from '#lib/ui/RootImage.svelte';
 	import TransactionDetailView from '#lib/ui/app/TransactionDetail.svelte';
 
 	let {
@@ -69,9 +71,13 @@
 	let direction = $state<'all' | 'in' | 'out'>('all');
 	let currency = $state<Currency | 'all'>('all');
 	let status = $state<string>('any');
+	let type = $state<string>('any');
 	let pocketId = $state<string>('all');
-	let range = $state<DateRange>('any');
-	let filtersOpen = $state(false);
+	let range = $state<DateRange | 'custom'>('any');
+	let customFrom = $state('');
+	let customTo = $state('');
+	let sheetOpen = $state(false);
+	let total = $state<number | null>(null);
 
 	let items = $state<ActivityItem[]>([]);
 	let months = $state<ActivityMonth[]>([]);
@@ -94,8 +100,19 @@
 			direction !== 'all' ||
 			currency !== 'all' ||
 			status !== 'any' ||
+			type !== 'any' ||
 			pocketId !== 'all' ||
 			range !== 'any'
+	);
+	/** Filters other than search and direction (the mobile "Filters · N" count). */
+	const filterCount = $derived(
+		[
+			currency !== 'all',
+			status !== 'any',
+			type !== 'any',
+			pocketId !== 'all',
+			range !== 'any'
+		].filter(Boolean).length
 	);
 
 	$effect(() => {
@@ -113,19 +130,97 @@
 		return () => clearTimeout(timer);
 	});
 
-	function params(cursor: string | null): string {
+	interface Filters {
+		currency: Currency | 'all';
+		status: string;
+		type: string;
+		pocketId: string;
+		range: DateRange | 'custom';
+		from: string;
+		to: string;
+	}
+	const current = (): Filters => ({
+		currency,
+		status,
+		type,
+		pocketId,
+		range,
+		from: customFrom,
+		to: customTo
+	});
+
+	function params(cursor: string | null, f: Filters = current(), limit?: number): string {
 		const p = new SvelteURLSearchParams({ tz });
 		if (wallet) p.set('wallet', wallet);
 		if (appliedQuery) p.set('q', appliedQuery);
 		if (direction !== 'all') p.set('direction', direction);
-		if (currency !== 'all') p.set('currency', currency);
-		if (status !== 'any') p.set('status', status);
-		if (pocketId !== 'all') p.set('pocketId', pocketId);
-		const dates = dateRange(range, tz);
+		if (f.currency !== 'all') p.set('currency', f.currency);
+		if (f.status !== 'any') p.set('status', f.status);
+		if (f.type !== 'any') p.set('type', f.type);
+		if (f.pocketId !== 'all') p.set('pocketId', f.pocketId);
+		const dates =
+			f.range === 'custom'
+				? { from: f.from || undefined, to: f.to || undefined }
+				: dateRange(f.range, tz);
 		if (dates.from) p.set('from', dates.from);
 		if (dates.to) p.set('to', dates.to);
 		if (cursor) p.set('cursor', cursor);
+		if (limit) p.set('limit', String(limit));
 		return p.toString();
+	}
+
+	function clearFilters() {
+		currency = 'all';
+		status = 'any';
+		type = 'any';
+		pocketId = 'all';
+		range = 'any';
+		customFrom = '';
+		customTo = '';
+	}
+
+	// ── Mobile filter sheet (Q01): edits a draft, previews the count, applies on "Show". ──
+	let draft = $state<Filters>({
+		currency: 'all',
+		status: 'any',
+		type: 'any',
+		pocketId: 'all',
+		range: 'any',
+		from: '',
+		to: ''
+	});
+	let preview = $state<number | null>(null);
+	function openSheet() {
+		draft = current();
+		preview = total;
+		sheetOpen = true;
+	}
+	$effect(() => {
+		if (!sheetOpen) return;
+		const f = { ...draft };
+		const ctrl = new AbortController();
+		const timer = setTimeout(() => {
+			void Effect.runPromiseExit(
+				getJson(`/api/activity?${params(null, f, 1)}`, ActivityView, ctrl.signal)
+			).then((exit) => {
+				if (!ctrl.signal.aborted && Exit.isSuccess(exit))
+					preview = exit.value.activity.total ?? null;
+			});
+		}, 200);
+		return () => {
+			clearTimeout(timer);
+			ctrl.abort();
+		};
+	});
+	function applySheet() {
+		currency = draft.currency;
+		status = draft.status;
+		type = draft.type;
+		pocketId = draft.pocketId;
+		range = draft.range;
+		customFrom = draft.from;
+		customTo = draft.to;
+		sheetOpen = false;
 	}
 
 	const failureOf = (exit: Exit.Exit<unknown, ApiFailure>) =>
@@ -157,6 +252,7 @@
 			}
 			if (view.pockets) pockets = view.pockets;
 			nextCursor = view.activity.nextCursor;
+			if (!more) total = view.activity.total ?? null;
 			failure = null;
 			loaded = true;
 			return;
@@ -169,7 +265,18 @@
 
 	// Reload the first page whenever a filter changes (and once ready).
 	$effect(() => {
-		void [appliedQuery, direction, currency, status, pocketId, range, wallet];
+		void [
+			appliedQuery,
+			direction,
+			currency,
+			status,
+			type,
+			pocketId,
+			range,
+			customFrom,
+			customTo,
+			wallet
+		];
 		if (shell.state.kind !== 'ready') return;
 		untrack(() => void load());
 	});
@@ -215,7 +322,8 @@
 			.replace(' at ', ', ');
 	const subtitle = (item: ActivityItem) => {
 		const parts = [typeLabel(item.type), when(item.postedAt, wide)];
-		if (wide && item.type === 'income') {
+		if (item.reversedAt) parts.push(`reversed ${when(item.reversedAt, false)}`);
+		else if (wide && item.type === 'income') {
 			parts.push(
 				item.currency === 'NGN' && item.pocketCount > 1
 					? `split into ${item.pocketCount} pockets`
@@ -227,6 +335,14 @@
 
 	const currencyLabel = $derived(currency === 'all' ? 'All' : currency);
 	const statusText = $derived(status === 'any' ? 'Any' : statusLabel(status));
+	const noMatchText = $derived.by(() => {
+		const what = currency === 'all' ? 'activity' : `${currency} activity`;
+		return appliedQuery
+			? `No ${what} matches “${appliedQuery}”.`
+			: `No ${what} matches these filters.`;
+	});
+	const typeText = $derived(type === 'any' ? 'Any' : typeLabel(type));
+	const rangeText = $derived(range === 'custom' ? 'Chosen dates' : DATE_RANGE_LABELS[range]);
 	const pocketText = $derived(
 		pocketId === 'all' ? 'All' : (pockets.find((p) => p.pocketId === pocketId)?.name ?? 'All')
 	);
@@ -278,16 +394,22 @@
 		(v) => (status = v)
 	)}
 	{@render dropdown(
+		`Type: ${typeText}`,
+		type,
+		[['any', 'Any type'], ...Object.entries(TYPE_FILTERS)],
+		(v) => (type = v)
+	)}
+	{@render dropdown(
 		`Pocket: ${pocketText}`,
 		pocketId,
 		[['all', 'All pockets'], ...pockets.map((p) => [p.pocketId, p.name] as const)],
 		(v) => (pocketId = v)
 	)}
 	{@render dropdown(
-		DATE_RANGE_LABELS[range],
+		rangeText,
 		range,
-		Object.entries(DATE_RANGE_LABELS),
-		(v) => (range = v as DateRange)
+		[...Object.entries(DATE_RANGE_LABELS), ['custom', 'Pick dates']],
+		(v) => (range = v as DateRange | 'custom')
 	)}
 {/snippet}
 
@@ -330,14 +452,24 @@
 				<button
 					type="button"
 					class="filters-toggle"
-					aria-expanded={filtersOpen}
-					onclick={() => (filtersOpen = !filtersOpen)}
+					class:active={filterCount > 0}
+					aria-haspopup="dialog"
+					onclick={openSheet}
 				>
-					<SlidersHorizontal size={14} strokeWidth={2} aria-hidden="true" />Filters
+					<SlidersHorizontal size={14} strokeWidth={2} aria-hidden="true" />Filters{filterCount
+						? ` · ${filterCount}`
+						: ''}
 				</button>
 			</div>
-			<div class="menus" class:open={filtersOpen}>{@render filterMenus()}</div>
+			<div class="menus">{@render filterMenus()}</div>
 		</div>
+		{#if range === 'custom'}
+			<div class="custom-dates">
+				<label>From <input type="date" bind:value={customFrom} max={customTo || undefined} /></label
+				>
+				<label>To <input type="date" bind:value={customTo} min={customFrom || undefined} /></label>
+			</div>
+		{/if}
 
 		<div class="body">
 			<div class="list">
@@ -350,10 +482,33 @@
 				{:else if !loaded}
 					<div class="skeleton" aria-hidden="true"></div>
 					<p class="visually-hidden" role="status">Loading activity</p>
+				{:else if items.length === 0 && filtered}
+					<section class="no-match" aria-labelledby="no-match-title">
+						<div class="nm-art" aria-hidden="true">
+							<div class="nm-shade"></div>
+							<div class="nm-grain"></div>
+							<RootImage pose="no-matches" class="nm-root" sizes="190px" />
+						</div>
+						<h2 id="no-match-title" class="nm-title">Nothing matches</h2>
+						<p class="nm-lead" role="status">{noMatchText}</p>
+						<div class="nm-actions">
+							{#if appliedQuery}<button type="button" class="nm-ghost" onclick={() => (query = '')}
+									>Clear search</button
+								>{/if}
+							{#if filterCount > 0 || direction !== 'all'}
+								<button
+									type="button"
+									class="nm-primary"
+									onclick={() => {
+										clearFilters();
+										direction = 'all';
+									}}>Clear filters</button
+								>
+							{/if}
+						</div>
+					</section>
 				{:else if items.length === 0}
-					<p class="empty" role="status">
-						{filtered ? 'Nothing matches these filters.' : 'No activity yet.'}
-					</p>
+					<p class="empty" role="status">No activity yet.</p>
 				{:else}
 					{#each groups as group (group.key)}
 						{@const totals = monthTotals(group.totals, hidden)}
@@ -433,7 +588,373 @@
 	</div>
 {/if}
 
+<Dialog.Root bind:open={sheetOpen}>
+	<Dialog.Portal>
+		<Dialog.Overlay class="sheet-overlay" />
+		<Dialog.Content class="sheet">
+			<span class="sheet-handle" aria-hidden="true"></span>
+			<div class="sheet-head">
+				<Dialog.Title class="sheet-title">Filters</Dialog.Title>
+				<button
+					type="button"
+					class="sheet-clear"
+					onclick={() =>
+						(draft = {
+							currency: 'all',
+							status: 'any',
+							type: 'any',
+							pocketId: 'all',
+							range: 'any',
+							from: '',
+							to: ''
+						})}>Clear all</button
+				>
+			</div>
+			<div class="sheet-body">
+				<fieldset>
+					<legend>Currency</legend>
+					<div class="seg3">
+						{#each [['all', 'All'], ['NGN', 'NGN'], ['USD', 'USD']] as const as [key, text] (key)}
+							<button
+								type="button"
+								aria-pressed={draft.currency === key}
+								onclick={() => (draft.currency = key)}>{text}</button
+							>
+						{/each}
+					</div>
+				</fieldset>
+				{@render chipGroup(
+					'Status',
+					draft.status,
+					[['any', 'Any'], ...Object.entries(STATUS_LABELS)],
+					(v) => (draft.status = v)
+				)}
+				{@render chipGroup(
+					'Type',
+					draft.type,
+					[['any', 'Any'], ...Object.entries(TYPE_FILTERS)],
+					(v) => (draft.type = v)
+				)}
+				{@render chipGroup(
+					'Pocket',
+					draft.pocketId,
+					[['all', 'All'], ...pockets.map((p) => [p.pocketId, p.name] as const)],
+					(v) => (draft.pocketId = v)
+				)}
+				{@render chipGroup(
+					'Date',
+					draft.range,
+					[
+						['any', 'Any time'],
+						['this_month', 'This month'],
+						['last_3_months', 'Last 3 months'],
+						['custom', 'Pick dates']
+					],
+					(v) => (draft.range = v as DateRange | 'custom')
+				)}
+				{#if draft.range === 'custom'}
+					<div class="custom-dates">
+						<label>From <input type="date" bind:value={draft.from} /></label>
+						<label>To <input type="date" bind:value={draft.to} /></label>
+					</div>
+				{/if}
+			</div>
+			<button type="button" class="sheet-show" onclick={applySheet}
+				>{preview === null
+					? 'Show results'
+					: `Show ${preview} result${preview === 1 ? '' : 's'}`}</button
+			>
+		</Dialog.Content>
+	</Dialog.Portal>
+</Dialog.Root>
+
+{#snippet chipGroup(
+	label: string,
+	value: string,
+	options: ReadonlyArray<readonly [string, string]>,
+	set: (v: string) => void
+)}
+	<fieldset>
+		<legend>{label}</legend>
+		<div class="chips">
+			{#each options as [key, text] (key)}
+				<button type="button" aria-pressed={value === key} onclick={() => set(key)}>{text}</button>
+			{/each}
+		</div>
+	</fieldset>
+{/snippet}
+
 <style>
+	.filters-toggle.active {
+		border-color: #4a5254;
+		background: #2b3031;
+	}
+
+	.custom-dates {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 12px;
+		color: var(--color-muted);
+		font-size: 13px;
+	}
+
+	.custom-dates label {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.custom-dates input {
+		height: 40px;
+		padding: 0 10px;
+		border: 1px solid var(--color-border);
+		border-radius: 10px;
+		background: var(--color-surface);
+		color: var(--color-text);
+		font: inherit;
+		color-scheme: dark;
+	}
+
+	/* ── Q02 no matches ── */
+	.no-match {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 10px;
+		padding-top: 8px;
+		text-align: center;
+	}
+
+	.nm-art {
+		position: relative;
+		display: flex;
+		justify-content: center;
+		align-self: stretch;
+		height: 230px;
+		margin-bottom: 14px;
+		overflow: clip;
+		border-radius: 24px;
+		background: #1a1d1e url('/auth-bg/mobile-dark.jpg') 50% / cover;
+	}
+
+	.nm-shade,
+	.nm-grain {
+		position: absolute;
+		inset: 0;
+	}
+
+	.nm-shade {
+		background-image: linear-gradient(
+			in oklab 180deg,
+			oklab(21.5% -0.004 -0.003 / 0%) 30%,
+			oklab(21.5% -0.004 -0.003 / 85%) 100%
+		);
+	}
+
+	.nm-grain {
+		background: url('/auth-bg/grain-256.png') 50% / 256px 256px;
+		mix-blend-mode: overlay;
+		opacity: 0.25;
+	}
+
+	.nm-art :global(.nm-root) {
+		position: absolute;
+		bottom: -10px;
+		width: 180px;
+		height: 242px;
+	}
+
+	.nm-title {
+		color: var(--color-text);
+		font-size: 26px;
+		font-weight: var(--font-weight-semibold);
+		letter-spacing: -0.02em;
+		line-height: 32px;
+	}
+
+	.nm-lead {
+		color: var(--color-muted);
+		font-size: var(--text-14);
+		line-height: 20px;
+	}
+
+	.nm-actions {
+		display: flex;
+		gap: 10px;
+		align-self: stretch;
+		padding-top: 14px;
+	}
+
+	.nm-actions button {
+		flex: 1;
+		height: 48px;
+		padding: 0 22px;
+		border-radius: var(--radius-pill);
+		font: inherit;
+		font-size: 15px;
+		font-weight: var(--font-weight-semibold);
+		cursor: pointer;
+	}
+
+	.nm-ghost {
+		border: 1px solid var(--color-border);
+		background: transparent;
+		color: var(--color-text);
+	}
+
+	.nm-primary {
+		border: 0;
+		background: var(--color-text);
+		color: var(--color-canvas);
+	}
+
+	/* ── Q01 mobile filter sheet ── */
+	:global(.sheet-overlay) {
+		position: fixed;
+		inset: 0;
+		z-index: 20;
+		background: #000000a8;
+	}
+
+	:global(.sheet) {
+		position: fixed;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		z-index: 21;
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
+		max-height: 88dvh;
+		padding: 10px 20px calc(24px + env(safe-area-inset-bottom));
+		overflow-y: auto;
+		border-radius: 24px 24px 0 0;
+		background: var(--color-surface);
+		color: var(--color-text);
+	}
+
+	.sheet-handle {
+		align-self: center;
+		width: 40px;
+		height: 5px;
+		border-radius: var(--radius-pill);
+		background: #3d4446;
+	}
+
+	.sheet-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+	}
+
+	:global(.sheet-title) {
+		font-size: 22px;
+		font-weight: var(--font-weight-semibold);
+		line-height: 28px;
+	}
+
+	.sheet-clear {
+		border: 0;
+		background: transparent;
+		color: var(--color-accent);
+		font: inherit;
+		font-size: 15px;
+		cursor: pointer;
+	}
+
+	.sheet-body {
+		display: flex;
+		flex-direction: column;
+		gap: 18px;
+	}
+
+	fieldset {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		border: 0;
+	}
+
+	legend {
+		margin-bottom: 10px;
+		color: var(--color-text);
+		font-size: var(--text-14);
+		font-weight: var(--font-weight-medium);
+	}
+
+	.seg3 {
+		display: flex;
+		padding: 4px;
+		border: 1px solid var(--color-border);
+		border-radius: 14px;
+		background: var(--color-canvas);
+	}
+
+	.seg3 button {
+		flex: 1;
+		height: 38px;
+		border: 1px solid transparent;
+		border-radius: 10px;
+		background: transparent;
+		color: var(--color-muted);
+		font: inherit;
+		font-size: var(--text-14);
+		cursor: pointer;
+	}
+
+	.seg3 button[aria-pressed='true'],
+	.chips button[aria-pressed='true'] {
+		border-color: #4a5254;
+		background: #2b3031;
+		color: var(--color-text);
+		font-weight: var(--font-weight-semibold);
+	}
+
+	.chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+	}
+
+	.chips button {
+		height: 36px;
+		padding: 0 14px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-pill);
+		background: transparent;
+		color: var(--shell-strong, var(--color-text));
+		font: inherit;
+		font-size: 13px;
+		cursor: pointer;
+	}
+
+	.sheet-show {
+		flex-shrink: 0;
+		height: 54px;
+		border: 0;
+		border-radius: var(--radius-pill);
+		background-image: linear-gradient(
+			in oklab 135deg,
+			oklab(78.7% 0.097 0.085) 0%,
+			oklab(73.5% 0.128 0.109) 55%,
+			oklab(68.6% 0.137 0.113) 100%
+		);
+		color: var(--button-primary-ink, #14100e);
+		font: inherit;
+		font-size: 16px;
+		font-weight: var(--font-weight-semibold);
+		cursor: pointer;
+	}
+
+	.pill.danger {
+		background: color-mix(in oklab, var(--color-danger) 16%, var(--color-surface));
+		color: var(--color-danger);
+	}
+
+	.status-inline.danger {
+		color: var(--color-danger);
+	}
+
 	.activity {
 		display: flex;
 		flex-direction: column;
@@ -524,10 +1045,6 @@
 		display: none;
 		flex-wrap: wrap;
 		gap: 8px;
-	}
-
-	.menus.open {
-		display: flex;
 	}
 
 	:global(.filter) {
@@ -828,6 +1345,29 @@
 
 		.segmented .filters-toggle {
 			display: none;
+		}
+
+		.nm-art {
+			align-self: center;
+			width: 640px;
+			height: 250px;
+		}
+
+		.nm-title {
+			font-size: 36px;
+			line-height: 44px;
+		}
+
+		.nm-lead {
+			font-size: 15px;
+		}
+
+		.nm-actions {
+			align-self: center;
+		}
+
+		.nm-actions button {
+			flex: none;
 		}
 
 		.menus {

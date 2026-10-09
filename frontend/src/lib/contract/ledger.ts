@@ -3,7 +3,7 @@
 // (ledger.money); it is never turned into a float.
 
 import { Schema } from 'effect';
-import { IsoDateTime, Person, TenantStatus, Uuid } from './common';
+import { IsoDateTime, Person, Role, TenantStatus, Uuid } from './common';
 
 export const MONEY_PATTERN = /^-?[0-9]+(\.[0-9]+)?$/;
 export const Money = Schema.String.check(Schema.isPattern(MONEY_PATTERN));
@@ -58,7 +58,9 @@ export const ActivityItem = Schema.Struct({
 	tenantId: Uuid,
 	currency: Currency,
 	amount: Money,
-	pocketCount: Schema.Int
+	pocketCount: Schema.Int,
+	/** When a reversal points at this movement (owner decision 2026-10-08, Q03). */
+	reversedAt: Schema.optionalKey(Schema.NullOr(IsoDateTime))
 });
 export type ActivityItem = typeof ActivityItem.Type;
 
@@ -73,6 +75,8 @@ export const Activity = Schema.Struct({
 	items: Schema.Array(ActivityItem),
 	nextCursor: Schema.NullOr(Schema.String),
 	months: Schema.Array(ActivityMonth),
+	/** Size of the whole filtered set (mobile sheet "Show N results"). */
+	total: Schema.optionalKey(Schema.Int),
 	timeZone: Schema.String
 });
 export type Activity = typeof Activity.Type;
@@ -84,6 +88,7 @@ export type ActivityQuery = {
 	readonly direction?: 'in' | 'out';
 	readonly currency?: Currency;
 	readonly status?: string;
+	readonly type?: string;
 	readonly pocketId?: string;
 	readonly from?: string;
 	readonly to?: string;
@@ -91,6 +96,12 @@ export type ActivityQuery = {
 	readonly cursor?: string;
 	readonly limit?: number;
 };
+
+const TransactionLink = Schema.Struct({
+	transactionId: Uuid,
+	reference: Schema.String,
+	postedAt: IsoDateTime
+});
 
 const PocketLine = Schema.Struct({ pocketId: Uuid, pocket: Schema.String, amount: Money });
 
@@ -102,6 +113,9 @@ export const TransactionDetail = Schema.Struct({
 	status: Schema.String,
 	postedAt: IsoDateTime,
 	recordedBy: Person,
+	/** Q03: the reversal of this transaction, or what a reversal reverses. */
+	reversedBy: Schema.optionalKey(Schema.NullOr(TransactionLink)),
+	reverses: Schema.optionalKey(Schema.NullOr(TransactionLink)),
 	tenant: Schema.Struct({ id: Uuid, name: Schema.String }),
 	office: Schema.Struct({ id: Uuid, name: Schema.String }),
 	journals: Schema.Array(
@@ -193,15 +207,28 @@ export type LeadershipOverview = typeof LeadershipOverview.Type;
 /** GET /ledger/wallets (Blueprint 04): owners with at least one visible segment. */
 export const ManagedWalletPage = Schema.Struct({
 	items: Schema.Array(
-		Schema.Struct({ walletId: Uuid, person: Person, currencies: Schema.Array(CurrencyTotals) })
+		Schema.Struct({
+			walletId: Uuid,
+			person: Person,
+			/** The person's membership state in this network (Q04). */
+			status: Schema.optionalKey(Schema.NullOr(Schema.String)),
+			currencies: Schema.Array(CurrencyTotals)
+		})
 	),
-	nextCursor: Schema.NullOr(Schema.String)
+	nextCursor: Schema.NullOr(Schema.String),
+	people: Schema.optionalKey(Schema.Int),
+	scope: Schema.optionalKey(
+		Schema.Struct({ kind: Schema.Literals(['office', 'network']), name: Schema.String })
+	)
 });
 export type ManagedWalletPage = typeof ManagedWalletPage.Type;
 
 export const ManagedWallet = Schema.Struct({
 	walletId: Uuid,
 	person: Person,
+	memberships: Schema.optionalKey(
+		Schema.Array(Schema.Struct({ role: Role, officeName: Schema.String, status: Schema.String }))
+	),
 	networks: Schema.Array(WalletNetwork)
 });
 export type ManagedWallet = typeof ManagedWallet.Type;

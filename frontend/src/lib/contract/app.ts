@@ -8,6 +8,7 @@ import {
 	ActivityItem,
 	Allocation,
 	AllocationVersion,
+	ManagedWallet,
 	Pocket,
 	WalletNetwork
 } from './ledger';
@@ -205,3 +206,11 @@ export const ActivityView = Schema.Struct({
 	person: Person
 });
 export type ActivityView = typeof ActivityView.Type;
+
+/** GET /api/wallets/:walletId (Blueprint 08, Paper Q05): one member's wallet for a leader. */
+export const MemberWalletView = Schema.Struct({
+	wallet: ManagedWallet,
+	network: Schema.NullOr(WalletNetwork),
+	recent: Schema.Array(ActivityItem)
+});
+export type MemberWalletView = typeof MemberWalletView.Type;

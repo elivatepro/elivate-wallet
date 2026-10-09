@@ -76,22 +76,26 @@ export function monthTotals(
 	return { in: show('in'), out: show('out') };
 }
 
-const TYPE_LABELS: Record<string, string> = { income: 'Income' };
+const TYPE_LABELS: Record<string, string> = { income: 'Income', reversal: 'Reversal' };
+
+/** Movement types the activity type filter offers (Blueprint 08). */
+export const TYPE_FILTERS: Record<string, string> = { income: 'Income', reversal: 'Reversal' };
 
 export const typeLabel = (type: string) =>
 	TYPE_LABELS[type] ?? type.charAt(0).toUpperCase() + type.slice(1).replaceAll('_', ' ');
 
 /** Durable statuses the activity filter offers (Blueprint 08 B4.2). */
-export const STATUS_LABELS: Record<string, string> = { posted: 'Posted' };
+export const STATUS_LABELS: Record<string, string> = { posted: 'Posted', reversed: 'Reversed' };
 export const statusLabel = (status: string) => STATUS_LABELS[status] ?? typeLabel(status);
 
 /** Tone of a status pill; unknown statuses stay neutral. */
 export const statusTone = (status: string): 'success' | 'warning' | 'danger' | 'neutral' =>
-	status === 'posted' ? 'success' : 'neutral';
+	status === 'posted' ? 'success' : status === 'reversed' ? 'danger' : 'neutral';
 
 export const isCredit = (amount: string) => !amount.startsWith('-') && !isZero(amount);
 
-export type DateRange = 'any' | '7d' | '30d' | 'this_month' | 'last_month' | 'this_year';
+export type DateRange =
+	'any' | '7d' | '30d' | 'this_month' | 'last_month' | 'last_3_months' | 'this_year';
 
 export const DATE_RANGE_LABELS: Record<DateRange, string> = {
 	any: 'Any date',
@@ -99,6 +103,7 @@ export const DATE_RANGE_LABELS: Record<DateRange, string> = {
 	'30d': 'Last 30 days',
 	this_month: 'This month',
 	last_month: 'Last month',
+	last_3_months: 'Last 3 months',
 	this_year: 'This year'
 };
 
@@ -134,6 +139,8 @@ export function dateRange(
 			return { from: ymd(y, m, 1), to: today };
 		case 'last_month':
 			return { from: ymd(y, m - 1, 1), to: ymd(y, m, 0) };
+		case 'last_3_months':
+			return { from: ymd(y, m - 2, 1), to: today };
 		case 'this_year':
 			return { from: ymd(y, 0, 1), to: today };
 	}

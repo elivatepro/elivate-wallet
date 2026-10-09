@@ -40,6 +40,7 @@ const RULES: Record<string, (v: string) => boolean> = {
 	direction: (v) => v === 'in' || v === 'out',
 	currency: (v) => v === 'NGN' || v === 'USD',
 	status: (v) => /^[a-z_]{1,30}$/.test(v),
+	type: (v) => /^[a-z_]{1,30}$/.test(v),
 	pocketId: (v) => UUID_PATTERN.test(v),
 	from: (v) => DATE.test(v),
 	to: (v) => DATE.test(v),
