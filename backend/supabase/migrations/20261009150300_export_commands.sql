@@ -74,10 +74,17 @@ begin
       workspace.id)->>'allowed')::boolean then
     return false;
   end if;
-  return p_file.member_user_id is null or exists (
-    select 1 from ledger.visible_segments(p_file.requested_by, workspace.id, workspace.tenant_id,
-      array['export_scoped_reports'], null, workspace.office_id) v
-    where v.owner_user_id = p_file.member_user_id);
+  if p_file.member_user_id is not null and not exists (
+      select 1 from ledger.visible_segments(p_file.requested_by, workspace.id, workspace.tenant_id,
+        array['export_scoped_reports'], null, workspace.office_id) v
+      where v.owner_user_id = p_file.member_user_id) then
+    return false;
+  end if;
+  -- A prepared file: everything in it must still be visible (a deny added
+  -- after the file was made removes the whole file from reach).
+  return p_file.included_accounts is null or p_file.included_accounts <@ exports.report_accounts(
+    p_file.requested_by, workspace.id, workspace.tenant_id, p_file.scope_office_id, p_file.member_user_id,
+    p_file.currency, array['export_scoped_reports']);
 end;
 $$;
 
@@ -119,7 +126,7 @@ begin
   if p_outcome = 'ready' then
     perform notify.emit(p_file.requested_by, case when statement then null else p_file.tenant_id end,
       case when statement then 'export.statement_ready' else 'export.report_ready' end,
-      'export', p_file.id, params, p_file.id::text || ':' || p_file.attempts::text,
+      'export', p_file.id, params, p_file.id::text || ':' || p_file.retries::text || ':' || p_file.attempts::text,
       jsonb_build_object(
         'network', (select t.name from org.tenants t where t.id = p_file.tenant_id),
         'title', title,
@@ -129,7 +136,8 @@ begin
         'path', path));
   else
     perform notify.emit(p_file.requested_by, case when statement then null else p_file.tenant_id end,
-      'export.failed', 'export', p_file.id, params, p_file.id::text || ':' || p_file.attempts::text);
+      'export.failed', 'export', p_file.id, params,
+      p_file.id::text || ':' || p_file.retries::text || ':' || p_file.attempts::text);
   end if;
 end;
 $$;
@@ -488,6 +496,53 @@ begin
 end;
 $$;
 
+-- People the actor may export ("One member" picker, Paper S05/S06): owners
+-- of segments visible with export_scoped_reports in the workspace scope.
+create function api.report_members(
+  p_user_id uuid,
+  p_session_id uuid,
+  p_membership_id uuid,
+  p_query text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  workspace org.memberships;
+  term text := btrim(p_query);
+  pattern text;
+begin
+  perform identity.require_session(p_user_id, p_session_id);
+  workspace := authz.require_workspace(p_user_id, p_membership_id);
+  if not (authz.decide(p_user_id, 'export_scoped_reports', workspace.tenant_id, workspace.office_id, null,
+      workspace.id)->>'allowed')::boolean then
+    perform identity.fail('authorization_denied');
+  end if;
+  if term is null or length(term) not between 2 and 100 then
+    perform identity.fail('validation_error', jsonb_build_object('field', 'q'));
+  end if;
+  pattern := '%' || replace(replace(replace(term, '\', '\\'), '%', '\%'), '_', '\_') || '%';
+  return jsonb_build_object('items', coalesce((
+    select jsonb_agg(x.item order by x.name, x.wallet_id)
+    from (
+      select distinct on (v.wallet_id) v.wallet_id,
+        coalesce(org.person(v.owner_user_id)->>'name', '') as name,
+        jsonb_build_object('walletId', v.wallet_id, 'person', org.person(v.owner_user_id)) as item
+      from ledger.visible_segments(p_user_id, workspace.id, workspace.tenant_id, array['export_scoped_reports'],
+        null, workspace.office_id) v
+      join identity.accounts a on a.user_id = v.owner_user_id
+      left join identity.profiles pr on pr.user_id = v.owner_user_id
+      where upper(a.uid) = upper(term)
+        or concat_ws(' ', pr.first_name, pr.last_name) ilike pattern
+        or pr.display_name ilike pattern
+      order by v.wallet_id
+    ) x
+  ), '[]'::jsonb));
+end;
+$$;
+
 create function api.workspace_exports(
   p_user_id uuid,
   p_session_id uuid,
@@ -543,8 +598,9 @@ begin
   if f.kind not like 'statement_%' and not exports.report_allowed(f) then
     perform identity.fail('authorization_denied');
   end if;
-  update exports.files set status = 'queued', attempts = 0, fail_reason = null, summary = null, row_count = null,
-    notify = false, started_at = null, session_id = p_session_id,
+  update exports.files set status = 'queued', attempts = 0, retries = retries + 1, fail_reason = null,
+    summary = null, row_count = null, included_accounts = null, notify = false, started_at = null,
+    session_id = p_session_id,
     as_of = least(now(), (period_to + 1)::timestamp at time zone exports.zone())
   where id = f.id
   returning * into f;
@@ -652,7 +708,8 @@ begin
       continue;
     end if;
     delete from exports.rows where file_id = f.id;
-    update exports.files set status = 'preparing', attempts = attempts + 1, lease_owner = p_worker,
+    update exports.files set status = 'preparing', attempts = attempts + 1, included_accounts = null,
+      lease_owner = p_worker,
       lease_expires_at = now() + exports.lease(), started_at = coalesce(started_at, now())
     where id = f.id
     returning * into f;

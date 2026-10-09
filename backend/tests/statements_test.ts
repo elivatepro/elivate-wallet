@@ -233,7 +233,7 @@ Deno.test("reports: overview and create run in the selected workspace", async ()
 });
 
 Deno.test("download authorization is for the app server only and checks the key", async () => {
-  const key = `exports/${tenantId}/${exportId}.pdf`;
+  const key = `exports/${tenantId}/${exportId}/1.pdf`;
   const { handler, calls } = ledger({
     authorize_export_download: {
       data: { objectKey: key, fileName: "f.pdf", contentType: "application/pdf" },

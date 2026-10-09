@@ -63,6 +63,11 @@ create table exports.files (
   fail_reason text check (fail_reason is null or fail_reason ~ '^[a-z_]{3,40}$'),
   notify boolean not null default false,
   attempts int not null default 0 check (attempts >= 0),
+  -- Retries of a failed file; with attempts it keeps every bell notice distinct.
+  retries int not null default 0 check (retries >= 0),
+  -- Reports: the accounts the file was made from. A download re-checks that
+  -- every one is still visible to the requester (a later deny wins).
+  included_accounts uuid[],
   lease_owner text check (lease_owner is null or length(lease_owner) between 1 and 100),
   lease_expires_at timestamptz,
   idempotency_key text not null check (idempotency_key ~ '^[A-Za-z0-9_-]{16,100}$'),
@@ -106,10 +111,12 @@ language sql immutable set search_path = '' as $$
   select case when p_kind like '%_pdf' then 'pdf' else 'csv' end
 $$;
 
--- Server-built storage key; only the Worker and the app server see it.
+-- Server-built storage key; only the Worker and the app server see it. One key
+-- per attempt, so a worker whose lease ran out never touches a newer file.
 create function exports.object_key(p_file exports.files) returns text
 language sql immutable set search_path = '' as $$
-  select 'exports/' || p_file.tenant_id::text || '/' || p_file.id::text || '.' || exports.format(p_file.kind)
+  select 'exports/' || p_file.tenant_id::text || '/' || p_file.id::text || '/' || p_file.attempts::text || '.'
+    || exports.format(p_file.kind)
 $$;
 
 -- ── Periods (WAT, inclusive dates) ────────────────────────────────────────
@@ -196,7 +203,8 @@ language sql stable set search_path = '' as $$
     ),
     'scope', case when p_file.workspace_membership_id is not null then jsonb_build_object(
       'officeId', p_file.scope_office_id,
-      'member', case when p_file.member_user_id is not null then org.person(p_file.member_user_id) end
+      'member', case when p_file.member_user_id is not null then org.person(p_file.member_user_id) end,
+      'memberWalletId', (select w.id from ledger.wallets w where w.owner_user_id = p_file.member_user_id)
     ) end,
     -- Expired is derived: a ready file past its 7 days.
     'status', case when p_file.status = 'ready' and p_file.expires_at <= now() then 'expired' else p_file.status end,

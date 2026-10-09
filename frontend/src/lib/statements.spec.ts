@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	customPeriod,
+	recreatePeriod,
 	periodPresets,
 	periodRange,
 	periodTitle,
@@ -48,6 +49,25 @@ describe('WAT periods', () => {
 		expect(customPeriod('2026-02-01', '2026-02-28').kind).toBe('month');
 		expect(customPeriod('2026-02-02', '2026-02-28').kind).toBe('custom');
 		expect(customPeriod('2026-05-01', '2026-07-31').kind).toBe('custom');
+	});
+});
+
+describe('making a file again', () => {
+	it('keeps an old year-so-far range as fixed dates', () => {
+		expect(
+			recreatePeriod({ kind: 'year_to_date', from: '2026-01-01', to: '2026-10-09' }, '2026-10-20')
+		).toEqual({
+			kind: 'custom',
+			from: '2026-01-01',
+			to: '2026-10-09'
+		});
+		expect(
+			recreatePeriod({ kind: 'year_to_date', from: '2026-01-01', to: '2026-10-20' }, '2026-10-20')
+				.kind
+		).toBe('year_to_date');
+		expect(
+			recreatePeriod({ kind: 'month', from: '2026-09-01', to: '2026-09-30' }, '2026-10-20').kind
+		).toBe('month');
 	});
 });
 

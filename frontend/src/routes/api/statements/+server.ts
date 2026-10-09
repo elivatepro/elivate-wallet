@@ -19,6 +19,18 @@ export const GET: RequestHandler = async (event) => {
 	}
 	const cursor = event.url.searchParams.get('cursor');
 	if (cursor !== null && !CURSOR.test(cursor)) return respondError(invalidRequest('cursor'));
+	// With a cursor: just the next (older) page of files.
+	if (cursor !== null) {
+		return respond(
+			await runApi(
+				event,
+				session,
+				Effect.gen(function* () {
+					return yield* (yield* ExportsApi).statements(cursor);
+				})
+			)
+		);
+	}
 	return respond(
 		await runApi(
 			event,

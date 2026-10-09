@@ -974,6 +974,13 @@ export function createHandler(
       });
     }),
 
+    route("GET", "/reports/members", (c) => {
+      onlyQuery(c.query, ["q"]);
+      const q = queryText(c.query, "q", 100);
+      if (q === null) throw new ApiError("validation_error", { field: "q" });
+      return call("report_members", { ...inWorkspace(c), p_query: q });
+    }),
+
     route("GET", "/reports", (c) => {
       onlyQuery(c.query, ["cursor", "limit"]);
       return call("workspace_exports", {
@@ -1044,7 +1051,9 @@ export function createHandler(
       );
       if (
         typeof target.objectKey !== "string" ||
-        !/^exports\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(pdf|csv)(\.png)?$/.test(target.objectKey)
+        !/^exports\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9]{1,3}\.(pdf|csv)(\.png)?$/.test(
+          target.objectKey,
+        )
       ) {
         throw new Error("authorize_export_download returned an unexpected key");
       }

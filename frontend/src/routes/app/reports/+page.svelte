@@ -17,7 +17,7 @@
 	import { createReport, loadOverview, loadReports } from '#lib/client/reports.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { formatMoney, hiddenMoney, isZero } from '#lib/money.js';
-	import { periodPresets, watToday, type Period } from '#lib/statements.js';
+	import { periodPresets, recreatePeriod, watToday, type Period } from '#lib/statements.js';
 	import PageBar from '#lib/ui/account/PageBar.svelte';
 	import ExportReportForm from '#lib/ui/exports/ExportReportForm.svelte';
 	import FileList from '#lib/ui/exports/FileList.svelte';
@@ -60,6 +60,9 @@
 		const controller = new AbortController();
 		const c = currency;
 		const p = period;
+		// Never show one currency's figures under another's symbol while loading.
+		overview = null;
+		failed = null;
 		void loadOverview(c, p, controller.signal).then((exit) => {
 			if (controller.signal.aborted) return;
 			if (Exit.isSuccess(exit)) {
@@ -73,12 +76,15 @@
 	$effect(() => {
 		if (!workspaceId) return;
 		void loadReports().then((exit) => {
-			if (Exit.isSuccess(exit)) files.set(exit.value.items);
+			if (Exit.isSuccess(exit)) files.set(exit.value.items, exit.value.nextCursor);
 		});
 	});
 
-	const money = (amount: string) =>
-		shell.hideAmounts ? hiddenMoney(currency) : formatMoney(amount, currency);
+	/** Figures always carry the currency they were read in. */
+	const money = (amount: string) => {
+		const c = overview?.currency ?? currency;
+		return shell.hideAmounts ? hiddenMoney(c) : formatMoney(amount, c);
+	};
 	const held = (kind: string) => overview?.held.find((h) => h.kind === kind);
 	const stage = (s: string) => overview?.withdrawals.find((w) => w.stage === s);
 	const income = $derived(held('income')?.amount ?? '0.00');
@@ -86,6 +92,13 @@
 	const requested = $derived(stage('requested'));
 	const approved = $derived(stage('approved'));
 	const currencies = $derived<readonly Currency[]>(overview?.currencies ?? ['NGN', 'USD']);
+
+	// Changed choices are a new attempt (a new idempotency key); an unchanged
+	// retry after a lost answer keeps the key (F-03).
+	$effect(() => {
+		void [exportKind, exportCurrency, exportPeriod, exportMember, exportWho];
+		exportKey = newKey();
+	});
 
 	function openExport(kind: ReportKind) {
 		exportKind = kind;
@@ -134,8 +147,14 @@
 			{
 				kind: file.kind as ReportKind,
 				currency: file.currency,
-				period: { kind: file.period.kind, from: file.period.from, to: file.period.to },
-				member: null
+				period: recreatePeriod(file.period, today),
+				member:
+					file.scope?.memberWalletId && file.scope.member
+						? {
+								walletId: file.scope.memberWalletId,
+								name: file.scope.member.name ?? file.scope.member.uid
+							}
+						: null
 			},
 			workspaceId
 		);
@@ -275,6 +294,9 @@
 			<FileList
 				files={files.files}
 				busy={rowBusy}
+				hasMore={files.nextCursor !== null}
+				loadingMore={files.loadingMore}
+				onMore={() => files.loadMore('/api/reports')}
 				onGet={(f) => (downloading = f)}
 				onRetry={retry}
 				onRecreate={recreate}

@@ -57,7 +57,12 @@ export const ExportFile = Schema.Struct({
 	currency: Currency,
 	period: ExportPeriod,
 	scope: Schema.NullOr(
-		Schema.Struct({ officeId: Schema.NullOr(Uuid), member: Schema.NullOr(Person) })
+		Schema.Struct({
+			officeId: Schema.NullOr(Uuid),
+			member: Schema.NullOr(Person),
+			/** One-member reports: the member's wallet, for Recreate. */
+			memberWalletId: Schema.optionalKey(Schema.NullOr(Uuid))
+		})
 	),
 	status: ExportStatus,
 	rowCount: Schema.NullOr(Schema.Int),
@@ -289,7 +294,7 @@ export const ClaimedJob = Schema.Struct({
 	kind: ExportKind,
 	format: Schema.Literals(['pdf', 'csv']),
 	objectKey: Schema.String.check(
-		Schema.isPattern(/^exports\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(pdf|csv)$/)
+		Schema.isPattern(/^exports\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9]{1,3}\.(pdf|csv)$/)
 	),
 	fileName: Schema.String,
 	attempt: Schema.Int
@@ -328,7 +333,7 @@ export const StepResult = Schema.Struct({
 /** For the app server only: where the file is and how to send it. */
 export const DownloadTarget = Schema.Struct({
 	objectKey: Schema.String.check(
-		Schema.isPattern(/^exports\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(pdf|csv)(\.png)?$/)
+		Schema.isPattern(/^exports\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9]{1,3}\.(pdf|csv)(\.png)?$/)
 	),
 	fileName: Schema.String.check(Schema.isPattern(/^[A-Za-z0-9._-]{1,200}$/)),
 	contentType: Schema.Literals(['application/pdf', 'text/csv; charset=utf-8', 'image/png']),
@@ -374,6 +379,7 @@ export const ExportRoutes = {
 	createStatement: { method: 'POST', path: '/statements' },
 	overview: { method: 'GET', path: '/reports/overview' },
 	reports: { method: 'GET', path: '/reports' },
+	members: { method: 'GET', path: '/reports/members' },
 	createReport: { method: 'POST', path: '/reports' },
 	file: (id: string) => ({ method: 'GET', path: `/exports/${id}` }) as const,
 	retry: (id: string) => ({ method: 'POST', path: `/exports/${id}/retry` }) as const,
@@ -383,3 +389,9 @@ export const ExportRoutes = {
 /** GET /api/statements: the builder's choices and the person's files. */
 export const StatementsView = Schema.Struct({ options: StatementOptions, files: ExportPage });
 export type StatementsView = typeof StatementsView.Type;
+
+/** "One member" picker: people the actor may export (export_scoped_reports). */
+export const ReportMembers = Schema.Struct({
+	items: Schema.Array(Schema.Struct({ walletId: Uuid, person: Person }))
+});
+export type ReportMembers = typeof ReportMembers.Type;

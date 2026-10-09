@@ -108,6 +108,16 @@ export function customPeriod(from: string, to: string): Period {
 	return { kind: 'custom', from, to };
 }
 
+/**
+ * The period to ask for when a file is made again: the same dates. A "year so
+ * far" file that ended before today keeps its dates as a fixed range.
+ */
+export function recreatePeriod(period: Period, today: string): Period {
+	if (period.kind === 'year_to_date' && period.to !== today)
+		return customPeriod(period.from, period.to);
+	return { kind: period.kind, from: period.from, to: period.to };
+}
+
 /** "September 2026", "Q3 2026", "2026", "2026 so far", "1 Sep – 15 Oct 2026" (as the backend). */
 export function periodTitle(period: Period): string {
 	const a = parts(period.from);

@@ -238,13 +238,28 @@ export async function runJob(
 			throw new StepFailure('storage_failed');
 		}
 
-		const done = await deps.client.finalize(id, worker, {
-			rowCount: rows.length,
-			pageCount: file.pages,
-			byteSize: file.bytes.length,
-			sha256: await sha256Hex(file.bytes),
-			hasPreview: file.preview !== null
-		});
+		let done: { status: string };
+		try {
+			done = await deps.client.finalize(id, worker, {
+				rowCount: rows.length,
+				pageCount: file.pages,
+				byteSize: file.bytes.length,
+				sha256: await sha256Hex(file.bytes),
+				hasPreview: file.preview !== null
+			});
+		} catch {
+			// Unknown outcome: the database may already say ready. Only a fail
+			// the database accepts (still rendering, under this lease) proves the
+			// file is not in use; otherwise it stays (the 7-day rule removes it).
+			try {
+				await deps.client.fail(id, worker, 'storage_failed');
+			} catch {
+				deps.log({ exportId: id, outcome: 'finalize_unknown' });
+				return { exportId: id, status: 'failed', reason: 'finalize_unknown' };
+			}
+			await Promise.allSettled(stored.map((key) => deps.storage.delete(key)));
+			return { exportId: id, status: 'failed', reason: 'storage_failed' };
+		}
 		if (done.status !== 'ready') {
 			await Promise.allSettled(stored.map((key) => deps.storage.delete(key)));
 			return { exportId: id, status: 'failed', reason: 'incomplete' };

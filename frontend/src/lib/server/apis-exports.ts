@@ -10,6 +10,7 @@ import {
 	ExportFile,
 	ExportPage,
 	ExportRoutes,
+	ReportMembers,
 	ReportOverview,
 	StatementOptions,
 	type ReportCommand,
@@ -42,6 +43,7 @@ export interface ExportsApiShape {
 		membershipId: string,
 		cursor: string | null
 	) => Effect.Effect<ExportPage, EdgeFailure>;
+	readonly members: (membershipId: string, q: string) => Effect.Effect<ReportMembers, EdgeFailure>;
 	readonly createReport: (
 		membershipId: string,
 		body: ReportCommand
@@ -87,6 +89,10 @@ export const ExportsApiLive = Layer.effect(
 						{ fn, route: ExportRoutes.reports, membershipId, query: cursorQuery(cursor) },
 						ExportPage
 					)
+					.pipe(Effect.retry(readPolicy)),
+			members: (membershipId, q) =>
+				edge
+					.call({ fn, route: ExportRoutes.members, membershipId, query: { q } }, ReportMembers)
 					.pipe(Effect.retry(readPolicy)),
 			createReport: (membershipId, body) =>
 				edge.call({ fn, route: ExportRoutes.createReport, membershipId, body }, ExportFile),

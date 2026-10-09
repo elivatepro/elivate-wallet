@@ -15,6 +15,9 @@
 		emptyTitle = 'No files yet',
 		emptyLine = 'Files you create appear here and are kept for 7 days.',
 		busy = null,
+		hasMore = false,
+		loadingMore = false,
+		onMore,
 		onGet,
 		onRetry,
 		onRecreate
@@ -24,6 +27,10 @@
 		emptyLine?: string;
 		/** The file whose action is running. */
 		busy?: string | null;
+		/** Older files exist (the list pages, newest first). */
+		hasMore?: boolean;
+		loadingMore?: boolean;
+		onMore?: () => void;
 		onGet: (file: ExportFile) => void;
 		onRetry: (file: ExportFile) => void;
 		onRecreate: (file: ExportFile) => void;
@@ -104,9 +111,25 @@
 			<span>{emptyLine}</span>
 		</div>
 	{/each}
+	{#if hasMore && onMore}
+		<button type="button" class="more" onclick={onMore} disabled={loadingMore}
+			>{loadingMore ? 'Loading…' : 'Show older files'}</button
+		>
+	{/if}
 </div>
 
 <style>
+	.more {
+		min-height: 48px;
+		border: 0;
+		border-top: 1px solid color-mix(in oklab, var(--color-text) 4%, transparent);
+		background: transparent;
+		color: var(--color-text);
+		font: inherit;
+		font-size: 14px;
+		cursor: pointer;
+	}
+
 	@media (max-width: 1023.98px) {
 		.desktop-line {
 			display: none;

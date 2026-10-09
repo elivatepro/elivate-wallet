@@ -4,7 +4,7 @@
 // step_up_required until the PIN is entered (Paper S14d).
 
 import { Cause, Effect, Exit, Option, Schema } from 'effect';
-import { ExportFile } from '#lib/contract/exports.js';
+import { ExportFile, ExportPage } from '#lib/contract/exports.js';
 import type { ApiFailure } from '#lib/contract/errors.js';
 import { isWorking } from '#lib/statements.js';
 import { getJson, sendAccountCommand } from './api';
@@ -80,6 +80,10 @@ export const messageOf = (exit: Exit.Exit<unknown, ApiFailure>, fallback: string
  */
 export class ExportFiles {
 	files = $state<ExportFile[]>([]);
+	/** Cursor of the next (older) page, when there is one. */
+	nextCursor = $state<string | null>(null);
+	loadingMore = $state(false);
+	#stopped = false;
 	#timer: ReturnType<typeof setTimeout> | null = null;
 	#delay = 1500;
 	#onReady: ((file: ExportFile) => void) | null;
@@ -88,8 +92,24 @@ export class ExportFiles {
 		this.#onReady = onReady;
 	}
 
-	set(files: readonly ExportFile[]): void {
+	set(files: readonly ExportFile[], nextCursor: string | null = null): void {
 		this.files = [...files];
+		this.nextCursor = nextCursor;
+		this.#schedule();
+	}
+
+	/** Older files (the list pages by creation time, newest first). */
+	async loadMore(path: string): Promise<void> {
+		if (!this.nextCursor || this.loadingMore) return;
+		this.loadingMore = true;
+		const exit = await Effect.runPromiseExit(
+			getJson(`${path}?cursor=${encodeURIComponent(this.nextCursor)}`, ExportPage)
+		);
+		this.loadingMore = false;
+		if (Exit.isFailure(exit) || this.#stopped) return;
+		const known = this.files.map((f) => f.exportId);
+		this.files = [...this.files, ...exit.value.items.filter((f) => !known.includes(f.exportId))];
+		this.nextCursor = exit.value.nextCursor;
 		this.#schedule();
 	}
 
@@ -100,14 +120,20 @@ export class ExportFiles {
 		this.#schedule();
 	}
 
+	/** Leaving the page: no timer, and a poll already under way schedules nothing. */
 	stop(): void {
+		this.#stopped = true;
+		this.#clear();
+	}
+
+	#clear(): void {
 		if (this.#timer) clearTimeout(this.#timer);
 		this.#timer = null;
 	}
 
 	#schedule(): void {
-		this.stop();
-		if (!this.files.some(isWorking)) return;
+		this.#clear();
+		if (this.#stopped || !this.files.some(isWorking)) return;
 		this.#timer = setTimeout(() => void this.#poll(), this.#delay);
 		this.#delay = Math.min(this.#delay * 1.5, 10_000);
 	}
@@ -117,6 +143,7 @@ export class ExportFiles {
 		const results = await Promise.all(
 			working.map((f) => Effect.runPromiseExit(getJson(`/api/exports/${f.exportId}`, ExportFile)))
 		);
+		if (this.#stopped) return;
 		for (const exit of results) {
 			if (!Exit.isSuccess(exit)) continue;
 			const next = exit.value;

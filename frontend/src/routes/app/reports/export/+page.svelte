@@ -12,7 +12,7 @@
 	import { ExportFiles, messageOf, retryFile } from '#lib/client/exports.svelte.js';
 	import { createReport, loadOverview, loadReports } from '#lib/client/reports.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
-	import { periodPresets, watToday, type Period } from '#lib/statements.js';
+	import { periodPresets, recreatePeriod, watToday, type Period } from '#lib/statements.js';
 	import PageBar from '#lib/ui/account/PageBar.svelte';
 	import ExportReportForm from '#lib/ui/exports/ExportReportForm.svelte';
 	import FileList from '#lib/ui/exports/FileList.svelte';
@@ -55,8 +55,15 @@
 			}
 		});
 		void loadReports().then((exit) => {
-			if (Exit.isSuccess(exit)) files.set(exit.value.items);
+			if (Exit.isSuccess(exit)) files.set(exit.value.items, exit.value.nextCursor);
 		});
+	});
+
+	// Changed choices are a new attempt (a new idempotency key); an unchanged
+	// retry after a lost answer keeps the key (F-03).
+	$effect(() => {
+		void [kind, currency, period, member, who];
+		key = newKey();
 	});
 
 	async function submit(event: SubmitEvent) {
@@ -121,10 +128,20 @@
 			emptyLine="Reports you create appear here and are kept for 7 days."
 			onGet={(f) => (downloading = f)}
 			onRetry={retry}
+			hasMore={files.nextCursor !== null}
+			loadingMore={files.loadingMore}
+			onMore={() => files.loadMore('/api/reports')}
 			onRecreate={(f) => {
+				// Fills the form with the file's choices, scope included, to confirm.
 				kind = f.kind as ReportKind;
 				currency = f.currency;
-				period = { kind: f.period.kind, from: f.period.from, to: f.period.to };
+				period = recreatePeriod(f.period, today);
+				member =
+					f.scope?.memberWalletId && f.scope.member
+						? { walletId: f.scope.memberWalletId, name: f.scope.member.name ?? f.scope.member.uid }
+						: null;
+				who = member ? 'one' : 'all';
+				window.scrollTo({ top: 0, behavior: 'smooth' });
 			}}
 		/>
 	</section>

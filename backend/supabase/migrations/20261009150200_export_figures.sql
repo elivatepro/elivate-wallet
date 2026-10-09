@@ -609,6 +609,7 @@ begin
 
   update exports.files set
     row_count = inserted,
+    included_accounts = accounts,
     summary = totals || jsonb_build_object(
       'type', 'report',
       'network', exports.network_json(p_file.tenant_id),

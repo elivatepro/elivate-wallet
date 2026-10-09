@@ -263,6 +263,33 @@ describe('the runner completes or fails', () => {
 		expect((await runJob(deps(client, storage), job, 'w')).reason).toBe('incomplete');
 	});
 
+	it('a lost finalize answer never deletes a file the database may call ready', async () => {
+		const { client, calls } = fakeClient([page(1, 2, 2)], 2);
+		const { files, storage } = memoryStorage();
+		const lost: WorkerClient = {
+			...client,
+			finalize: async () => Promise.reject(new Error('network')),
+			fail: async () => Promise.reject(new Error('conflict: lease_lost'))
+		};
+		const outcome = await runJob(deps(lost, storage), job, 'w');
+		expect(outcome.reason).toBe('finalize_unknown');
+		expect(files.has(job.objectKey)).toBe(true);
+		expect(calls).not.toContain('fail:render_failed');
+	});
+
+	it('a lost finalize answer on a job still rendering fails it and cleans up', async () => {
+		const { client, calls } = fakeClient([page(1, 2, 2)], 2);
+		const { files, storage } = memoryStorage();
+		const outcome = await runJob(
+			deps({ ...client, finalize: async () => Promise.reject(new Error('network')) }, storage),
+			job,
+			'w'
+		);
+		expect(outcome.reason).toBe('storage_failed');
+		expect(calls).toContain('fail:storage_failed');
+		expect(files.size).toBe(0);
+	});
+
 	it('a render failure fails the file', async () => {
 		const { client, calls } = fakeClient([page(1, 2, 2)], 2);
 		const { storage } = memoryStorage();

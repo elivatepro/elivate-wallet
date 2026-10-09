@@ -18,7 +18,7 @@
 		retryFile,
 		saveBlob
 	} from '#lib/client/exports.svelte.js';
-	import { periodPresets, watToday, type Period } from '#lib/statements.js';
+	import { periodPresets, recreatePeriod, watToday, type Period } from '#lib/statements.js';
 	import PageBar from '#lib/ui/account/PageBar.svelte';
 	import FileList from '#lib/ui/exports/FileList.svelte';
 	import PeriodPicker from '#lib/ui/exports/PeriodPicker.svelte';
@@ -56,7 +56,7 @@
 			return;
 		}
 		view = exit.value;
-		files.set(exit.value.files.items);
+		files.set(exit.value.files.items, exit.value.files.nextCursor);
 		const first = exit.value.options.networks[0];
 		if (first && !tenantId) {
 			tenantId = first.tenantId;
@@ -82,25 +82,27 @@
 		busy = true;
 		formError = null;
 		attemptKey ??= newKey();
-		const body = again
-			? {
-					tenantId: again.tenantId,
-					currency: again.currency,
-					periodKind: again.period.kind,
-					from: again.period.from,
-					to: again.period.to,
-					format: again.format,
-					idempotencyKey: newKey()
-				}
-			: {
-					tenantId: network.tenantId,
-					currency,
-					periodKind: period.kind,
-					from: period.from,
-					to: period.to,
-					format,
-					idempotencyKey: attemptKey
-				};
+		const redo = again ? recreatePeriod(again.period, view?.options.today ?? watToday()) : null;
+		const body =
+			again && redo
+				? {
+						tenantId: again.tenantId,
+						currency: again.currency,
+						periodKind: redo.kind,
+						from: redo.from,
+						to: redo.to,
+						format: again.format,
+						idempotencyKey: newKey()
+					}
+				: {
+						tenantId: network.tenantId,
+						currency,
+						periodKind: period.kind,
+						from: period.from,
+						to: period.to,
+						format,
+						idempotencyKey: attemptKey
+					};
 		const exit = await Effect.runPromiseExit(
 			sendAccountCommand('/api/statements', 'POST', body, ExportFile)
 		);
@@ -232,6 +234,9 @@
 			<FileList
 				files={files.files}
 				busy={rowBusy}
+				hasMore={files.nextCursor !== null}
+				loadingMore={files.loadingMore}
+				onMore={() => files.loadMore('/api/statements')}
 				onGet={get}
 				onRetry={retry}
 				onRecreate={(f) => create(f)}

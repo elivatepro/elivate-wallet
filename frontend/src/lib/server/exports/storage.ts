@@ -15,7 +15,7 @@ export interface ExportStorage {
 	delete(key: string): Promise<void>;
 }
 
-const KEY = /^exports\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(pdf|csv)(\.png)?$/;
+const KEY = /^exports\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9]{1,3}\.(pdf|csv)(\.png)?$/;
 
 function checked(key: string): string {
 	if (!KEY.test(key)) throw new Error('unexpected export key');

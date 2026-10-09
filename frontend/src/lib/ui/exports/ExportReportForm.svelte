@@ -6,9 +6,8 @@
 -->
 <script lang="ts">
 	import { Effect, Exit } from 'effect';
-	import { ManagedWalletPage } from '#lib/contract/ledger.js';
 	import type { Currency } from '#lib/contract/ledger.js';
-	import type { ReportKind } from '#lib/contract/exports.js';
+	import { ReportMembers, type ReportKind } from '#lib/contract/exports.js';
 	import { getJson } from '#lib/client/api.js';
 	import { customPeriod, periodPresets, periodTitle, type Period } from '#lib/statements.js';
 	import PeriodPicker from './PeriodPicker.svelte';
@@ -84,7 +83,7 @@
 		timer = setTimeout(async () => {
 			searching = true;
 			const exit = await Effect.runPromiseExit(
-				getJson(`/api/wallets?${new URLSearchParams({ q: term })}`, ManagedWalletPage)
+				getJson(`/api/reports/members?${new URLSearchParams({ q: term })}`, ReportMembers)
 			);
 			searching = false;
 			found = Exit.isSuccess(exit)

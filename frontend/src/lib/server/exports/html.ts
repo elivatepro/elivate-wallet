@@ -300,7 +300,7 @@ export function statementHtml(summary: StatementSummary, rows: readonly TxnRow[]
 	return document(
 		`${summary.reference} · Account statement`,
 		css,
-		`<main class="stack">${head}${facts}${cards}${pockets}${transactions}${pending}${boxes}${empty ? '' : footnote}</main>`
+		`<main class="stack" data-footer-left="${e(footerFor(summary.network.name))}" data-footer-right="${e(summary.reference)}">${head}${facts}${cards}${pockets}${transactions}${pending}${boxes}${empty ? '' : footnote}</main>`
 	);
 }
 
@@ -440,6 +440,6 @@ export function reportHtml(summary: ReportSummary, members: readonly MemberFigur
 	return document(
 		`${summary.reference} · ${title}`,
 		css,
-		`<main class="stack">${head}${held}<div class="cols">${pockets}${withdrawals}</div>${counts}${excluded}${memberTable}</main>`
+		`<main class="stack" data-footer-left="${e(footerFor(summary.network.name, 'Confidential to office leadership'))}" data-footer-right="${e(summary.reference)}">${head}${held}<div class="cols">${pockets}${withdrawals}</div>${counts}${excluded}${memberTable}</main>`
 	);
 }
