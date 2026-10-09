@@ -301,3 +301,18 @@ export async function humanReady(page: Page) {
 		timeout: 15_000
 	});
 }
+
+/**
+ * Fills a field once the page has settled. After the POST "Continue" on
+ * /auth/confirm the password page can hydrate after Playwright typed into it
+ * (seen in CI), which clears the value; waiting for the network to go idle
+ * and re-checking the value avoids a silent empty submit.
+ */
+export async function fillSettled(page: Page, label: string, value: string) {
+	await page.waitForLoadState('networkidle');
+	const field = page.getByLabel(label);
+	await expect(async () => {
+		await field.fill(value);
+		await expect(field).toHaveValue(value, { timeout: 1_000 });
+	}).toPass({ timeout: 10_000 });
+}
