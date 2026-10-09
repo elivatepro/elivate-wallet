@@ -1,7 +1,8 @@
 // Notification emails (Blueprint 13): Paper "Emails — Transactional v2"
 // M01–M14, M16–M18 (approved 2026-10-09), T01, A10–A12, (Blueprint 14) the
 // A06–A08 security emails and (Blueprint 15) M15 Statement ready, on the shared
-// layout. Money emails show the exact amount and the public reference only
+// layout, and (Blueprint 16) B01–B05 billing. Money emails show the exact
+// amount and the public reference only
 // (P-06): never balances, account digits, bank details, reasons or evidence.
 // Buttons open the in-app path carried by the event, from an allow-list.
 
@@ -32,7 +33,7 @@ export function formatMoney(amount: string, currency: string): string {
 }
 
 const pathPattern =
-  /^\/app(\/[a-z][a-z-]*)*(\?withdrawal=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?$/;
+  /^\/app(\/[a-z][a-z-]*)*(\?withdrawal=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?$|^\/app\/billing\/payments\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 function optional(params: Params, name: string, max = 200): string | undefined {
   return params[name] === undefined ? undefined : param(params, name, max);
@@ -665,6 +666,128 @@ export const notificationRenderers: Readonly<Record<string, Renderer>> = {
         headline: "Your membership has ended.",
         line: "Your history and statements stay in Wallet.",
         button: "View history",
+      },
+      params,
+      context,
+    );
+  },
+
+  // ── Billing (Blueprint 16): B01–B05 ──────────────────────────────────────
+  // B01: the exact amount and Elivate's PAY reference, never Paystack's.
+  "billing.payment_received": (params, context) => {
+    onlyParams(params, money);
+    const network = param(params, "network", 100);
+    return build(
+      {
+        network,
+        subject: "Payment received",
+        chip: "Billing",
+        status: { label: "Paid", tone: "success" },
+        display: amountOf(params),
+        reference: `${reference(params)} · Paystack`,
+        root: "payment-received",
+        headline: "Payment received.",
+        line: `Your yearly plan for ${network} is paid.`,
+        button: "View receipt",
+      },
+      params,
+      context,
+    );
+  },
+  // B02: the renewal amount and its due date (the trial variant says so).
+  "billing.renewal_reminder": (params, context) => {
+    onlyParams(params, ["network", "amount", "currency", "due", "chip", "path"]);
+    const due = param(params, "due", 20);
+    const chip = param(params, "chip", 20);
+    if (!/^[0-9]{1,2} [A-Z][a-z]{2} [0-9]{4}$/.test(due)) {
+      throw new TemplateError("template.param_invalid");
+    }
+    if (chip !== "Renews soon" && chip !== "Trial ends soon") {
+      throw new TemplateError("template.param_invalid");
+    }
+    const trial = chip === "Trial ends soon";
+    return build(
+      {
+        network: param(params, "network", 100),
+        subject: trial ? "Your free trial ends soon" : "Your plan renews soon",
+        chip: "Billing",
+        status: { label: chip, tone: "warning" },
+        display: amountOf(params),
+        reference: `Due ${due}`,
+        root: "renewal-reminder",
+        headline: trial ? "Your free trial ends soon." : "Your plan renews soon.",
+        line: trial
+          ? "Pay to keep your network running."
+          : "Check your billing details are current.",
+        button: "Review billing",
+      },
+      params,
+      context,
+    );
+  },
+  // B03
+  "billing.owner_assigned": (params, context) => {
+    onlyParams(params, ["network", "path"]);
+    const network = param(params, "network", 100);
+    return build(
+      {
+        network,
+        subject: "You're now the Billing Owner",
+        chip: "Billing",
+        status: { label: "Assigned", tone: "success" },
+        display: "Billing Owner",
+        reference: network,
+        root: "owner-assigned",
+        headline: "You’re now the Billing Owner.",
+        line: "Plan and payment emails will come to you.",
+        button: "View billing",
+      },
+      params,
+      context,
+    );
+  },
+  // B04: seats used of the plan's cap, once per period at 90%.
+  "billing.seats_almost_full": (params, context) => {
+    onlyParams(params, ["network", "used", "cap", "path"]);
+    const used = param(params, "used", 7);
+    const cap = param(params, "cap", 7);
+    if (!/^[0-9]{1,7}$/.test(used) || !/^[0-9]{1,7}$/.test(cap)) {
+      throw new TemplateError("template.param_invalid");
+    }
+    const group = (n: string) => n.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return build(
+      {
+        network: param(params, "network", 100),
+        subject: "You're close to your seat limit",
+        chip: "Seats",
+        status: { label: "Almost full", tone: "warning" },
+        display: `${group(used)} of ${group(cap)}`,
+        reference: "people on your plan",
+        root: "seats-almost-full",
+        headline: "You’re close to your seat limit.",
+        line: "Upgrade before new members are blocked.",
+        button: "Review plan",
+      },
+      params,
+      context,
+    );
+  },
+  // B05 (copy changed by the owner 2026-10-09: pay to resume).
+  "billing.paused": (params, context) => {
+    onlyParams(params, ["network", "path"]);
+    const network = param(params, "network", 100);
+    return build(
+      {
+        network,
+        subject: "Your plan is paused",
+        chip: "Billing",
+        status: { label: "Paused", tone: "danger" },
+        display: network,
+        reference: "Plan paused",
+        root: "plan-paused",
+        headline: "Your plan is paused.",
+        line: "History stays available. Pay to turn it back on.",
+        button: "Review billing",
       },
       params,
       context,

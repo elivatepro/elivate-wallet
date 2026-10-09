@@ -52,7 +52,13 @@ export type RootPose =
   | "new-sign-in"
   | "pin-changed"
   // Blueprint 15: M15.
-  | "statement-ready";
+  | "statement-ready"
+  // Blueprint 16: B01–B05.
+  | "payment-received"
+  | "renewal-reminder"
+  | "owner-assigned"
+  | "seats-almost-full"
+  | "plan-paused";
 
 export type StatusTone = "success" | "warning" | "danger" | "muted";
 

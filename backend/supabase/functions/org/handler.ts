@@ -232,22 +232,40 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
 
   const routes: Route[] = [
     route("POST", "/networks", async (c) => {
-      const body = await v.readBody(c.request, ["name", "shortName", "idempotencyKey"]);
+      const body = await v.readBody(c.request, [
+        "name",
+        "shortName",
+        "planKey",
+        "trial",
+        "idempotencyKey",
+      ]);
+      // Blueprint 16: the plan and whether to use the founder's one trial.
+      const planKey = body.planKey ?? "band_400";
+      if (typeof planKey !== "string" || !/^band_[0-9a-z_]{1,20}$/.test(planKey)) {
+        throw new ApiError("validation_error", { field: "planKey" });
+      }
+      const trial = body.trial ?? false;
+      if (typeof trial !== "boolean") throw new ApiError("validation_error", { field: "trial" });
       return call("start_network", {
         ...commandArgs(c),
         p_name: v.name(body),
         p_short_name: v.text(body, "shortName", 30),
         p_idempotency_key: v.idempotencyKey(body),
+        p_plan_key: planKey,
+        p_trial: trial,
       });
     }),
 
     route("POST", "/admin/tenants/:id/activate", async (c) => {
-      const body = await v.readBody(c.request, ["reason", "idempotencyKey"]);
+      const body = await v.readBody(c.request, ["reason", "until", "idempotencyKey"]);
       return call("activate_tenant", {
         ...commandArgs(c),
         p_tenant_id: c.params.id,
         p_reason: v.reason(body),
         p_idempotency_key: v.idempotencyKey(body),
+        // Blueprint 16: a complimentary period until this WAT day; none = the
+        // development exception.
+        p_until: body.until === undefined || body.until === null ? null : v.date(body, "until"),
       });
     }),
 
