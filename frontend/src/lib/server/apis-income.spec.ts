@@ -23,4 +23,15 @@ describe('rebaseUploadUrl', () => {
 		expect(rebaseUploadUrl(`https://x.supabase.co${path}/../../x?token=t`, origin)).toBeNull();
 		expect(rebaseUploadUrl('not a url', origin)).toBeNull();
 	});
+
+	it('accepts each evidence kind of Blueprint 12, and nothing else', () => {
+		const origin = 'https://x.supabase.co';
+		for (const kind of ['conversion', 'adjustment', 'returned_funds']) {
+			const p = path.replace('/income/', `/${kind}/`);
+			expect(rebaseUploadUrl(`${origin}${p}?token=t`, origin)).toBe(`${origin}${p}?token=t`);
+		}
+		expect(
+			rebaseUploadUrl(`${origin}${path.replace('/income/', '/other/')}?token=t`, origin)
+		).toBeNull();
+	});
 });

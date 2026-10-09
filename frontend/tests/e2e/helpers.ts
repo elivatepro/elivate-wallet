@@ -259,7 +259,8 @@ export async function completeIdentityAndProfile(page: Page) {
 export async function recordIncome(
 	founder: { email: string; password: string; pin: string },
 	memberEmail: string,
-	amount = '1000.00'
+	amount = '1000.00',
+	currency: 'NGN' | 'USD' = 'NGN'
 ) {
 	const api = await apiSession(founder.email, founder.password, founder.pin);
 	const workspaces = await api.call<Array<{ membershipId: string; role: string }>>(
@@ -278,7 +279,7 @@ begin
     'receipt.pdf', 'application/pdf', 1000, repeat('b', 64))->>'evidenceId')::uuid;
   perform api.finalize_evidence_upload('${api.userId}', '${api.sessionId}', '${president}', evidence, 1000,
     repeat('b', 64), 'application/pdf');
-  perform api.record_income('${api.userId}', '${api.sessionId}', '${president}', target, 'NGN', '${amount}',
+  perform api.record_income('${api.userId}', '${api.sessionId}', '${president}', target, '${currency}', '${amount}',
     'Fiverr', to_char(now() at time zone 'UTC', 'YYYY-MM-DD'), null, null, null, null, array[evidence], '${key}');
 end $$`);
 	await api.close();
@@ -330,4 +331,108 @@ export async function setJoinPassword(page: Page, password: string) {
 		await page.getByRole('button', { name: 'Set password' }).click({ timeout: 3_000 });
 		await expect(accept).toBeVisible({ timeout: 5_000 });
 	}).toPass({ timeout: 30_000 });
+}
+
+/**
+ * Setup for evidence review (Blueprint 12): makes an existing confirmed
+ * account a second President of the founder's network and assigns them as a
+ * Financial Evidence Reviewer (W-11), so they can decide cases the founder
+ * submitted.
+ */
+export async function addReviewer(
+	founder: { email: string; password: string; pin: string },
+	reviewerEmail: string
+) {
+	const api = await apiSession(founder.email, founder.password, founder.pin);
+	const workspaces = await api.call<Array<{ membershipId: string; role: string }>>(
+		'org',
+		'/workspaces'
+	);
+	const president = workspaces.find((w) => w.role === 'president_team_member')!.membershipId;
+	const uid = uidOf(reviewerEmail);
+	localSql(`do $$
+begin
+  perform api.add_president('${api.userId}', '${api.sessionId}', '${president}', '${uid}', 'e2e reviewer', '${key()}');
+  perform api.assign_reviewer('${api.userId}', '${api.sessionId}', '${president}',
+    (select m.id from org.memberships m join auth.users u on u.id = m.user_id
+     where u.email = '${reviewerEmail}' and m.role = 'president_team_member' and m.status = 'active'),
+    'e2e reviewer', '${key()}');
+end $$`);
+	await api.close();
+}
+
+/** Saves a full-page screenshot when E2E_SHOTS names a folder (Paper comparison). */
+export async function shot(page: Page, name: string) {
+	const dir = process.env.E2E_SHOTS;
+	if (!dir) return;
+	await page.waitForTimeout(300);
+	await page.screenshot({ path: `${dir}/${name}.png`, fullPage: true });
+}
+
+// Money-flow people (Blueprints 11, 12): a member who joins by invitation with
+// a payout account, and signing in as the founder's President workspace.
+const PASSWORD = 'correct-horse-battery';
+const PIN = '1357';
+
+async function joinAsNewMember(page: Page, joinPath: string, email: string) {
+	await page.goto(joinPath);
+	await page.getByRole('button', { name: 'Verify email' }).click();
+	await page.goto(await confirmLinkFor(email, /Confirm your Elivate Wallet email/));
+	await page.getByRole('button', { name: 'Continue' }).click();
+	await setJoinPassword(page, PASSWORD);
+	await page.getByRole('button', { name: 'Accept invitation' }).click();
+	await page.getByRole('link', { name: 'Let’s begin' }).click();
+	await page.getByLabel('PIN', { exact: true }).fill(PIN);
+	await page.getByLabel('Repeat PIN').fill(PIN);
+	await page.getByRole('button', { name: 'Save PIN' }).click();
+	await completeIdentityAndProfile(page);
+	await page.getByLabel('Bank').selectOption('058');
+	await page.getByLabel('Account number').fill('0123456789');
+	await page.getByRole('button', { name: 'Check account' }).click();
+	await page.getByRole('button', { name: 'Save account' }).click();
+	await page.getByRole('link', { name: 'Go to my wallet' }).click();
+	await expect(page).toHaveURL(/\/app$/);
+}
+
+async function signInAs(page: Page, email: string) {
+	await page.context().clearCookies();
+	await page.goto('/sign-in');
+	await page.getByLabel('Email address').fill(email);
+	await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
+	await humanReady(page);
+	await page.getByRole('button', { name: 'Sign in' }).click();
+	await page.getByLabel('PIN', { exact: true }).fill(PIN);
+	await page.getByRole('button', { name: 'Verify' }).click();
+	await expect(page).not.toHaveURL(/\/pin(\?.*)?$/);
+}
+
+async function asPresident(page: Page, email: string, network: string) {
+	await signInAs(page, email);
+	if (page.url().includes('/onboarding')) {
+		await page.getByRole('link', { name: 'Let’s begin' }).click();
+		await completeIdentityAndProfile(page);
+		await page.getByRole('link', { name: 'Go to my wallet' }).click();
+	}
+	await page.goto('/workspaces?switch');
+	await page.getByRole('button', { name: new RegExp(`${network}.*President Team`) }).click();
+}
+
+export const walletPeople = { PASSWORD, PIN, joinAsNewMember, signInAs, asPresident };
+
+/** Stands in for the payout-checker worker: lease the queued check and report a match. */
+export function finishCheckAsMatch() {
+	localSql(`do $$
+declare
+  job jsonb := api.claim_payout_checks('e2e', 1)->0;
+  paid text := (select r.paid_on::text from finance.payout_checks c
+                join finance.payout_revisions r on r.id = c.revision_id
+                where c.id = (job->>'checkId')::uuid);
+begin
+  perform api.finish_payout_check((job->>'checkId')::uuid, (job->>'leaseToken')::uuid, 'match',
+    jsonb_build_object('paymentDate', paid, 'receipt', jsonb_build_object(
+      'amount', job->'expected'->>'amount', 'currency', 'NGN', 'recipientAccount', '0123456789',
+      'recipientName', job->'expected'->>'recipientName', 'transactionDate', paid,
+      'paymentStatus', 'successful', 'confidence', 'high')),
+    '{}'::text[], 'e2e-stub', 'strict-single-receipt-v1');
+end $$`);
 }

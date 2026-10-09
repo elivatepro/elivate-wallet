@@ -495,8 +495,10 @@ select.en-input {
 }
 
 @media (min-width: 1024px) {
+	/* The app shell already pads full-screen pages by 32/40 px on desktop. */
 	.en-page {
-		padding: 32px 40px 40px;
+		gap: 32px;
+		padding: 0;
 	}
 
 	.en-layout {
@@ -507,6 +509,7 @@ select.en-input {
 
 	.en-card {
 		flex: 1;
+		min-width: 0;
 		gap: 24px;
 		padding: 32px;
 	}
@@ -600,7 +603,29 @@ select.en-input {
 }
 
 @media (min-width: 1024px) {
-	.en-bar {
+	.en-bar,
+	.en-mobile-sum {
 		display: none;
+	}
+}
+
+.en-mobile-sum > div > :last-child {
+	flex-shrink: 0;
+	text-align: right;
+	white-space: nowrap;
+}
+
+/* Narrow desktops: a slimmer summary so two amounts fit side by side. */
+@media (min-width: 1024px) and (max-width: 1279px) {
+	.en-side {
+		width: 340px;
+	}
+
+	.en-card {
+		padding: 24px;
+	}
+
+	.en-input.big {
+		font-size: 20px;
 	}
 }

@@ -23,7 +23,7 @@ const readPolicy = {
 
 /** Only the private evidence bucket's signed-upload path is ever accepted. */
 const SIGNED_UPLOAD_PATH =
-	/^\/storage\/v1\/object\/upload\/sign\/financial-evidence\/[0-9a-f-]+\/(income|payout)\/[0-9a-f-]+$/;
+	/^\/storage\/v1\/object\/upload\/sign\/financial-evidence\/[0-9a-f-]+\/(income|payout|conversion|adjustment|returned_funds)\/[0-9a-f-]+$/;
 const UPLOAD_TIMEOUT_MS = 60_000;
 
 /**
