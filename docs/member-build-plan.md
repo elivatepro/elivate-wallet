@@ -117,6 +117,11 @@ Paper `App — Screens v4 (member build)` batch 1 (N, Q, J, Z) is approved; Z01 
   read/unread notifications.
 - **Full-network export** download requires the PIN.
 - **Payout recording** has the optional fee field (U02).
+- **Currency conversion (W-12)** starts from its own leader tab/menu item and from a
+  member's wallet (a "Convert" action next to Move).
+- **Sequencing:** one slice at a time, each new slice in its own thread. Order: 4 → 5 → 8 →
+  slice 9 follow-up (IP storage, signed-in password change, PIN-change email, sign-out
+  choice after reset) → 6 → 7 → 10.
 
 ## Design rule for screens Paper doesn't have
 
