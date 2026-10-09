@@ -47,6 +47,7 @@
 	import { ROLE_LABELS } from '#lib/labels.js';
 	import ConfirmDialog from '#lib/ui/app/ConfirmDialog.svelte';
 	import InviteDialog from '#lib/ui/app/InviteDialog.svelte';
+	import SeatLimitDialog from '#lib/ui/app/SeatLimitDialog.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
 
 	const shell = getContext<Shell>('shell');
@@ -225,6 +226,13 @@
 	let inviteAskPin = $state(false);
 	let inviteError = $state<string | null>(null);
 	let invitePinError = $state<string | null>(null);
+	/** Blueprint 16: the network is full (E03; PL05 for those who can pay). */
+	let seatLimitOpen = $state(false);
+	const canUpgrade = $derived(
+		shell.state.kind === 'ready' &&
+			((shell.state.view.capabilities?.permissions ?? []).includes('manage_subscription') ||
+				shell.state.view.capabilities?.billingOwner === true)
+	);
 
 	function openInvite() {
 		inviteError = null;
@@ -265,6 +273,15 @@
 			return;
 		}
 		if (!keepsKey(result.failure)) inviteKey = newKey();
+		if (
+			result.failure?._tag === 'BackendError' &&
+			result.failure.code === 'conflict' &&
+			result.failure.details.reason === 'seat_limit_reached'
+		) {
+			inviteOpen = false;
+			seatLimitOpen = true;
+			return;
+		}
 		const said = outcome('create', result.failure);
 		if (said.kind === 'pin') {
 			inviteAskPin = true;
@@ -521,6 +538,8 @@
 		/>
 	{/key}
 {/if}
+
+<SeatLimitDialog bind:open={seatLimitOpen} {canUpgrade} />
 
 <style>
 	.page {

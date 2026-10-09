@@ -197,7 +197,137 @@ const samples: ReadonlyArray<readonly [string, Record<string, string>, string, s
     "Your statement is ready.",
     "statement-ready",
   ],
+  [
+    "billing.payment_received",
+    {
+      network: "Cedar Network",
+      amount: "700000.00",
+      currency: "NGN",
+      reference: "PAY-5R2N-0042",
+      path: "/app/billing/payments/0b0e7b5c-6d3a-4f4e-9a52-6c2f1f7e8a10",
+    },
+    "Payment received.",
+    "payment-received",
+  ],
+  [
+    "billing.renewal_reminder",
+    {
+      network: "Cedar Network",
+      amount: "700000.00",
+      currency: "NGN",
+      due: "12 Jan 2027",
+      chip: "Renews soon",
+      path: "/app/billing",
+    },
+    "Your plan renews soon.",
+    "renewal-reminder",
+  ],
+  [
+    "billing.owner_assigned",
+    { network: "Cedar Network", path: "/app/billing" },
+    "You’re now the Billing Owner.",
+    "owner-assigned",
+  ],
+  [
+    "billing.seats_almost_full",
+    { network: "Cedar Network", used: "384", cap: "400", path: "/app/billing" },
+    "You’re close to your seat limit.",
+    "seats-almost-full",
+  ],
+  [
+    "billing.paused",
+    { network: "Cedar Network", path: "/app/billing" },
+    "Your plan is paused.",
+    "plan-paused",
+  ],
 ];
+
+Deno.test("B01 shows the PAY reference with the exact amount; B02–B05 follow Paper", () => {
+  const b01 = renderEmail("billing.payment_received", 1, {
+    network: "Cedar Network",
+    amount: "700000.00",
+    currency: "NGN",
+    reference: "PAY-5R2N-0042",
+    path: "/app/billing",
+  }, { appUrl });
+  assert(b01.html.includes("₦700,000.00"));
+  assert(b01.html.includes("PAY-5R2N-0042 · Paystack"));
+  const trial = renderEmail("billing.renewal_reminder", 1, {
+    network: "Cedar Network",
+    amount: "700000.00",
+    currency: "NGN",
+    due: "15 Oct 2026",
+    chip: "Trial ends soon",
+    path: "/app/billing",
+  }, { appUrl });
+  assert(trial.html.includes("Your free trial ends soon."));
+  assert(trial.html.includes("Due 15 Oct 2026"));
+  const seats = renderEmail("billing.seats_almost_full", 1, {
+    network: "Cedar Network",
+    used: "1000",
+    cap: "1000",
+    path: "/app/billing",
+  }, { appUrl });
+  assert(seats.html.includes("1,000 of 1,000"));
+  const paused = renderEmail("billing.paused", 1, {
+    network: "Cedar Network",
+    path: "/app/billing",
+  }, { appUrl });
+  assert(paused.html.includes("History stays available. Pay to turn it back on."));
+  assert(paused.html.includes("Review billing"));
+  assert(!paused.html.includes("Contact Elivate"));
+});
+
+Deno.test("billing emails refuse foreign links, references and chips", () => {
+  for (
+    const [key, params] of [
+      ["billing.payment_received", {
+        network: "N",
+        amount: "1.00",
+        currency: "NGN",
+        reference: "PSK_abc",
+        path: "/app/billing",
+      }],
+      ["billing.payment_received", {
+        network: "N",
+        amount: "1.00",
+        currency: "NGN",
+        reference: "PAY-5R2N-0042",
+        path: "https://evil.example/x",
+      }],
+      ["billing.renewal_reminder", {
+        network: "N",
+        amount: "1.00",
+        currency: "NGN",
+        due: "soon",
+        chip: "Renews soon",
+        path: "/app/billing",
+      }],
+      ["billing.renewal_reminder", {
+        network: "N",
+        amount: "1.00",
+        currency: "NGN",
+        due: "1 Jan 2027",
+        chip: "Pay now!",
+        path: "/app/billing",
+      }],
+      ["billing.seats_almost_full", {
+        network: "N",
+        used: "many",
+        cap: "400",
+        path: "/app/billing",
+      }],
+    ] as const
+  ) {
+    let threw = false;
+    try {
+      renderEmail(key, 1, params as Record<string, string>, { appUrl });
+    } catch {
+      threw = true;
+    }
+    assert(threw, `${key} refuses ${JSON.stringify(params)}`);
+  }
+});
 
 Deno.test("every notification email renders on the Paper layout with its own pose", () => {
   const poses = new Set<string>();

@@ -151,6 +151,22 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
   hard limits PDF 5,000 / CSV 50,000 rows ("Too large"); private R2, files removed after 7
   days; downloads streamed by the app server, audited, PIN for leadership reports only;
   statements for any network the person holds or held money in. Paper S10–S14 drafts approved.
+- **Billing (slice 7, 2026-10-09, Blueprint 16):** networks active on dev before this slice
+  are grandfathered as the W-19 development scope exception (no end date, no seat cap,
+  audited, no trial used). Renewal is a **Paystack subscription** (automatic yearly charge on
+  the saved card; a payment by any other channel renews manually). A paid year starts at the
+  end of the current trial or period (paying early loses no days); paying to reactivate a
+  paused network starts the year at payment. B02 at 30, 7 and 1 days before a renewal (trial:
+  3 and 1 days before it ends); B04 once per period at 90% of seats. No refunds; auto-renew
+  can be turned off and a smaller band chosen for the next renewal only if the seats fit;
+  upgrades apply at once for the prorated difference, from the cap or voluntarily ("Upgrade"
+  replaces "Request"). manage_subscription holders and the current Billing Owner can pay;
+  only manage_subscription changes the Billing Owner (PIN); the founder is the default Billing
+  Owner; B01–B05 go to the Billing Owner and the President Team. At the cap new invitations
+  and acceptances are refused; an unpaid trial pauses like an expiry. The platform-admin
+  activation stays for support (complimentary period or the development exception, never a
+  payment). On a paused network leaders keep read-only history, reports, queues and audit,
+  plus Billing; B05 says "Pay to turn it back on" with "Review billing".
 - **Sequencing:** one slice at a time, each new slice in its own thread. Order: 4 → 5 → 8 →
   slice 9 follow-up (IP storage, signed-in password change, PIN-change email, sign-out
   choice after reset) → 6 → 7 → 10.

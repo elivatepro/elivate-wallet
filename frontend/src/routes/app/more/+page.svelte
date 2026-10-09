@@ -8,6 +8,7 @@
 	import { getContext } from 'svelte';
 	import Bell from '@lucide/svelte/icons/bell';
 	import Building from '@lucide/svelte/icons/building-2';
+	import CreditCard from '@lucide/svelte/icons/credit-card';
 	import FileText from '@lucide/svelte/icons/file-text';
 	import FileIcon from '@lucide/svelte/icons/file';
 	import ChartColumn from '@lucide/svelte/icons/chart-column';
@@ -48,6 +49,11 @@
 	const can = (permission: string) =>
 		shell.state.kind === 'ready' &&
 		(shell.state.view.capabilities?.permissions ?? []).includes(permission);
+	/** Blueprint 16: manage_subscription holders and the Billing Owner. */
+	const billing = $derived(
+		can('manage_subscription') ||
+			(shell.state.kind === 'ready' && shell.state.view.capabilities?.billingOwner === true)
+	);
 	const person = $derived(shell.state.kind === 'ready' ? shell.state.view.profile : null);
 	/** Org management entries (Blueprint 07); navigation hints only. */
 	const president = $derived(summary?.role === 'president_team_member');
@@ -222,6 +228,13 @@
 <section class="group" aria-labelledby="account-label">
 	<h2 class="eyebrow" id="account-label">Account</h2>
 	<div class="card">
+		{#if billing}
+			<a class="row" href="/app/billing">
+				<CreditCard size={20} strokeWidth={1.8} aria-hidden="true" />
+				<span class="label">Billing</span>
+				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
+			</a>
+		{/if}
 		<a class="row" href="/app/account">
 			<UserCog size={20} strokeWidth={1.8} aria-hidden="true" />
 			<span class="label">Profile & security</span>

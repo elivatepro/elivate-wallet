@@ -231,7 +231,25 @@ const SAMPLES: ReadonlyArray<readonly [string, string, Record<string, string>]> 
 		'account.role_changed',
 		{ role: 'team_leader', office: 'Lagos office', actor: 'Ifeoma O.', path: '/app' }
 	],
-	['A12', 'account.membership_ended', { office: 'Abuja office', path: '/app/activity' }]
+	['A12', 'account.membership_ended', { office: 'Abuja office', path: '/app/activity' }],
+	// Blueprint 16: B01–B05 (Paper "Emails — Transactional v2").
+	[
+		'B01',
+		'billing.payment_received',
+		{
+			amount: '700000.00',
+			reference: 'PAY-5R2N-0042',
+			path: '/app/billing/payments/0b0e7b5c-6d3a-4f4e-9a52-6c2f1f7e8a10'
+		}
+	],
+	[
+		'B02',
+		'billing.renewal_reminder',
+		{ amount: '700000.00', due: '12 Jan 2027', chip: 'Renews soon', path: '/app/billing' }
+	],
+	['B03', 'billing.owner_assigned', { path: '/app/billing' }],
+	['B04', 'billing.seats_almost_full', { used: '384', cap: '400', path: '/app/billing' }],
+	['B05', 'billing.paused', { path: '/app/billing' }]
 ];
 
 test('every notification email is delivered and rendered from its Paper artboard', async ({
@@ -254,7 +272,15 @@ test('every notification email is delivered and rendered from its Paper artboard
 		localSql(`select outbox.enqueue_email('${template}', 'e2e-sample:${code}:${to}', 'sample', gen_random_uuid(), null, null,
       '${to}', '${JSON.stringify(params).replaceAll("'", "''")}'::jsonb)`);
 	}
-	await runOutboxWorker();
+	// Other files send email too: run the worker until every sample is out.
+	for (let i = 0; i < 20; i++) {
+		await runOutboxWorker();
+		const sent =
+			localSql(`select count(*) from outbox.deliveries d join outbox.events e on e.id = d.event_id
+      where e.recipient_email = '${to}' and d.status = 'sent'`);
+		if (sent === String(SAMPLES.length)) break;
+		await new Promise((r) => setTimeout(r, 500));
+	}
 	const search = (await (
 		await fetch(
 			`${process.env.MAILPIT_URL ?? 'http://127.0.0.1:54324'}/api/v1/search?query=${encodeURIComponent(`to:"${to}"`)}&limit=50`

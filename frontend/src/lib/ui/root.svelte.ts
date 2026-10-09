@@ -98,7 +98,13 @@ export type RootPose =
 	| 'reports'
 	| 'export-report'
 	| 'export-mobile'
-	| 'statement-preview';
+	| 'statement-preview'
+	// Paper "App — Screens v4" PL01–PL11 and v2 B05/B07 (Blueprint 16).
+	| 'setup-name'
+	| 'seat-limit'
+	| 'upgrade'
+	| 'payment-confirmed'
+	| 'payment-confirming';
 
 /** Rendered Root size on mobile gate screens (Paper: 120×160, 150×200, 180×240). */
 export type RootSize = 'sm' | 'md' | 'lg';
@@ -196,7 +202,16 @@ export const ROOT_HEIGHTS: Record<RootPose, number> = {
 	reports: 525,
 	'export-report': 525,
 	'export-mobile': 525,
-	'statement-preview': 525
+	'statement-preview': 525,
+	// Signboard (F02), measuring tape (E03), ladder (PL05), party popper (v2 B05),
+	// hourglass (v2 B07). Abacus, Send, Sleep mask, Relay baton and Handing back
+	// reuse 'income-abacus', 'withdraw', 'dialog-sign-out', 'dialog-replace' and
+	// 'income-refused'.
+	'setup-name': 525,
+	'seat-limit': 525,
+	upgrade: 525,
+	'payment-confirmed': 525,
+	'payment-confirming': 525
 };
 
 export const rootSrc = (pose: RootPose) => `/root/${pose}.webp`;

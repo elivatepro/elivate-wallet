@@ -26,6 +26,8 @@ export const Workspaces = Schema.Array(Workspace);
 export const Capabilities = Schema.Struct({
 	membershipId: Uuid,
 	tenantStatus: TenantStatus,
+	/** Blueprint 16: the person is the network's Billing Owner (Billing in the menu). */
+	billingOwner: Schema.optional(Schema.Boolean),
 	// Unknown permission keys are kept but ignored by the UI (plan §6.3, W-25).
 	permissions: Schema.Array(Schema.String)
 });

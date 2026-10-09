@@ -12,7 +12,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 export const TENANT_STATUS_LABELS: Record<TenantStatus, string | null> = {
 	active: null,
 	pending_payment: 'Awaiting payment',
-	suspended: 'Network suspended',
+	suspended: 'Paused',
 	deactivated: 'Network deactivated'
 };
 

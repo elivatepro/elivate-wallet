@@ -16,6 +16,8 @@
 	import Undo2 from '@lucide/svelte/icons/undo-2';
 	import Bell from '@lucide/svelte/icons/bell';
 	import Building from '@lucide/svelte/icons/building-2';
+	import CreditCard from '@lucide/svelte/icons/credit-card';
+	import CirclePause from '@lucide/svelte/icons/circle-pause';
 	import FileText from '@lucide/svelte/icons/file-text';
 	import FileIcon from '@lucide/svelte/icons/file';
 	import ChartColumn from '@lucide/svelte/icons/chart-column';
@@ -126,7 +128,9 @@
 		'/app/offices': 'Offices',
 		'/app/members': 'Members',
 		'/app/access': 'Roles & access',
-		'/app/audit': 'Audit log'
+		'/app/audit': 'Audit log',
+		'/app/billing/payments': 'Billing  /  Payment',
+		'/app/billing': 'Billing'
 	};
 	const pageTitle = $derived(
 		Object.entries(TITLES).find(([prefix]) => path.startsWith(prefix))?.[1] ?? 'Home'
@@ -159,6 +163,23 @@
 	/** Blueprint 15: the Reports page (S05/S12); the backend authorizes every read. */
 	const reports = $derived(can('view_scoped_financial_reports') || can('export_scoped_reports'));
 	const tabMore = $derived(path.startsWith('/app/more'));
+	/**
+	 * Blueprint 16: Billing for manage_subscription holders and the Billing
+	 * Owner (owner decision 2026-10-05); the backend decides every read.
+	 */
+	const billing = $derived(
+		can('manage_subscription') ||
+			(shell.state.kind === 'ready' && shell.state.view.capabilities?.billingOwner === true)
+	);
+	const tenantStatus = $derived(
+		shell.state.kind === 'ready' ? shell.state.view.workspace.tenantStatus : null
+	);
+	// A network still awaiting its first payment only has Billing (PL03/PL11).
+	$effect(() => {
+		if (tenantStatus === 'pending_payment' && !path.startsWith('/app/billing')) {
+			void goto('/app/billing');
+		}
+	});
 	/** Only Home needs workspace data; More and Notifications keep their controls. */
 	const needsData = $derived(path === '/app');
 
@@ -374,6 +395,15 @@
 					<Shield size={18} strokeWidth={1.5} aria-hidden="true" /><span>Roles &amp; access</span>
 				</a>
 			{/if}
+			{#if billing}
+				<a
+					class="side-item"
+					href="/app/billing"
+					aria-current={path.startsWith('/app/billing') ? 'page' : undefined}
+				>
+					<CreditCard size={18} strokeWidth={1.5} aria-hidden="true" /><span>Billing</span>
+				</a>
+			{/if}
 			{#if president}
 				<a
 					class="side-item"
@@ -570,6 +600,22 @@
 						<span class="banner-sub">Actions are unavailable until you reconnect.</span>
 					</span>
 					<button type="button" class="retry-link" onclick={() => shell.load()}>Retry</button>
+				</div>
+			{/if}
+
+			{#if tenantStatus === 'suspended' && summary}
+				<!-- Paper PL06: the network is paused (Blueprint 16); money stays readable. -->
+				<div class="banner paused" role="status">
+					<CirclePause size={18} strokeWidth={2} aria-hidden="true" />
+					<span class="banner-text">
+						<span class="banner-title">{summary.tenantName} is paused</span>
+						<span class="banner-sub"
+							>Your money is safe to view. Withdrawals and moves are off until it’s renewed.</span
+						>
+					</span>
+					{#if billing && !path.startsWith('/app/billing')}
+						<a class="retry-link" href="/app/billing">Review billing</a>
+					{/if}
 				</div>
 			{/if}
 
@@ -972,6 +1018,17 @@
 		align-items: flex-start;
 		border: 1px solid color-mix(in oklab, var(--color-info) 20%, transparent);
 		background: color-mix(in oklab, var(--color-info) 14%, var(--color-canvas));
+	}
+
+	.banner.paused {
+		align-items: flex-start;
+		border: 1px solid color-mix(in oklab, var(--color-info) 20%, transparent);
+		background: color-mix(in oklab, var(--color-info) 14%, var(--color-canvas));
+	}
+
+	.banner.paused > :global(svg) {
+		flex-shrink: 0;
+		color: var(--color-info);
 	}
 
 	.banner.offline > :global(svg) {

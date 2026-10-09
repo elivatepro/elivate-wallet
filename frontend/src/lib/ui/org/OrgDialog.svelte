@@ -28,6 +28,8 @@
 		error = null,
 		pinError = null,
 		wide = false,
+		cancelLabel = 'Cancel',
+		secondary,
 		children,
 		validate,
 		onConfirm
@@ -46,6 +48,9 @@
 		error?: string | null;
 		pinError?: string | null;
 		wide?: boolean;
+		cancelLabel?: string;
+		/** Replaces the cancel button (Paper PL09d "Turn off auto-renew"). */
+		secondary?: Snippet;
 		children?: Snippet;
 		/** Extra field checks; return a message to stop the submit. */
 		validate?: () => string | null;
@@ -117,7 +122,9 @@
 					{/if}
 				</div>
 				<div class="org-actions">
-					<Dialog.Close class="org-cancel" type="button">Cancel</Dialog.Close>
+					{#if secondary}{@render secondary()}{:else}<Dialog.Close class="org-cancel" type="button"
+							>{cancelLabel}</Dialog.Close
+						>{/if}
 					<button class="org-go" data-tone={tone} type="submit" disabled={busy} aria-busy={busy}>
 						<span class="o-wide">{confirmLabel}</span><span class="o-narrow"
 							>{mobileConfirmLabel ?? confirmLabel}</span
@@ -326,6 +333,11 @@
 
 		.org-handle {
 			display: none;
+		}
+
+		/* Long titles wrap before Root (Paper E03 "Can’t add members right now"). */
+		.org-band :global(.org-dialog-title) {
+			max-width: calc(100% - 150px);
 		}
 
 		.org-band :global(.org-dialog-sub) {

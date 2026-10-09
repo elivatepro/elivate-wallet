@@ -56,6 +56,12 @@ export APP_SERVER_SECRET
 # Playwright's Chromium (no R2 or Browser Rendering locally).
 EXPORTS_WORKER_SECRET="$(openssl rand -hex 32)"
 export EXPORTS_WORKER_SECRET
+# Blueprint 16: the fake Paystack signs its webhooks with the same throwaway
+# test key the billing function verifies, and posts them to the local function.
+export PAYSTACK_SECRET_KEY="sk_test_e2elocal0000000000"
+export BILLING_WEBHOOK_URL="$API_URL/functions/v1/billing/paystack/webhook"
+BILLING_WORKER_SECRET="$(openssl rand -hex 32)"
+export BILLING_WORKER_SECRET
 E2E_LOCAL_EXPORTS="$(mktemp -d)"
 export E2E_LOCAL_EXPORTS
 {
@@ -67,11 +73,12 @@ export E2E_LOCAL_EXPORTS
   # Fake providers (tests/e2e/fake-providers.mjs), reached from the functions container.
   echo "NUBAN_KYC_API_KEY=e2e-local"
   echo "NUBAN_KYC_BASE_URL=http://host.docker.internal:54399"
-  echo "PAYSTACK_SECRET_KEY=sk_test_e2elocal0000000000"
+  echo "PAYSTACK_SECRET_KEY=$PAYSTACK_SECRET_KEY"
   echo "PAYSTACK_TEST_ORIGIN=http://host.docker.internal:54399"
   echo "OUTBOX_WORKER_SECRET=$OUTBOX_WORKER_SECRET"
   echo "APP_SERVER_SECRET=$APP_SERVER_SECRET"
   echo "EXPORTS_WORKER_SECRET=$EXPORTS_WORKER_SECRET"
+  echo "BILLING_WORKER_SECRET=$BILLING_WORKER_SECRET"
   echo "CLOUDFLARE_ACCOUNT_ID=e2e-local"
   echo "CLOUDFLARE_EMAIL_API_TOKEN=e2e-local-email"
   echo "CLOUDFLARE_API_TEST_ORIGIN=http://host.docker.internal:54399"

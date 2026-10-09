@@ -99,14 +99,17 @@ export async function apiSession(email: string, password: string, pin: string) {
 }
 
 /**
- * Creates a pending-payment network for the person through the real Edge
- * Functions (POST /org/networks), in a separate Auth session of their own.
+ * Starts a network for the person through the real Edge Functions (POST
+ * /org/networks) on the founder's 7-day trial (Blueprint 16), so it opens at
+ * once, in a separate Auth session of their own.
  */
 export async function createNetworkFor(email: string, password: string, pin: string, name: string) {
 	const api = await apiSession(email, password, pin);
 	await api.call('org', '/networks', {
 		name,
 		shortName: name.split(' ')[0],
+		planKey: 'band_400',
+		trial: true,
 		idempotencyKey: key()
 	});
 	await api.close();
@@ -274,7 +277,8 @@ export async function recordIncome(
 	localSql(`do $$
 declare
   target uuid := (select m.id from org.memberships m join auth.users u on u.id = m.user_id
-                  where u.email = '${memberEmail}' and m.role = 'member' and m.status = 'active' limit 1);
+                  where u.email = '${memberEmail}' and m.role = 'member' and m.status = 'active'
+                    and m.tenant_id = (select tenant_id from org.memberships where id = '${president}') limit 1);
   evidence uuid;
 begin
   evidence := (api.create_evidence_upload('${api.userId}', '${api.sessionId}', '${president}', target, '${key}',
