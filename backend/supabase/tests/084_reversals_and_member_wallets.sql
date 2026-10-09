@@ -88,7 +88,7 @@ select is(
   jsonb_array_length(api.my_activity(pg_temp.u(6), pg_temp.s(6), p_type => 'reversal')->'items'), 1,
   'type filter: reversal'
 );
-select throws_ok($$ select api.my_activity(pg_temp.u(6), pg_temp.s(6), p_type => 'withdrawal') $$, 'P0001',
+select throws_ok($$ select api.my_activity(pg_temp.u(6), pg_temp.s(6), p_type => 'conversion') $$, 'P0001',
   'validation_error', 'types that do not exist yet are refused');
 select is(
   api.my_transaction(pg_temp.u(6), pg_temp.s(6), pg_temp.id('fiverr'))->'reversedBy'->>'transactionId',

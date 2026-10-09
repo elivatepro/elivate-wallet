@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { createAccountCrypto } from "../_shared/account_crypto.ts";
 import { type Actor, createHandler } from "./handler.ts";
 
 function env(name: string): string {
@@ -12,6 +13,13 @@ const url = env("SUPABASE_URL");
 const options = { auth: { persistSession: false, autoRefreshToken: false } };
 const service = createClient(url, env("SUPABASE_SERVICE_ROLE_KEY"), options);
 const publicClient = createClient(url, env("SUPABASE_ANON_KEY"), options);
+
+// Needed only to reveal a withdrawal's destination to its approver.
+const accountCrypto = await createAccountCrypto({
+  encryption: new Map([[1, env("PAYOUT_ACCOUNT_ENC_KEY")]]),
+  currentVersion: 1,
+  fingerprint: env("PAYOUT_ACCOUNT_HMAC_KEY"),
+});
 
 const handler = createHandler({
   async verifyToken(token): Promise<Actor | null> {
@@ -45,6 +53,11 @@ const handler = createHandler({
     if (data.size > maxBytes) return { size: data.size, bytes: null };
     return { size: data.size, bytes: new Uint8Array(await data.arrayBuffer()) };
   },
+  async signDownload(path, seconds) {
+    const { data, error } = await service.storage.from(bucket).createSignedUrl(path, seconds);
+    return error || !data ? null : data.signedUrl;
+  },
+  openAccount: (owner, ciphertext, keyVersion) => accountCrypto.open(owner, ciphertext, keyVersion),
   log: (entry) => console.log(JSON.stringify(entry)),
   allowedOrigins: (Deno.env.get("CORS_ORIGINS") ?? "").split(",").map((o) => o.trim()).filter(
     Boolean,
