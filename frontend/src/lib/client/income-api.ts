@@ -1,6 +1,8 @@
 // Browser side of Record income's receipt upload: one multipart request to
 // the app server (never to Storage directly), decoded with the same envelope
-// pipeline as every other same-origin call. Never retried automatically.
+// pipeline as every other same-origin call. XMLHttpRequest rather than fetch
+// so the receipt row can show "Uploading · 64%" (Paper v4 J01). Never retried
+// automatically.
 
 import { Effect } from 'effect';
 import { decodeResponse } from '#lib/contract/envelope.js';
@@ -9,9 +11,37 @@ import { EvidenceFinalized, IncomeAppRoutes } from '#lib/contract/income.js';
 
 const UPLOAD_TIMEOUT_MS = 90_000;
 
+interface Reply {
+	readonly status: number;
+	readonly text: string;
+}
+
+function send(
+	body: FormData,
+	workspaceId: string,
+	onProgress?: (fraction: number) => void
+): Promise<Reply> {
+	return new Promise((resolve, reject) => {
+		const xhr = new XMLHttpRequest();
+		xhr.open('POST', IncomeAppRoutes.receipts);
+		xhr.timeout = UPLOAD_TIMEOUT_MS;
+		xhr.setRequestHeader('accept', 'application/json');
+		xhr.setRequestHeader('x-ew-workspace', workspaceId);
+		xhr.upload.onprogress = (event) => {
+			if (event.lengthComputable && event.total > 0) onProgress?.(event.loaded / event.total);
+		};
+		xhr.onload = () => resolve({ status: xhr.status, text: xhr.responseText });
+		xhr.onerror = () => reject(new TransportError({ reason: 'network', status: null }));
+		xhr.ontimeout = () => reject(new TransportError({ reason: 'timeout', status: null }));
+		xhr.onabort = () => reject(new TransportError({ reason: 'aborted', status: null }));
+		xhr.send(body);
+	});
+}
+
 export function uploadReceipt(
 	input: { file: File; targetMembershipId: string; idempotencyKey: string; pin?: string },
-	workspaceId: string
+	workspaceId: string,
+	onProgress?: (fraction: number) => void
 ): Effect.Effect<typeof EvidenceFinalized.Type, ApiFailure> {
 	const route = `POST ${IncomeAppRoutes.receipts}`;
 	return Effect.gen(function* () {
@@ -20,30 +50,19 @@ export function uploadReceipt(
 		body.set('idempotencyKey', input.idempotencyKey);
 		if (input.pin) body.set('pin', input.pin);
 		body.set('file', input.file, input.file.name);
-		const timeout = AbortSignal.timeout(UPLOAD_TIMEOUT_MS);
-		const response = yield* Effect.tryPromise({
-			try: () =>
-				fetch(IncomeAppRoutes.receipts, {
-					method: 'POST',
-					headers: { accept: 'application/json', 'x-ew-workspace': workspaceId },
-					body,
-					signal: timeout,
-					redirect: 'error',
-					cache: 'no-store'
-				}),
-			catch: () =>
-				new TransportError({ reason: timeout.aborted ? 'timeout' : 'network', status: null })
-		});
-		const text = yield* Effect.tryPromise({
-			try: () => response.text(),
-			catch: () => new TransportError({ reason: 'network', status: response.status })
+		const reply = yield* Effect.tryPromise({
+			try: () => send(body, workspaceId, onProgress),
+			catch: (error) =>
+				error instanceof TransportError
+					? error
+					: new TransportError({ reason: 'network', status: null })
 		});
 		let json: unknown;
 		try {
-			json = text ? JSON.parse(text) : undefined;
+			json = reply.text ? JSON.parse(reply.text) : undefined;
 		} catch {
 			json = undefined;
 		}
-		return yield* decodeResponse(route, response.status, json, EvidenceFinalized);
+		return yield* decodeResponse(route, reply.status, json, EvidenceFinalized);
 	});
 }

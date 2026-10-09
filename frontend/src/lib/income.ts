@@ -254,3 +254,57 @@ export function fieldOfFailure(failure: ApiFailure | undefined): keyof DraftErro
 	}
 	return null;
 }
+
+/** "Business Investment" → "Business Inv." (mobile split preview, Paper v4 J01). */
+export const shortPocket = (name: string) => name.replace(/\bInvestment\b/g, 'Inv.');
+
+/** "2 Oct 2026, 14:12" (J04 "Sent …"). */
+export function formatSent(at: number, locale?: string, timeZone?: string): string {
+	const date = new Date(at);
+	const day = new Intl.DateTimeFormat(locale, {
+		day: 'numeric',
+		month: 'short',
+		year: 'numeric',
+		timeZone
+	}).format(date);
+	const time = new Intl.DateTimeFormat(locale, {
+		hour: '2-digit',
+		minute: '2-digit',
+		hourCycle: 'h23',
+		timeZone
+	}).format(date);
+	return `${day}, ${time}`;
+}
+
+/** Refusals shown inline on the form (a field or a receipt to fix) rather than on J05. */
+export function isFormRefusal(failure: ApiFailure | undefined): boolean {
+	if (failure?._tag !== 'BackendError') return false;
+	return [
+		'validation_error',
+		'evidence_required',
+		'evidence_invalid',
+		'rate_limited',
+		'step_up_required',
+		'pin_incorrect',
+		'pin_locked'
+	].includes(failure.code);
+}
+
+/** Refusals about the chosen member (J05 offers "Choose another member"). */
+export const isTargetRefusal = (failure: ApiFailure | undefined) =>
+	failure?._tag === 'BackendError' &&
+	['target_not_eligible', 'self_target_forbidden', 'authorization_denied', 'not_found'].includes(
+		failure.code
+	);
+
+/** J05 lead: why it couldn't be recorded, then "Nothing was posted." */
+export function refusalLead(failure: ApiFailure | undefined, name: string): string {
+	let why: string;
+	if (failure?._tag !== 'BackendError') why = 'Wallet couldn’t record it.';
+	else if (failure.code === 'target_not_eligible') {
+		why = `${name}’s membership or account isn’t active.`;
+	} else if (failure.code === 'authorization_denied' || failure.code === 'not_found') {
+		why = `You can’t record income for ${name}.`;
+	} else why = incomeMessage(failure);
+	return `${why} Nothing was posted.`;
+}

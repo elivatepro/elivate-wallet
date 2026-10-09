@@ -437,12 +437,13 @@ export function createHandler(
 
     // ── Income ──
     route("GET", "/income/targets", (c) => {
-      onlyQuery(c.query, ["officeId", "cursor", "limit"]);
+      onlyQuery(c.query, ["officeId", "cursor", "limit", "q"]);
       return call("income_targets", {
         ...inWorkspace(c),
         p_office_id: queryUuid(c.query, "officeId"),
         p_cursor: queryText(c.query, "cursor", 500),
         p_limit: queryLimit(c.query),
+        p_query: queryText(c.query, "q", 100),
       });
     }),
 

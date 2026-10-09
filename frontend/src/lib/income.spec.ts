@@ -2,14 +2,19 @@ import { describe, expect, it } from 'vitest';
 import {
 	allocate,
 	fieldOfFailure,
+	formatSent,
 	formatSize,
 	groupAmount,
 	initials,
 	isDefinitive,
+	isFormRefusal,
+	isTargetRefusal,
 	localToday,
 	parseAmount,
 	receiptProblem,
+	refusalLead,
 	shortPercent,
+	shortPocket,
 	sniffReceipt,
 	validateDraft
 } from './income.js';
@@ -189,5 +194,32 @@ describe('outcomes', () => {
 		expect(fieldOfFailure(backend('validation_error', { field: 'fee.amount' }))).toBe('fee');
 		expect(fieldOfFailure(backend('validation_error', { field: 'mimeType' }))).toBe('receipts');
 		expect(fieldOfFailure(backend('evidence_invalid'))).toBeNull();
+	});
+});
+
+describe('J01–J05 helpers', () => {
+	it('shortens pocket names for the mobile preview', () => {
+		expect(shortPocket('Business Investment')).toBe('Business Inv.');
+		expect(shortPocket('Upkeep')).toBe('Upkeep');
+	});
+
+	it('formats the sent time', () => {
+		expect(formatSent(Date.parse('2026-10-02T14:12:00Z'), 'en-GB', 'UTC')).toBe(
+			'2 Oct 2026, 14:12'
+		);
+	});
+
+	it('routes refusals to the form or to J05', () => {
+		expect(isFormRefusal(backend('validation_error'))).toBe(true);
+		expect(isFormRefusal(backend('evidence_invalid'))).toBe(true);
+		expect(isFormRefusal(backend('target_not_eligible'))).toBe(false);
+		expect(isTargetRefusal(backend('target_not_eligible'))).toBe(true);
+		expect(isTargetRefusal(backend('network_not_active'))).toBe(false);
+		expect(refusalLead(backend('target_not_eligible'), 'Musa Bello')).toBe(
+			'Musa Bello’s membership or account isn’t active. Nothing was posted.'
+		);
+		expect(refusalLead(backend('network_not_active'), 'Musa Bello')).toMatch(
+			/isn’t active.*Nothing was posted\.$/
+		);
 	});
 });

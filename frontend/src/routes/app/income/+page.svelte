@@ -1,22 +1,22 @@
 <!--
-	Record income (W-08), Paper "App — Screens v1" T02 (desktop) and T05
-	(mobile). A record_income holder picks one of their members, the currency,
-	the amount, source, date, 1–5 receipts and optional notes; the panel shows
-	the exact split the network's current policy would give. "Post" opens the
-	confirm sheet with the PIN: receipts upload then (bytes verified by the
+	Record income (W-08), Paper "App — Screens v4 (member build)" J01–J05
+	(owner approved 2026-10-08): J01 form with the exact split preview, J02
+	confirm + PIN, J03 posted, J04 checking what happened, J05 couldn't record.
+
+	A record_income holder picks one of their members (server-side search across
+	the network), the currency, the amount, source, date, optional provider
+	reference and fee, 1–5 receipts and notes. "Review and post" opens J02; on
+	Post income the receipts upload (with progress; bytes verified by the
 	backend), then the income posts. Posting is final.
 
-	Outcome unknown (timeout, dropped connection, reload after dispatch) locks
-	the attempt: Check again re-sends the same key and body (it can never post
-	twice); Cancel this attempt asks the backend, which answers with the posted
-	income if it went through (F-03). Screens Paper doesn't draw yet (picker
-	sheet, confirm sheet, result, outcome unknown, More details, empty states)
-	are stubs: Blueprint 09 "Waiting on Paper approval".
+	Outcome unknown (timeout, dropped connection, reload after dispatch) shows
+	J04 and locks the attempt: Check again re-sends the same key and body (it
+	can never post twice); Cancel this attempt asks the backend, which answers
+	with the posted income if it went through (F-03).
 -->
 <script lang="ts">
-	import { getContext, untrack } from 'svelte';
+	import { getContext, tick, untrack } from 'svelte';
 	import { Cause, Effect, Exit, Option } from 'effect';
-	import CircleCheck from '@lucide/svelte/icons/circle-check';
 	import FileText from '@lucide/svelte/icons/file-text';
 	import Plus from '@lucide/svelte/icons/plus';
 	import X from '@lucide/svelte/icons/x';
@@ -45,24 +45,31 @@
 	import {
 		allocate,
 		fieldOfFailure,
+		formatSent,
 		formatSize,
 		groupAmount,
 		incomeMessage,
 		isDefinitive,
+		isFormRefusal,
+		isTargetRefusal,
 		localToday,
 		parseAmount,
 		pocketColor,
 		receiptProblem,
+		refusalLead,
 		shortPercent,
+		shortPocket,
 		validateDraft,
 		type DraftErrors
 	} from '#lib/income.js';
 	import { currencySymbol, formatMoney } from '#lib/money.js';
 	import { pinProblem } from '#lib/payout.js';
-	import CheckingPanel from '#lib/ui/app/CheckingPanel.svelte';
 	import ConfirmDialog from '#lib/ui/app/ConfirmDialog.svelte';
 	import FormAlert from '#lib/ui/auth/FormAlert.svelte';
+	import IncomeConfirm from '#lib/ui/income/IncomeConfirm.svelte';
+	import IncomeOutcome from '#lib/ui/income/IncomeOutcome.svelte';
 	import MemberPicker from '#lib/ui/income/MemberPicker.svelte';
+	import RootImage from '#lib/ui/RootImage.svelte';
 
 	const shell = getContext<Shell>('shell');
 	const KNOWN: ReadonlyArray<Currency> = ['NGN', 'USD'];
@@ -71,6 +78,8 @@
 		readonly key: string;
 		readonly file: File;
 		evidenceId: string | null;
+		/** 0–1 while uploading, null otherwise. */
+		progress: number | null;
 	}
 
 	// ── Loaded data ──
@@ -94,15 +103,21 @@
 	let errors = $state<DraftErrors>({});
 	let formError = $state<string | null>(null);
 	let fileInput: HTMLInputElement | undefined = $state();
-	let replacing: string | null = null;
+	let picker: { openPicker: () => void } | undefined = $state();
 	/** One key per attempt; receipts are bound to it and to the member. */
 	let commandKey = newKey();
 
 	// ── Phases ──
-	let phase = $state<'form' | 'unknown' | 'done'>('form');
+	let phase = $state<'form' | 'unknown' | 'done' | 'refused'>('form');
 	let attempt = $state<IncomeAttempt | null>(null);
 	let result = $state<IncomePosted | null>(null);
-	let resultFor = $state<string>('');
+	let resultFor = $state('');
+	const activityHref = $derived(
+		result?.walletId
+			? `/app/wallets?wallet=${result.walletId}&view=activity&tx=${result.transactionId}`
+			: '/app/wallets'
+	);
+	let refusal = $state<{ lead: string; aboutTarget: boolean } | null>(null);
 	let busy = $state(false);
 	let postOpen = $state(false);
 	let recheckOpen = $state(false);
@@ -136,10 +151,19 @@
 	const amount = $derived(parseAmount(amountText, scale));
 	const lines = $derived(data?.allocation?.pockets ?? []);
 	const preview = $derived(amount && lines.length ? allocate(amount, scale, lines) : null);
-	const firstName = $derived(target?.person?.name?.trim().split(/\s+/)[0] ?? null);
+	const shownLines = $derived(
+		preview ?? lines.map((l) => ({ ...l, amount: null as string | null }))
+	);
 	const targetLabel = (t: IncomeTarget) => t.person?.name ?? t.person?.uid ?? 'this member';
-	const postLabel = $derived(amount ? `Post ${formatMoney(amount, currency)}` : 'Post income');
-	const mobilePostLabel = $derived(firstName ? `Post to ${firstName}’s wallet` : 'Post income');
+	const firstOf = (name: string | null | undefined) => name?.trim().split(/\s+/)[0] ?? null;
+	const firstName = $derived(firstOf(target?.person?.name));
+	const formatDay = (iso: string) =>
+		new Intl.DateTimeFormat(undefined, {
+			day: 'numeric',
+			month: 'short',
+			year: 'numeric',
+			timeZone: 'UTC'
+		}).format(new Date(`${iso}T00:00:00Z`));
 
 	const failureOf = <A,>(exit: Exit.Exit<A, ApiFailure>) =>
 		Exit.isFailure(exit) ? Option.getOrUndefined(Cause.findErrorOption(exit.cause)) : undefined;
@@ -176,6 +200,15 @@
 		}
 	}
 
+	/** Network-wide member search for the picker (owner decision 2026-10-08). */
+	async function searchTargets(q: string, cursor: string | null): Promise<IncomeTargets | null> {
+		const query = `q=${encodeURIComponent(q)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+		const exit = await Effect.runPromiseExit(
+			getJson(`${IncomeAppRoutes.targets}?${query}`, IncomeTargets)
+		);
+		return Exit.isSuccess(exit) ? exit.value : null;
+	}
+
 	$effect(() => {
 		const live = liveScope;
 		if (!live) return;
@@ -206,19 +239,19 @@
 		errors = { ...errors, target: undefined };
 	}
 
-	function onCurrencyChange() {
-		const parsed = parseAmount(amountText, scale);
-		if (parsed) amountText = `${currencySymbol(currency)}${groupAmount(parsed)}`;
-	}
-
 	function formatAmountField() {
 		const parsed = parseAmount(amountText, scale);
 		if (parsed) amountText = `${currencySymbol(currency)}${groupAmount(parsed)}`;
 	}
 
-	function pickFiles(replaceKey: string | null) {
-		replacing = replaceKey;
-		fileInput?.click();
+	function formatFeeField() {
+		const parsed = parseAmount(feeText, scale);
+		if (parsed) feeText = `${currencySymbol(currency)}${groupAmount(parsed)}`;
+	}
+
+	function onCurrencyChange() {
+		formatAmountField();
+		formatFeeField();
 	}
 
 	function onFiles(event: Event) {
@@ -227,26 +260,13 @@
 		input.value = '';
 		let problem: string | null = null;
 		for (const file of files) {
-			if (replacing) {
-				const check = receiptProblem(file, 0);
-				if (check) {
-					problem = check;
-					break;
-				}
-				receipts = receipts.map((r) =>
-					r.key === replacing ? { key: newKey(), file, evidenceId: null } : r
-				);
-				replacing = null;
-				continue;
-			}
 			const check = receiptProblem(file, receipts.length);
 			if (check) {
 				problem = check;
 				break;
 			}
-			receipts = [...receipts, { key: newKey(), file, evidenceId: null }];
+			receipts = [...receipts, { key: newKey(), file, evidenceId: null, progress: null }];
 		}
-		replacing = null;
 		errors = { ...errors, receipts: problem ?? undefined };
 	}
 
@@ -301,6 +321,21 @@
 		};
 	}
 
+	const isEvidenceRefusal = (failure: ApiFailure | undefined) =>
+		failure?._tag === 'BackendError' && failure.code === 'evidence_invalid';
+
+	/** step_up_required / pin_incorrect: ask again in the open sheet. */
+	function askPin(failure: ApiFailure | undefined): boolean {
+		const problem = pinProblem(failure, 'Enter your PIN to post this income.');
+		if (!problem) return false;
+		if (problem.kind === 'locked') {
+			window.location.assign('/pin/locked');
+			return true;
+		}
+		pinError = problem.message;
+		return true;
+	}
+
 	// ── Pipeline: receipts, then the income ──
 	async function post({ pin }: { pin: string | undefined }) {
 		if (!workspaceId || !scope || !target || !amount || busy) return;
@@ -313,6 +348,7 @@
 		let pinLeft = pin;
 		for (const receipt of receipts) {
 			if (receipt.evidenceId) continue;
+			receipt.progress = 0;
 			const exit = await Effect.runPromiseExit(
 				uploadReceipt(
 					{
@@ -321,9 +357,11 @@
 						idempotencyKey: confirmed.idempotencyKey,
 						...(pinLeft ? { pin: pinLeft } : {})
 					},
-					workspaceId
+					workspaceId,
+					(fraction) => (receipt.progress = fraction)
 				)
 			);
+			receipt.progress = null;
 			if (Exit.isSuccess(exit)) {
 				receipt.evidenceId = exit.value.evidenceId;
 				pinLeft = undefined;
@@ -342,7 +380,7 @@
 			}
 			// An upload is not money: any failure here is safe to retry.
 			if (fieldOfFailure(failure) === 'receipts' || isEvidenceRefusal(failure)) {
-				dialogError = `“${receipt.file.name}” isn’t a readable PDF, JPEG or PNG. Replace it and try again.`;
+				dialogError = `“${receipt.file.name}” isn’t a readable PDF, JPEG or PNG. Remove it and add it again.`;
 			} else if (failure?._tag === 'BackendError') {
 				dialogError = incomeMessage(failure);
 			} else {
@@ -373,21 +411,6 @@
 		}
 		attempt = next;
 		await dispatch(request, pinLeft);
-	}
-
-	const isEvidenceRefusal = (failure: ApiFailure | undefined) =>
-		failure?._tag === 'BackendError' && failure.code === 'evidence_invalid';
-
-	/** step_up_required / pin_incorrect: ask again in the open sheet. */
-	function askPin(failure: ApiFailure | undefined): boolean {
-		const problem = pinProblem(failure, 'Enter your PIN to post this income.');
-		if (!problem) return false;
-		if (problem.kind === 'locked') {
-			window.location.assign('/pin/locked');
-			return true;
-		}
-		pinError = problem.message;
-		return true;
 	}
 
 	function forgetAttempt() {
@@ -441,21 +464,30 @@
 			return;
 		}
 		// The first dispatch of a fresh key was refused: nothing posted.
+		const name = attempt?.target.name ?? attempt?.target.uid ?? 'this member';
 		forgetAttempt();
+		postOpen = false;
 		if (isEvidenceRefusal(failure)) {
 			// Expired or rejected receipts: upload them again under a fresh key.
 			commandKey = newKey();
 			for (const r of receipts) r.evidenceId = null;
 		}
-		const field = fieldOfFailure(failure);
-		postOpen = false;
-		recheckOpen = false;
-		if (field) errors = { ...errors, [field]: incomeMessage(failure) };
-		formError = incomeMessage(failure);
+		if (isFormRefusal(failure)) {
+			const field = fieldOfFailure(failure);
+			if (field) errors = { ...errors, [field]: incomeMessage(failure) };
+			formError = incomeMessage(failure);
+			return;
+		}
+		// J05: a refusal about the member, the network or the setup.
+		refusal = { lead: refusalLead(failure, name), aboutTarget: isTargetRefusal(failure) };
+		phase = 'refused';
 	}
 
 	function finish(posted: IncomePosted) {
-		resultFor = attempt?.target.name ?? attempt?.target.uid ?? (target ? targetLabel(target) : '');
+		resultFor =
+			firstOf(attempt?.target.name) ??
+			attempt?.target.uid ??
+			(target ? (firstOf(target.person?.name) ?? targetLabel(target)) : '');
 		forgetAttempt();
 		result = posted;
 		phase = 'done';
@@ -465,7 +497,7 @@
 		commandKey = newKey();
 	}
 
-	/** Back to an editable form after a cancelled or refused unknown attempt. */
+	/** Back to an editable form after a cancelled unknown attempt. */
 	function restart(message: string) {
 		const request = attempt?.request;
 		forgetAttempt();
@@ -487,10 +519,28 @@
 		receivedOn = request.receivedOn;
 		notes = request.notes ?? '';
 		providerReference = request.providerReference ?? '';
-		feeText = request.fee ? groupAmount(request.fee.amount) : '';
+		feeText = request.fee
+			? `${currencySymbol(request.fee.currency)}${groupAmount(request.fee.amount)}`
+			: '';
 	}
 
-	// ── Unknown outcome ──
+	// ── J05 actions ──
+	function backToForm() {
+		refusal = null;
+		phase = 'form';
+	}
+
+	async function chooseAnother() {
+		refusal = null;
+		target = null;
+		onTargetChange();
+		phase = 'form';
+		// The picker mounts with the form; open it once it is there.
+		await tick();
+		picker?.openPicker();
+	}
+
+	// ── J04: unknown outcome ──
 	async function checkAgain(pin?: string) {
 		if (!attempt) return;
 		dialogError = null;
@@ -537,7 +587,7 @@
 		if (Exit.isSuccess(exit)) {
 			const value = exit.value;
 			if (value.status === 'posted') return finish(value);
-			restart('Attempt cancelled. Nothing was posted. Add the receipt again to record it.');
+			restart('Attempt cancelled. Nothing was posted. Add the receipts again to record it.');
 			return;
 		}
 		const failure = failureOf(exit);
@@ -565,17 +615,47 @@
 	}
 
 	const pending = $derived(attempt?.request ?? null);
+	const confirmRows = $derived(
+		target
+			? [
+					{
+						label: 'To',
+						value: target.person
+							? `${targetLabel(target)} · ${target.person.uid}`
+							: targetLabel(target)
+					},
+					{ label: 'Source', value: `${source.trim()} · ${formatDay(receivedOn)}` },
+					{
+						label: 'Receipts',
+						value: `${receipts.length} ${receipts.length === 1 ? 'file' : 'files'}`
+					}
+				]
+			: []
+	);
 </script>
 
 <svelte:head><title>Record income · Elivate Wallet</title></svelte:head>
 
-<header class="navbar">
-	<a class="close" href="/app" aria-label="Close"
-		><X size={22} strokeWidth={2} aria-hidden="true" /></a
-	>
-	<h1>Record income</h1>
-	<span class="spacer" aria-hidden="true"></span>
-</header>
+{#snippet bar()}
+	<header class="navbar">
+		<a class="close" href="/app" aria-label="Close"
+			><X size={22} strokeWidth={2} aria-hidden="true" /></a
+		>
+		<h1>Record income</h1>
+		<span class="spacer" aria-hidden="true"></span>
+	</header>
+{/snippet}
+
+{#snippet bars(variant: 'desktop' | 'mobile')}
+	<div class="bar" class:bar-mobile={variant === 'mobile'} aria-hidden="true">
+		{#each lines as line, i (line.pocketId)}
+			{#if line.basisPoints > 0}<span
+					style:flex-grow={line.basisPoints}
+					style:background={pocketColor(i)}
+				></span>{/if}
+		{/each}
+	</div>
+{/snippet}
 
 <input
 	bind:this={fileInput}
@@ -589,72 +669,69 @@
 />
 
 {#if phase === 'done' && result}
-	<section class="panel result" aria-labelledby="result-title">
-		<CircleCheck size={28} strokeWidth={1.8} class="result-icon" aria-hidden="true" />
-		<h2 id="result-title" class="panel-title">Income posted</h2>
-		<p class="panel-lead">
-			<span class="plus">+{formatMoney(result.amount, result.currency)}</span> is in {resultFor ||
-				'the member'}’s wallet.
-		</p>
-		<p class="reference"><span>Reference</span><span class="ref-code">{result.reference}</span></p>
-		<ul class="lines" aria-label="Split into pockets">
-			{#each result.allocations as line, i (line.pocketId)}
-				<li class="line">
-					<span class="line-name"
-						><span class="dot" style:background={pocketColor(i)} aria-hidden="true"
-						></span>{line.pocket}
-						· {shortPercent(line.basisPoints)}%</span
-					>
-					<span class="line-amount">{formatMoney(line.amount, result.currency)}</span>
-				</li>
-			{/each}
-		</ul>
-		<div class="actions">
-			<button type="button" class="primary" onclick={recordAnother}>Record another</button>
-			<a
-				class="ghost"
-				href={result.walletId
-					? `/app/wallets?wallet=${result.walletId}&view=activity&tx=${result.transactionId}`
-					: '/app/wallets'}>View in activity</a
-			>
-		</div>
-	</section>
-{:else if phase === 'unknown' && pending && attempt}
-	<!-- Paper "App — Screens v4" J04 (owner-approved 2026-10-08) -->
-	<CheckingPanel
-		title="Checking what happened"
-		lead={`We’re confirming the ${formatMoney(pending.amount, pending.currency)} income for ${attempt.target.name ?? attempt.target.uid}. Don’t record it again.`}
-		{busy}
-		footnote={`Sent ${new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(attempt.savedAt)).replace(' at ', ', ')}`}
+	<IncomeOutcome
+		pose="income-posted"
+		title="Income posted"
+		lead={`${formatMoney(result.amount, result.currency)} is in ${resultFor || 'the member'}’s pockets now.`}
+		footnote={result.reference}
 	>
-		{#if dialogError && !cancelOpen && !recheckOpen}<FormAlert message={dialogError} />{/if}
+		{#snippet actions()}
+			<a class="out-ghost" href={activityHref}>View in activity</a>
+			<button type="button" class="out-primary" onclick={recordAnother}>Record another</button>
+		{/snippet}
+	</IncomeOutcome>
+{:else if phase === 'unknown' && pending && attempt}
+	<IncomeOutcome
+		pose="income-checking"
+		title="Checking what happened"
+		lead={`We’re confirming the ${formatMoney(pending.amount, pending.currency)} income for ${firstOf(attempt.target.name) ?? attempt.target.uid}. Don’t record it again.`}
+		footnote={`Sent ${formatSent(attempt.savedAt)}`}
+	>
+		{#snippet alert()}
+			{#if dialogError && !cancelOpen && !recheckOpen}<FormAlert message={dialogError} />{/if}
+		{/snippet}
 		{#snippet actions()}
 			<button
 				type="button"
-				class="primary"
-				disabled={busy || !shell.canAct}
-				aria-busy={busy}
-				onclick={() => checkAgain()}>Check again</button
-			>
-			<button
-				type="button"
-				class="secondary"
+				class="out-ghost"
 				disabled={busy || !shell.canAct}
 				onclick={() => {
 					dialogError = null;
 					cancelOpen = true;
 				}}>Cancel this attempt</button
 			>
+			<button
+				type="button"
+				class="out-primary"
+				disabled={busy || !shell.canAct}
+				aria-busy={busy}
+				onclick={() => checkAgain()}>Check again</button
+			>
 		{/snippet}
-	</CheckingPanel>
+	</IncomeOutcome>
+{:else if phase === 'refused' && refusal}
+	<IncomeOutcome pose="income-refused" title="Couldn’t record this income" lead={refusal.lead}>
+		{#snippet actions()}
+			{#if refusal?.aboutTarget}
+				<button type="button" class="out-ghost" onclick={backToForm}>Back to the form</button>
+				<button type="button" class="out-primary" onclick={chooseAnother}
+					>Choose another member</button
+				>
+			{:else}
+				<button type="button" class="out-primary" onclick={backToForm}>Back to the form</button>
+			{/if}
+		{/snippet}
+	</IncomeOutcome>
 {:else if !data && !loadError}
+	{@render bar()}
 	<div class="skeleton" aria-hidden="true"></div>
 	<p class="visually-hidden" role="status">Loading your members</p>
 {:else if loadError || !data}
+	{@render bar()}
 	<section class="panel">
 		<h2 class="panel-title">We couldn’t load your members</h2>
 		<p class="panel-lead">{loadError}</p>
-		<div class="actions">
+		<div class="panel-actions">
 			<button
 				type="button"
 				class="primary"
@@ -666,11 +743,13 @@
 		</div>
 	</section>
 {:else if !allowed && targets.length === 0}
+	{@render bar()}
 	<section class="panel">
 		<h2 class="panel-title">You can’t record income here</h2>
 		<p class="panel-lead">Recording income is for leaders with that permission in this network.</p>
 	</section>
 {:else if !data.allocation}
+	{@render bar()}
 	<section class="panel">
 		<h2 class="panel-title">Your network has no split yet</h2>
 		<p class="panel-lead">
@@ -679,11 +758,13 @@
 		</p>
 	</section>
 {:else if targets.length === 0}
+	{@render bar()}
 	<section class="panel">
 		<h2 class="panel-title">No one to record income for yet</h2>
 		<p class="panel-lead">Members you lead show up here once they’ve joined.</p>
 	</section>
 {:else}
+	{@render bar()}
 	<form class="body" onsubmit={openPost} novalidate>
 		<fieldset class="lock" disabled={busy}>
 			<div class="form-card">
@@ -691,6 +772,7 @@
 				{#if formError}<FormAlert message={formError} />{/if}
 
 				<MemberPicker
+					bind:this={picker}
 					{targets}
 					bind:selected={target}
 					hasMore={!!nextCursor}
@@ -698,6 +780,7 @@
 					error={errors.target}
 					onLoadMore={loadMore}
 					onChange={onTargetChange}
+					search={searchTargets}
 				/>
 
 				<div class="money">
@@ -761,53 +844,82 @@
 				{#if errors.source}<p class="error" id="source-error">{errors.source}</p>{/if}
 				{#if errors.receivedOn}<p class="error" id="date-error">{errors.receivedOn}</p>{/if}
 
+				<div class="pair">
+					<div class="box" class:bad={!!errors.providerReference}>
+						<label class="label" for="income-reference"
+							><span class="wide">Provider reference (optional)</span><span class="narrow"
+								>Provider ref (optional)</span
+							></label
+						>
+						<input
+							id="income-reference"
+							class="input"
+							maxlength="100"
+							autocomplete="off"
+							bind:value={providerReference}
+						/>
+					</div>
+					<div class="box" class:bad={!!errors.fee}>
+						<label class="label" for="income-fee">Fee (optional)</label>
+						<input
+							id="income-fee"
+							class="input"
+							inputmode="decimal"
+							autocomplete="off"
+							bind:value={feeText}
+							onblur={formatFeeField}
+							aria-describedby="fee-help"
+						/>
+					</div>
+				</div>
+				<p class="visually-hidden" id="fee-help">Recorded only. It isn’t taken off the amount.</p>
+				{#if errors.providerReference}<p class="error">{errors.providerReference}</p>{/if}
+				{#if errors.fee}<p class="error">{errors.fee}</p>{/if}
+
 				<div class="group">
 					<div class="group-head">
-						<span class="label" id="receipt-label">Receipt</span>
-						<span class="hint">Required</span>
+						<span class="label" id="receipt-label">Receipts</span>
+						<span class="hint"
+							><span class="wide">1 to 5 files · PDF, JPG or PNG</span><span class="narrow"
+								>1 to 5 files</span
+							></span
+						>
 					</div>
 					{#each receipts as receipt (receipt.key)}
-						<div class="receipt" class:uploaded={!!receipt.evidenceId}>
+						<div
+							class="receipt"
+							class:uploaded={!!receipt.evidenceId}
+							class:uploading={receipt.progress !== null}
+						>
 							<span class="receipt-icon" aria-hidden="true"
 								><FileText size={20} strokeWidth={1.8} /></span
 							>
 							<span class="receipt-text">
 								<span class="receipt-name">{receipt.file.name}</span>
-								<span class="receipt-state"
-									>{receipt.evidenceId ? 'Uploaded' : 'Ready to upload'} · {formatSize(
-										receipt.file.size
-									)}</span
+								<span class="receipt-state" aria-live="polite"
+									>{receipt.progress !== null
+										? `Uploading · ${Math.round(receipt.progress * 100)}%`
+										: `${receipt.evidenceId ? 'Uploaded' : 'Ready to upload'} · ${formatSize(receipt.file.size)}`}</span
 								>
 							</span>
-							{#if receipts.length === 1}
-								<button
-									type="button"
-									class="receipt-action"
-									onclick={() => pickFiles(receipt.key)}
-									aria-label={`Replace ${receipt.file.name}`}>Replace</button
-								>
-							{:else}
-								<button
-									type="button"
-									class="receipt-action"
-									onclick={() => removeReceipt(receipt.key)}
-									aria-label={`Remove ${receipt.file.name}`}>Remove</button
-								>
-							{/if}
+							<button
+								type="button"
+								class="receipt-action"
+								onclick={() => removeReceipt(receipt.key)}
+								aria-label={`Remove ${receipt.file.name}`}>Remove</button
+							>
 						</div>
 					{/each}
 					{#if receipts.length < RECEIPT_MAX_FILES}
 						<button
 							type="button"
 							class="add-receipt"
-							class:bad={!!errors.receipts}
-							aria-describedby={errors.receipts ? 'receipt-error' : 'receipt-help'}
-							onclick={() => pickFiles(null)}
+							aria-describedby={errors.receipts ? 'receipt-error' : undefined}
+							onclick={() => fileInput?.click()}
 						>
-							<Plus size={18} strokeWidth={2} aria-hidden="true" />
-							{receipts.length === 0 ? 'Add receipt' : 'Add another receipt'}
+							<Plus size={16} strokeWidth={2} aria-hidden="true" />
+							{receipts.length === 0 ? 'Add a receipt' : 'Add another receipt'}
 						</button>
-						<span class="hint" id="receipt-help">PDF, JPEG or PNG, up to 10 MB each. Up to 5.</span>
 					{/if}
 					{#if errors.receipts}<p class="error" id="receipt-error">{errors.receipts}</p>{/if}
 				</div>
@@ -823,40 +935,7 @@
 					{#if errors.notes}<p class="error">{errors.notes}</p>{/if}
 				</div>
 
-				<details
-					class="more"
-					open={!!(providerReference || feeText || errors.fee || errors.providerReference)}
-				>
-					<summary>More details (optional)</summary>
-					<div class="more-body">
-						<div class="group">
-							<label class="label" for="income-reference">Provider reference</label>
-							<input
-								id="income-reference"
-								class="input plain"
-								maxlength="100"
-								autocomplete="off"
-								bind:value={providerReference}
-							/>
-							{#if errors.providerReference}<p class="error">{errors.providerReference}</p>{/if}
-						</div>
-						<div class="group">
-							<label class="label" for="income-fee">Fee charged ({currency})</label>
-							<input
-								id="income-fee"
-								class="input plain"
-								inputmode="decimal"
-								autocomplete="off"
-								bind:value={feeText}
-								aria-describedby="fee-help"
-							/>
-							<span class="hint" id="fee-help">Recorded only. It isn’t taken off the amount.</span>
-							{#if errors.fee}<p class="error">{errors.fee}</p>{/if}
-						</div>
-					</div>
-				</details>
-
-				<!-- Mobile split preview (T05). -->
+				<!-- Mobile split preview (J01 mobile). -->
 				<div class="split-mobile">
 					<div class="split-head">
 						<span class="eyebrow">Split preview</span>
@@ -864,55 +943,40 @@
 							>{lines.map((l) => shortPercent(l.basisPoints)).join(' / ')}</span
 						>
 					</div>
-					<div class="bar" aria-hidden="true">
-						{#each lines as line, i (line.pocketId)}
-							{#if line.basisPoints > 0}<span
-									style:flex-grow={line.basisPoints}
-									style:background={pocketColor(i)}
-								></span>{/if}
-						{/each}
-					</div>
-					<ul class="split-grid">
-						{#each preview ?? lines.map((l) => ({ ...l, amount: null })) as line (line.pocketId)}
+					{@render bars('mobile')}
+					<ul class="split-wrap">
+						{#each shownLines as line (line.pocketId)}
 							<li>
-								<span class="split-name">{line.name}</span>
-								<span class="split-amount"
-									>{line.amount !== null ? formatMoney(line.amount, currency) : '—'}</span
-								>
+								{shortPocket(line.name)}
+								{line.amount !== null ? formatMoney(line.amount, currency) : '—'}
 							</li>
 						{/each}
 					</ul>
 				</div>
 
 				<button type="submit" class="post post-mobile" disabled={!shell.canAct}
-					>{mobilePostLabel}</button
+					>Review and post</button
 				>
 			</div>
 
-			<!-- Desktop preview (T02). -->
+			<!-- Desktop preview (J01 desktop). -->
 			<aside class="preview" aria-label="What they will receive">
 				<div class="preview-head">
 					<span class="eyebrow"
 						>{firstName ? `${firstName} will receive` : 'They will receive'}</span
 					>
 					<span class="preview-amount">+{formatMoney(amount ?? '0.00', currency)}</span>
-					<span class="preview-sub">Split by {tenantName}’s current policy</span>
+					<span class="preview-sub"
+						>Split by {tenantName}’s policy · version {data.allocation.version}</span
+					>
 				</div>
 				<div class="preview-lines">
-					<div class="bar" aria-hidden="true">
-						{#each lines as line, i (line.pocketId)}
-							{#if line.basisPoints > 0}<span
-									style:flex-grow={line.basisPoints}
-									style:background={pocketColor(i)}
-								></span>{/if}
-						{/each}
-					</div>
-					{#each preview ?? lines.map((l) => ({ ...l, amount: null })) as line, i (line.pocketId)}
+					{@render bars('desktop')}
+					{#each shownLines as line, i (line.pocketId)}
 						<div class="line">
 							<span class="line-name"
 								><span class="dot" style:background={pocketColor(i)} aria-hidden="true"
-								></span>{line.name}
-								· {shortPercent(line.basisPoints)}%</span
+								></span>{line.name} · {shortPercent(line.basisPoints)}%</span
 							>
 							<span class="line-amount"
 								>{line.amount !== null ? formatMoney(line.amount, currency) : '—'}</span
@@ -921,25 +985,23 @@
 					{/each}
 				</div>
 				<div class="preview-foot">
-					<p class="final">
-						Posting is final and lands in {firstName ?? 'their'}{firstName ? '’s' : ''} wallet immediately.
-						To fix a mistake later, the President reverses it and you record it again.
-					</p>
-					<button type="submit" class="post" disabled={!shell.canAct}>{postLabel}</button>
+					<button type="submit" class="post" disabled={!shell.canAct}>Review and post</button>
+				</div>
+				<div class="stage" aria-hidden="true">
+					<div class="shade"></div>
+					<div class="stage-grain"></div>
+					<RootImage pose="income-abacus" class="stage-root" sizes="176px" />
 				</div>
 			</aside>
 		</fieldset>
 	</form>
 {/if}
 
-<ConfirmDialog
+<IncomeConfirm
 	bind:open={postOpen}
-	title="Post this income?"
-	summary={target && amount
-		? `${formatMoney(amount, currency)} to ${targetLabel(target)}${target.person ? ` (${target.person.uid})` : ''}, split by the current policy. Posting is final.`
-		: undefined}
-	confirmLabel={postLabel}
-	needsReason={false}
+	title={amount ? `Post ${formatMoney(amount, currency)}?` : 'Post this income?'}
+	lead={`It lands in ${firstName ?? 'their'}${firstName ? '’s' : ''} pockets straight away`}
+	rows={confirmRows}
 	{busy}
 	error={dialogError}
 	{pinError}
@@ -973,7 +1035,7 @@
 />
 
 <style>
-	/* ── Mobile first (T05) ─────────────────────────────────────────── */
+	/* ── Mobile first (J01 mobile) ───────────────────────────────── */
 
 	.navbar {
 		display: flex;
@@ -1001,7 +1063,6 @@
 	.body {
 		display: flex;
 		flex-direction: column;
-		gap: 24px;
 		padding: 8px 20px calc(24px + env(safe-area-inset-bottom));
 	}
 
@@ -1025,6 +1086,10 @@
 		font-size: 13px;
 		font-weight: var(--font-weight-medium);
 		line-height: 16px;
+	}
+
+	.wide {
+		display: none;
 	}
 
 	.hint {
@@ -1059,7 +1124,10 @@
 		background: var(--color-surface);
 	}
 
-	:global([data-theme='light']) .money {
+	:global([data-theme='light']) .money,
+	:global([data-theme='light']) .split-mobile,
+	:global([data-theme='light']) .preview,
+	:global([data-theme='light']) .form-card {
 		border-color: var(--color-border);
 	}
 
@@ -1201,9 +1269,14 @@
 		border-radius: 14px;
 	}
 
-	.receipt.uploaded {
+	.receipt.uploaded,
+	.receipt.uploading {
 		border-color: #43c48b55;
 		background: #1d2e2633;
+	}
+
+	.receipt.uploading {
+		border-style: dashed;
 	}
 
 	.receipt-icon {
@@ -1218,7 +1291,8 @@
 		color: var(--color-muted);
 	}
 
-	.receipt.uploaded .receipt-icon {
+	.receipt.uploaded .receipt-icon,
+	.receipt.uploading .receipt-icon {
 		background: #1d2e26;
 		color: var(--color-success);
 	}
@@ -1264,21 +1338,19 @@
 
 	.add-receipt {
 		display: flex;
+		align-self: flex-start;
 		align-items: center;
-		justify-content: center;
 		gap: 8px;
-		min-height: 56px;
-		border: 1px dashed var(--color-border);
-		border-radius: 14px;
-		background: transparent;
-		color: var(--color-text);
+		height: 40px;
+		padding: 0;
+		border: 0;
+		background: none;
+		color: var(--color-accent-text);
 		font: inherit;
 		font-size: 14px;
+		font-weight: var(--font-weight-medium);
+		line-height: 18px;
 		cursor: pointer;
-	}
-
-	.add-receipt.bad {
-		border-color: var(--color-danger);
 	}
 
 	.notes {
@@ -1294,38 +1366,9 @@
 		resize: vertical;
 	}
 
-	.notes:focus,
-	.input.plain:focus {
+	.notes:focus {
 		outline: none;
 		border-color: var(--color-accent);
-	}
-
-	.input.plain {
-		height: 56px;
-		padding: 0 16px;
-		border: 1px solid var(--color-border);
-		border-radius: 14px;
-		background: transparent;
-		color: var(--color-text);
-		font: inherit;
-		font-size: 15px;
-	}
-
-	.more summary {
-		min-height: var(--hit-min);
-		display: flex;
-		align-items: center;
-		color: var(--color-accent-text);
-		font-size: var(--text-14);
-		font-weight: var(--font-weight-medium);
-		cursor: pointer;
-	}
-
-	.more-body {
-		display: flex;
-		flex-direction: column;
-		gap: 16px;
-		padding-top: 8px;
 	}
 
 	.split-mobile {
@@ -1336,11 +1379,6 @@
 		border: 1px solid #ffffff14;
 		border-radius: 16px;
 		background: var(--color-surface);
-	}
-
-	:global([data-theme='light']) .split-mobile,
-	:global([data-theme='light']) .preview {
-		border-color: var(--color-border);
 	}
 
 	.split-head {
@@ -1376,23 +1414,17 @@
 		border-radius: var(--radius-pill);
 	}
 
-	.split-grid {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 8px 12px;
+	.split-wrap {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px 16px;
 		list-style: none;
 	}
 
-	.split-grid li {
-		display: flex;
-		flex-direction: column;
+	.split-wrap li {
 		color: var(--shell-strong, var(--color-text));
 		font-size: 12px;
 		line-height: 16px;
-	}
-
-	.split-amount {
-		color: var(--color-text);
 	}
 
 	.post {
@@ -1420,7 +1452,7 @@
 		display: none;
 	}
 
-	/* ── Panels (result, outcome unknown, empty states: Paper pending) ── */
+	/* ── Empty and error states (not drawn in Paper) ─────────────── */
 
 	.panel {
 		display: flex;
@@ -1431,10 +1463,6 @@
 		border: 1px solid var(--color-border);
 		border-radius: 20px;
 		background: var(--color-surface);
-	}
-
-	.panel :global(.result-icon) {
-		color: var(--color-success);
 	}
 
 	.panel-title {
@@ -1450,101 +1478,27 @@
 		line-height: 22px;
 	}
 
-	.plus {
-		color: var(--color-success);
-		font-weight: var(--font-weight-semibold);
-	}
-
-	.reference {
+	.panel-actions {
 		display: flex;
-		gap: 8px;
-		color: var(--color-muted);
-		font-size: var(--text-14);
-	}
-
-	.ref-code {
-		color: var(--color-text);
-		font-family: var(--font-mono);
-		letter-spacing: 0.04em;
-	}
-
-	.lines {
-		display: flex;
-		flex-direction: column;
-		gap: 12px;
-		padding: 16px 0;
-		border-block: 1px solid var(--color-border);
-		list-style: none;
-	}
-
-	.line {
-		display: flex;
-		justify-content: space-between;
-		gap: 12px;
-	}
-
-	.line-name {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		color: var(--shell-strong, var(--color-text));
-		font-size: 13px;
-		line-height: 16px;
-	}
-
-	.line-amount {
-		color: var(--color-text);
-		font-size: 13px;
-		line-height: 16px;
-		font-variant-numeric: tabular-nums;
-	}
-
-	.dot {
-		flex-shrink: 0;
-		width: 8px;
-		height: 8px;
-		border-radius: var(--radius-pill);
-	}
-
-	.actions {
-		display: flex;
-		flex-wrap: wrap;
 		gap: 12px;
 		padding-top: 4px;
 	}
 
-	.primary,
-	.ghost {
+	.primary {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
 		min-height: 48px;
 		padding: 0 22px;
-		border-radius: var(--radius-pill);
-		font: inherit;
-		font-size: 15px;
-		font-weight: var(--font-weight-semibold);
-		text-decoration: none;
-		cursor: pointer;
-	}
-
-	.primary {
 		border: 0;
+		border-radius: var(--radius-pill);
 		background: var(--button-primary-bg);
 		box-shadow: var(--auth-button-shadow);
 		color: var(--button-primary-ink);
-	}
-
-	.primary:disabled,
-	.ghost:disabled {
-		opacity: var(--opacity-disabled);
-		cursor: not-allowed;
-	}
-
-	.ghost {
-		border: 1px solid color-mix(in oklab, var(--color-text) 20%, transparent);
-		background: transparent;
-		color: var(--color-text);
+		font: inherit;
+		font-size: 15px;
+		font-weight: var(--font-weight-semibold);
+		cursor: pointer;
 	}
 
 	.skeleton {
@@ -1554,14 +1508,23 @@
 		background: var(--color-surface);
 	}
 
-	/* ── Desktop (T02) ──────────────────────────────────────────────── */
+	/* ── Desktop (J01 desktop) ───────────────────────────────────── */
 
 	@media (min-width: 1024px) {
 		.navbar {
 			display: none;
 		}
 
+		.wide {
+			display: inline;
+		}
+
+		.narrow {
+			display: none;
+		}
+
 		.body {
+			gap: 24px;
 			padding: 0;
 		}
 
@@ -1571,10 +1534,6 @@
 			border: 1px solid #ffffff14;
 			border-radius: 20px;
 			background: var(--color-surface);
-		}
-
-		:global([data-theme='light']) .form-card {
-			border-color: var(--color-border);
 		}
 
 		.error {
@@ -1736,6 +1695,35 @@
 			border-bottom: 1px solid #ffffff0f;
 		}
 
+		.line {
+			display: flex;
+			justify-content: space-between;
+			gap: 12px;
+		}
+
+		.line-name {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			color: var(--shell-strong, var(--color-text));
+			font-size: 13px;
+			line-height: 16px;
+		}
+
+		.line-amount {
+			color: var(--color-text);
+			font-size: 13px;
+			line-height: 16px;
+			font-variant-numeric: tabular-nums;
+		}
+
+		.dot {
+			flex-shrink: 0;
+			width: 8px;
+			height: 8px;
+			border-radius: var(--radius-pill);
+		}
+
 		.preview-foot {
 			display: flex;
 			flex-direction: column;
@@ -1743,16 +1731,45 @@
 			padding: 20px 24px 24px;
 		}
 
-		.final {
-			color: var(--color-muted);
-			font-size: 12px;
-			line-height: 18px;
-		}
-
 		.post {
 			height: 50px;
 			font-size: 15px;
 			line-height: 18px;
+		}
+
+		.stage {
+			position: relative;
+			display: flex;
+			flex-shrink: 0;
+			justify-content: center;
+			height: 220px;
+			overflow: clip;
+			background: var(--color-surface) url('/root/stage.webp') 50% / cover;
+		}
+
+		.shade {
+			position: absolute;
+			inset: 0;
+			background: linear-gradient(
+				in oklab 180deg,
+				oklab(21.5% -0.004 -0.003 / 0%) 30%,
+				oklab(21.5% -0.004 -0.003 / 85%) 100%
+			);
+		}
+
+		.stage-grain {
+			position: absolute;
+			inset: 0;
+			background: url('/auth-bg/grain-256.png') 50% / 256px 256px no-repeat;
+			mix-blend-mode: overlay;
+			opacity: 0.25;
+		}
+
+		.stage :global(.stage-root) {
+			position: absolute;
+			bottom: -10px;
+			width: 176px;
+			height: 236px;
 		}
 
 		.panel {

@@ -19,17 +19,23 @@ export const GET: RequestHandler = async (event) => {
 	const membershipId = readWorkspace(event.cookies);
 	if (!membershipId) return respondError(workspaceChanged());
 	const params = event.url.searchParams;
-	if ([...params.keys()].some((key) => key !== 'cursor'))
+	if ([...params.keys()].some((key) => key !== 'cursor' && key !== 'q')) {
 		return respondError(invalidRequest('query'));
+	}
 	const cursor = params.get('cursor');
 	if (cursor !== null && (cursor.length < 1 || cursor.length > 500)) {
 		return respondError(invalidRequest('cursor'));
+	}
+	// Network-wide member search (Blueprint 09 follow-up); the backend re-checks it.
+	const q = params.get('q');
+	if (q !== null && (q.trim().length < 1 || q.length > 100)) {
+		return respondError(invalidRequest('q'));
 	}
 	const exit = await runApi(
 		event,
 		session,
 		Effect.gen(function* () {
-			return yield* (yield* IncomeApi).targets(membershipId, cursor);
+			return yield* (yield* IncomeApi).targets(membershipId, cursor, q);
 		})
 	);
 	return respond(exit);

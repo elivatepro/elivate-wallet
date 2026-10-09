@@ -64,7 +64,11 @@ export type RootPose =
 	// Paper "App — Screens v4" Q02 (magnet), Q04 (podium skyline), Q05 (framed ID).
 	| 'no-matches'
 	| 'member-wallets'
-	| 'member-wallet';
+	| 'member-wallet'
+	| 'income-abacus'
+	| 'income-posted'
+	| 'income-checking'
+	| 'income-refused';
 
 /** Rendered Root size on mobile gate screens (Paper: 120×160, 150×200, 180×240). */
 export type RootSize = 'sm' | 'md' | 'lg';
@@ -135,7 +139,13 @@ export const ROOT_HEIGHTS: Record<RootPose, number> = {
 	team: 525,
 	'no-matches': 525,
 	'member-wallets': 525,
-	'member-wallet': 525
+	'member-wallet': 525,
+	// Paper "App — Screens v4" J01–J05 (existing poses reused: Abacus from E01,
+	// Thumbs up from M08, Pocket watch from B16, Handing back from C03).
+	'income-abacus': 520,
+	'income-posted': 520,
+	'income-checking': 520,
+	'income-refused': 520
 };
 
 export const rootSrc = (pose: RootPose) => `/root/${pose}.webp`;

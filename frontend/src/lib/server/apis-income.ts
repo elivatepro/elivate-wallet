@@ -57,7 +57,8 @@ export interface ReceiptUpload {
 export interface IncomeApiShape {
 	readonly targets: (
 		membershipId: string,
-		cursor: string | null
+		cursor: string | null,
+		query?: string | null
 	) => Effect.Effect<typeof IncomeTargets.Type, EdgeFailure>;
 	readonly uploadReceipt: (
 		membershipId: string,
@@ -119,14 +120,18 @@ export const IncomeApiLive = (storage: IncomeStorageOptions) =>
 				});
 
 			return {
-				targets: (membershipId, cursor) =>
+				targets: (membershipId, cursor, query) =>
 					edge
 						.call(
 							{
 								fn,
 								route: IncomeRoutes.targets,
 								membershipId,
-								query: { limit: '100', ...(cursor ? { cursor } : {}) }
+								query: {
+									limit: '100',
+									...(cursor ? { cursor } : {}),
+									...(query ? { q: query } : {})
+								}
 							},
 							IncomeTargets
 						)

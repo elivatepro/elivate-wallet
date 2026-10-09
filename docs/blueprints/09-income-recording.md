@@ -1,6 +1,6 @@
 # Blueprint 09 — Income recording (member build slice 3)
 
-Status: **built under the member build plan** (`docs/member-build-plan.md`, owner decisions 2026-10-08). Contract: W-08, W-00, F-01, F-03, E-01, A-05. Backend: Blueprint 04 (already built and deployed). This slice is frontend only; it adds no migration, `api.*` function, Edge route or error code.
+Status: **built under the member build plan** (`docs/member-build-plan.md`, owner decisions 2026-10-08). Contract: W-08, W-00, F-01, F-03, E-01, A-05. Backend: Blueprint 04 (already built and deployed). The first PR (#23) was frontend only; the follow-up (09b) adds one additive backend change: network-wide member search (`api.income_targets` `p_query`, Edge `q`).
 
 ---
 
@@ -50,3 +50,25 @@ Paper has the form (T02/T05) only. These states are built as minimal stubs using
 
 ### Checks
 Unit: amount parsing, allocation, attempt store. E2E (local stack): the President records income for a member through the UI with a real PDF receipt upload, sees the `INC-` reference and split, and the member's Home shows the money; a non-recorder sees no nav entry; axe and 320 px checks.
+
+---
+
+## Follow-up 09b — owner answers and Paper batch 1 (2026-10-08)
+
+### Owner decisions
+1. The four deviations from Paper listed in Part A are **accepted**.
+2. **Member search covers the whole network**, not only loaded pages. Built as an additive backend change: migration `20261009090100_income_target_search.sql` re-creates `api.income_targets` with an optional `p_query` (1–100 characters; matches UID, display name, first + last name or office name, case-insensitive, `%`/`_`/`\` taken literally). Authorization, eligibility, ordering and cursor are unchanged; without `p_query` the result is identical. `GET /ledger/income/targets` accepts `q` (additive), `GET /api/income/targets?q=` relays it, and the picker searches on the server (debounced) with "Load more" over the search cursor. Tests: pgTAP `090_income_target_search.sql`, Deno `tests/income_targets_search_test.ts`.
+3. A stuck attempt may stay on the device for 24 h after sign-out (**accepted**, as built).
+4. Paper "App — Screens v4 (member build)" **J01–J05 approved** and built with exact values:
+   - **J01** form: provider reference and fee are visible fields (no "More details" fold); "Receipts · 1 to 5 files · PDF, JPG or PNG" with Remove per row, "Uploading · NN%" while a receipt uploads, "+ Add another receipt"; preview "Split by {network}'s policy · version N", "Review and post", Root (Abacus) on the grain stage. Mobile split preview wraps pocket names ("Business Inv.").
+   - **J02** confirm + PIN: "Post ₦X?", "It lands in {first}'s pockets straight away", To / Source · date / Receipts rows, PIN, Cancel / Post income; can't be dismissed while posting.
+   - **J03** posted (Root thumbs up), **J04** checking what happened (Root pocket watch, "Sent {date, time}", Cancel this attempt / Check again), **J05** couldn't record (Root handing back; reason + "Nothing was posted."; Back to the form / Choose another member when the refusal is about the member).
+   - Root poses reused from existing Paper poses (Abacus E01, Thumbs up M08, Pocket watch B16, Handing back C03), exported 1×/2× WebP to `frontend/static/root/income-*.webp`; the grain stage background to `frontend/static/root/stage.webp`.
+
+### Still not drawn (stubs kept)
+Member picker sheet, the PIN re-check sheet and the cancel-reason sheet on J04, and the load-error / no-permission / no-split / no-members states.
+
+### Notes
+- Receipts still upload on "Post income" (the step-up opens with the PIN there), so "Uploading · NN%" shows during posting rather than right after choosing a file (accepted deviation 2).
+- **"View in activity" (J03)** links to the member's wallet activity owned by member build slice 2. It is hidden until that route is on main.
+- Refusals that point at a field or a receipt stay on the form (inline); refusals about the member, the network or setup go to J05. While J04 is showing, a refusal never unlocks the attempt.
