@@ -59,6 +59,8 @@ export const ActivityItem = Schema.Struct({
 	currency: Currency,
 	amount: Money,
 	pocketCount: Schema.Int,
+	/** Pocket moves net to zero: the amount moved between pockets (Blueprint 11). */
+	movedAmount: Schema.optionalKey(Schema.NullOr(Money)),
 	/** When a reversal points at this movement (owner decision 2026-10-08, Q03). */
 	reversedAt: Schema.optionalKey(Schema.NullOr(IsoDateTime))
 });

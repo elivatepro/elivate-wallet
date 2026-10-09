@@ -68,7 +68,18 @@ export type RootPose =
 	| 'income-abacus'
 	| 'income-posted'
 	| 'income-checking'
-	| 'income-refused';
+	| 'income-refused'
+	// Paper "App — Screens v2" W01 (wall calendar), W05 (traffic light); v1 M06
+	// (paper plane), C01/C05/C07 (stamp, post box, two receipts), C09 (gavel),
+	// B05 (carry coin).
+	| 'withdrawals'
+	| 'withdraw'
+	| 'queue'
+	| 'queue-checking'
+	| 'queue-correction'
+	| 'evidence-review'
+	| 'pocket-move'
+	| 'transfers';
 
 /** Rendered Root size on mobile gate screens (Paper: 120×160, 150×200, 180×240). */
 export type RootSize = 'sm' | 'md' | 'lg';
@@ -145,7 +156,15 @@ export const ROOT_HEIGHTS: Record<RootPose, number> = {
 	'income-abacus': 520,
 	'income-posted': 520,
 	'income-checking': 520,
-	'income-refused': 520
+	'income-refused': 520,
+	withdrawals: 518,
+	withdraw: 523,
+	queue: 524,
+	'queue-checking': 524,
+	'queue-correction': 524,
+	'evidence-review': 524,
+	'pocket-move': 525,
+	transfers: 524
 };
 
 export const rootSrc = (pose: RootPose) => `/root/${pose}.webp`;

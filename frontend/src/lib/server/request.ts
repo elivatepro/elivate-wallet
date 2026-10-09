@@ -16,6 +16,7 @@ import { IdentityApi, IdentityApiLive, PayoutApi, PayoutApiLive } from './apis-i
 import { IncomeApi, IncomeApiLive } from './apis-income';
 import { LedgerApi, LedgerApiLive } from './apis-ledger';
 import { OrgAdminApi, OrgAdminApiLive } from './apis-org';
+import { MoneyMovesApi, MoneyMovesApiLive } from './apis-withdrawals';
 import type { VerifiedSession } from './auth';
 import { EdgeTransportLive, type EdgeFailure } from './edge';
 import { requireConfig } from './config';
@@ -28,7 +29,8 @@ export type ApiServices =
 	| PayoutApi
 	| LedgerApi
 	| IncomeApi
-	| OrgAdminApi;
+	| OrgAdminApi
+	| MoneyMovesApi;
 
 /**
  * `session` null runs without a bearer token: only the public invitation
@@ -60,7 +62,12 @@ export function runApi<A>(
 			publishableKey: config.publishableKey,
 			fetch: event.fetch
 		}),
-		OrgAdminApiLive
+		OrgAdminApiLive,
+		MoneyMovesApiLive({
+			supabaseUrl: config.supabaseUrl,
+			publishableKey: config.publishableKey,
+			fetch: event.fetch
+		})
 	).pipe(Layer.provide(edge));
 	return Effect.runPromiseExit(program.pipe(Effect.provide(layer)));
 }

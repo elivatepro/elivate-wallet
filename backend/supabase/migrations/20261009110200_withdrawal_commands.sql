@@ -110,8 +110,10 @@ begin
       or (p_w.status = 'approved' and leader and open.id is null),
     'reveal', p_w.status = 'approved' and approver,
     'record', p_w.status = 'approved' and approver and open.id is null,
-    'correct', p_w.status = 'approved' and approver and open.status = 'correction_required',
-    'retryCheck', p_w.status = 'approved' and approver and open.status = 'verifying' and check_status = 'dead'
+    -- No open payout leaves open.status null: say false, never null.
+    'correct', coalesce(p_w.status = 'approved' and approver and open.status = 'correction_required', false),
+    'retryCheck', coalesce(p_w.status = 'approved' and approver and open.status = 'verifying'
+      and check_status = 'dead', false)
   );
 end;
 $$;
@@ -407,7 +409,9 @@ begin
     'reserved', (
       select ledger.money(coalesce(sum(r.amount), 0), 'NGN')
       from tabbed t join ledger.reservations r on r.id = t.reservation_id
-      where r.status = 'active' and (p_filter is distinct from 'action' or t.status = 'requested')
+      where r.status = 'active' and (p_filter is distinct from 'action' or t.status = 'requested'
+        or (t.status = 'approved' and ((t.open).id is null or (t.open).status = 'correction_required'
+            or t.check_status = 'dead')))
     )
   ) into result;
   return result;
@@ -490,7 +494,11 @@ begin
     perform identity.fail('not_found');
   end if;
   perform finance.require_approver(p_user_id, workspace, w);
-  return finance.withdrawal_json(w.id, p_user_id, workspace.id);
+  -- Approvers see what the receipt check read (C07 "Receipt shows").
+  return finance.withdrawal_json(w.id, p_user_id, workspace.id) || jsonb_build_object('payout', (
+    select finance.payout_json(p, true) from finance.payouts p
+    where p.withdrawal_id = w.id order by p.attempt_no desc limit 1
+  ));
 end;
 $$;
 

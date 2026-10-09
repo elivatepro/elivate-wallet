@@ -76,10 +76,20 @@ export function monthTotals(
 	return { in: show('in'), out: show('out') };
 }
 
-const TYPE_LABELS: Record<string, string> = { income: 'Income', reversal: 'Reversal' };
+const TYPE_LABELS: Record<string, string> = {
+	income: 'Income',
+	reversal: 'Reversal',
+	withdrawal: 'Withdrawal',
+	pocket_transfer: 'Pocket move'
+};
 
 /** Movement types the activity type filter offers (Blueprint 08). */
-export const TYPE_FILTERS: Record<string, string> = { income: 'Income', reversal: 'Reversal' };
+export const TYPE_FILTERS: Record<string, string> = {
+	income: 'Income',
+	withdrawal: 'Withdrawal',
+	pocket_transfer: 'Pocket move',
+	reversal: 'Reversal'
+};
 
 export const typeLabel = (type: string) =>
 	TYPE_LABELS[type] ?? type.charAt(0).toUpperCase() + type.slice(1).replaceAll('_', ' ');

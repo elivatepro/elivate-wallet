@@ -23,7 +23,7 @@ const readPolicy = {
 
 /** Only the private evidence bucket's signed-upload path is ever accepted. */
 const SIGNED_UPLOAD_PATH =
-	/^\/storage\/v1\/object\/upload\/sign\/financial-evidence\/[0-9a-f-]+\/income\/[0-9a-f-]+$/;
+	/^\/storage\/v1\/object\/upload\/sign\/financial-evidence\/[0-9a-f-]+\/(income|payout)\/[0-9a-f-]+$/;
 const UPLOAD_TIMEOUT_MS = 60_000;
 
 /**
@@ -82,6 +82,45 @@ export interface IncomeStorageOptions {
 	readonly fetch: typeof globalThis.fetch;
 }
 
+/**
+ * PUTs receipt bytes to a signed evidence upload URL (income or payout),
+ * re-based onto the app's Supabase origin. Never retried.
+ */
+export const putEvidence = (
+	storage: IncomeStorageOptions,
+	uploadUrl: string,
+	mimeType: string,
+	bytes: Uint8Array<ArrayBuffer>
+): Effect.Effect<void, TransportError> =>
+	Effect.gen(function* () {
+		const url = rebaseUploadUrl(uploadUrl, storage.supabaseUrl);
+		if (!url)
+			return yield* Effect.fail(new TransportError({ reason: 'non_envelope', status: null }));
+		const response = yield* Effect.tryPromise({
+			try: () =>
+				storage.fetch(url, {
+					method: 'PUT',
+					headers: {
+						apikey: storage.publishableKey,
+						'content-type': mimeType,
+						'x-upsert': 'false'
+					},
+					body: bytes,
+					redirect: 'error',
+					cache: 'no-store',
+					signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS)
+				}),
+			catch: () => new TransportError({ reason: 'network', status: null })
+		});
+		// Drain the body; its content is not needed.
+		yield* Effect.promise(() => response.arrayBuffer().catch(() => null));
+		if (!response.ok) {
+			return yield* Effect.fail(
+				new TransportError({ reason: 'non_envelope', status: response.status })
+			);
+		}
+	});
+
 export const IncomeApiLive = (storage: IncomeStorageOptions) =>
 	Layer.effect(
 		IncomeApi,
@@ -90,34 +129,7 @@ export const IncomeApiLive = (storage: IncomeStorageOptions) =>
 			const fn = 'ledger' as const;
 
 			const putObject = (uploadUrl: string, upload: ReceiptUpload) =>
-				Effect.gen(function* () {
-					const url = rebaseUploadUrl(uploadUrl, storage.supabaseUrl);
-					if (!url)
-						return yield* Effect.fail(new TransportError({ reason: 'non_envelope', status: null }));
-					const response = yield* Effect.tryPromise({
-						try: () =>
-							storage.fetch(url, {
-								method: 'PUT',
-								headers: {
-									apikey: storage.publishableKey,
-									'content-type': upload.mimeType,
-									'x-upsert': 'false'
-								},
-								body: upload.bytes,
-								redirect: 'error',
-								cache: 'no-store',
-								signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS)
-							}),
-						catch: () => new TransportError({ reason: 'network', status: null })
-					});
-					// Drain the body; its content is not needed.
-					yield* Effect.promise(() => response.arrayBuffer().catch(() => null));
-					if (!response.ok) {
-						return yield* Effect.fail(
-							new TransportError({ reason: 'non_envelope', status: response.status })
-						);
-					}
-				});
+				putEvidence(storage, uploadUrl, upload.mimeType, upload.bytes);
 
 			return {
 				targets: (membershipId, cursor, query) =>

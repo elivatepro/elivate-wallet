@@ -3,7 +3,7 @@
 -- correction, review (W-11), completion posting; replays and authority.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(62);
+select plan(63);
 
 create function pg_temp.u(n int) returns uuid language sql immutable as
   $$ select ('10000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
@@ -170,6 +170,9 @@ select throws_ok($$ select api.approve_withdrawal(pg_temp.u(4), pg_temp.s(4), pg
   'P0001', 'self_target_forbidden', 'nobody approves their own withdrawal');
 select is((api.approve_withdrawal(pg_temp.u(3), pg_temp.s(3), pg_temp.ws(3), pg_temp.id('w1'), pg_temp.k())->>'status'),
   'approved', 'the Team Leader approves');
+select is((select count(*)::int from jsonb_each(api.withdrawal_detail(pg_temp.u(3), pg_temp.s(3), pg_temp.ws(3),
+    pg_temp.id('w1'))->'can') c where jsonb_typeof(c.value) <> 'boolean'), 0,
+  'every capability is a boolean, never null (no open payout yet)');
 select is(pg_temp.avail(4), 2400.00::numeric, 'approval keeps the hold');
 select throws_like($$ select api.approve_withdrawal(pg_temp.u(2), pg_temp.s(2), pg_temp.ws(2), pg_temp.id('w1'), pg_temp.k()) $$,
   '%conflict%', 'approving twice is a conflict');

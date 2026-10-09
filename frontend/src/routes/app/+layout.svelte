@@ -20,6 +20,9 @@
 	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import Download from '@lucide/svelte/icons/download';
+	import ListChecks from '@lucide/svelte/icons/list-checks';
+	import Gavel from '@lucide/svelte/icons/gavel';
+	import Upload from '@lucide/svelte/icons/upload';
 	import EyeOff from '@lucide/svelte/icons/eye-off';
 	import House from '@lucide/svelte/icons/house';
 	import IdCard from '@lucide/svelte/icons/id-card';
@@ -70,6 +73,12 @@
 		'/app/account/pin': 'Profile & security  /  Transaction PIN',
 		'/app/account': 'Profile & security',
 		'/app/activity': 'Activity',
+		'/app/withdrawals/new': 'Withdrawals  /  New request',
+		'/app/withdrawals': 'Withdrawals',
+		'/app/queue': 'Withdrawal queue',
+		'/app/transfers': 'Transfers',
+		'/app/evidence': 'Evidence review',
+		'/app/split/move': 'Pockets & split  /  Move money',
 		'/app/team': 'Team overview',
 		'/app/wallets': 'Member wallets',
 		'/app/payout-accounts': 'Payout accounts',
@@ -170,6 +179,42 @@
 			>
 				<Activity size={18} strokeWidth={1.5} aria-hidden="true" /><span>Activity</span>
 			</a>
+			{#if can('initiate_own_withdrawal')}
+				<a
+					class="side-item"
+					href="/app/withdrawals"
+					aria-current={path.startsWith('/app/withdrawals') ? 'page' : undefined}
+				>
+					<Upload size={18} strokeWidth={1.5} aria-hidden="true" /><span>Withdrawals</span>
+				</a>
+			{/if}
+			{#if can('approve_withdrawal')}
+				<a
+					class="side-item"
+					href="/app/queue"
+					aria-current={path.startsWith('/app/queue') ? 'page' : undefined}
+				>
+					<ListChecks size={18} strokeWidth={1.5} aria-hidden="true" /><span>Withdrawal queue</span>
+				</a>
+			{/if}
+			{#if can('approve_pocket_transfer')}
+				<a
+					class="side-item"
+					href="/app/transfers"
+					aria-current={path.startsWith('/app/transfers') ? 'page' : undefined}
+				>
+					<ArrowLeftRight size={18} strokeWidth={1.5} aria-hidden="true" /><span>Transfers</span>
+				</a>
+			{/if}
+			{#if can('review_financial_evidence')}
+				<a
+					class="side-item"
+					href="/app/evidence"
+					aria-current={path.startsWith('/app/evidence') ? 'page' : undefined}
+				>
+					<Gavel size={18} strokeWidth={1.5} aria-hidden="true" /><span>Evidence review</span>
+				</a>
+			{/if}
 			{#if leader}
 				<a
 					class="side-item"

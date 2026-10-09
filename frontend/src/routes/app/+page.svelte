@@ -10,7 +10,9 @@
 	import { Cause, Effect, Exit, Option } from 'effect';
 	import ArrowDown from '@lucide/svelte/icons/arrow-down';
 	import ArrowUp from '@lucide/svelte/icons/arrow-up';
+	import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
 	import Landmark from '@lucide/svelte/icons/landmark';
+	import Upload from '@lucide/svelte/icons/upload';
 	import PieChart from '@lucide/svelte/icons/chart-pie';
 	import type { HomeView } from '#lib/contract/app.js';
 	import type { Currency } from '#lib/contract/ledger.js';
@@ -111,6 +113,11 @@
 		shell.state.kind === 'ready' &&
 			(shell.state.view.capabilities?.permissions ?? []).includes('manage_allocation')
 	);
+	const permitted = (key: string) =>
+		shell.state.kind === 'ready' &&
+		(shell.state.view.capabilities?.permissions ?? []).includes(key);
+	const canWithdraw = $derived(permitted('initiate_own_withdrawal'));
+	const canMove = $derived(permitted('transfer_between_own_pockets'));
 	const setCurrency = (c: Currency) => (chosen = c);
 </script>
 
@@ -154,6 +161,16 @@
 	/>
 
 	<nav class="actions" aria-label="Wallet actions">
+		{#if canWithdraw}
+			<a class="action" href="/app/withdrawals/new"
+				><Upload size={18} strokeWidth={1.6} aria-hidden="true" />Withdraw</a
+			>
+		{/if}
+		{#if canMove}
+			<a class="action" href="/app/split/move"
+				><ArrowLeftRight size={18} strokeWidth={1.6} aria-hidden="true" />Move money</a
+			>
+		{/if}
 		<a class="action" href="/app/payout-accounts"
 			><Landmark size={18} strokeWidth={1.6} aria-hidden="true" />Payout accounts</a
 		>

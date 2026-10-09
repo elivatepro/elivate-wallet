@@ -16,14 +16,15 @@ interface Reply {
 	readonly text: string;
 }
 
-function send(
+export function sendForm(
+	path: string,
 	body: FormData,
 	workspaceId: string,
 	onProgress?: (fraction: number) => void
 ): Promise<Reply> {
 	return new Promise((resolve, reject) => {
 		const xhr = new XMLHttpRequest();
-		xhr.open('POST', IncomeAppRoutes.receipts);
+		xhr.open('POST', path);
 		xhr.timeout = UPLOAD_TIMEOUT_MS;
 		xhr.setRequestHeader('accept', 'application/json');
 		xhr.setRequestHeader('x-ew-workspace', workspaceId);
@@ -51,7 +52,37 @@ export function uploadReceipt(
 		if (input.pin) body.set('pin', input.pin);
 		body.set('file', input.file, input.file.name);
 		const reply = yield* Effect.tryPromise({
-			try: () => send(body, workspaceId, onProgress),
+			try: () => sendForm(IncomeAppRoutes.receipts, body, workspaceId, onProgress),
+			catch: (error) =>
+				error instanceof TransportError
+					? error
+					: new TransportError({ reason: 'network', status: null })
+		});
+		let json: unknown;
+		try {
+			json = reply.text ? JSON.parse(reply.text) : undefined;
+		} catch {
+			json = undefined;
+		}
+		return yield* decodeResponse(route, reply.status, json, EvidenceFinalized);
+	});
+}
+
+/** Payout transfer receipt (Blueprint 11): same pipeline, bound to the payout command key. */
+export function uploadPayoutReceipt(
+	input: { file: File; withdrawalId: string; idempotencyKey: string; pin?: string },
+	workspaceId: string,
+	path: string,
+	onProgress?: (fraction: number) => void
+): Effect.Effect<typeof EvidenceFinalized.Type, ApiFailure> {
+	const route = `POST ${path}`;
+	return Effect.gen(function* () {
+		const body = new FormData();
+		body.set('idempotencyKey', input.idempotencyKey);
+		if (input.pin) body.set('pin', input.pin);
+		body.set('file', input.file, input.file.name);
+		const reply = yield* Effect.tryPromise({
+			try: () => sendForm(path, body, workspaceId, onProgress),
 			catch: (error) =>
 				error instanceof TransportError
 					? error
