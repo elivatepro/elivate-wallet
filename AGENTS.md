@@ -29,7 +29,8 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
 - Supabase Auth + Postgres + Edge Functions (Deno); Postgres owns authorization and money.
 - `frontend/`: SvelteKit 3, Svelte 5, Effect 4, TypeScript 6, pnpm, Node 24; BFF with HttpOnly
   session cookies; plain CSS + Emberlit tokens, Bits UI, Lucide, Lexend. Cloudflare Worker
-  `elivate-wallet-app` (app.elivatewallet.com, private R2 `PHOTOS`).
+  `elivate-wallet-app` (app.elivatewallet.com, private R2 `PHOTOS` and `EXPORTS`, Browser
+  Rendering `BROWSER` for PDF statements and reports; owner-approved 2026-10-09).
 - Email: Auth via Cloudflare SMTP; app email via the outbox and Cloudflare REST, rendered on
   `_shared/email/layout.ts` (Paper "Emails — Transactional v2"); new kinds add a template row,
   a renderer and a `notify.emit` call (Blueprint 13). Paystack (test mode) for yearly billing.
@@ -51,7 +52,9 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
 - Dev Supabase `crljnkdwkxkwgvhxfrbl` (no production project). pg_cron runs workers via Vault
   URL/secret entries. Auth redirects: `https://app.elivatewallet.com`, `http://127.0.0.1:3000/**`.
 - Worker secrets: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`,
-  `APP_SERVER_SECRET` (same value as the Edge secret; lets the app server record sign-ins).
+  `APP_SERVER_SECRET` (same value as the Edge secret; lets the app server record sign-ins),
+  `EXPORTS_WORKER_SECRET` (same value as the Edge secret and Vault `exports_worker_secret`; the
+  export runner at `/internal/exports/run`).
 - First real sign-up done (2026-10-09). Still open: the signed-in dev call test (risk: Edge
   `verify_jwt` with ES256 user tokens; see `docs/production-readiness.md`), the first platform
   admin, and editing the dev Auth email templates.
@@ -59,7 +62,7 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
 ## How a slice ships
 
 - One slice at a time. Worktree `../elivate-wallet-worktrees/<nn-name>` from fresh `origin/main`;
-  blueprint `docs/blueprints/NN-*.md`; migrations `20261009NNxxxx` and pgTAP `NN0_` (next: `14`/`140_`).
+  blueprint `docs/blueprints/NN-*.md`; migrations `20261009NNxxxx` and pgTAP `NN0_` (next: `16`/`160_`).
 - Checks: `backend/scripts/verify-database.sh` and `deno task check`; frontend `pnpm check`,
   `pnpm lint`, `pnpm test:unit`, e2e via `frontend/scripts/e2e-local.sh` (emails go through a
   fake Cloudflare into the local Mailpit). The local stack is shared: hold the
@@ -73,9 +76,12 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
 - Report what ran and what didn't. Never reset, force-push or discard others' work.
 
 ## Status (2026-10-09)
-On dev: backend slices 01–06, frontend M1 and member slices 1–5, 8, 9 and the slice 9
-follow-up (blueprints 07–14: sign-in places and unusual sign-ins, signed-in password change,
-A06–A08 security emails). Next: 6 → 7 → 10.
+On dev: backend slices 01–06, frontend M1 and member slices 1–6, 8, 9 and the slice 9
+follow-up (blueprints 07–15; slice 6 = statements and reports: WAT periods, PDF/CSV statements,
+office report PDF, transactions and member balances CSVs, complete-or-fail export jobs, M15).
+Next: 7 → 10.
 Note (2026-10-09): the owner's current network blocks outbound port 5432, so `supabase db
 push` can't connect; slice 14's migrations were already on dev at merge (apparently the
-Supabase GitHub integration). Check the dev migration history via the Management API first.
+Supabase GitHub integration); slice 15's were too (checked via the Management API). Check the
+dev migration history via the Management API first. `wrangler deploy` bundles the Worker
+itself: CI runs `wrangler deploy --dry-run` to catch dependencies that can't run in workerd.
