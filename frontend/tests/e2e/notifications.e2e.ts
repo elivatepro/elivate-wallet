@@ -81,6 +81,15 @@ test('money events reach the bell and the mail catcher; tasks clear when done', 
 	await page.getByRole('button', { name: 'Read all' }).click();
 	await expect(page.getByRole('button', { name: 'Read all' })).toBeHidden();
 
+	// A tab whose workspace is no longer the selected one gets nothing.
+	const stale = await page.request.get('/api/notifications?view=all', {
+		headers: { 'x-ew-workspace': '00000000-0000-4000-8000-000000000000' }
+	});
+	expect(stale.status()).toBe(403);
+	expect(((await stale.json()) as { error: { code: string } }).error.code).toBe(
+		'workspace_invalid'
+	);
+
 	// Emails reach the mail catcher, with amount and reference only.
 	const submitted = await mailFor(member, /^Withdrawal requested$/);
 	expect(submitted.HTML).toContain('₦48,000.00');

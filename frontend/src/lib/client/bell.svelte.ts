@@ -4,7 +4,7 @@
 // offline; marking read is idempotent, so a failed mark is simply retried
 // by the next tap.
 
-import { Effect, Exit } from 'effect';
+import { Effect, Exit, Schedule, type Schema } from 'effect';
 import {
 	BellRoutes,
 	MarkedRead,
@@ -13,9 +13,41 @@ import {
 	type NotificationItem,
 	type NotificationView
 } from '#lib/contract/notifications.js';
-import { getJson, sendCommand } from './api';
+import { isRetryableRead, type ApiFailure } from '#lib/contract/errors.js';
+import { READ_TIMEOUT_MS, requestJson } from '#lib/contract/transport.js';
+import { sendCommand } from './api';
 
 const POLL_MS = 60_000;
+
+/**
+ * A bell read for the workspace this tab shows: the server refuses it when
+ * another tab switched workspace, so a stale tab never shows another
+ * network's items or count.
+ */
+function read<S extends Schema.ConstraintDecoder<unknown>>(
+	path: string,
+	workspace: string,
+	schema: S
+) {
+	return requestJson(
+		{
+			fetch,
+			url: path,
+			method: 'GET',
+			route: `GET ${path.split('?')[0]}`,
+			headers: { 'x-ew-workspace': workspace },
+			timeoutMs: READ_TIMEOUT_MS
+		},
+		schema
+	).pipe(
+		Effect.retry({
+			times: 2,
+			while: (e: ApiFailure) =>
+				isRetryableRead(e) && !(e._tag === 'TransportError' && e.reason === 'network'),
+			schedule: Schedule.exponential('300 millis').pipe(Schedule.jittered)
+		})
+	);
+}
 
 export type BellList =
 	| { readonly kind: 'idle' }
@@ -57,17 +89,20 @@ export class Bell {
 	}
 
 	async refreshCount(): Promise<void> {
-		if (!this.#workspace()) return;
-		const exit = await Effect.runPromiseExit(getJson(BellRoutes.unread, UnreadCount));
+		const workspace = this.#workspace();
+		if (!workspace) return;
+		const exit = await Effect.runPromiseExit(read(BellRoutes.unread, workspace, UnreadCount));
 		if (Exit.isSuccess(exit)) this.unread = exit.value.unread;
 	}
 
 	async load(view: NotificationView = this.view): Promise<void> {
 		this.view = view;
+		const workspace = this.#workspace();
+		if (!workspace) return;
 		const generation = ++this.#generation;
 		if (this.list.kind !== 'ready') this.list = { kind: 'loading' };
 		const exit = await Effect.runPromiseExit(
-			getJson(`${BellRoutes.list}?view=${view}&limit=20`, NotificationPage)
+			read(`${BellRoutes.list}?view=${view}&limit=20`, workspace, NotificationPage)
 		);
 		if (generation !== this.#generation) return; // a newer load won
 		if (Exit.isFailure(exit)) {
@@ -86,11 +121,13 @@ export class Bell {
 
 	async loadMore(): Promise<void> {
 		const list = this.list;
-		if (list.kind !== 'ready' || !list.nextCursor || this.more) return;
+		const workspace = this.#workspace();
+		if (list.kind !== 'ready' || !list.nextCursor || this.more || !workspace) return;
 		this.more = true;
 		const exit = await Effect.runPromiseExit(
-			getJson(
+			read(
 				`${BellRoutes.list}?view=${this.view}&limit=20&cursor=${encodeURIComponent(list.nextCursor)}`,
+				workspace,
 				NotificationPage
 			)
 		);
@@ -106,7 +143,7 @@ export class Bell {
 	/** Marks one item read (before following its link). */
 	async markRead(item: NotificationItem): Promise<void> {
 		if (item.read) return;
-		await this.#mark({ ids: [item.id] });
+		if (!(await this.#mark({ ids: [item.id] }))) return;
 		const list = this.list;
 		if (list.kind === 'ready') {
 			const read = (i: NotificationItem) => (i.id === item.id ? { ...i, read: true } : i);

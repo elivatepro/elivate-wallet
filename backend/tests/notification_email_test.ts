@@ -270,3 +270,15 @@ Deno.test("unknown params, bad references, links and roles fail permanently", ()
     assertThrows(() => renderEmail(key, 1, params, context), TemplateError, undefined, key);
   }
 });
+
+Deno.test("names up to the profile's full length still render (first + last ≤ 161)", () => {
+  const long = `${"A".repeat(80)} ${"B".repeat(80)}`;
+  const t01 = renderEmail("team.invitation_accepted", 1, { ...samples[17]![1], member: long }, {
+    appUrl,
+  });
+  assert(t01.html.includes(long));
+  const m12 = renderEmail("money.adjustment_posted", 1, { ...samples[12]![1], actor: long }, {
+    appUrl,
+  });
+  assert(m12.html.includes(long));
+});

@@ -6,7 +6,7 @@
 	linked; nothing here shows or invents balances (W-00, decision 36a).
 -->
 <script lang="ts">
-	import { onMount, setContext } from 'svelte';
+	import { onMount, setContext, untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page, updated } from '$app/state';
 	import { DropdownMenu, Popover } from 'bits-ui';
@@ -68,6 +68,13 @@
 	$effect(() => {
 		if (!live) return;
 		return bell.start();
+	});
+	// Opening the bell loads it; one opened before the workspace was known loads once it is.
+	const bellWorkspace = $derived(
+		shell.state.kind === 'ready' ? shell.state.view.workspace.membershipId : null
+	);
+	$effect(() => {
+		if (bellWorkspace && bellOpen) untrack(() => void bell.load(bell.view));
 	});
 	setContext('appearance', appearance);
 
@@ -358,12 +365,7 @@
 	<div class="main">
 		<header class="topbar">
 			<span class="breadcrumb">{pageTitle}</span>
-			<Popover.Root
-				bind:open={bellOpen}
-				onOpenChange={(open) => {
-					if (open) void bell.load(bell.view);
-				}}
-			>
+			<Popover.Root bind:open={bellOpen}>
 				<Popover.Trigger class="bell" aria-label={bellLabel}>
 					<Bell size={19} strokeWidth={1.5} aria-hidden="true" />
 					{#if bell.unread > 0}<span class="bell-dot" aria-hidden="true"></span>{/if}

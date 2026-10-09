@@ -16,6 +16,9 @@ import {
   TemplateError,
 } from "./params.ts";
 
+/** Profile names: first + last are up to 80 characters each (identity.profiles). */
+const nameMax = 200;
+
 const symbols: Readonly<Record<string, string>> = { NGN: "₦", USD: "$" };
 
 /** "₦48,000.00" from the exact decimal string; never through a float. */
@@ -165,7 +168,7 @@ export const notificationRenderers: Readonly<Record<string, Renderer>> = {
   // M03
   "money.withdrawal_awaiting_approval": (params, context) => {
     onlyParams(params, [...money, "member", "office"]);
-    const member = param(params, "member", 100);
+    const member = param(params, "member", nameMax);
     return build(
       {
         network: param(params, "network", 100),
@@ -319,7 +322,7 @@ export const notificationRenderers: Readonly<Record<string, Renderer>> = {
       throw new TemplateError("template.param_invalid");
     }
     const credit = direction === "credit";
-    const actor = param(params, "actor", 100);
+    const actor = param(params, "actor", nameMax);
     return build(
       {
         network: param(params, "network", 100),
@@ -353,7 +356,7 @@ export const notificationRenderers: Readonly<Record<string, Renderer>> = {
         reference: `${reference(params)} · ${source}`,
         root: "conversion-posted",
         headline: "Your money was converted.",
-        line: `${param(params, "actor", 100)} converted ${source} to ${
+        line: `${param(params, "actor", nameMax)} converted ${source} to ${
           names[currency] ?? currency
         }.`,
         button: "View conversion",
@@ -434,7 +437,7 @@ export const notificationRenderers: Readonly<Record<string, Renderer>> = {
   // T01
   "team.invitation_accepted": (params, context) => {
     onlyParams(params, ["network", "member", "firstName", "office", "role", "path"]);
-    const member = param(params, "member", 100);
+    const member = param(params, "member", nameMax);
     const first = optional(params, "firstName", 80) ?? member;
     return build(
       {
@@ -489,7 +492,7 @@ export const notificationRenderers: Readonly<Record<string, Renderer>> = {
         reference: office,
         root: "role-changed",
         headline: "You have a new role.",
-        line: `${param(params, "actor", 100)} made you ${label} for ${office}.`,
+        line: `${param(params, "actor", nameMax)} made you ${label} for ${office}.`,
         button: "Open Wallet",
       },
       params,

@@ -4,7 +4,7 @@
 	"Read all", "You're all caught up" at the end; the empty state is v3 H07.
 -->
 <script lang="ts">
-	import { getContext, onMount } from 'svelte';
+	import { getContext, untrack } from 'svelte';
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 	import type { Bell } from '#lib/client/bell.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
@@ -14,8 +14,12 @@
 	const bell = getContext<Bell>('bell');
 	const shell = getContext<Shell>('shell');
 
-	onMount(() => {
-		void bell.load('all');
+	// Load once the shell knows this tab's workspace (and again if it changes).
+	const workspace = $derived(
+		shell.state.kind === 'ready' ? shell.state.view.workspace.membershipId : null
+	);
+	$effect(() => {
+		if (workspace) untrack(() => void bell.load('all'));
 	});
 
 	const list = $derived(bell.list.kind === 'ready' ? bell.list : null);

@@ -3,15 +3,22 @@
 import { Effect } from 'effect';
 import { IdentityApi } from '#lib/server/apis-identity.js';
 import { readWorkspace } from '#lib/server/cookies.js';
-import { respond, respondError, unauthenticated, workspaceChanged } from '#lib/server/relay.js';
+import {
+	respond,
+	respondError,
+	unauthenticated,
+	workspaceChanged,
+	workspaceEchoMatches
+} from '#lib/server/relay.js';
 import { runApi } from '#lib/server/request.js';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async (event) => {
 	const session = await event.locals.session();
 	if (!session) return respondError(unauthenticated());
+	// The tab's workspace must still be the selected one (another tab may have switched).
 	const membershipId = readWorkspace(event.cookies);
-	if (!membershipId) return respondError(workspaceChanged());
+	if (!membershipId || !workspaceEchoMatches(event)) return respondError(workspaceChanged());
 	return respond(
 		await runApi(
 			event,
