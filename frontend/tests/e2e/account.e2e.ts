@@ -188,7 +188,7 @@ test('Profile & security: change PIN, devices and profile edit', async ({ page, 
 	await replace.getByLabel('Your PIN').fill(NEW_PIN);
 	await replace.getByRole('button', { name: 'Continue' }).click();
 	await expect(page.getByRole('heading', { name: 'Replace bank account' })).toBeVisible();
-	await page.getByLabel('Bank').selectOption('058');
+	await page.getByLabel('Bank', { exact: true }).selectOption('058');
 	await page.getByLabel('Account number').fill('1122334455');
 	await page.getByRole('button', { name: 'Check account' }).click();
 	await page.getByRole('button', { name: 'Replace account' }).click();
