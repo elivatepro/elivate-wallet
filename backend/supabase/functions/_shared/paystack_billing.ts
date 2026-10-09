@@ -50,6 +50,24 @@ export interface PaystackBilling {
     readonly startDate: string;
   }): Promise<SubscriptionOutcome>;
   disableSubscription(code: string, emailToken: string): Promise<boolean>;
+  /**
+   * An active subscription of this customer for this amount whose next charge
+   * is on the given day: adopted instead of creating a second one when an
+   * earlier create had an uncertain outcome.
+   */
+  findSubscription(input: {
+    readonly customerCode: string;
+    readonly amountKobo: number;
+    readonly startDate: string;
+  }): Promise<
+    | {
+      readonly kind: "found";
+      readonly subscriptionCode: string;
+      readonly emailToken: string | null;
+    }
+    | { readonly kind: "none" }
+    | { readonly kind: "unavailable" }
+  >;
 }
 
 const origin = "https://api.paystack.co";
@@ -335,11 +353,43 @@ export function paystackBilling(
           code,
           token: emailToken,
         });
-        // Already disabled or gone counts as done.
-        return (status >= 200 && status < 300 && body?.status === true) || status === 404 ||
-          status === 400;
+        if (status >= 200 && status < 300 && body?.status === true) return true;
+        // Only a recognized "already disabled / not found" counts as done.
+        const message = str(body?.message) ?? "";
+        return (status === 404 || status === 400) &&
+          /not found|already|inactive|cancel+ed|disabled/i.test(message);
       } catch {
         return false;
+      }
+    },
+
+    async findSubscription(input) {
+      try {
+        const { status, body } = await send(
+          "GET",
+          `/customer/${encodeURIComponent(input.customerCode)}`,
+        );
+        const data = object(body?.data);
+        if (status !== 200 || body?.status !== true || !data) return { kind: "unavailable" };
+        const day = input.startDate.slice(0, 10);
+        for (const item of Array.isArray(data.subscriptions) ? data.subscriptions : []) {
+          const sub = object(item);
+          const code = str(sub?.subscription_code, codePattern("SUB"));
+          const next = str(sub?.next_payment_date);
+          if (
+            code && sub?.status === "active" && sub?.amount === input.amountKobo && next &&
+            next.slice(0, 10) === day
+          ) {
+            return {
+              kind: "found",
+              subscriptionCode: code,
+              emailToken: str(sub?.email_token, /^[A-Za-z0-9_-]{1,100}$/),
+            };
+          }
+        }
+        return { kind: "none" };
+      } catch {
+        return { kind: "unavailable" };
       }
     },
   };

@@ -28,6 +28,10 @@ const billingWebhook = process.env.BILLING_WEBHOOK_URL ?? '';
 const transactions = new Map();
 let nextId = 5000;
 let nextCode = 1;
+/** @type {Map<string, number>} plan code → amount (kobo) */
+const plans = new Map();
+/** @type {Array<{customer: string, code: string, token: string, amount: number, next: string, status: string}>} */
+const subscriptions = [];
 /** @param {import('node:http').IncomingMessage} req */
 const readForm = async (req) => {
 	const chunks = [];
@@ -182,18 +186,48 @@ createServer(async (req, res) => {
 		return res.end();
 	}
 	if (url.pathname === '/plan' && req.method === 'POST') {
-		await readJson(req);
-		return json(res, 200, { status: true, data: { plan_code: `PLN_e2e${nextCode++}` } });
+		const body = await readJson(req);
+		const code = `PLN_e2e${nextCode++}`;
+		plans.set(code, body.amount);
+		return json(res, 200, { status: true, data: { plan_code: code } });
 	}
 	if (url.pathname === '/subscription' && req.method === 'POST') {
-		await readJson(req);
+		const body = await readJson(req);
+		const sub = {
+			customer: body.customer,
+			code: `SUB_e2e${nextCode++}`,
+			token: `tok${nextCode}`,
+			amount: plans.get(body.plan) ?? 0,
+			next: body.start_date,
+			status: 'active'
+		};
+		subscriptions.push(sub);
 		return json(res, 200, {
 			status: true,
-			data: { subscription_code: `SUB_e2e${nextCode++}`, email_token: `tok${nextCode}` }
+			data: { subscription_code: sub.code, email_token: sub.token }
+		});
+	}
+	const customer = url.pathname.match(/^\/customer\/(CUS_[A-Za-z0-9]+)$/);
+	if (customer && req.method === 'GET') {
+		return json(res, 200, {
+			status: true,
+			data: {
+				customer_code: customer[1],
+				subscriptions: subscriptions
+					.filter((sub) => sub.customer === customer[1])
+					.map((sub) => ({
+						subscription_code: sub.code,
+						email_token: sub.token,
+						amount: sub.amount,
+						next_payment_date: sub.next,
+						status: sub.status
+					}))
+			}
 		});
 	}
 	if (url.pathname === '/subscription/disable' && req.method === 'POST') {
-		await readJson(req);
+		const body = await readJson(req);
+		for (const sub of subscriptions) if (sub.code === body.code) sub.status = 'cancelled';
 		return json(res, 200, { status: true, message: 'Subscription disabled successfully' });
 	}
 	json(res, 404, { status: false });

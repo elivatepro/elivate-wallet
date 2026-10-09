@@ -5,7 +5,7 @@
 -- reactivation by payment with the year starting at payment.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(44);
+select plan(45);
 
 create function pg_temp.u(n int) returns uuid language sql immutable as
   $$ select ('10000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
@@ -206,11 +206,13 @@ select is(pg_temp.fails($$ select api.create_access_assignment(pg_temp.u(1), pg_
 select is(pg_temp.fails($$ select pg_temp.add_account(4, '058', '1122334455', 'ADA OBI') $$), 'network_not_active:',
   'no payout account changes');
 
--- ── Reads stay (7) ──
+-- ── Reads stay (8) ──
 select is(jsonb_typeof(api.my_wallet(pg_temp.u(4), pg_temp.s(4))->'networks'), 'array', 'members still see their money');
 select is(api.my_withdrawal(pg_temp.u(4), pg_temp.s(4), pg_temp.ws(4), pg_temp.id('w2'))->>'status', 'requested',
   'their withdrawals');
 select is(jsonb_typeof(api.list_payout_accounts(pg_temp.u(4), pg_temp.s(4), pg_temp.ws(4))), 'object', 'their payout accounts');
+select is(api.withdrawal_detail(pg_temp.u(3), pg_temp.s(3), pg_temp.ws(3), pg_temp.id('w2'))->>'status', 'requested',
+  'leaders still open a waiting request (a read that shares the approve check)');
 select is(pg_temp.fails($$ select api.create_statement(pg_temp.u(4), pg_temp.s(4), pg_temp.id('tenant'), 'NGN', 'month',
   to_char(date_trunc('month', now()) - interval '1 month', 'YYYY-MM-DD'),
   to_char(date_trunc('month', now()) - interval '1 day', 'YYYY-MM-DD'), 'pdf', pg_temp.k()) $$), 'no error',

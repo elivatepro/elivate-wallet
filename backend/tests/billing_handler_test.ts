@@ -81,6 +81,14 @@ function fakePaystack(verify: (ref: string) => VerifyOutcome = () => charge()): 
       calls.push(`disable:${code}:${token}`);
       return Promise.resolve(true);
     },
+    findSubscription(input) {
+      calls.push(`find:${input.customerCode}:${input.amountKobo}`);
+      return Promise.resolve(
+        input.customerCode === "CUS_adopt0001"
+          ? { kind: "found", subscriptionCode: "SUB_adopted01", emailToken: "tokA" }
+          : { kind: "none" },
+      );
+    },
   };
 }
 
@@ -411,7 +419,9 @@ Deno.test("the sync worker needs its secret and moves the subscription", async (
     if (fn === "billing_sync_claim") {
       return ok([{
         tenantId: "t1",
+        version: 7,
         renew: true,
+        amountKobo: 70000000,
         planId: "p1",
         startDate: "2027-10-14T09:00:00Z",
         customerCode: "CUS_abc123",
@@ -438,10 +448,64 @@ Deno.test("the sync worker needs its secret and moves the subscription", async (
   assertEquals(paystack.calls, [
     "plan:Elivate Wallet — Up to 400 users (yearly):70000000",
     "disable:SUB_old0001:oldtoken",
+    "find:CUS_abc123:70000000",
     "subscribe:CUS_abc123:PLN_new0001:2027-10-14T09:00:00.000Z",
   ]);
   const done = calls.find((c) => c.fn === "billing_sync_done");
   assertEquals(done?.args.p_subscription_code, "SUB_new0001");
+  assertEquals(done?.args.p_version, 7, "the claimed version goes back with the result");
+});
+
+Deno.test("a subscription created by an uncertain earlier attempt is adopted, not duplicated", async () => {
+  const paystack = fakePaystack();
+  const { handler, calls } = setup((fn) => {
+    if (fn === "billing_plan_codes") {
+      return ok([{
+        planId: "p1",
+        name: "Up to 400 users",
+        amountKobo: 70000000,
+        planCode: "PLN_x1",
+      }]);
+    }
+    if (fn === "billing_sync_claim") {
+      return ok([{
+        tenantId: "t1",
+        version: 3,
+        renew: true,
+        planId: "p1",
+        amountKobo: 70000000,
+        startDate: "2027-10-14T09:00:00Z",
+        customerCode: "CUS_adopt0001",
+        subscriptionCode: null,
+        emailToken: null,
+      }]);
+    }
+    return ok({});
+  }, paystack);
+  await handler(
+    new Request("https://x.supabase.co/functions/v1/billing/worker/sync", {
+      method: "POST",
+      headers: { authorization: `Bearer ${workerSecret}` },
+    }),
+  );
+  assert(!paystack.calls.some((c) => c.startsWith("subscribe:")), "no second subscription");
+  assertEquals(
+    calls.find((c) => c.fn === "billing_sync_done")?.args.p_subscription_code,
+    "SUB_adopted01",
+  );
+});
+
+Deno.test("each invoice state is its own event, so a paid update is never deduplicated away", async () => {
+  const { handler, calls } = setup((fn) =>
+    fn === "billing_record_event" ? ok({ eventId: 1, duplicate: false }) : ok({ outcome: "x" })
+  );
+  await webhook(handler, {
+    event: "invoice.update",
+    data: { id: 77, paid: false, status: "pending" },
+  });
+  await webhook(handler, { event: "invoice.update", data: { id: 77, paid: true } });
+  const keys = calls.filter((c) => c.fn === "billing_record_event").map((c) => c.args.p_dedupe_key);
+  assertEquals(keys, ["invoice.update:77:pending", "invoice.update:77:paid"]);
 });
 
 // ── Paystack client ────────────────────────────────────────────────────────
@@ -491,4 +555,24 @@ Deno.test("the Paystack client reads the mode from the key and accepts only Pays
     assertEquals(verified.reusable, true);
     assert(!JSON.stringify(verified).includes("4081"), "card details are never kept");
   }
+});
+
+Deno.test("a disable counts only when Paystack confirms it or says it is already gone", async () => {
+  const answer = (status: number, message: string) =>
+    paystackBilling(secret, {
+      fetcher: () =>
+        Promise.resolve(
+          new Response(JSON.stringify({ status: status === 200, message }), { status }),
+        ),
+    });
+  assert(
+    await answer(200, "Subscription disabled successfully").disableSubscription("SUB_a1", "t"),
+  );
+  assert(
+    await answer(400, "Subscription with code not found or already inactive").disableSubscription(
+      "SUB_a1",
+      "t",
+    ),
+  );
+  assert(!(await answer(400, "Invalid email token").disableSubscription("SUB_a1", "t")));
 });

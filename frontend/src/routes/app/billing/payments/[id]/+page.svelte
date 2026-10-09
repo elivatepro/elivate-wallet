@@ -25,15 +25,16 @@
 	let checking = $state(false);
 	let polls = 0;
 	let timer: ReturnType<typeof setTimeout> | undefined;
-	let started = false;
 
-	async function check() {
+	async function check(forId: string) {
 		checking = true;
 		const result = await loadView(
-			`/api/billing/payments/${id}${returned ? '?returned=1' : ''}`,
+			`/api/billing/payments/${forId}${returned ? '?returned=1' : ''}`,
 			PaymentView
 		);
 		checking = false;
+		// Another receipt was opened meanwhile: this answer is stale.
+		if (forId !== id) return;
 		if (!result.ok) {
 			loadError = result.text;
 			return;
@@ -44,15 +45,22 @@
 		// Webhooks usually land within seconds: poll for about a minute.
 		if (payment.status === 'open' && polls < 20) {
 			polls++;
-			timer = setTimeout(check, 3000);
+			timer = setTimeout(() => check(forId), 3000);
 		}
 	}
 
+	// One load per payment id: the page is reused when [id] changes (the bell).
+	let loadedFor = '';
 	$effect(() => {
-		if (shell.state.kind === 'ready' && !started) {
-			started = true;
-			void check();
-		}
+		if (shell.state.kind !== 'ready') return;
+		const current = id;
+		if (current === loadedFor) return;
+		loadedFor = current;
+		clearTimeout(timer);
+		payment = null;
+		loadError = null;
+		polls = 0;
+		void check(current);
 	});
 	onDestroy(() => clearTimeout(timer));
 
@@ -85,7 +93,7 @@
 	{#if loadError && !payment}
 		<div class="o-error" role="alert">
 			<p>{loadError}</p>
-			<button type="button" class="o-ghost" onclick={() => check()}>Try again</button>
+			<button type="button" class="o-ghost" onclick={() => check(id)}>Try again</button>
 		</div>
 	{:else if !payment}
 		<div class="o-skeleton" aria-hidden="true"></div>
@@ -148,7 +156,7 @@
 					aria-busy={checking}
 					onclick={() => {
 						polls = 0;
-						void check();
+						void check(id);
 					}}>Check again</button
 				>
 			{:else}

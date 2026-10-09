@@ -476,8 +476,14 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       return { response: success({ received: true }, requestId), outcome: "malformed" };
     }
     const id = typeof data.id === "number" || typeof data.id === "string" ? String(data.id) : null;
-    const anchor = id ?? (typeof data.reference === "string" ? data.reference : null) ??
+    const base = id ?? (typeof data.reference === "string" ? data.reference : null) ??
       (typeof data.subscription_code === "string" ? data.subscription_code : null);
+    // An invoice changes state under the same id (open → paid): each state is
+    // its own event, so a paid update is never mistaken for an earlier one.
+    const state = event.startsWith("invoice.")
+      ? `:${data.paid === true ? "paid" : String(data.status ?? "open").slice(0, 20)}`
+      : "";
+    const anchor = base === null ? null : `${base}${state}`;
     const sha = await sha256Hex(raw);
     const recorded = await call("billing_record_event", {
       p_dedupe_key: `${event}:${anchor ?? sha}`.slice(0, 200),
@@ -535,6 +541,8 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       const job = object(item);
       if (!job) continue;
       const tenantId = job.tenantId;
+      // The claimed version: finishing never clears a change made meanwhile.
+      const version = job.version;
       try {
         if (typeof job.subscriptionCode === "string" && typeof job.emailToken === "string") {
           if (!(await paystack.disableSubscription(job.subscriptionCode, job.emailToken))) {
@@ -544,35 +552,61 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
         if (job.renew === true) {
           const planCode = codes.get(String(job.planId));
           if (
-            !planCode || typeof job.customerCode !== "string" || typeof job.startDate !== "string"
+            !planCode || typeof job.customerCode !== "string" ||
+            typeof job.startDate !== "string" || typeof job.amountKobo !== "number"
           ) {
             throw new Error("sync input missing");
           }
           // Never in the past: a renewal due within the hour charges in an hour.
           const start = new Date(Math.max(Date.parse(job.startDate), now().getTime() + 3600_000));
-          const created = await paystack.createSubscription({
+          // An earlier attempt may have created it with an uncertain outcome:
+          // adopt that one rather than charging the card twice.
+          const existing = await paystack.findSubscription({
             customerCode: job.customerCode,
-            planCode,
+            amountKobo: job.amountKobo,
             startDate: start.toISOString(),
           });
+          if (existing.kind === "unavailable") throw new Error("lookup failed");
+          const created = existing.kind === "found"
+            ? {
+              kind: "ok" as const,
+              subscriptionCode: existing.subscriptionCode,
+              emailToken: existing.emailToken,
+            }
+            : await paystack.createSubscription({
+              customerCode: job.customerCode,
+              planCode,
+              startDate: start.toISOString(),
+            });
           if (created.kind === "unavailable") throw new Error("create failed");
           await call(
             "billing_sync_done",
-            created.kind === "no_card" ? { p_tenant_id: tenantId, p_outcome: "no_card" } : {
-              p_tenant_id: tenantId,
-              p_outcome: "ok",
-              p_subscription_code: created.subscriptionCode,
-              p_email_token: created.emailToken,
-              p_plan_code: planCode,
-            },
+            created.kind === "no_card"
+              ? { p_tenant_id: tenantId, p_version: version, p_outcome: "no_card" }
+              : {
+                p_tenant_id: tenantId,
+                p_version: version,
+                p_outcome: "ok",
+                p_subscription_code: created.subscriptionCode,
+                p_email_token: created.emailToken,
+                p_plan_code: planCode,
+              },
           );
         } else {
-          await call("billing_sync_done", { p_tenant_id: tenantId, p_outcome: "ok" });
+          await call("billing_sync_done", {
+            p_tenant_id: tenantId,
+            p_version: version,
+            p_outcome: "ok",
+          });
         }
         done++;
       } catch {
         failed++;
-        await call("billing_sync_done", { p_tenant_id: tenantId, p_outcome: "failed" });
+        await call("billing_sync_done", {
+          p_tenant_id: tenantId,
+          p_version: version,
+          p_outcome: "failed",
+        });
       }
     }
     return { done, failed };
