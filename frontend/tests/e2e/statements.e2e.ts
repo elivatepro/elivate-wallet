@@ -36,8 +36,15 @@ test.setTimeout(240_000);
 
 /** Runs the export runner once, as pg_cron would (the app also starts it on each request). */
 async function runExports(page: Page) {
+	const refused = await page.request.post('/internal/exports/run', {
+		headers: { authorization: 'Bearer wrong' },
+		data: {}
+	});
+	expect(refused.status()).toBe(403);
+	// As pg_net sends it: JSON with the bearer secret.
 	const response = await page.request.post('/internal/exports/run', {
-		headers: { authorization: `Bearer ${SECRET}` }
+		headers: { authorization: `Bearer ${SECRET}` },
+		data: {}
 	});
 	expect(response.status()).toBe(200);
 }
@@ -98,6 +105,8 @@ test('a member makes PDF and CSV statements; every file state shows', async ({ p
 	await page.getByLabel('Network').selectOption({ label: 'Cedar Statements' });
 	await page.getByRole('button', { name: 'This month' }).click();
 	await page.getByRole('button', { name: 'Create PDF statement' }).click();
+	// The scheduled runner path works too (and is harmless when the job is done).
+	await runExports(page);
 	await untilReady(page, /NGN/);
 	// A PDF made while waiting opens its preview (S09d).
 	const preview = page.getByRole('dialog');
