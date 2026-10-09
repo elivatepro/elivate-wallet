@@ -17,7 +17,6 @@
 	import { getContext, untrack } from 'svelte';
 	import { Cause, Effect, Exit, Option } from 'effect';
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
-	import CircleHelp from '@lucide/svelte/icons/circle-help';
 	import FileText from '@lucide/svelte/icons/file-text';
 	import Plus from '@lucide/svelte/icons/plus';
 	import X from '@lucide/svelte/icons/x';
@@ -31,7 +30,7 @@
 		type IncomeTarget,
 		type RecordIncomeInput
 	} from '#lib/contract/income.js';
-	import type { Currency } from '#lib/contract/ledger.js';
+	import { CommandOutcome, type Currency } from '#lib/contract/ledger.js';
 	import { getJson, newKey, sendCommand } from '#lib/client/api.js';
 	import { uploadReceipt } from '#lib/client/income-api.js';
 	import {
@@ -60,6 +59,7 @@
 	} from '#lib/income.js';
 	import { currencySymbol, formatMoney } from '#lib/money.js';
 	import { pinProblem } from '#lib/payout.js';
+	import CheckingPanel from '#lib/ui/app/CheckingPanel.svelte';
 	import ConfirmDialog from '#lib/ui/app/ConfirmDialog.svelte';
 	import FormAlert from '#lib/ui/auth/FormAlert.svelte';
 	import MemberPicker from '#lib/ui/income/MemberPicker.svelte';
@@ -495,6 +495,24 @@
 		if (!attempt) return;
 		dialogError = null;
 		pinError = null;
+		if (!pin) {
+			if (busy) return;
+			busy = true;
+			// Shared F-03 lookup first (Blueprint 08): a cancelled attempt needs no
+			// replay; committed or not found, the same key goes again below.
+			const key = attempt.request.idempotencyKey;
+			const exit = await Effect.runPromiseExit(
+				getJson(
+					`/api/commands/outcome?${new URLSearchParams({ key, command: 'record_income' })}`,
+					CommandOutcome
+				)
+			);
+			busy = false;
+			if (Exit.isSuccess(exit) && exit.value.status === 'cancelled') {
+				restart('That attempt was cancelled. Nothing was posted.');
+				return;
+			}
+		}
 		await dispatch(attempt.request, pin);
 	}
 
@@ -593,37 +611,24 @@
 		</ul>
 		<div class="actions">
 			<button type="button" class="primary" onclick={recordAnother}>Record another</button>
-			<a class="ghost" href="/app">Back to Home</a>
+			<a
+				class="ghost"
+				href={result.walletId
+					? `/app/wallets?wallet=${result.walletId}&view=activity&tx=${result.transactionId}`
+					: '/app/wallets'}>View in activity</a
+			>
 		</div>
 	</section>
 {:else if phase === 'unknown' && pending && attempt}
-	<section class="panel unknown" aria-labelledby="unknown-title">
-		<CircleHelp size={28} strokeWidth={1.8} class="unknown-icon" aria-hidden="true" />
-		<h2 id="unknown-title" class="panel-title">We couldn’t confirm this income</h2>
-		<p class="panel-lead">
-			It may have posted. Check again to find out; it can never post twice. If it didn’t go through,
-			you can cancel this attempt.
-		</p>
+	<!-- Paper "App — Screens v4" J04 (owner-approved 2026-10-08) -->
+	<CheckingPanel
+		title="Checking what happened"
+		lead={`We’re confirming the ${formatMoney(pending.amount, pending.currency)} income for ${attempt.target.name ?? attempt.target.uid}. Don’t record it again.`}
+		{busy}
+		footnote={`Sent ${new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(attempt.savedAt)).replace(' at ', ', ')}`}
+	>
 		{#if dialogError && !cancelOpen && !recheckOpen}<FormAlert message={dialogError} />{/if}
-		<dl class="facts">
-			<div>
-				<dt>Member</dt>
-				<dd>{attempt.target.name ?? attempt.target.uid}</dd>
-			</div>
-			<div>
-				<dt>Amount</dt>
-				<dd>{formatMoney(pending.amount, pending.currency)}</dd>
-			</div>
-			<div>
-				<dt>Source</dt>
-				<dd>{pending.source}</dd>
-			</div>
-			<div>
-				<dt>Date received</dt>
-				<dd>{pending.receivedOn}</dd>
-			</div>
-		</dl>
-		<div class="actions">
+		{#snippet actions()}
 			<button
 				type="button"
 				class="primary"
@@ -633,15 +638,15 @@
 			>
 			<button
 				type="button"
-				class="ghost"
+				class="secondary"
 				disabled={busy || !shell.canAct}
 				onclick={() => {
 					dialogError = null;
 					cancelOpen = true;
 				}}>Cancel this attempt</button
 			>
-		</div>
-	</section>
+		{/snippet}
+	</CheckingPanel>
 {:else if !data && !loadError}
 	<div class="skeleton" aria-hidden="true"></div>
 	<p class="visually-hidden" role="status">Loading your members</p>
@@ -1432,10 +1437,6 @@
 		color: var(--color-success);
 	}
 
-	.panel :global(.unknown-icon) {
-		color: var(--color-warning);
-	}
-
 	.panel-title {
 		font-size: var(--text-24);
 		font-weight: var(--font-weight-bold);
@@ -1503,29 +1504,6 @@
 		width: 8px;
 		height: 8px;
 		border-radius: var(--radius-pill);
-	}
-
-	.facts {
-		display: grid;
-		gap: 10px;
-		padding: 16px 0;
-		border-block: 1px solid var(--color-border);
-	}
-
-	.facts div {
-		display: flex;
-		justify-content: space-between;
-		gap: 16px;
-		font-size: var(--text-14);
-	}
-
-	.facts dt {
-		color: var(--color-muted);
-	}
-
-	.facts dd {
-		overflow-wrap: anywhere;
-		text-align: right;
 	}
 
 	.actions {

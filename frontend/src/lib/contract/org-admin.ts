@@ -274,6 +274,8 @@ export const MemberView = Schema.Struct({
 	balances: Schema.NullOr(
 		Schema.Array(Schema.Struct({ currency: Currency, posted: Money, available: Money }))
 	),
+	/** Opens Member wallets (Blueprint 08, Q05) when the leader may see the wallet. */
+	walletId: Schema.optionalKey(Schema.NullOr(Uuid)),
 	offices: Schema.Array(Schema.Struct({ id: Uuid, name: Schema.String, type: OfficeType }))
 });
 export type MemberView = typeof MemberView.Type;

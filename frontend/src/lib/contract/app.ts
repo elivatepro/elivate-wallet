@@ -3,9 +3,17 @@
 // the Edge Functions.
 
 import { Schema } from 'effect';
-import { ActivityItem, Allocation, AllocationVersion, WalletNetwork } from './ledger';
+import {
+	Activity,
+	ActivityItem,
+	Allocation,
+	AllocationVersion,
+	ManagedWallet,
+	Pocket,
+	WalletNetwork
+} from './ledger';
 import { IdempotencyKey, InvitationPage, InvitationStatus } from './invitations';
-import { OfficeType, PIN_PATTERN, Role, Uuid } from './common';
+import { OfficeType, Person, PIN_PATTERN, Role, Uuid } from './common';
 import { ACCOUNT_NUMBER_PATTERN, Bank, PayoutAccount } from './payout';
 import { Capabilities, Workspace } from './org';
 import { SecurityState } from './security';
@@ -186,3 +194,23 @@ export const payoutPrimaryPath = (payoutAccountId: string) =>
 	`/api/payout-accounts/${payoutAccountId}/primary`;
 export const payoutRemovePath = (payoutAccountId: string) =>
 	`/api/payout-accounts/${payoutAccountId}/deactivate`;
+
+/**
+ * GET /api/activity (Blueprint 08, Paper M03/M04): one page of own activity in
+ * the selected network, or of a managed wallet (`?wallet=`). `pockets` (the
+ * pocket filter) and `person` (managed only) come with the first page.
+ */
+export const ActivityView = Schema.Struct({
+	activity: Activity,
+	pockets: Schema.NullOr(Schema.Array(Pocket)),
+	person: Person
+});
+export type ActivityView = typeof ActivityView.Type;
+
+/** GET /api/wallets/:walletId (Blueprint 08, Paper Q05): one member's wallet for a leader. */
+export const MemberWalletView = Schema.Struct({
+	wallet: ManagedWallet,
+	network: Schema.NullOr(WalletNetwork),
+	recent: Schema.Array(ActivityItem)
+});
+export type MemberWalletView = typeof MemberWalletView.Type;

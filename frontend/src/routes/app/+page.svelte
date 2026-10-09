@@ -186,7 +186,10 @@
 		</section>
 
 		<section aria-labelledby="activity-label">
-			<h2 class="section-label" id="activity-label">Recent activity</h2>
+			<div class="section-head">
+				<h2 class="section-label" id="activity-label">Recent activity</h2>
+				<a class="see-all" href="/app/activity">See all</a>
+			</div>
 			{#if activity.length === 0}
 				<p class="empty">No activity in {currency} yet.</p>
 			{:else}
@@ -215,6 +218,18 @@
 {/if}
 
 <style>
+	.section-head {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+	}
+
+	.see-all {
+		color: var(--color-accent-text);
+		font-size: 13px;
+		text-decoration: none;
+	}
+
 	.skeleton {
 		height: 300px;
 		border-radius: 22px;
