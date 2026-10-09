@@ -113,7 +113,9 @@ test('the President records income for a member with a receipt', async ({ page }
 
 	await expect(page.getByRole('heading', { name: 'Income posted' })).toBeVisible();
 	await expect(page.getByText('₦1,000.00 is in Ada’s pockets now.')).toBeVisible();
-	await expect(page.getByText(/^INC-[0-9A-Z]{4}-[0-9A-Z]{4}$/).first()).toBeVisible();
+	await expect(
+		page.getByText(/^INC-[0-9A-Z]{4}-[0-9A-Z]{4}$/).filter({ visible: true })
+	).toBeVisible();
 	await expectAccessible(page);
 
 	// The member sees it on Home.
