@@ -119,6 +119,10 @@ Paper `App — Screens v4 (member build)` batch 1 (N, Q, J, Z) is approved; Z01 
 - **Payout recording** has the optional fee field (U02).
 - **Currency conversion (W-12)** starts from its own leader tab/menu item and from a
   member's wallet (a "Convert" action next to Move).
+- **Default permissions:** new networks keep the A-03 defaults (conversion also on for Team
+  Leader, Director and World Team; adjustments also on for World Team); Presidents can change
+  them in the role editor.
+- **Evidence reviewers:** a role change ends the reviewer assignment; the President re-adds it.
 - **Sequencing:** one slice at a time, each new slice in its own thread. Order: 4 → 5 → 8 →
   slice 9 follow-up (IP storage, signed-in password change, PIN-change email, sign-out
   choice after reset) → 6 → 7 → 10.
