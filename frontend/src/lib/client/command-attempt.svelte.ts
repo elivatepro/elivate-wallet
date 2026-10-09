@@ -154,6 +154,11 @@ export class CommandAttempt<
 		});
 	}
 
+	/** True while an earlier attempt's outcome is being recovered: it must never be discarded. */
+	get recovering(): boolean {
+		return this.#recovering;
+	}
+
 	/** True when a PIN prompt refused the kept attempt: resend it with the PIN, never a new body. */
 	get awaitingPin(): boolean {
 		const s = this.state;

@@ -41,6 +41,9 @@ describe('conversion rates', () => {
 		expect(differenceFromQuote('640500.00', 'NGN', '420.00', 'USD', '1525')).toBe('0.00');
 		expect(differenceFromQuote('1.00', 'USD', '1520.50', 'NGN', '1520')).toBe('-0.50');
 		expect(differenceFromQuote('1.00', 'USD', '1600.00', 'NGN', '1520')).toBe('-80.00');
+		// NGN → USD: spending ₦1,600 for $1 at ₦1,520 is ₦80 worse; ₦1,500 is ₦20 better.
+		expect(differenceFromQuote('1600.00', 'NGN', '1.00', 'USD', '1520')).toBe('80.00');
+		expect(differenceFromQuote('1500.00', 'NGN', '1.00', 'USD', '1520')).toBe('-20.00');
 		expect(differenceFromQuote('420.00', 'USD', '638400.00', 'NGN', null)).toBeNull();
 		expect(differenceFromQuote('420.00', 'USD', '638400.00', 'NGN', '1,525')).toBeNull();
 	});

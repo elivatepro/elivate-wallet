@@ -152,9 +152,12 @@
 	let pinError = $state<string | null>(null);
 	let pinTry = $state(0);
 
-	/** Closing the PIN prompt drops the refused attempt, so an edited form never resends the old body. */
+	/**
+	 * Closing the PIN prompt drops a refused new attempt, so an edited form never
+	 * resends the old body; an attempt still being recovered is always kept (F-03).
+	 */
 	$effect(() => {
-		if (!pinOpen && attempt.awaitingPin) attempt.reset();
+		if (!pinOpen && attempt.awaitingPin && !attempt.recovering) attempt.reset();
 	});
 
 	async function submit(pin?: string) {

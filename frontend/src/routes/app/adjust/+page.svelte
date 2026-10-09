@@ -198,9 +198,12 @@
 	let pinError = $state<string | null>(null);
 	let confirmError = $state<string | null>(null);
 
-	/** Closing the PIN prompt drops the refused attempt, so an edited form never resends the old body. */
+	/**
+	 * Closing the PIN prompt drops a refused new attempt, so an edited form never
+	 * resends the old body; an attempt still being recovered is always kept (F-03).
+	 */
 	$effect(() => {
-		if (!confirmOpen && attempt.awaitingPin) attempt.reset();
+		if (!confirmOpen && attempt.awaitingPin && !attempt.recovering) attempt.reset();
 	});
 
 	function review() {

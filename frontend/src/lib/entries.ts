@@ -79,8 +79,9 @@ export function formatRate(rate: string, quote: Currency, base: Currency): strin
 }
 
 /**
- * Received − amount × quoted rate, in the quote currency, when the quote is
- * known: the "Difference from quote" line (B07). Exact; null when unknown.
+ * How much worse than the quote the member did, in the quote currency (B07
+ * "Difference from quote"): positive when they got less (or paid more) than
+ * the quote, negative when the conversion beat it. Exact; null when unknown.
  */
 export function differenceFromQuote(
 	amount: string,
@@ -97,8 +98,9 @@ export function differenceFromQuote(
 		const expected = (toUnits(amount, 2) * rate + 50_000_000n) / 100_000_000n;
 		return fromUnits(expected - toUnits(received, 2), 2);
 	}
+	// Paying in the quote currency: spending more than the quote is worse.
 	const expected = (toUnits(received, 2) * rate + 50_000_000n) / 100_000_000n;
-	return fromUnits(expected - toUnits(amount, 2), 2);
+	return fromUnits(toUnits(amount, 2) - expected, 2);
 }
 
 /** A `datetime-local` value ("2026-10-02T16:40") in the browser zone → ISO with offset. */
