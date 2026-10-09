@@ -68,10 +68,10 @@ test('forgot password → Recovery email → new password → PIN', async ({ pag
 	await page.getByRole('button', { name: 'Continue' }).click();
 	await expect(page).toHaveURL(/\/reset-password$/);
 	await page.getByLabel('New password').fill('short');
-	await page.getByRole('button', { name: 'Save password' }).click();
+	await page.getByRole('button', { name: 'Save new password' }).click();
 	await expect(page.getByText('Use at least 8 characters.')).toBeVisible();
 	await page.getByLabel('New password').fill(NEW_PASSWORD);
-	await page.getByRole('button', { name: 'Save password' }).click();
+	await page.getByRole('button', { name: 'Save new password' }).click();
 	// PIN as usual after a recovery.
 	await expect(page).toHaveURL(/\/pin(\?.*)?$/);
 
