@@ -75,7 +75,8 @@ file short and current.
   `/tmp/elivate-supabase.lock` directory while using it.
 - PR per slice, linked to the thread. When CI is green: merge, then deploy to dev from a
   fresh `origin/main`: `supabase db push --linked --include-all` (from `backend/`), deploy
-  changed functions, `pnpm exec wrangler deploy` in `frontend/`. Smoke-test without creating
+  changed functions, `pnpm build && pnpm exec wrangler deploy` in `frontend/` (deploy uploads the last build;
+  it does not build). Smoke-test without creating
   users or sending email. Owner approval for dev deploys covers the member build.
 - Report what ran and what didn't. Don't reset, force-push or discard others' work.
 
