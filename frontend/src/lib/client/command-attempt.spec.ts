@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { BackendError, TransportError, type ApiFailure } from '#lib/contract/errors.js';
 import type { CommandOutcome } from '#lib/contract/ledger.js';
 import { storageKey } from '#lib/recovery.js';
-import { CommandAttempt } from './command-attempt.svelte';
+import { CommandAttempt, showsRecovery } from './command-attempt.svelte';
 import { MemoryStore } from './device-cache';
 
 type Sent = { body: Record<string, unknown> };
@@ -168,5 +168,54 @@ describe('CommandAttempt', () => {
 		});
 		const state = await second.restore();
 		expect(state.kind).toBe('done');
+	});
+});
+
+describe('showsRecovery', () => {
+	it('keeps the locked screen through the PIN prompt and the re-send in flight', async () => {
+		let release: () => void = () => {};
+		const held = new Promise<void>((resolve) => (release = resolve));
+		const replies: Array<'timeout' | 'held' | BackendError> = [
+			'timeout',
+			refused('step_up_required'),
+			'held'
+		];
+		const attempt = new CommandAttempt({
+			command: 'submit_conversion',
+			path: '/api/conversions',
+			method: 'POST',
+			schema: {} as never,
+			scope: () => scope,
+			store: new MemoryStore(),
+			send: () => {
+				const reply = replies.shift();
+				if (reply === 'timeout')
+					return Effect.fail<ApiFailure>(new TransportError({ reason: 'timeout', status: null }));
+				if (reply === 'held')
+					return Effect.promise(() => held).pipe(Effect.as({ reference: 'CNV-1' } as never));
+				return Effect.fail<ApiFailure>(reply as BackendError);
+			},
+			lookup: () => Effect.succeed({ status: 'not_found', command: null })
+		});
+		expect(showsRecovery(attempt)).toBe(false);
+		await attempt.send('ws-1', { amount: '1.00' });
+		expect(showsRecovery(attempt)).toBe(true);
+		await attempt.resend();
+		expect(attempt.state.kind).toBe('failed');
+		expect(showsRecovery(attempt)).toBe(true);
+		const sending = attempt.resend({ pin: '1234' });
+		expect(attempt.state.kind).toBe('sending');
+		expect(showsRecovery(attempt)).toBe(true);
+		release();
+		expect((await sending).kind).toBe('done');
+		expect(showsRecovery(attempt)).toBe(false);
+	});
+
+	it('a fresh form that is sending is not recovery', async () => {
+		const { attempt } = harness(['ok'], []);
+		const pending = attempt.send('ws-1', { amount: '1.00' });
+		expect(attempt.state.kind).toBe('sending');
+		expect(showsRecovery(attempt)).toBe(false);
+		await pending;
 	});
 });
