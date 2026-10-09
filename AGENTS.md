@@ -50,11 +50,12 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
 ## Environments
 
 - Dev Supabase `crljnkdwkxkwgvhxfrbl` (no production project). pg_cron wakes workers through
-  Vault URL/secret pairs (outbox, payout checker, exports). Auth redirects:
+  Vault URL/secret pairs (outbox, payout checker, exports, billing sync). Auth redirects:
   `https://app.elivatewallet.com`, `http://127.0.0.1:3000/**`.
 - Worker secrets: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `TURNSTILE_SITE_KEY`,
   `TURNSTILE_SECRET_KEY`, `APP_SERVER_SECRET` and `EXPORTS_WORKER_SECRET` (each of the last two
-  matches its Edge secret; the exports one also matches Vault).
+  matches its Edge secret; the exports one also matches Vault). Edge `BILLING_WORKER_SECRET`
+  matches Vault `billing_worker_secret`; Paystack is test mode (`PAYSTACK_SECRET_KEY`).
 - Still open: the signed-in dev call test (Edge `verify_jwt` with ES256 user tokens; see
   `docs/production-readiness.md`), the first platform admin, editing the dev Auth email templates.
 
@@ -62,7 +63,7 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
 
 - One slice at a time, in worktree `../elivate-wallet-worktrees/<nn-name>` from fresh
   `origin/main` (copy `backend/supabase/.temp` in). Blueprint `docs/blueprints/NN-*.md`;
-  migrations `20261009NNxxxx`, pgTAP `NN0_` (next: `16`/`160_`).
+  migrations `20261009NNxxxx`, pgTAP `NN0_` (next: `17`/`170_`).
 - Checks: `backend/scripts/verify-database.sh`, `deno task check`; frontend `pnpm check`,
   `pnpm lint`, `pnpm test:unit`, e2e via `frontend/scripts/e2e-local.sh` (fake Cloudflare into
   local Mailpit). The local stack is shared: hold the `/tmp/elivate-supabase.lock` directory
@@ -80,5 +81,5 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
 
 ## Status (2026-10-09)
 
-On dev: backend slices 01–06, frontend M1, member slices 1–6, 8, 9 and the slice 9 follow-up
-(blueprints 07–15). Next: 7 (billing) → 10 (workspace settings).
+On dev: backend slices 01–06, frontend M1, member slices 1–9 and the slice 9 follow-up
+(blueprints 07–16). Next: 10 (workspace settings).
