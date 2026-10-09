@@ -65,7 +65,8 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
   migrations `20261009NNxxxx`, pgTAP `NN0_` (next: `16`/`160_`).
 - Checks: `backend/scripts/verify-database.sh`, `deno task check`; frontend `pnpm check`,
   `pnpm lint`, `pnpm test:unit`, e2e via `frontend/scripts/e2e-local.sh` (fake Cloudflare into
-  local Mailpit). The local stack is shared: hold `/tmp/elivate-supabase.lock` while using it.
+  local Mailpit). The local stack is shared: hold the `/tmp/elivate-supabase.lock` directory
+  (`mkdir`/`rmdir`) while using it.
 - One PR per slice, linked to the thread; wait for CI and Greptile (read comments by latest
   timestamp) and fix real findings before merging.
 - Deploy to dev from fresh `origin/main` (owner approval covers the member build):
