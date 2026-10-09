@@ -8,9 +8,9 @@ const form = (token?: string) => {
 };
 
 function fakeFetch(answer: unknown, status = 200) {
-	const calls: { url: string; body: FormData }[] = [];
+	const calls: { url: string; body: FormData; redirect: RequestRedirect | undefined }[] = [];
 	const fetch = (async (url: string, init: RequestInit) => {
-		calls.push({ url, body: init.body as FormData });
+		calls.push({ url, body: init.body as FormData, redirect: init.redirect });
 		return new Response(JSON.stringify(answer), { status });
 	}) as unknown as typeof globalThis.fetch;
 	return { fetch, calls };
@@ -52,6 +52,8 @@ describe('verifyTurnstile', () => {
 		);
 		expect(outcome).toEqual({ ok: true });
 		expect(calls[0]?.url).toBe(SITEVERIFY_URL);
+		// Cloudflare Workers throw on redirect: 'error'.
+		expect(calls[0]?.redirect).toBe('manual');
 		expect(calls[0]?.body.get('secret')).toBe('s3cret');
 		expect(calls[0]?.body.get('response')).toBe('tok');
 		expect(calls[0]?.body.get('remoteip')).toBe('1.2.3.4');
@@ -83,6 +85,15 @@ describe('verifyTurnstile', () => {
 		expect(
 			await verifyTurnstile(
 				{ secret: 's', fetch: down.fetch, hostnames },
+				form('t'),
+				'sign-in',
+				null
+			)
+		).toEqual({ ok: false, reason: 'unavailable' });
+		const moved = fakeFetch({ success: true }, 302);
+		expect(
+			await verifyTurnstile(
+				{ secret: 's', fetch: moved.fetch, hostnames },
 				form('t'),
 				'sign-in',
 				null

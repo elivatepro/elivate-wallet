@@ -39,7 +39,7 @@ export function requestJson<S extends Schema.ConstraintDecoder<unknown>>(
 					headers,
 					body: request.body === undefined ? undefined : JSON.stringify(request.body),
 					signal,
-					redirect: 'error',
+					redirect: 'manual', // Workers reject 'error'; a 3xx is not ok and fails below
 					cache: 'no-store'
 				}),
 			catch: () =>

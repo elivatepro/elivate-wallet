@@ -60,7 +60,8 @@ export async function verifyTurnstile(
 			method: 'POST',
 			body,
 			signal: AbortSignal.timeout(8_000),
-			redirect: 'error'
+			// Workers reject 'error'; a redirect is not ok and fails closed below.
+			redirect: 'manual'
 		});
 		if (!response.ok) return { ok: false, reason: 'unavailable' };
 		parsed = Schema.decodeUnknownSync(SiteverifyResponse)(await response.json());

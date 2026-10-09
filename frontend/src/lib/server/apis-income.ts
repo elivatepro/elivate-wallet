@@ -106,7 +106,7 @@ export const putEvidence = (
 						'x-upsert': 'false'
 					},
 					body: bytes,
-					redirect: 'error',
+					redirect: 'manual', // Workers reject 'error'; a 3xx is not ok and fails below
 					cache: 'no-store',
 					signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS)
 				}),
