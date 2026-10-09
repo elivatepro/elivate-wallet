@@ -78,15 +78,19 @@
 	$effect(() => {
 		if (attempt.state.kind === 'done') void afterSave();
 	});
-	// "Send again" after the PIN window closed: ask for the PIN in the dialog.
+	// "Send again" after the PIN window closed: ask for the PIN in the dialog,
+	// once per refusal (closing the dialog leaves it closed).
+	let prompted: unknown = null;
 	$effect(() => {
 		const s = attempt.state;
 		if (
 			s.kind === 'failed' &&
+			s !== prompted &&
 			!dialogOpen &&
 			s.failure._tag === 'BackendError' &&
 			s.failure.code === 'step_up_required'
 		) {
+			prompted = s;
 			pinForResend = true;
 			dialogOpen = true;
 			pinError = 'Enter your PIN to confirm.';
@@ -204,6 +208,8 @@
 						{ pin, summary: 'split change' }
 					);
 		busy = false;
+		// Refusals answered in the open dialog never re-open it by themselves.
+		if (state.kind === 'failed') prompted = state;
 		if (state.kind === 'done') return;
 		if (state.kind !== 'failed') {
 			dialogOpen = false;

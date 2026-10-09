@@ -566,7 +566,11 @@
 					{/each}
 					{#if nextCursor}
 						<div class="retry">
-							<button type="button" class="more" disabled={loadingMore} onclick={() => load(true)}
+							<button
+								type="button"
+								class="more"
+								disabled={loadingMore || loading}
+								onclick={() => load(true)}
 								>{loadingMore ? 'Loading…' : 'Load older activity'}</button
 							>
 						</div>

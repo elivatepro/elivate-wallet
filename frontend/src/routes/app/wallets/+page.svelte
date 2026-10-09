@@ -309,7 +309,7 @@
 		<span class="visually-hidden">Search members</span>
 		<input type="search" placeholder="Search name or UID" bind:value={query} maxlength="100" />
 	</label>
-	{#if listError && !list}
+	{#if listError}
 		<p class="notice" role="alert">{listError}</p>
 	{:else if !list}
 		<div class="skeleton" aria-hidden="true"></div>

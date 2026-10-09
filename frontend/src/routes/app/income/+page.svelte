@@ -496,6 +496,8 @@
 		dialogError = null;
 		pinError = null;
 		if (!pin) {
+			if (busy) return;
+			busy = true;
 			// Shared F-03 lookup first (Blueprint 08): a cancelled attempt needs no
 			// replay; committed or not found, the same key goes again below.
 			const key = attempt.request.idempotencyKey;
@@ -505,6 +507,7 @@
 					CommandOutcome
 				)
 			);
+			busy = false;
 			if (Exit.isSuccess(exit) && exit.value.status === 'cancelled') {
 				restart('That attempt was cancelled. Nothing was posted.');
 				return;
