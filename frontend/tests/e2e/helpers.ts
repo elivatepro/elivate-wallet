@@ -492,8 +492,12 @@ begin
   join finance.payouts p on p.id = c.payout_id
   join finance.withdrawals wd on wd.id = p.withdrawal_id
   join auth.users u on u.id = wd.owner_user_id
-  where u.email = '${memberEmail}' and c.status = 'queued'
+  -- Only a check the real worker could claim now (api.claim_payout_checks).
+  where u.email = '${memberEmail}' and c.status = 'queued' and c.next_attempt_at <= now()
   order by c.created_at desc limit 1;
+  if check_id is null then
+    raise exception 'no ready payout check for ${memberEmail}';
+  end if;
   update finance.payout_checks
   set status = 'leased', lease_token = token, lease_expires_at = now() + interval '2 minutes',
       attempts = attempts + 1, next_attempt_at = null
