@@ -51,8 +51,9 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
 - Dev Supabase `crljnkdwkxkwgvhxfrbl` (no production project). pg_cron runs workers via Vault
   URL/secret entries. Auth redirects: `https://app.elivatewallet.com`, `http://127.0.0.1:3000/**`.
 - Worker secrets: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`.
-- First real sign-up done (2026-10-09). Still deferred: first platform admin; editing the dev
-  Auth email templates.
+- First real sign-up done (2026-10-09). Still open: the signed-in dev call test (risk: Edge
+  `verify_jwt` with ES256 user tokens; see `docs/production-readiness.md`), the first platform
+  admin, and editing the dev Auth email templates.
 
 ## How a slice ships
 
