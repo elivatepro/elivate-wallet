@@ -33,6 +33,24 @@ export type RootPose =
 	| 'onboard-bank'
 	| 'onboard-stop'
 	| 'onboard-done'
+	// Paper "App — Screens v2" O/R (org management, Blueprint 07).
+	| 'offices'
+	| 'office'
+	| 'office-new'
+	| 'office-rename'
+	| 'office-leader'
+	| 'roles'
+	| 'cross-access'
+	| 'reviewers'
+	| 'member'
+	| 'member-suspend'
+	| 'member-move'
+	| 'member-end'
+	// Paper "App — Screens v4" N01–N04 (owner approved 2026-10-08).
+	| 'office-close'
+	| 'office-closed'
+	| 'member-role'
+	| 'office-place'
 	| 'account-security'
 	| 'account-devices'
 	| 'account-pin-change'
@@ -40,6 +58,13 @@ export type RootPose =
 	| 'dialog-remove'
 	| 'dialog-sign-out'
 	| 'dialog-profile'
+	// Paper "App — Screens v1" B16/B16d (pocket watch) and T04 (clipboard).
+	| 'checking'
+	| 'team'
+	// Paper "App — Screens v4" Q02 (magnet), Q04 (podium skyline), Q05 (framed ID).
+	| 'no-matches'
+	| 'member-wallets'
+	| 'member-wallet'
 	| 'income-abacus'
 	| 'income-posted'
 	| 'income-checking'
@@ -82,6 +107,23 @@ export const ROOT_HEIGHTS: Record<RootPose, number> = {
 	'onboard-bank': 525,
 	'onboard-stop': 525,
 	'onboard-done': 525,
+	// Paper "App — Screens v2" O01/O07/O04/O10/O12, R01/R03/R05/R07/R09/R11/R13.
+	offices: 507,
+	office: 525,
+	'office-new': 512,
+	'office-rename': 512,
+	'office-leader': 512,
+	roles: 446,
+	'cross-access': 513,
+	reviewers: 446,
+	member: 446,
+	'member-suspend': 502,
+	'member-move': 442,
+	'member-end': 502,
+	'office-close': 512,
+	'office-closed': 521,
+	'member-role': 442,
+	'office-place': 512,
 	// Paper "App — Screens v1" B09/B10 (Profile & security, padlock) and
 	// "App — Screens v2" S03/S04 (juggling devices), S05/S06 (shh, secret).
 	'account-security': 525,
@@ -93,6 +135,11 @@ export const ROOT_HEIGHTS: Record<RootPose, number> = {
 	'dialog-remove': 525,
 	'dialog-sign-out': 525,
 	'dialog-profile': 525,
+	checking: 525,
+	team: 525,
+	'no-matches': 525,
+	'member-wallets': 525,
+	'member-wallet': 525,
 	// Paper "App — Screens v4" J01–J05 (existing poses reused: Abacus from E01,
 	// Thumbs up from M08, Pocket watch from B16, Handing back from C03).
 	'income-abacus': 520,

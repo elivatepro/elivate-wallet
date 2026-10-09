@@ -30,7 +30,7 @@
 		type IncomeTarget,
 		type RecordIncomeInput
 	} from '#lib/contract/income.js';
-	import type { Currency } from '#lib/contract/ledger.js';
+	import { CommandOutcome, type Currency } from '#lib/contract/ledger.js';
 	import { getJson, newKey, sendCommand } from '#lib/client/api.js';
 	import { uploadReceipt } from '#lib/client/income-api.js';
 	import {
@@ -73,12 +73,6 @@
 
 	const shell = getContext<Shell>('shell');
 	const KNOWN: ReadonlyArray<Currency> = ['NGN', 'USD'];
-	/**
-	 * J03 "View in activity": the member's wallet activity belongs to member
-	 * build slice 2 (managed wallets). Null hides the button until that route
-	 * exists on main.
-	 */
-	const ACTIVITY_HREF: string | null = null;
 
 	interface Receipt {
 		readonly key: string;
@@ -118,6 +112,11 @@
 	let attempt = $state<IncomeAttempt | null>(null);
 	let result = $state<IncomePosted | null>(null);
 	let resultFor = $state('');
+	const activityHref = $derived(
+		result?.walletId
+			? `/app/wallets?wallet=${result.walletId}&view=activity&tx=${result.transactionId}`
+			: '/app/wallets'
+	);
 	let refusal = $state<{ lead: string; aboutTarget: boolean } | null>(null);
 	let busy = $state(false);
 	let postOpen = $state(false);
@@ -546,6 +545,24 @@
 		if (!attempt) return;
 		dialogError = null;
 		pinError = null;
+		if (!pin) {
+			if (busy) return;
+			busy = true;
+			// Shared F-03 lookup first (Blueprint 08): a cancelled attempt needs no
+			// replay; committed or not found, the same key goes again below.
+			const key = attempt.request.idempotencyKey;
+			const exit = await Effect.runPromiseExit(
+				getJson(
+					`/api/commands/outcome?${new URLSearchParams({ key, command: 'record_income' })}`,
+					CommandOutcome
+				)
+			);
+			busy = false;
+			if (Exit.isSuccess(exit) && exit.value.status === 'cancelled') {
+				restart('That attempt was cancelled. Nothing was posted.');
+				return;
+			}
+		}
 		await dispatch(attempt.request, pin);
 	}
 
@@ -659,7 +676,7 @@
 		footnote={result.reference}
 	>
 		{#snippet actions()}
-			{#if ACTIVITY_HREF}<a class="out-ghost" href={ACTIVITY_HREF}>View in activity</a>{/if}
+			<a class="out-ghost" href={activityHref}>View in activity</a>
 			<button type="button" class="out-primary" onclick={recordAnother}>Record another</button>
 		{/snippet}
 	</IncomeOutcome>

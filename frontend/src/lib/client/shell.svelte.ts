@@ -7,6 +7,7 @@ import type { SessionView } from '#lib/contract/app.js';
 import type { Workspace } from '#lib/contract/org.js';
 import type { ApiFailure } from '#lib/contract/errors.js';
 import { GATE_PATHS, pathForGateCode, SIGN_IN_PATH } from '#lib/gate.js';
+import { sweepAttempts } from '#lib/recovery.js';
 import { loadSession } from './api';
 import {
 	browserStore,
@@ -61,7 +62,10 @@ export class Shell {
 			this.hideAmounts = false; // storage blocked: keep the default
 		}
 		const store = browserStore();
-		if (store) sweepExpired(store);
+		if (store) {
+			sweepExpired(store);
+			sweepAttempts(store);
+		}
 		const onOnline = () => {
 			this.online = true;
 			void this.load();

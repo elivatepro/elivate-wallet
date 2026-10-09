@@ -5,6 +5,7 @@
 import { type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 import {
+	fillSettled,
 	completeIdentityAndProfile,
 	confirmLinkFor,
 	createConfirmedAccount,
@@ -64,10 +65,10 @@ test('new person: join link → verify email → password → accept → PIN →
 	await expect(page.getByRole('heading', { name: 'Choose a password' })).toBeVisible();
 	await expect(page.getByText(invitee)).toBeVisible();
 	await expectAccessible(page);
-	await page.getByLabel('New password').fill('short');
+	await fillSettled(page, 'New password', 'short');
 	await page.getByRole('button', { name: 'Set password' }).click();
 	await expect(page.getByText('Use at least 8 characters.')).toBeVisible();
-	await page.getByLabel('New password').fill(PASSWORD);
+	await fillSettled(page, 'New password', PASSWORD);
 	await page.getByRole('button', { name: 'Set password' }).click();
 
 	// 4. Accept while the gate is still pin_setup_required (Blueprint 03 Q7).

@@ -6,6 +6,7 @@ import { type Page } from '@playwright/test';
 import { expect, stubTurnstile, test } from './fixtures';
 import { createClient } from '@supabase/supabase-js';
 import {
+	fillSettled,
 	completeIdentityAndProfile,
 	confirmLinkFor,
 	createConfirmedAccount,
@@ -68,10 +69,10 @@ test('forgot password → Recovery email → new password → PIN', async ({ pag
 	await expect(page.getByRole('heading', { name: 'Reset your password' })).toBeVisible();
 	await page.getByRole('button', { name: 'Continue' }).click();
 	await expect(page).toHaveURL(/\/reset-password$/);
-	await page.getByLabel('New password').fill('short');
+	await fillSettled(page, 'New password', 'short');
 	await page.getByRole('button', { name: 'Save new password' }).click();
 	await expect(page.getByText('Use at least 8 characters.')).toBeVisible();
-	await page.getByLabel('New password').fill(NEW_PASSWORD);
+	await fillSettled(page, 'New password', NEW_PASSWORD);
 	await page.getByRole('button', { name: 'Save new password' }).click();
 	// PIN as usual after a recovery.
 	await expect(page).toHaveURL(/\/pin(\?.*)?$/);

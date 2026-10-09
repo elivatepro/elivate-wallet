@@ -1,0 +1,10 @@
+// Close an empty office (Blueprint 07): President Team, reason + PIN.
+import { OrgAdminRoutes, ReasonCommand } from '#lib/contract/org-admin.js';
+import { orgCommand, pathId } from '#lib/server/org-endpoints.js';
+import type { RequestHandler } from './$types';
+
+export const POST: RequestHandler = (event) => {
+	const id = pathId(event);
+	if (typeof id !== 'string') return Promise.resolve(id);
+	return orgCommand(event, ReasonCommand, () => OrgAdminRoutes.closeOffice(id));
+};

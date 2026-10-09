@@ -200,3 +200,91 @@ Deno.test("names and reasons follow the database lengths", async () => {
   }
   assertEquals(calls.length, 3);
 });
+
+// ── Blueprint 07 ──
+
+Deno.test("close office sends reason and key, nothing else", async () => {
+  const { handler, calls } = setup();
+  const response = await handler(
+    request("POST", `/offices/${officeId}/close`, {
+      reason: "Merged",
+      idempotencyKey: key,
+    }),
+  );
+  assertEquals(response.status, 200);
+  assertEquals(calls[0]?.fn, "close_office");
+  assertEquals(calls[0]?.args.p_office_id, officeId);
+  assertEquals(calls[0]?.args.p_reason, "Merged");
+  const extra = await handler(
+    request("POST", `/offices/${officeId}/close`, {
+      reason: "Merged",
+      idempotencyKey: key,
+      force: true,
+    }),
+  );
+  assertEquals(extra.status, 400);
+  assertEquals(calls.length, 1);
+});
+
+Deno.test("role change accepts only office roles, never President", async () => {
+  const { handler, calls } = setup();
+  const target = "00000000-0000-0000-0000-0000000000d1";
+  const ok = await handler(
+    request("POST", `/memberships/${target}/role`, {
+      role: "team_leader",
+      reason: "Promoted",
+      idempotencyKey: key,
+    }),
+  );
+  assertEquals(ok.status, 200);
+  assertEquals(calls[0]?.fn, "change_membership_role");
+  assertEquals(calls[0]?.args.p_target_membership_id, target);
+  assertEquals(calls[0]?.args.p_role, "team_leader");
+  const bad = await handler(
+    request("POST", `/memberships/${target}/role`, {
+      role: "president_team_member",
+      reason: "Promoted",
+      idempotencyKey: key,
+    }),
+  );
+  assertEquals(bad.status, 400);
+  assertEquals((await bad.json()).error.details.field, "role");
+  const noReason = await handler(
+    request("POST", `/memberships/${target}/role`, {
+      role: "member",
+      idempotencyKey: key,
+    }),
+  );
+  assertEquals(noReason.status, 400);
+  assertEquals(calls.length, 1);
+});
+
+Deno.test("office and member detail are workspace reads", async () => {
+  const { handler, calls } = setup();
+  const target = "00000000-0000-0000-0000-0000000000d1";
+  assertEquals(
+    (await handler(request("GET", `/offices/${officeId}`))).status,
+    200,
+  );
+  assertEquals(calls[0]?.fn, "office_detail");
+  assertEquals(calls[0]?.args.p_office_id, officeId);
+  assertEquals(
+    (await handler(request("GET", `/memberships/${target}`))).status,
+    200,
+  );
+  assertEquals(calls[1]?.fn, "member_detail");
+  assertEquals(calls[1]?.args.p_target_membership_id, target);
+  const unknown = await handler(request("GET", `/memberships/${target}?x=1`));
+  assertEquals(unknown.status, 400);
+});
+
+Deno.test("member search passes q through and rejects blanks", async () => {
+  const { handler, calls } = setup();
+  assertEquals(
+    (await handler(request("GET", "/members?q=adaeze"))).status,
+    200,
+  );
+  assertEquals(calls[0]?.args.p_query, "adaeze");
+  assertEquals((await handler(request("GET", "/members?q=%20"))).status, 400);
+  assertEquals(calls.length, 1);
+});

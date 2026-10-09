@@ -3,7 +3,7 @@
 // (ledger.money); it is never turned into a float.
 
 import { Schema } from 'effect';
-import { IsoDateTime, TenantStatus, Uuid } from './common';
+import { IsoDateTime, Person, Role, TenantStatus, Uuid } from './common';
 
 export const MONEY_PATTERN = /^-?[0-9]+(\.[0-9]+)?$/;
 export const Money = Schema.String.check(Schema.isPattern(MONEY_PATTERN));
@@ -50,16 +50,188 @@ export const ActivityItem = Schema.Struct({
 	transactionId: Uuid,
 	reference: Schema.String,
 	type: Schema.String,
+	/** Durable status of the movement (Blueprint 08); `posted` until reversals land. */
+	status: Schema.String,
+	/** Income source; null for other movements. */
+	title: Schema.NullOr(Schema.String),
 	postedAt: IsoDateTime,
 	tenantId: Uuid,
 	currency: Currency,
-	amount: Money
+	amount: Money,
+	pocketCount: Schema.Int,
+	/** When a reversal points at this movement (owner decision 2026-10-08, Q03). */
+	reversedAt: Schema.optionalKey(Schema.NullOr(IsoDateTime))
 });
 export type ActivityItem = typeof ActivityItem.Type;
+
+/** Money in / out of one month and currency, from the whole filtered set (never one page). */
+export const ActivityMonth = Schema.Struct({
+	month: Schema.String.check(Schema.isPattern(/^[0-9]{4}-[0-9]{2}$/)),
+	currencies: Schema.Array(Schema.Struct({ currency: Currency, in: Money, out: Money }))
+});
+export type ActivityMonth = typeof ActivityMonth.Type;
+
 export const Activity = Schema.Struct({
 	items: Schema.Array(ActivityItem),
-	nextCursor: Schema.NullOr(Schema.String)
+	nextCursor: Schema.NullOr(Schema.String),
+	months: Schema.Array(ActivityMonth),
+	/** Size of the whole filtered set (mobile sheet "Show N results"). */
+	total: Schema.optionalKey(Schema.Int),
+	timeZone: Schema.String
 });
+export type Activity = typeof Activity.Type;
+
+/** Query of the activity reads (Blueprint 08 B4.2). Dates are YYYY-MM-DD in `tz`. */
+export type ActivityQuery = {
+	readonly tenantId?: string;
+	readonly q?: string;
+	readonly direction?: 'in' | 'out';
+	readonly currency?: Currency;
+	readonly status?: string;
+	readonly type?: string;
+	readonly pocketId?: string;
+	readonly from?: string;
+	readonly to?: string;
+	readonly tz?: string;
+	readonly cursor?: string;
+	readonly limit?: number;
+};
+
+const TransactionLink = Schema.Struct({
+	transactionId: Uuid,
+	reference: Schema.String,
+	postedAt: IsoDateTime
+});
+
+const PocketLine = Schema.Struct({ pocketId: Uuid, pocket: Schema.String, amount: Money });
+
+/** One transaction as its owner (or a leader, visible segments only) sees it. */
+export const TransactionDetail = Schema.Struct({
+	transactionId: Uuid,
+	reference: Schema.String,
+	type: Schema.String,
+	status: Schema.String,
+	postedAt: IsoDateTime,
+	recordedBy: Person,
+	/** Q03: the reversal of this transaction, or what a reversal reverses. */
+	reversedBy: Schema.optionalKey(Schema.NullOr(TransactionLink)),
+	reverses: Schema.optionalKey(Schema.NullOr(TransactionLink)),
+	tenant: Schema.Struct({ id: Uuid, name: Schema.String }),
+	office: Schema.Struct({ id: Uuid, name: Schema.String }),
+	journals: Schema.Array(
+		Schema.Struct({ currency: Currency, lines: Schema.NullOr(Schema.Array(PocketLine)) })
+	),
+	income: Schema.NullOr(
+		Schema.Struct({
+			incomeId: Uuid,
+			source: Schema.String,
+			receivedOn: Schema.String,
+			providerReference: Schema.NullOr(Schema.String),
+			notes: Schema.NullOr(Schema.String),
+			currency: Currency,
+			amount: Money,
+			fee: Schema.NullOr(Schema.Struct({ amount: Money, currency: Currency })),
+			allocations: Schema.Array(
+				Schema.Struct({
+					pocketId: Uuid,
+					pocket: Schema.String,
+					basisPoints: Schema.Int,
+					amount: Money
+				})
+			)
+		})
+	)
+});
+export type TransactionDetail = typeof TransactionDetail.Type;
+
+/**
+ * Unknown-outcome lookup (F-03, Blueprint 08 B4.1): the fate of the person's
+ * own attempt. Never the protected result itself; a same-key replay of the
+ * command returns that under current authority.
+ */
+export const CommandOutcome = Schema.Union([
+	Schema.Struct({
+		status: Schema.Literal('committed'),
+		command: Schema.String,
+		committedAt: IsoDateTime,
+		reference: Schema.NullOr(Schema.String)
+	}),
+	Schema.Struct({
+		status: Schema.Literal('cancelled'),
+		command: Schema.String,
+		cancelledAt: IsoDateTime
+	}),
+	Schema.Struct({ status: Schema.Literal('not_found'), command: Schema.NullOr(Schema.String) })
+]);
+export type CommandOutcome = typeof CommandOutcome.Type;
+
+const CurrencyTotals = Schema.Struct({
+	currency: Currency,
+	posted: Money,
+	reserved: Money,
+	available: Money
+});
+
+/** Leadership dashboard (Blueprint 08 B4.3, Paper T01/T04). */
+export const LeadershipOverview = Schema.Struct({
+	scope: Schema.Struct({
+		kind: Schema.Literals(['office', 'network']),
+		officeId: Schema.NullOr(Uuid),
+		name: Schema.String
+	}),
+	period: Schema.Struct({
+		month: Schema.String,
+		previousMonth: Schema.String,
+		timeZone: Schema.String
+	}),
+	currencies: Schema.Array(
+		Schema.Struct({
+			currency: Currency,
+			incomeThisMonth: Money,
+			incomePreviousMonth: Money,
+			posted: Money,
+			reserved: Money,
+			available: Money,
+			weeks: Schema.Array(Schema.Struct({ start: Schema.String, income: Money }))
+		})
+	),
+	members: Schema.Struct({
+		active: Schema.Int,
+		activeMemberships: Schema.Int,
+		pendingInvitations: Schema.NullOr(Schema.Int)
+	}),
+	excluded: Schema.Struct({ offices: Schema.Int, members: Schema.Int })
+});
+export type LeadershipOverview = typeof LeadershipOverview.Type;
+
+/** GET /ledger/wallets (Blueprint 04): owners with at least one visible segment. */
+export const ManagedWalletPage = Schema.Struct({
+	items: Schema.Array(
+		Schema.Struct({
+			walletId: Uuid,
+			person: Person,
+			/** The person's membership state in this network (Q04). */
+			status: Schema.optionalKey(Schema.NullOr(Schema.String)),
+			currencies: Schema.Array(CurrencyTotals)
+		})
+	),
+	nextCursor: Schema.NullOr(Schema.String),
+	people: Schema.optionalKey(Schema.Int),
+	scope: Schema.optionalKey(
+		Schema.Struct({ kind: Schema.Literals(['office', 'network']), name: Schema.String })
+	)
+});
+export type ManagedWalletPage = typeof ManagedWalletPage.Type;
+
+export const ManagedWallet = Schema.Struct({
+	walletId: Uuid,
+	person: Person,
+	memberships: Schema.optionalKey(
+		Schema.Array(Schema.Struct({ role: Role, officeName: Schema.String, status: Schema.String }))
+	),
+	networks: Schema.Array(WalletNetwork)
+});
+export type ManagedWallet = typeof ManagedWallet.Type;
 
 export const SplitLine = Schema.Struct({
 	pocketId: Uuid,
@@ -93,6 +265,15 @@ export const LedgerRoutes = {
 	versions: { method: 'GET', path: '/allocation/versions' },
 	wallet: { method: 'GET', path: '/me/wallet' },
 	activity: { method: 'GET', path: '/me/activity' },
+	transaction: (id: string) => ({ method: 'GET', path: `/me/transactions/${id}` }) as const,
+	commandOutcome: { method: 'GET', path: '/me/command-outcome' },
+	overview: { method: 'GET', path: '/overview' },
+	managedWallets: { method: 'GET', path: '/wallets' },
+	managedWallet: (walletId: string) => ({ method: 'GET', path: `/wallets/${walletId}` }) as const,
+	managedActivity: (walletId: string) =>
+		({ method: 'GET', path: `/wallets/${walletId}/activity` }) as const,
+	managedTransaction: (walletId: string, id: string) =>
+		({ method: 'GET', path: `/wallets/${walletId}/transactions/${id}` }) as const,
 	allocation: { method: 'GET', path: '/allocation' },
 	setAllocation: { method: 'PUT', path: '/allocation' }
 } as const;

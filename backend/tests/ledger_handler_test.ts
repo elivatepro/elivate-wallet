@@ -364,3 +364,106 @@ Deno.test("logs carry no amounts, ids, file names or hashes", async () => {
   }
   assertEquals(logs[1]?.route, "GET /wallets/:walletId/activity");
 });
+
+// ── Blueprint 08 ──
+
+Deno.test("activity search, status and time zone pass through validated", async () => {
+  const { handler, calls } = setup();
+  for (
+    const query of [
+      "status=Posted!",
+      "tz=../../etc",
+      "q=",
+      `q=${"x".repeat(101)}`,
+    ]
+  ) {
+    const response = await handler(
+      request("GET", `/me/activity?${query}`, undefined, {}),
+    );
+    assertEquals(response.status, 400, query);
+  }
+  assertEquals(calls.length, 0);
+  const ok = await handler(
+    request(
+      "GET",
+      `/me/activity?q=${encodeURIComponent("₦180,000")}&status=posted&tz=Africa/Lagos`,
+      undefined,
+      {},
+    ),
+  );
+  assertEquals(ok.status, 200);
+  assertEquals(calls[0]?.fn, "my_activity");
+  assertEquals(calls[0]?.args.p_query, "₦180,000");
+  assertEquals(calls[0]?.args.p_status, "posted");
+  assertEquals(calls[0]?.args.p_tz, "Africa/Lagos");
+  const managed = await handler(
+    request("GET", `/wallets/${evidenceId}/activity?q=INC-7F2K&tz=UTC`),
+  );
+  assertEquals(managed.status, 200);
+  assertEquals(calls[1]?.fn, "managed_wallet_activity");
+  assertEquals(calls[1]?.args.p_query, "INC-7F2K");
+});
+
+Deno.test("command outcome: own key, no workspace, validated", async () => {
+  const { handler, calls } = setup({
+    command_outcome: {
+      data: { status: "committed", command: "record_income", reference: "INC-7F2K-0931" },
+      error: null,
+    },
+  });
+  for (
+    const query of [
+      "",
+      "idempotencyKey=short",
+      `idempotencyKey=${key}&command=Record-Income`,
+      `idempotencyKey=${key}&extra=1`,
+    ]
+  ) {
+    const response = await handler(
+      request("GET", `/me/command-outcome?${query}`, undefined, {}),
+    );
+    assertEquals(response.status, 400, query);
+  }
+  assertEquals(calls.length, 0);
+  const ok = await handler(
+    request(
+      "GET",
+      `/me/command-outcome?idempotencyKey=${key}&command=record_income`,
+      undefined,
+      {},
+    ),
+  );
+  assertEquals(ok.status, 200);
+  assertEquals((await ok.json()).data.status, "committed");
+  assertEquals(calls[0]?.fn, "command_outcome");
+  assertEquals(calls[0]?.args, {
+    p_user_id: actor.userId,
+    p_session_id: actor.sessionId,
+    p_idempotency_key: key,
+    p_command: "record_income",
+  });
+});
+
+Deno.test("command outcome: the key never reaches the logs", async () => {
+  const { handler, logs } = setup();
+  await handler(request("GET", `/me/command-outcome?idempotencyKey=${key}`, undefined, {}));
+  assertEquals(JSON.stringify(logs).includes(key), false);
+  assertEquals(logs[0]?.route, "GET /me/command-outcome");
+});
+
+Deno.test("overview needs the workspace and takes an optional zone", async () => {
+  const { handler, calls } = setup();
+  const missing = await handler(request("GET", "/overview", undefined, {}));
+  assertEquals(await code(missing), "workspace_invalid");
+  const bad = await handler(request("GET", "/overview?tz=%20"));
+  assertEquals(bad.status, 400);
+  const ok = await handler(request("GET", "/overview?tz=Africa/Lagos"));
+  assertEquals(ok.status, 200);
+  assertEquals(calls[0]?.fn, "leadership_overview");
+  assertEquals(calls[0]?.args, {
+    p_user_id: actor.userId,
+    p_session_id: actor.sessionId,
+    p_membership_id: membershipId,
+    p_tz: "Africa/Lagos",
+  });
+});

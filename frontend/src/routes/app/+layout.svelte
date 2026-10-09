@@ -10,14 +10,20 @@
 	import { goto } from '$app/navigation';
 	import { page, updated } from '$app/state';
 	import { DropdownMenu, Popover } from 'bits-ui';
+	import Activity from '@lucide/svelte/icons/activity';
 	import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
 	import Bell from '@lucide/svelte/icons/bell';
+	import Building from '@lucide/svelte/icons/building-2';
+	import FileText from '@lucide/svelte/icons/file-text';
+	import Shield from '@lucide/svelte/icons/shield';
+	import Users from '@lucide/svelte/icons/users';
 	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import Download from '@lucide/svelte/icons/download';
 	import EyeOff from '@lucide/svelte/icons/eye-off';
 	import House from '@lucide/svelte/icons/house';
 	import IdCard from '@lucide/svelte/icons/id-card';
+	import LayoutGrid from '@lucide/svelte/icons/layout-grid';
 	import Landmark from '@lucide/svelte/icons/landmark';
 	import MailPlus from '@lucide/svelte/icons/mail-plus';
 	import PieChart from '@lucide/svelte/icons/chart-pie';
@@ -25,6 +31,7 @@
 	import RotateCw from '@lucide/svelte/icons/rotate-cw';
 	import UserRound from '@lucide/svelte/icons/user-round';
 	import UserCog from '@lucide/svelte/icons/user-cog';
+	import WalletIcon from '@lucide/svelte/icons/wallet';
 	import WifiOff from '@lucide/svelte/icons/wifi-off';
 	import { Appearance, THEME_LABELS } from '#lib/client/appearance.svelte.js';
 	import { purgeAllDeviceData, staleLabel } from '#lib/client/device-cache.js';
@@ -62,13 +69,20 @@
 		'/app/account/devices': 'Profile & security  /  Devices & sessions',
 		'/app/account/pin': 'Profile & security  /  Transaction PIN',
 		'/app/account': 'Profile & security',
+		'/app/activity': 'Activity',
+		'/app/team': 'Team overview',
+		'/app/wallets': 'Member wallets',
 		'/app/payout-accounts': 'Payout accounts',
 		'/app/income': 'Record income',
 		'/app/invitations': 'Invitations',
 		'/app/split': 'Pockets & split',
 		'/app/reviews': 'NIN reviews',
 		'/app/notifications': 'Notifications',
-		'/app/more': 'More'
+		'/app/more': 'More',
+		'/app/offices': 'Offices',
+		'/app/members': 'Members',
+		'/app/access': 'Roles & access',
+		'/app/audit': 'Audit log'
 	};
 	const pageTitle = $derived(
 		Object.entries(TITLES).find(([prefix]) => path.startsWith(prefix))?.[1] ?? 'Home'
@@ -80,12 +94,18 @@
 	const can = (permission: string) =>
 		shell.state.kind === 'ready' &&
 		(shell.state.view.capabilities?.permissions ?? []).includes(permission);
+	/** Org management entries (Blueprint 07); navigation hints only. */
+	const president = $derived(summary?.role === 'president_team_member');
+	const leads = $derived(president || can('manage_members') || can('view_managed_wallets'));
 	/** Pushed pages (mobile Notifications) have their own nav bar and no tabs. */
 	const pushed = $derived(
 		path.startsWith('/app/notifications') ||
 			path.startsWith('/app/income') ||
-			path.startsWith('/app/account')
+			path.startsWith('/app/account') ||
+			(path.startsWith('/app/activity') && page.url.searchParams.has('tx'))
 	);
+	/** Leadership views (W-07); the backend authorizes every read. */
+	const leader = $derived(can('view_managed_wallets') || can('view_scoped_financial_reports'));
 	const tabMore = $derived(path.startsWith('/app/more'));
 	/** Only Home needs workspace data; More and Notifications keep their controls. */
 	const needsData = $derived(path === '/app');
@@ -145,6 +165,29 @@
 			</a>
 			<a
 				class="side-item"
+				href="/app/activity"
+				aria-current={path.startsWith('/app/activity') ? 'page' : undefined}
+			>
+				<Activity size={18} strokeWidth={1.5} aria-hidden="true" /><span>Activity</span>
+			</a>
+			{#if leader}
+				<a
+					class="side-item"
+					href="/app/team"
+					aria-current={path.startsWith('/app/team') ? 'page' : undefined}
+				>
+					<LayoutGrid size={18} strokeWidth={1.5} aria-hidden="true" /><span>Team overview</span>
+				</a>
+				<a
+					class="side-item"
+					href="/app/wallets"
+					aria-current={path.startsWith('/app/wallets') ? 'page' : undefined}
+				>
+					<WalletIcon size={18} strokeWidth={1.5} aria-hidden="true" /><span>Member wallets</span>
+				</a>
+			{/if}
+			<a
+				class="side-item"
 				href="/app/payout-accounts"
 				aria-current={path.startsWith('/app/payout-accounts') ? 'page' : undefined}
 			>
@@ -184,6 +227,40 @@
 			>
 				<PieChart size={18} strokeWidth={1.5} aria-hidden="true" /><span>Pockets &amp; split</span>
 			</a>
+			{#if leads}
+				<a
+					class="side-item"
+					href="/app/offices"
+					aria-current={path.startsWith('/app/offices') ? 'page' : undefined}
+				>
+					<Building size={18} strokeWidth={1.5} aria-hidden="true" /><span>Offices</span>
+				</a>
+				<a
+					class="side-item"
+					href="/app/members"
+					aria-current={path.startsWith('/app/members') ? 'page' : undefined}
+				>
+					<Users size={18} strokeWidth={1.5} aria-hidden="true" /><span>Members</span>
+				</a>
+			{/if}
+			{#if president || can('manage_access_rules')}
+				<a
+					class="side-item"
+					href="/app/access"
+					aria-current={path.startsWith('/app/access') ? 'page' : undefined}
+				>
+					<Shield size={18} strokeWidth={1.5} aria-hidden="true" /><span>Roles &amp; access</span>
+				</a>
+			{/if}
+			{#if president}
+				<a
+					class="side-item"
+					href="/app/audit"
+					aria-current={path.startsWith('/app/audit') ? 'page' : undefined}
+				>
+					<FileText size={18} strokeWidth={1.5} aria-hidden="true" /><span>Audit log</span>
+				</a>
+			{/if}
 		</nav>
 		<div class="side-footer"><span class="version">v2.0</span></div>
 	</aside>
@@ -364,6 +441,30 @@
 						>Home</span
 					>
 				</a>
+				<a
+					class="tab"
+					href="/app/activity"
+					aria-current={path.startsWith('/app/activity') ? 'page' : undefined}
+				>
+					<Activity
+						size={20}
+						strokeWidth={path.startsWith('/app/activity') ? 2 : 1.8}
+						aria-hidden="true"
+					/><span>Activity</span>
+				</a>
+				{#if leader}
+					<a
+						class="tab"
+						href="/app/team"
+						aria-current={path.startsWith('/app/team') ? 'page' : undefined}
+					>
+						<LayoutGrid
+							size={20}
+							strokeWidth={path.startsWith('/app/team') ? 2 : 1.8}
+							aria-hidden="true"
+						/><span>Team</span>
+					</a>
+				{/if}
 				<a class="tab" href="/app/more" aria-current={tabMore ? 'page' : undefined}>
 					<Ellipsis size={20} strokeWidth={1.8} aria-hidden="true" /><span>More</span>
 				</a>
