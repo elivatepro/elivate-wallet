@@ -41,6 +41,11 @@ export const variables = defineEnvVars({
 			return url.toString();
 		}
 	},
+	TURNSTILE_HOSTNAMES: {
+		description:
+			'Comma-separated hostnames a Turnstile token may come from. Empty refuses every token.',
+		schema: (value: string | undefined) => (value === '' ? undefined : value)
+	},
 	TURNSTILE_SECRET_KEY: {
 		description: 'Turnstile secret key for server-side siteverify. Never sent to the browser.',
 		schema: (value: string | undefined) => (value === '' ? undefined : value)

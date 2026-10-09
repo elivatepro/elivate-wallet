@@ -26,6 +26,7 @@ export default defineConfig({
 			// Cloudflare's documented always-pass Turnstile test keys (Blueprint 10).
 			TURNSTILE_SITE_KEY: '1x00000000000000000000AA',
 			TURNSTILE_SECRET_KEY: '1x0000000000000000000000000000000AA',
+			TURNSTILE_HOSTNAMES: 'example.com',
 			// The fake providers (scripts/e2e-local.sh) answer siteverify locally.
 			TURNSTILE_SITEVERIFY_URL: 'http://127.0.0.1:54399/turnstile/v0/siteverify'
 		}

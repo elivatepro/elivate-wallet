@@ -13,6 +13,8 @@
 		"binding": "ASSETS",
 		"directory": ".svelte-kit/cloudflare"
 	},
+	// Hostnames a Turnstile token may come from (public, not a secret).
+	"vars": { "TURNSTILE_HOSTNAMES": "app.elivatewallet.com" },
 	"observability": { "enabled": true },
 	// Private profile photos (Blueprint 06 B4). R2 must be enabled on the
 	// account and the bucket created before the next deploy.
