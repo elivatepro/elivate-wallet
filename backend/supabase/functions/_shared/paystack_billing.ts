@@ -84,7 +84,7 @@ function hex(bytes: ArrayBuffer): string {
   return Array.from(new Uint8Array(bytes), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-export async function sha256Hex(raw: Uint8Array): Promise<string> {
+export async function sha256Hex(raw: Uint8Array<ArrayBuffer>): Promise<string> {
   return hex(await crypto.subtle.digest("SHA-256", raw));
 }
 
@@ -93,7 +93,7 @@ export async function sha256Hex(raw: Uint8Array): Promise<string> {
  * secret key, in `x-paystack-signature`. Compared in constant time.
  */
 export async function validSignature(
-  raw: Uint8Array,
+  raw: Uint8Array<ArrayBuffer>,
   signature: string | null,
   secretKey: string,
 ): Promise<boolean> {

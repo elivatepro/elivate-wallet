@@ -362,7 +362,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
 
   // ── Paystack webhook ─────────────────────────────────────────────────────
 
-  async function readRaw(request: Request): Promise<Uint8Array> {
+  async function readRaw(request: Request): Promise<Uint8Array<ArrayBuffer>> {
     const declared = Number(request.headers.get("content-length") ?? "0");
     if (declared > maxWebhookBytes) throw new ApiError("validation_error", { field: "body" });
     const raw = new Uint8Array(await request.arrayBuffer());
@@ -452,7 +452,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
     requestId: string,
   ): Promise<{ response: Response; outcome?: string }> {
     if (!deps.webhookSecret) return { response: failure("internal_error", requestId) };
-    let raw: Uint8Array;
+    let raw: Uint8Array<ArrayBuffer>;
     try {
       raw = await readRaw(request);
     } catch {

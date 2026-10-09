@@ -161,7 +161,7 @@ const eventDb: Responder = (fn) => {
 // ── Signature ──────────────────────────────────────────────────────────────
 
 Deno.test("the webhook signature is HMAC SHA-512 of the raw body", async () => {
-  const raw = new TextEncoder().encode('{"event":"charge.success"}');
+  const raw = new Uint8Array(new TextEncoder().encode('{"event":"charge.success"}'));
   assert(await validSignature(raw, await hmac('{"event":"charge.success"}'), secret));
   assert(
     !(await validSignature(raw, await hmac('{"event":"charge.success"} '), secret)),
