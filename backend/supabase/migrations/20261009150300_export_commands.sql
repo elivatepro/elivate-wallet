@@ -525,8 +525,8 @@ begin
   end if;
   pattern := '%' || replace(replace(replace(term, '\', '\\'), '%', '\%'), '_', '\_') || '%';
   return jsonb_build_object('items', coalesce((
-    select jsonb_agg(x.item order by x.name, x.wallet_id)
-    from (
+    select jsonb_agg(y.item order by y.name, y.wallet_id)
+    from (select x.* from (
       select distinct on (v.wallet_id) v.wallet_id,
         coalesce(org.person(v.owner_user_id)->>'name', '') as name,
         jsonb_build_object('walletId', v.wallet_id, 'person', org.person(v.owner_user_id)) as item
@@ -538,7 +538,7 @@ begin
         or concat_ws(' ', pr.first_name, pr.last_name) ilike pattern
         or pr.display_name ilike pattern
       order by v.wallet_id
-    ) x
+    ) x order by x.name, x.wallet_id limit 20) y
   ), '[]'::jsonb));
 end;
 $$;
