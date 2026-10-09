@@ -4,6 +4,7 @@
 import { type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 import {
+	fillSettled,
 	completeIdentityAndProfile,
 	confirmLinkFor,
 	createConfirmedAccount,
@@ -47,7 +48,7 @@ test('payout accounts: list, add a second (cooling off), refuse a mismatch, remo
 	await page.getByRole('button', { name: 'Verify email' }).click();
 	await page.goto(await confirmLinkFor(member, /Confirm your Elivate Wallet email/));
 	await page.getByRole('button', { name: 'Continue' }).click();
-	await page.getByLabel('New password').fill(PASSWORD);
+	await fillSettled(page, 'New password', PASSWORD);
 	await page.getByRole('button', { name: 'Set password' }).click();
 	await page.getByRole('button', { name: 'Accept invitation' }).click();
 	await page.getByRole('link', { name: 'Let’s begin' }).click();

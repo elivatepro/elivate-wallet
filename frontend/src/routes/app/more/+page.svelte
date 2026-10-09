@@ -7,6 +7,10 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
 	import Bell from '@lucide/svelte/icons/bell';
+	import Building from '@lucide/svelte/icons/building-2';
+	import FileText from '@lucide/svelte/icons/file-text';
+	import Shield from '@lucide/svelte/icons/shield';
+	import Users from '@lucide/svelte/icons/users';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import IdCard from '@lucide/svelte/icons/id-card';
 	import Landmark from '@lucide/svelte/icons/landmark';
@@ -37,6 +41,9 @@
 		shell.state.kind === 'ready' &&
 		(shell.state.view.capabilities?.permissions ?? []).includes(permission);
 	const person = $derived(shell.state.kind === 'ready' ? shell.state.view.profile : null);
+	/** Org management entries (Blueprint 07); navigation hints only. */
+	const president = $derived(summary?.role === 'president_team_member');
+	const leads = $derived(president || can('manage_members') || can('view_managed_wallets'));
 
 	function nextTheme() {
 		const next = THEMES[(THEMES.indexOf(appearance.theme) + 1) % THEMES.length] ?? 'dark';
@@ -115,6 +122,40 @@
 		{/if}
 	</div>
 </section>
+
+{#if leads || can('manage_access_rules')}
+	<section class="group" aria-labelledby="org-label">
+		<h2 class="eyebrow" id="org-label">Organization</h2>
+		<div class="card">
+			{#if leads}
+				<a class="row" href="/app/offices">
+					<Building size={20} strokeWidth={1.8} aria-hidden="true" />
+					<span class="label">Offices</span>
+					<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
+				</a>
+				<a class="row" href="/app/members">
+					<Users size={20} strokeWidth={1.8} aria-hidden="true" />
+					<span class="label">Members</span>
+					<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
+				</a>
+			{/if}
+			{#if president || can('manage_access_rules')}
+				<a class="row" href="/app/access">
+					<Shield size={20} strokeWidth={1.8} aria-hidden="true" />
+					<span class="label">Roles &amp; access</span>
+					<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
+				</a>
+			{/if}
+			{#if president}
+				<a class="row" href="/app/audit">
+					<FileText size={20} strokeWidth={1.8} aria-hidden="true" />
+					<span class="label">Audit log</span>
+					<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
+				</a>
+			{/if}
+		</div>
+	</section>
+{/if}
 
 <section class="group" aria-labelledby="account-label">
 	<h2 class="eyebrow" id="account-label">Account</h2>
