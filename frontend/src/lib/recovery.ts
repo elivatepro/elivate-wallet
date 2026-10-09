@@ -179,6 +179,30 @@ export function loadAttempt(
 	return null;
 }
 
+/**
+ * Drops every kept attempt older than ATTEMPT_MAX_AGE_MS (or unreadable), for
+ * any person, workspace or command, including the income page's own entries
+ * (`savedAt`). Runs when the app shell starts, so attempts never outlive 24 h.
+ */
+export function sweepAttempts(
+	store: AttemptStore & { keys(): string[] },
+	now: number = Date.now()
+): void {
+	for (const key of store.keys()) {
+		if (!key.startsWith(ATTEMPT_PREFIX)) continue;
+		try {
+			const entry = JSON.parse(store.getItem(key) ?? '') as {
+				dispatchedAt?: unknown;
+				savedAt?: unknown;
+			};
+			const at = typeof entry.dispatchedAt === 'number' ? entry.dispatchedAt : entry.savedAt;
+			if (typeof at !== 'number' || now - at > ATTEMPT_MAX_AGE_MS) store.removeItem(key);
+		} catch {
+			store.removeItem(key);
+		}
+	}
+}
+
 export function clearAttempt(store: AttemptStore, scope: AttemptScope, command: string): void {
 	try {
 		store.removeItem(storageKey(scope, command));

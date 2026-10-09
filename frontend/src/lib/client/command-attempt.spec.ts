@@ -116,6 +116,20 @@ describe('CommandAttempt', () => {
 		expect(sent[1]?.body).toEqual({ amount: '1.00', pin: '1234', idempotencyKey: key });
 	});
 
+	it('while recovering, a refused re-send keeps the attempt and its key', async () => {
+		const { attempt, store } = harness(
+			['timeout', refused('authorization_denied')],
+			[{ status: 'not_found', command: null }]
+		);
+		const key = attempt.key;
+		await attempt.send('ws-1', { amount: '1.00' });
+		const state = await attempt.resend();
+		expect(state.kind).toBe('unknown');
+		expect(attempt.key).toBe(key);
+		expect(attempt.lastRefusal?._tag).toBe('BackendError');
+		expect(store.getItem(storageKey(scope, 'record_income'))).not.toBeNull();
+	});
+
 	it('a reload restores the attempt from the device and checks it', async () => {
 		const first = harness(['timeout'], []);
 		await first.attempt.send('ws-1', { amount: '1.00' });

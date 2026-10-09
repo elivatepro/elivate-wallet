@@ -80,6 +80,9 @@
 	{busy}
 	footnote={pending ? `Attempt ${attemptLabel(pending.key)}` : null}
 >
+	{#if attempt.lastRefusal?._tag === 'BackendError'}
+		<p class="refusal" role="alert">{attempt.lastRefusal.message}</p>
+	{/if}
 	{#snippet actions()}
 		{#if resolution?.kind === 'not_committed' && resolution.canResend}
 			<button type="button" class="primary" disabled={busy} onclick={() => attempt.resend()}
@@ -95,3 +98,11 @@
 		<a class="secondary" href={backHref}>{backLabel}</a>
 	{/snippet}
 </CheckingPanel>
+
+<style>
+	.refusal {
+		color: var(--color-danger);
+		font-size: var(--text-14);
+		text-align: center;
+	}
+</style>

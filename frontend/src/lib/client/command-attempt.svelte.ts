@@ -50,6 +50,7 @@ export type AttemptState<A> =
 /** What the recovery screen needs from any CommandAttempt (OutcomeUnknown.svelte). */
 export interface AttemptControls {
 	readonly state: AttemptState<unknown>;
+	readonly lastRefusal?: ApiFailure | null;
 	check(): Promise<unknown>;
 	resend(options?: { pin?: string }): Promise<unknown>;
 	reset(): void;
@@ -99,6 +100,10 @@ export class CommandAttempt<
 	/** The exact body sent with the current key (memory only; includes no PIN). */
 	#body: Record<string, unknown> | null = null;
 	#replaying = false;
+	/** Set once an outcome was unknown; cleared only by a definitive answer. */
+	#recovering = false;
+	/** The last refusal of a re-send while recovering (shown next to "Check again"). */
+	lastRefusal: ApiFailure | null = $state(null);
 	#lastWorkspace: string | null = null;
 	#lastSummary: string | null = null;
 	readonly #o: CommandAttemptOptions<S>;
@@ -198,6 +203,7 @@ export class CommandAttempt<
 		if (!attempt) return this.state;
 		this.#key = attempt.key;
 		this.#body = attempt.body;
+		this.#recovering = true;
 		this.state = { kind: 'unknown', attempt };
 		return this.check();
 	}
@@ -224,6 +230,8 @@ export class CommandAttempt<
 		this.#body = null;
 		this.#lastWorkspace = null;
 		this.#lastSummary = null;
+		this.#recovering = false;
+		this.lastRefusal = null;
 	}
 
 	async #dispatch(
@@ -263,8 +271,20 @@ export class CommandAttempt<
 		}
 		const failure = failureOf(exit);
 		if (isUnknownOutcome(failure)) {
+			this.#recovering = true;
 			this.state = { kind: 'unknown', attempt: { ...attempt, body } };
 			return this.#replaying ? this.state : this.check();
+		}
+		if (this.#recovering) {
+			// A refusal of a re-send doesn't prove the original never committed
+			// (session, PIN and permission checks run before the key is looked
+			// up): keep the attempt, its key and its device copy.
+			this.lastRefusal = failure ?? null;
+			this.state =
+				failure && keepsAttempt(failure)
+					? { kind: 'failed', failure }
+					: { kind: 'unknown', attempt: { ...attempt, body } };
+			return this.state;
 		}
 		if (keepsAttempt(failure)) {
 			// A PIN prompt: nothing ran; the same key goes again with the PIN.

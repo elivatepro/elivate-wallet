@@ -152,3 +152,18 @@ describe('storage', () => {
 it('labels the attempt without exposing the whole key', () => {
 	expect(attemptLabel('k3f92a1b0000000000000')).toBe('K3F9-2A1B');
 });
+
+describe('sweepAttempts', () => {
+	it('drops expired and unreadable attempts of every kind, keeps fresh ones', async () => {
+		const { sweepAttempts } = await import('./recovery');
+		const store = new MemoryStore();
+		const now = 10 * ATTEMPT_MAX_AGE_MS;
+		store.setItem('ew:attempt:v1:record_income:a:b', JSON.stringify({ dispatchedAt: now - 1000 }));
+		store.setItem('ew:attempt:v1:set_allocation:a:b', JSON.stringify({ dispatchedAt: 1 }));
+		store.setItem('ew:attempt:v1:income:a:b', JSON.stringify({ savedAt: 1 }));
+		store.setItem('ew:attempt:v1:x', '{nope');
+		store.setItem('ew:cache:v1:keep', '{}');
+		sweepAttempts(store, now);
+		expect(store.keys().sort()).toEqual(['ew:attempt:v1:record_income:a:b', 'ew:cache:v1:keep']);
+	});
+});
