@@ -73,6 +73,9 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
 - Report what ran and what didn't. Never reset, force-push or discard others' work.
 
 ## Status (2026-10-09)
-
-On dev: backend slices 01–06, frontend M1 and member slices 1–5, 8 and 9 (blueprints 07–13).
-Next: slice 9 follow-up (blueprint 14), then 6 → 7 → 10.
+On dev: backend slices 01–06, frontend M1 and member slices 1–5, 8, 9 and the slice 9
+follow-up (blueprints 07–14: sign-in places and unusual sign-ins, signed-in password change,
+A06–A08 security emails). Next: 6 → 7 → 10.
+Note (2026-10-09): the owner's current network blocks outbound port 5432, so `supabase db
+push` can't connect; slice 14's migrations were already on dev at merge (apparently the
+Supabase GitHub integration). Check the dev migration history via the Management API first.
