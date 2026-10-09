@@ -15,6 +15,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
 const PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY ?? '';
 const DB_CONTAINER = process.env.E2E_DB_CONTAINER ?? 'supabase_db_elivate-wallet';
 const INVITATION_TOKEN_SECRET = process.env.INVITATION_TOKEN_SECRET ?? '';
+const OUTBOX_WORKER_SECRET = process.env.OUTBOX_WORKER_SECRET ?? '';
 
 export const uniqueEmail = (label: string) =>
 	`e2e-${label}-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.test`;
@@ -435,4 +436,51 @@ begin
       'paymentStatus', 'successful', 'confidence', 'high')),
     '{}'::text[], 'e2e-stub', 'strict-single-receipt-v1');
 end $$`);
+}
+
+/**
+ * Runs the outbox worker once, as pg_cron would (Blueprint 13). It sends
+ * through the fake Cloudflare (fake-providers.mjs) into Mailpit.
+ */
+export async function runOutboxWorker(): Promise<{
+	claimed: number;
+	results?: Record<string, number>;
+}> {
+	const response = await fetch(`${SUPABASE_URL}/functions/v1/outbox-worker`, {
+		method: 'POST',
+		headers: {
+			authorization: `Bearer ${OUTBOX_WORKER_SECRET}`,
+			'content-type': 'application/json'
+		},
+		body: '{}'
+	});
+	const json = (await response.json()) as {
+		ok: boolean;
+		data: { configured: boolean; claimed: number; results?: Record<string, number> };
+	};
+	if (!json.ok || !json.data.configured) throw new Error(`outbox worker: ${JSON.stringify(json)}`);
+	return json.data;
+}
+
+export interface CaughtMail {
+	readonly ID: string;
+	readonly Subject: string;
+	readonly HTML: string;
+	readonly Text: string;
+}
+
+/** Waits for an email to `to` whose subject matches, from the local mail catcher. */
+export async function mailFor(to: string, subject: RegExp): Promise<CaughtMail> {
+	const deadline = Date.now() + 30_000;
+	while (Date.now() < deadline) {
+		const search = (await (
+			await fetch(`${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:"${to}"`)}`)
+		).json()) as MailpitSearch;
+		const message = search.messages.find((m) => subject.test(m.Subject));
+		if (message)
+			return (await (await fetch(`${MAILPIT}/api/v1/message/${message.ID}`)).json()) as CaughtMail;
+		await runOutboxWorker();
+		await new Promise((r) => setTimeout(r, 500));
+	}
+	throw new Error(`no email with subject ${subject} for ${to}`);
 }

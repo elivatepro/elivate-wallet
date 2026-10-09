@@ -18,10 +18,12 @@ const SHELL = '/app';
 const OFFLINE = '/offline.html';
 
 // Large auth backgrounds and the gate-screen Root poses are only needed online;
-// the shell keeps the poses it can show offline.
+// the shell keeps the poses it can show offline. Email images (static/email/)
+// are for mail clients, never the app.
 const SHELL_POSES = ['offline-empty', 'load-error', 'home-empty', 'notifications'];
 const neededOffline = (path: string) =>
 	!path.startsWith('/auth-bg/desktop') &&
+	!path.startsWith('/email/') &&
 	(!path.startsWith('/root/') || SHELL_POSES.some((pose) => path.startsWith(`/root/${pose}`)));
 const precache = [
 	...immutable.map((f) => `/${f.path}`),

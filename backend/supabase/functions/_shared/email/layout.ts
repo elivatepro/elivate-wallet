@@ -25,9 +25,31 @@ export type RootPose =
   | "payout"
   | "review"
   | "confirmed"
-  | "retry";
+  | "retry"
+  // Blueprint 13: M-series, T01 and A10–A12 (Paper "Emails — Transactional v2").
+  | "income-posted"
+  | "withdrawal-submitted"
+  | "withdrawal-awaiting"
+  | "withdrawal-approved"
+  | "withdrawal-completed"
+  | "withdrawal-rejected"
+  | "withdrawal-cancelled"
+  | "payout-correction"
+  | "evidence-review"
+  | "move-done"
+  | "move-declined"
+  | "adjustment-posted"
+  | "reversed"
+  | "returned-funds"
+  | "conversion-posted"
+  | "payout-receipt-rejected"
+  | "not-posted"
+  | "invitation-accepted"
+  | "account-status"
+  | "role-changed"
+  | "membership-ended";
 
-export type StatusTone = "success" | "warning" | "danger";
+export type StatusTone = "success" | "warning" | "danger" | "muted";
 
 export interface EmailLayout {
   /** Sender row: the network (initial tile) or Elivate (coral mark). */
@@ -52,7 +74,11 @@ const statusColor: Readonly<Record<StatusTone, string>> = {
   success: "#43C48B",
   warning: "#F2B85E",
   danger: "#F57875",
+  muted: "#A9B0B3",
 };
+
+/** Owner-designated support inbox (member build plan, U-11), in every footer. */
+export const supportEmail = "support@elivatewallet.com";
 
 const font = "Lexend,'Segoe UI',Helvetica,Arial,sans-serif";
 const mono = "'IBM Plex Mono','SFMono-Regular',Consolas,'Liberation Mono',monospace";
@@ -80,9 +106,9 @@ a.ew-button{mso-padding-alt:0}
 .ew-pad{padding-left:20px!important;padding-right:20px!important}
 .ew-hero-wrap{padding-left:10px!important;padding-right:10px!important}
 .ew-hero-copy{padding:18px!important;height:160px!important}
-.ew-display{font-size:26px!important;line-height:30px!important}
-.ew-root-cell{width:110px!important;padding-right:6px!important}
-.ew-root{width:104px!important;height:140px!important}
+.ew-display{font-size:24px!important;line-height:28px!important;overflow-wrap:break-word!important;word-break:normal!important}
+.ew-root-cell{width:92px!important;padding-right:4px!important}
+.ew-root{width:88px!important;height:118px!important}
 .ew-button-table{width:100%!important}
 .ew-headline{font-size:24px!important;line-height:30px!important}
 .ew-button-cell{width:100%!important}
@@ -116,7 +142,7 @@ export function renderLayout(input: EmailLayout): string {
 </tr></table>`
     : "";
   const status = input.status
-    ? `<td style="padding-left:8px;font-family:${font};font-size:13px;line-height:16px;color:${
+    ? `<td style="padding-left:8px;white-space:nowrap;font-family:${font};font-size:13px;line-height:16px;color:${
       statusColor[input.status.tone]
     };">${escapeHtml(input.status.label)}</td>`
     : "";
@@ -133,6 +159,8 @@ export function renderLayout(input: EmailLayout): string {
       escapeHtml(input.footnote)
     }</div>`
     : "";
+  const support =
+    `<div class="ew-muted" style="font-family:${font};font-size:13px;line-height:20px;color:#5E686B;padding-bottom:4px;">Questions? <a class="ew-muted" href="mailto:${supportEmail}" style="color:#5E686B;text-decoration:underline;">${supportEmail}</a></div>`;
 
   return `<!doctype html>
 <html lang="en">
@@ -160,7 +188,7 @@ ${sender(input.brand, base)}
 <td class="ew-hero-copy" valign="top" style="word-break:break-word;padding:24px;height:176px;">
 <table role="presentation" width="100%" height="100%" cellpadding="0" cellspacing="0" border="0" style="height:100%;">
 <tr><td valign="top"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-<td style="background:#2C3133;border-radius:999px;padding:3px 10px;font-family:${font};font-size:12px;line-height:16px;color:#D5DADB;">${
+<td style="background:#2C3133;border-radius:999px;padding:3px 10px;white-space:nowrap;font-family:${font};font-size:12px;line-height:16px;color:#D5DADB;">${
     escapeHtml(input.chip)
   }</td>${status}
 </tr></table></td></tr>
@@ -189,7 +217,7 @@ ${sender(input.brand, base)}
 ${button}
 </td></tr>
 <tr><td class="ew-pad ew-rule" style="padding:20px 32px 24px;border-top:1px solid #E6E9EA;">
-${footnote}<div class="ew-faint" style="font-family:${font};font-size:13px;line-height:20px;color:#8A9396;">${
+${footnote}${support}<div class="ew-faint" style="font-family:${font};font-size:13px;line-height:20px;color:#8A9396;">${
     escapeHtml(brandFooter)
   }</div>
 </td></tr>

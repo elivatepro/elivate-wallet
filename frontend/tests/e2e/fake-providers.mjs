@@ -3,7 +3,18 @@
 // NINs starting with 2 → Ada Nkem Obi (no phone); anything else → not found
 // (tests use a random NIN per account: one NIN, one account). Accounts at bank 058:
 // 0123456789 → ADA NKEM OBI (matches), 0987654321 → CHUKWUDI NWOSU (mismatch).
+// Cloudflare Email Sending (Blueprint 13): each message the outbox worker
+// sends is handed to the local mail catcher (Mailpit); nothing leaves the
+// machine.
 import { createServer } from 'node:http';
+
+const mailpit = process.env.MAILPIT_URL ?? 'http://127.0.0.1:54324';
+/** @param {import('node:http').IncomingMessage} req */
+const readJson = async (req) => {
+	const chunks = [];
+	for await (const chunk of req) chunks.push(chunk);
+	return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+};
 
 const port = Number(process.argv[2] ?? 54399);
 /** @param {import('node:http').ServerResponse} res @param {number} status @param {unknown} body */
@@ -18,8 +29,41 @@ const accounts = {
 	'0987654321': 'CHUKWUDI NWOSU'
 };
 
-createServer((req, res) => {
+createServer(async (req, res) => {
 	const url = new URL(req.url ?? '/', `http://127.0.0.1:${port}`);
+	if (
+		/^\/client\/v4\/accounts\/[^/]+\/email\/sending\/send$/.test(url.pathname) &&
+		req.method === 'POST'
+	) {
+		if (req.headers.authorization !== 'Bearer e2e-local-email') {
+			return json(res, 403, {
+				success: false,
+				errors: [{ code: 10000, message: 'Authentication error' }]
+			});
+		}
+		const mail = await readJson(req);
+		const relayed = await fetch(`${mailpit}/api/v1/send`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				From: { Email: mail.from.address, Name: mail.from.name },
+				To: mail.to.map((/** @type {string} */ Email) => ({ Email })),
+				Subject: mail.subject,
+				HTML: mail.html,
+				Text: mail.text,
+				Headers: mail.headers
+			})
+		});
+		if (!relayed.ok)
+			return json(res, 503, { success: false, errors: [{ code: 1, message: 'catcher' }] });
+		const { ID } = await relayed.json();
+		return json(res, 200, {
+			success: true,
+			errors: [],
+			messages: [],
+			result: { delivered: mail.to, permanent_bounces: [], queued: [], message_id: `<${ID}@e2e>` }
+		});
+	}
 	if (url.pathname === '/api/nin-data') {
 		if ((url.searchParams.get('nin_no') ?? '').startsWith('2')) {
 			return json(res, 200, {

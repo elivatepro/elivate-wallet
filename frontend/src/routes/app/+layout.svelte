@@ -41,6 +41,8 @@
 	import { Appearance, THEME_LABELS } from '#lib/client/appearance.svelte.js';
 	import { purgeAllDeviceData, staleLabel } from '#lib/client/device-cache.js';
 	import { Shell } from '#lib/client/shell.svelte.js';
+	import { Bell as BellState } from '#lib/client/bell.svelte.js';
+	import NotificationList from '#lib/ui/app/NotificationList.svelte';
 	import { ROLE_LABELS } from '#lib/labels.js';
 	import InstallHint from '#lib/ui/app/InstallHint.svelte';
 	import RootHero from '#lib/ui/app/RootHero.svelte';
@@ -51,7 +53,22 @@
 
 	const shell = new Shell();
 	const appearance = new Appearance();
+	/** Blueprint 13: the bell follows the selected workspace. */
+	const bell = new BellState(() =>
+		shell.state.kind === 'ready' ? shell.state.view.workspace.membershipId : null
+	);
 	setContext('shell', shell);
+	setContext('bell', bell);
+	let bellOpen = $state(false);
+	const bellLabel = $derived(
+		bell.unread > 0 ? `Notifications, ${bell.unread} unread` : 'Notifications'
+	);
+	// Poll the badge only while the shell is live in a workspace.
+	const live = $derived(shell.state.kind === 'ready');
+	$effect(() => {
+		if (!live) return;
+		return bell.start();
+	});
 	setContext('appearance', appearance);
 
 	let signOutForm: HTMLFormElement | undefined = $state();
@@ -341,19 +358,68 @@
 	<div class="main">
 		<header class="topbar">
 			<span class="breadcrumb">{pageTitle}</span>
-			<Popover.Root>
-				<Popover.Trigger class="bell" aria-label="Notifications">
+			<Popover.Root
+				bind:open={bellOpen}
+				onOpenChange={(open) => {
+					if (open) void bell.load(bell.view);
+				}}
+			>
+				<Popover.Trigger class="bell" aria-label={bellLabel}>
 					<Bell size={19} strokeWidth={1.5} aria-hidden="true" />
+					{#if bell.unread > 0}<span class="bell-dot" aria-hidden="true"></span>{/if}
 				</Popover.Trigger>
 				<Popover.Portal>
 					<Popover.Content class="popover notifications" sideOffset={10} align="end">
-						<p class="pop-title">Notifications</p>
-						<div class="pop-divider"></div>
-						<div class="pop-empty">
-							<RootImage pose="notifications" class="pop-root" sizes="150px" />
-							<p class="empty-title">No notifications yet</p>
-							<p class="empty-lead">Updates about your money show up here.</p>
+						<div class="pop-head">
+							<p class="pop-title">Notifications</p>
+							{#if bell.unread > 0}
+								<button type="button" class="pop-link" onclick={() => bell.markAll()}
+									>Mark all as read</button
+								>
+							{/if}
 						</div>
+						<div class="pop-tabs" role="group" aria-label="Show">
+							<button
+								type="button"
+								class="pop-tab"
+								aria-pressed={bell.view === 'unread'}
+								onclick={() => bell.load('unread')}
+								>Unread{bell.unread > 0 ? ` · ${bell.unread}` : ''}</button
+							>
+							<button
+								type="button"
+								class="pop-tab"
+								aria-pressed={bell.view === 'all'}
+								onclick={() => bell.load('all')}>All</button
+							>
+						</div>
+						<div class="pop-scroll" tabindex="-1">
+							{#if bell.list.kind === 'ready' && (bell.list.actions.length > 0 || bell.list.items.length > 0)}
+								<NotificationList
+									{bell}
+									variant="popover"
+									hide={shell.hideAmounts}
+									onfollow={() => (bellOpen = false)}
+								/>
+							{:else if bell.list.kind === 'error'}
+								<p class="pop-note" role="alert">Couldn’t load notifications. Try again.</p>
+							{:else if bell.list.kind === 'ready'}
+								<div class="pop-empty">
+									<RootImage pose="notifications" class="pop-root" sizes="150px" />
+									{#if bell.view === 'unread'}
+										<p class="empty-title">You’re all caught up.</p>
+									{:else}
+										<p class="empty-title">No notifications yet</p>
+										<p class="empty-lead">Updates about your money show up here.</p>
+									{/if}
+								</div>
+							{:else}
+								<p class="pop-note">Loading…</p>
+							{/if}
+						</div>
+						<a class="pop-all" href="/app/notifications" onclick={() => (bellOpen = false)}
+							>See all notifications</a
+						>
 					</Popover.Content>
 				</Popover.Portal>
 			</Popover.Root>
@@ -443,8 +509,9 @@
 					<ChevronsUpDown size={14} strokeWidth={1.6} aria-hidden="true" />
 				</button>
 				<div class="appbar-actions">
-					<a class="bell" href="/app/notifications" aria-label="Notifications">
+					<a class="bell" href="/app/notifications" aria-label={bellLabel}>
 						<Bell size={19} strokeWidth={1.5} aria-hidden="true" />
+						{#if bell.unread > 0}<span class="bell-dot" aria-hidden="true"></span>{/if}
 					</a>
 					<a class="avatar" href="/app/more" aria-label="Account">{@render avatar()}</a>
 				</div>
@@ -1030,8 +1097,115 @@
 		width: 300px;
 	}
 
+	/* Paper App v4 NB01 notifications panel. */
 	:global(.popover.notifications) {
-		width: 380px;
+		width: 420px;
+		max-height: min(640px, calc(100vh - 96px));
+		border-color: #ffffff1f;
+		border-radius: 20px;
+		background: #1a1d1ef2;
+		box-shadow: #000000d9 0px 30px 70px -20px;
+		backdrop-filter: blur(20px);
+	}
+
+	:global([data-theme='light'] .popover.notifications) {
+		border-color: var(--color-border);
+		background: #fffffff2;
+		box-shadow: #2126282e 0px 30px 70px -20px;
+	}
+
+	:global(.bell-dot) {
+		position: absolute;
+		top: 10px;
+		right: 11px;
+		width: 8px;
+		height: 8px;
+		border: 2px solid var(--color-canvas);
+		border-radius: var(--radius-pill);
+		background: var(--color-accent);
+	}
+
+	:global(.pop-head) {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 18px 20px 12px;
+	}
+
+	:global(.pop-head .pop-title) {
+		padding: 0;
+		font-size: var(--text-16);
+	}
+
+	:global(.pop-link) {
+		border: 0;
+		background: none;
+		color: var(--color-accent-text);
+		font: inherit;
+		font-size: 13px;
+		line-height: var(--leading-16);
+		cursor: pointer;
+	}
+
+	:global(.pop-tabs) {
+		display: flex;
+		gap: 6px;
+		padding: 0 20px 12px;
+		border-bottom: 1px solid #ffffff0f;
+	}
+
+	:global([data-theme='light'] .pop-tabs) {
+		border-bottom-color: var(--color-border);
+	}
+
+	:global(.pop-tab) {
+		display: flex;
+		align-items: center;
+		height: 30px;
+		padding: 0 12px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-pill);
+		background: transparent;
+		color: var(--shell-strong);
+		font: inherit;
+		font-size: var(--text-12);
+		line-height: var(--leading-16);
+		cursor: pointer;
+	}
+
+	:global(.pop-tab[aria-pressed='true']) {
+		border-color: var(--color-text);
+		background: var(--color-text);
+		color: var(--color-canvas);
+		font-weight: var(--font-weight-semibold);
+	}
+
+	:global(.pop-scroll) {
+		flex: 1 1 auto;
+		min-height: 0;
+		overflow-y: auto;
+	}
+
+	:global(.pop-note) {
+		padding: 20px;
+		color: var(--color-muted);
+		font-size: var(--text-14);
+	}
+
+	:global(.pop-all) {
+		display: flex;
+		justify-content: center;
+		padding: 14px 20px;
+		border-top: 1px solid #ffffff0f;
+		color: var(--color-text);
+		font-size: 13px;
+		font-weight: var(--font-weight-medium);
+		line-height: var(--leading-16);
+		text-decoration: none;
+	}
+
+	:global([data-theme='light'] .pop-all) {
+		border-top-color: var(--color-border);
 	}
 
 	:global(.pop-divider) {

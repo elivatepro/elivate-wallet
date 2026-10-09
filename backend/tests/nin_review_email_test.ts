@@ -16,7 +16,7 @@ Deno.test("NIN review approved: Paper A14b copy, network header, office line", (
   assert(email.html.includes(`href="${appUrl}"`));
   assert(email.html.includes(">Open Wallet</a>"));
   assert(email.text.includes(`Open Wallet: ${appUrl}`));
-  assertEquals((email.html.match(/<a /g) ?? []).length, 1, "one button");
+  assertEquals((email.html.match(/class="ew-button"/g) ?? []).length, 1, "one button");
 });
 
 Deno.test("NIN review rejected: Paper A14c copy, no reason, retry pose", () => {

@@ -2,7 +2,7 @@
 -- reissue, revoke, expiry and the in-app list.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(67);
+select plan(69);
 
 create function pg_temp.u(n int) returns uuid language sql immutable as
   $$ select ('10000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
@@ -147,6 +147,12 @@ select is((select (res->>'officeId')::uuid from acc), pg_temp.id('T'), 'membersh
 select is((select res->>'isPrimary' from acc), 'true', 'the first membership is primary');
 select is((select status::text from org.invitations where id = pg_temp.id('inv6')), 'accepted', 'the invitation is accepted');
 select is((select accepted_membership_id from org.invitations where id = pg_temp.id('inv6')), (select (res->>'membershipId')::uuid from acc), 'acceptance links the membership');
+-- Blueprint 13: T01 to whoever sent the invitation, in the same transaction.
+select is((select count(*)::int from outbox.events e join org.invitations i on i.id = pg_temp.id('inv6')
+  where e.template = 'team.invitation_accepted' and e.recipient_user_id = i.invited_by), 1,
+  'the inviter gets the invitation-accepted email');
+select is((select count(*)::int from notify.items n join org.invitations i on i.id = pg_temp.id('inv6')
+  where n.kind = 'team.invitation_accepted' and n.user_id = i.invited_by), 1, 'and a bell item');
 select ok((select authz_version from org.tenants where id = pg_temp.id('tenant')) > (select v from authz_before), 'acceptance bumps the authorization version');
 select is(
   api.accept_invitation(pg_temp.u(6), pg_temp.s(6), pg_temp.dg('tok-6'), null, pg_temp.k())->>'membershipId',
