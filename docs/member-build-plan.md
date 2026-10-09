@@ -89,6 +89,40 @@ build updates the affected contract line (`00-product.md` U-table, `01-domain-ru
 - PDF (Paper "Statements & reports v1") and CSV, generated server-side; long ones run as jobs
   and send "statement ready".
 
+## Owner decisions during the build (2026-10-08/09)
+
+Paper `App — Screens v4 (member build)` batch 1 (N, Q, J, Z) is approved; Z01 is superseded.
+
+- **Offices:** an office closes only with no active members, no offices below and no money
+  held; any remaining memberships are archived. Role change changes the role only; office
+  moves go through Move. Move, suspend and end membership require reason + PIN.
+- **Activity:** search and status filter get backend support; type filter on mobile too.
+  A reversal shows as its own row and as a "Reversed" status on the original.
+- **Member wallets (leaders):** own menu item and reachable from Members; per-pocket
+  breakdown visible; lists show the available balance per currency.
+- **Income:** member search covers the whole network; an unknown-outcome attempt may stay
+  on the device for 24 hours after sign-out.
+- **Profile and security:** no time zone on the profile; Turnstile is invisible and shows
+  only on failure; sign out all other devices needs no PIN.
+- **Devices:** store the IP address per session for approximate location and "Unusual
+  sign-ins".
+- **Password:** build changing the password while signed in. After a password reset, the
+  person chooses whether to sign out other devices.
+- **PIN change** sends a security email.
+- **Billing:** seat upgrade costs the price difference × days left in the paid year ÷ 365.
+  A founder may skip the trial and pay for any launch band directly. Paused networks give
+  leaders and the Billing Owner a pay-to-reactivate view; withdrawals approved before the
+  pause still get paid out.
+- **Needs your action** bell items are both live tasks (they clear when done) and ordinary
+  read/unread notifications.
+- **Full-network export** download requires the PIN.
+- **Payout recording** has the optional fee field (U02).
+- **Currency conversion (W-12)** starts from its own leader tab/menu item and from a
+  member's wallet (a "Convert" action next to Move).
+- **Sequencing:** one slice at a time, each new slice in its own thread. Order: 4 → 5 → 8 →
+  slice 9 follow-up (IP storage, signed-in password change, PIN-change email, sign-out
+  choice after reset) → 6 → 7 → 10.
+
 ## Design rule for screens Paper doesn't have
 
 **Design in Paper first.** For any member screen with no Paper composition, an agent drafts

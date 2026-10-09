@@ -33,6 +33,24 @@ export type RootPose =
 	| 'onboard-bank'
 	| 'onboard-stop'
 	| 'onboard-done'
+	// Paper "App — Screens v2" O/R (org management, Blueprint 07).
+	| 'offices'
+	| 'office'
+	| 'office-new'
+	| 'office-rename'
+	| 'office-leader'
+	| 'roles'
+	| 'cross-access'
+	| 'reviewers'
+	| 'member'
+	| 'member-suspend'
+	| 'member-move'
+	| 'member-end'
+	// Paper "App — Screens v4" N01–N04 (owner approved 2026-10-08).
+	| 'office-close'
+	| 'office-closed'
+	| 'member-role'
+	| 'office-place'
 	| 'account-security'
 	| 'account-devices'
 	| 'account-pin-change'
@@ -85,6 +103,23 @@ export const ROOT_HEIGHTS: Record<RootPose, number> = {
 	'onboard-bank': 525,
 	'onboard-stop': 525,
 	'onboard-done': 525,
+	// Paper "App — Screens v2" O01/O07/O04/O10/O12, R01/R03/R05/R07/R09/R11/R13.
+	offices: 507,
+	office: 525,
+	'office-new': 512,
+	'office-rename': 512,
+	'office-leader': 512,
+	roles: 446,
+	'cross-access': 513,
+	reviewers: 446,
+	member: 446,
+	'member-suspend': 502,
+	'member-move': 442,
+	'member-end': 502,
+	'office-close': 512,
+	'office-closed': 521,
+	'member-role': 442,
+	'office-place': 512,
 	// Paper "App — Screens v1" B09/B10 (Profile & security, padlock) and
 	// "App — Screens v2" S03/S04 (juggling devices), S05/S06 (shh, secret).
 	'account-security': 525,

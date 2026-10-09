@@ -284,6 +284,13 @@ end $$`);
 	await api.close();
 }
 
+/** An account's public UID, read from the LOCAL database (setup only). */
+export function uidOf(email: string): string {
+	return localSql(
+		`select a.uid from identity.accounts a join auth.users u on u.id = a.user_id where u.email = '${email.replaceAll("'", "''")}'`
+	);
+}
+
 /**
  * Waits until the Turnstile widget has produced its token (Blueprint 10).
  * Local runs use Cloudflare's always-pass test keys, so this is quick, but a
@@ -293,4 +300,19 @@ export async function humanReady(page: Page) {
 	await expect(page.locator('input[name="cf-turnstile-response"]')).not.toHaveValue('', {
 		timeout: 15_000
 	});
+}
+
+/**
+ * Fills a field once the page has settled. After the POST "Continue" on
+ * /auth/confirm the password page can hydrate after Playwright typed into it
+ * (seen in CI), which clears the value; waiting for the network to go idle
+ * and re-checking the value avoids a silent empty submit.
+ */
+export async function fillSettled(page: Page, label: string, value: string) {
+	await page.waitForLoadState('networkidle');
+	const field = page.getByLabel(label);
+	await expect(async () => {
+		await field.fill(value);
+		await expect(field).toHaveValue(value, { timeout: 1_000 });
+	}).toPass({ timeout: 10_000 });
 }

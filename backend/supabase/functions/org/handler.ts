@@ -197,6 +197,9 @@ const roles = [
   "president_team_member",
 ] as const;
 
+/** Roles a membership in an office can hold (never President Team). */
+const officeRoles = ["member", "team_leader", "director", "world_team_member"] as const;
+
 export function createHandler(deps: Deps): (request: Request) => Promise<Response> {
   async function call(fn: string, args: Record<string, unknown>): Promise<unknown> {
     const { data, error } = await deps.rpc(fn, args);
@@ -312,6 +315,22 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       });
     }),
 
+    route("GET", "/offices/:id", (c) => {
+      onlyQuery(c.query, []);
+      return call("office_detail", { ...inWorkspace(c), p_office_id: c.params.id });
+    }),
+
+    // Blueprint 07: President Team, reason + step-up; only an empty office closes.
+    route("POST", "/offices/:id/close", async (c) => {
+      const body = await v.readBody(c.request, ["reason", "idempotencyKey"]);
+      return call("close_office", {
+        ...commandInWorkspace(c),
+        p_office_id: c.params.id,
+        p_reason: v.reason(body),
+        p_idempotency_key: v.idempotencyKey(body),
+      });
+    }),
+
     route("POST", "/offices/:id/leaders", async (c) => {
       const body = await v.readBody(c.request, ["leaderUid", "reason", "idempotencyKey"]);
       return call("add_office_leader", {
@@ -341,9 +360,10 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
     }),
 
     route("GET", "/members", (c) => {
-      onlyQuery(c.query, ["officeId", "role", "status", "cursor", "limit"]);
+      onlyQuery(c.query, ["officeId", "role", "status", "q", "cursor", "limit"]);
       return call("list_members", {
         ...inWorkspace(c),
+        p_query: queryText(c.query, "q", 100),
         p_office_id: queryUuid(c.query, "officeId"),
         p_role: queryText(c.query, "role", 30),
         p_status: queryText(c.query, "status", 20),
@@ -358,6 +378,23 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
         ...commandInWorkspace(c),
         p_office_id: v.uuid(body, "officeId"),
         p_member_uid: v.uid(body, "memberUid"),
+        p_idempotency_key: v.idempotencyKey(body),
+      });
+    }),
+
+    route("GET", "/memberships/:id", (c) => {
+      onlyQuery(c.query, []);
+      return call("member_detail", { ...inWorkspace(c), p_target_membership_id: c.params.id });
+    }),
+
+    // Blueprint 07: a role change ends the membership and creates the new one.
+    route("POST", "/memberships/:id/role", async (c) => {
+      const body = await v.readBody(c.request, ["role", "reason", "idempotencyKey"]);
+      return call("change_membership_role", {
+        ...commandInWorkspace(c),
+        p_target_membership_id: c.params.id,
+        p_role: oneOf(v.text(body, "role", 30), "role", officeRoles),
+        p_reason: v.reason(body),
         p_idempotency_key: v.idempotencyKey(body),
       });
     }),
