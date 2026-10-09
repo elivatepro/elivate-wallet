@@ -123,6 +123,11 @@ Paper `App — Screens v4 (member build)` batch 1 (N, Q, J, Z) is approved; Z01 
   Leader, Director and World Team; adjustments also on for World Team); Presidents can change
   them in the role editor.
 - **Evidence reviewers:** a role change ends the reviewer assignment; the President re-adds it.
+- **Prod (2026-10-09):** "push to prod" means dev plus the live Worker; production stays
+  off-limits.
+- **Receipt check (2026-10-09):** model `gpt-5-mini`, in secret `OPENAI_RECEIPT_MODEL`. The
+  payment date compares the calendar date printed on the receipt; convert to UTC only when
+  the receipt prints a time zone.
 - **Sequencing:** one slice at a time, each new slice in its own thread. Order: 4 → 5 → 8 →
   slice 9 follow-up (IP storage, signed-in password change, PIN-change email, sign-out
   choice after reset) → 6 → 7 → 10.
