@@ -6,6 +6,7 @@
 -->
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { page } from '$app/state';
 	import RootImage from '#lib/ui/RootImage.svelte';
 	import PinField from '#lib/ui/auth/PinField.svelte';
 	import type { RootPose } from '#lib/ui/root.svelte.js';
@@ -41,6 +42,16 @@
 		/** Extra fields above the reason (status choice, dates, hidden ids). */
 		children?: Snippet;
 	} = $props();
+
+	// A bare "?/name" action keeps the page's query (?dialog=…) so a failed
+	// submit re-renders this dialog with its error and the typed reason.
+	const formAction = $derived.by(() => {
+		if (!action.startsWith('?/')) return action;
+		const kept = new URLSearchParams(
+			[...page.url.searchParams].filter(([key]) => !key.startsWith('/'))
+		).toString();
+		return kept ? `?${kept}&${action.slice(1)}` : action;
+	});
 </script>
 
 <div class="overlay">
@@ -55,7 +66,7 @@
 				{#if lead}<p>{lead}</p>{/if}
 			</div>
 		</header>
-		<form method="POST" {action} novalidate>
+		<form method="POST" action={formAction} novalidate>
 			<input type="hidden" name="idempotencyKey" value={idempotencyKey} />
 			{@render children?.()}
 			<label class="reason">

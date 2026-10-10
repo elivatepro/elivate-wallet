@@ -61,6 +61,13 @@ class ArchiveError extends Error {
 	}
 }
 
+/** Storage could not be read: not the archive's fault, so the run stops without a verdict. */
+export class StorageReadError extends Error {
+	constructor(readonly cause: unknown) {
+		super('the archive could not be read from storage');
+	}
+}
+
 /** A staging call failed: not the archive's fault, so the run stops without a verdict. */
 export class StagingError extends Error {
 	constructor(readonly cause: unknown) {
@@ -338,9 +345,9 @@ export async function checkArchive(deps: RestoreCheckDeps): Promise<RestoreRepor
 	let result: Awaited<ReturnType<typeof walk>>;
 	try {
 		result = await walk(deps, deps.archive);
-	} catch {
-		// The stream itself broke (storage read failed mid-way).
-		return { ok: false, failReason: 'archive_unreadable', sections: [] };
+	} catch (caught) {
+		// The stream itself broke (storage read failed mid-way): retry later.
+		throw new StorageReadError(caught);
 	}
 	if (result.error instanceof StagingError) throw result.error;
 
@@ -406,17 +413,17 @@ export async function validateRestore(
 	);
 	if (!source.ok) return { ok: false, failure: source.failure };
 
-	let archive: ArchiveBody | null = null;
-	let storageMissing = false;
+	// No bucket on this deployment, or storage failed: that is not a missing
+	// archive, so the request stays in validating and can be run again.
+	let archive: ArchiveBody | null;
 	try {
 		const storage = await backupStorage();
-		if (!storage) storageMissing = true;
-		else archive = ((await storage.get(source.value.objectKey))?.body as ArchiveBody) ?? null;
+		if (!storage) return { ok: false, failure: null };
+		archive = ((await storage.get(source.value.objectKey))?.body as ArchiveBody) ?? null;
 	} catch {
-		archive = null;
+		return { ok: false, failure: null };
 	}
-	// No bucket on this deployment: that is configuration, not a missing archive.
-	if (storageMissing) return { ok: false, failure: null };
+	const runId = source.value.runId;
 
 	let report: RestoreReport;
 	try {
@@ -426,7 +433,7 @@ export async function validateRestore(
 			sendRows: async (section, rows) => {
 				const sent = await run(
 					Effect.gen(function* () {
-						return yield* (yield* AdminApi).restoreRows(restoreId, section, rows);
+						return yield* (yield* AdminApi).restoreRows(restoreId, runId, section, rows);
 					})
 				);
 				if (!sent.ok) throw sent.failure;
@@ -439,7 +446,7 @@ export async function validateRestore(
 
 	const done = await run(
 		Effect.gen(function* () {
-			return yield* (yield* AdminApi).restoreValidated(restoreId, report);
+			return yield* (yield* AdminApi).restoreValidated(restoreId, runId, report);
 		})
 	);
 	if (!done.ok) return { ok: false, failure: done.failure };

@@ -38,6 +38,33 @@ create index restore_checks_checked_by_idx on backups.restore_checks (checked_by
 
 alter table backups.restore_checks enable row level security;
 
+-- One validation run at a time: a new run supersedes an older one, whose
+-- staging and completion calls are then refused (no run erases another's rows).
+create table backups.restore_runs (
+  restore_id uuid primary key references backups.restore_requests (id) on delete cascade,
+  run_id uuid not null,
+  started_by uuid not null references identity.accounts (user_id) on delete restrict,
+  started_at timestamptz not null default now()
+);
+
+create index restore_runs_started_by_idx on backups.restore_runs (started_by);
+
+alter table backups.restore_runs enable row level security;
+
+create function backups.require_run(p_restore_id uuid, p_run_id uuid)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if p_run_id is null or not exists (
+    select 1 from backups.restore_runs where restore_id = p_restore_id and run_id = p_run_id
+  ) then
+    perform identity.fail('conflict', jsonb_build_object('reason', 'run_superseded'));
+  end if;
+end;
+$$;
+
 -- Sections an operator may fix by hand; every other section is kept as is.
 create function backups.manual_sections() returns text[]
 language sql immutable set search_path = '' as $$
@@ -56,6 +83,8 @@ as $$
     p_data->>'id',
     case p_section
       when 'people' then p_data->>'uid'
+      when 'balances' then p_data->>'account_id'
+      when 'postings' then concat_ws(':', p_data->>'transaction_id', p_data->>'entry_no', p_data->>'line_no')
       when 'settings_revisions' then p_data->>'revision'
       when 'role_permissions' then concat_ws(':', p_data->>'role', p_data->>'permission_key')
       when 'subscription' then 'subscription'
@@ -101,10 +130,15 @@ begin
   if a.status <> 'ready' or a.expires_at <= now() or a.deleted_at is not null then
     perform identity.fail('conflict', jsonb_build_object('reason', 'archive_unavailable'));
   end if;
-  -- A new validation run starts from nothing.
+  -- A new validation run starts from nothing and supersedes any older run.
   delete from backups.restore_rows where restore_id = r.id;
+  insert into backups.restore_runs (restore_id, run_id, started_by)
+  values (r.id, gen_random_uuid(), p_user_id)
+  on conflict (restore_id) do update
+    set run_id = excluded.run_id, started_by = excluded.started_by, started_at = now();
   return jsonb_build_object(
     'restoreId', r.id,
+    'runId', (select run_id from backups.restore_runs where restore_id = r.id),
     'objectKey', backups.object_key(a),
     'byteSize', a.byte_size,
     'sha256', a.sha256,
@@ -120,6 +154,7 @@ create function api.admin_restore_rows(
   p_user_id uuid,
   p_session_id uuid,
   p_restore_id uuid,
+  p_run_id uuid,
   p_section text,
   p_rows jsonb
 )
@@ -142,6 +177,7 @@ begin
     perform identity.fail('validation_error', jsonb_build_object('field', 'rows'));
   end if;
   r := backups.locked_restore(p_restore_id, 'validating');
+  perform backups.require_run(r.id, p_run_id);
   insert into backups.restore_rows (restore_id, section, key, data)
   select r.id, p_section, backups.row_key(p_section, x), x from jsonb_array_elements(p_rows) x
   on conflict (restore_id, section, key) do nothing;
@@ -155,6 +191,7 @@ create function api.admin_restore_validated(
   p_user_id uuid,
   p_session_id uuid,
   p_restore_id uuid,
+  p_run_id uuid,
   p_ok boolean,
   p_fail_reason text,
   p_report jsonb,
@@ -181,6 +218,8 @@ begin
     perform identity.fail('validation_error', jsonb_build_object('field', 'failReason'));
   end if;
   r := backups.locked_restore(p_restore_id, 'validating');
+  perform backups.require_run(r.id, p_run_id);
+  delete from backups.restore_runs where restore_id = r.id;
   select * into a from backups.archives where id = r.archive_id;
 
   -- The database checks the counts too: every manifest row must be staged
@@ -301,14 +340,15 @@ revoke all on function backups.manual_sections() from public, anon, authenticate
 revoke all on function backups.row_key(text, jsonb) from public, anon, authenticated;
 revoke all on function backups.locked_restore(uuid, text) from public, anon, authenticated;
 revoke all on function backups.clear_restore_rows() from public, anon, authenticated;
+revoke all on function backups.require_run(uuid, uuid) from public, anon, authenticated;
 do $$
 declare
   f text;
 begin
   foreach f in array array[
     'api.admin_restore_source(uuid, uuid, uuid)',
-    'api.admin_restore_rows(uuid, uuid, uuid, text, jsonb)',
-    'api.admin_restore_validated(uuid, uuid, uuid, boolean, text, jsonb, text)',
+    'api.admin_restore_rows(uuid, uuid, uuid, uuid, text, jsonb)',
+    'api.admin_restore_validated(uuid, uuid, uuid, uuid, boolean, text, jsonb, text)',
     'api.admin_restore(uuid, uuid, uuid)'
   ] loop
     execute format('revoke all on function %s from public, anon, authenticated', f);

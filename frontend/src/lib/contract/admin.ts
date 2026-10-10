@@ -415,6 +415,8 @@ export type RestoreDetail = typeof RestoreDetail.Type;
 
 export const RestoreSource = Schema.Struct({
 	restoreId: Uuid,
+	/** This validation run; a newer run supersedes it (conflict run_superseded). */
+	runId: Uuid,
 	objectKey: Schema.String.check(
 		Schema.isPattern(/^backups\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9]+\.zip$/)
 	),

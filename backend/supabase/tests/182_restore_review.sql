@@ -5,7 +5,7 @@
 -- staged rows go when the request finishes.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(22);
+select plan(25);
 
 create function pg_temp.u(n int) returns uuid language sql immutable as
   $$ select ('18200000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
@@ -55,14 +55,15 @@ end $$;
 create function pg_temp.validate(p_restore uuid, p_drop text default null) returns jsonb language plpgsql as $$
 declare
   sec text;
+  run uuid;
 begin
-  perform api.admin_restore_source(pg_temp.u(9), pg_temp.s(9), p_restore);
+  run := (api.admin_restore_source(pg_temp.u(9), pg_temp.s(9), p_restore)->>'runId')::uuid;
   for sec in select distinct section from archived loop
-    perform api.admin_restore_rows(pg_temp.u(9), pg_temp.s(9), p_restore, sec,
+    perform api.admin_restore_rows(pg_temp.u(9), pg_temp.s(9), p_restore, run, sec,
       (select coalesce(jsonb_agg(data), '[]') from (select data from archived where section = sec
         offset case when sec = p_drop then 1 else 0 end) x));
   end loop;
-  return api.admin_restore_validated(pg_temp.u(9), pg_temp.s(9), p_restore, true, null,
+  return api.admin_restore_validated(pg_temp.u(9), pg_temp.s(9), p_restore, run, true, null,
     jsonb_build_object('sections', (select jsonb_agg(jsonb_build_object('section', section, 'rows', n, 'sha256Ok', true))
       from (select section, count(*) n from archived group by section) c)));
 end $$;
@@ -102,6 +103,16 @@ select is(pg_temp.fails($$ select api.platform_advance_restore(pg_temp.u(9), pg_
 create temp table src as select api.admin_restore_source(pg_temp.u(9), pg_temp.s(9), pg_temp.id('r1')) as r;
 select matches((select r->>'objectKey' from src), '^backups/[0-9a-f-]{36}/[0-9a-f-]{36}/[0-9]+\.zip$',
   'the app server is told where the archive is');
+
+-- ── One run at a time (3) ──
+create temp table src2 as select api.admin_restore_source(pg_temp.u(9), pg_temp.s(9), pg_temp.id('r1')) as r;
+select is(pg_temp.fails(format($$ select api.admin_restore_rows(pg_temp.u(9), pg_temp.s(9), pg_temp.id('r1'), %L, 'offices',
+  '[{}]'::jsonb) $$, (select r->>'runId' from src))), 'conflict:run_superseded', 'an older run can no longer stage rows');
+select is(pg_temp.fails(format($$ select api.admin_restore_validated(pg_temp.u(9), pg_temp.s(9), pg_temp.id('r1'), %L, true,
+  null, '{"sections":[]}'::jsonb) $$, (select r->>'runId' from src))), 'conflict:run_superseded',
+  'nor finish the validation');
+select is(pg_temp.fails($$ select api.admin_restore_rows(pg_temp.u(9), pg_temp.s(9), pg_temp.id('r1'), null, 'offices',
+  '[{}]'::jsonb) $$), 'conflict:run_superseded', 'a run id is required');
 
 -- ── A failing validation (3) ──
 select is(pg_temp.validate(pg_temp.id('r1'), 'offices')->'restore'->>'status', 'failed',
@@ -144,7 +155,7 @@ select is((select string_agg(to_status, ',' order by id) from backups.restore_ev
 select is(pg_temp.fails($$ select api.admin_restore(pg_temp.u(1), pg_temp.s(1), pg_temp.id('r2')) $$),
   'authorization_denied:', 'the review is for Elivate only');
 select is(jsonb_array_length(api.admin_restores(pg_temp.u(9), pg_temp.s(9))), 2, 'both requests are listed');
-select is(pg_temp.fails($$ select api.admin_restore_rows(pg_temp.u(9), pg_temp.s(9), pg_temp.id('r2'), 'offices',
+select is(pg_temp.fails($$ select api.admin_restore_rows(pg_temp.u(9), pg_temp.s(9), pg_temp.id('r2'), gen_random_uuid(), 'offices',
   '[{}]'::jsonb) $$), 'conflict:invalid_transition', 'rows are accepted only while validating');
 
 select * from finish();

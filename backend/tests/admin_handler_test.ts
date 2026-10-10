@@ -7,6 +7,7 @@ import {
   type LogEntry,
   type RpcResult,
 } from "../supabase/functions/admin/handler.ts";
+import { sha256Hex } from "../supabase/functions/_shared/evidence.ts";
 
 const actor: Actor = {
   userId: "00000000-0000-0000-0000-0000000000a1",
@@ -211,6 +212,11 @@ Deno.test("a searched account number is fingerprinted, never sent to the databas
   const search = calls.find((c) => c.fn === "admin_search");
   assertEquals(search?.args.p_query, "•••• 6789");
   assertEquals((search?.args.p_bank_fingerprints as string[]).length, 2);
+  // The same digits may be a phone: only a hash is sent.
+  assertEquals(
+    search?.args.p_phone_sha256,
+    await sha256Hex(new TextEncoder().encode("phone:0123456789")),
+  );
   assertEquals(JSON.stringify(calls).includes("0123456789"), false);
 });
 
@@ -219,6 +225,7 @@ Deno.test("ordinary searches pass the text and no fingerprints", async () => {
   assertEquals((await handler(request("GET", "/search?q=Okafor"))).status, 200);
   assertEquals(calls[0]?.fn, "admin_search");
   assertEquals(calls[0]?.args.p_bank_fingerprints, null);
+  assertEquals(calls[0]?.args.p_phone_sha256, null);
   assertEquals((await handler(request("GET", "/search?q=x"))).status, 400);
 });
 
@@ -260,15 +267,27 @@ Deno.test("restore steps: no manual in_review, rows and report are validated", a
   assertEquals(skip.status, 400);
   const rows = await handler(
     request("POST", `/restores/${restoreId}/rows`, {
+      runId: restoreId,
       section: "offices",
       rows: [{ id: "1" }],
     }),
   );
   assertEquals(rows.status, 200);
   assertEquals(calls[0]?.fn, "admin_restore_rows");
+  assertEquals(calls[0]?.args.p_run_id, restoreId);
   assertEquals(
     (await handler(
       request("POST", `/restores/${restoreId}/rows`, {
+        section: "offices",
+        rows: [],
+      }),
+    )).status,
+    400,
+  );
+  assertEquals(
+    (await handler(
+      request("POST", `/restores/${restoreId}/rows`, {
+        runId: restoreId,
         section: "Offices!",
         rows: [],
       }),
@@ -278,6 +297,7 @@ Deno.test("restore steps: no manual in_review, rows and report are validated", a
   assertEquals(
     (await handler(
       request("POST", `/restores/${restoreId}/rows`, {
+        runId: restoreId,
         section: "x_y",
         rows: [1],
       }),
@@ -287,6 +307,7 @@ Deno.test("restore steps: no manual in_review, rows and report are validated", a
   );
   const done = await handler(
     request("POST", `/restores/${restoreId}/validated`, {
+      runId: restoreId,
       ok: false,
       failReason: "checksum_mismatch",
       sections: [{ section: "offices", rows: 3, sha256Ok: false }],

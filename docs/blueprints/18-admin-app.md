@@ -193,9 +193,10 @@ What each switch stops:
   - Alternative: platform-wide only.
 - **4c. Defaults.** All running. A stopped switch has no automatic restart. A
   reason and the PIN are needed both to stop and to start again.
-- **4d. What members see.** The X-series "paused" screen: "Withdrawals are paused for now. Your
+- **4d. What members see.** The X-series "paused" copy: "Withdrawals are paused for now. Your
   money is safe; open requests keep their place." The action buttons are disabled with that
-  line. The command refuses with `conflict` + `details.reason = operation_paused`. Every action
+  line. *As built:* the copy shows as a banner above the write page rather than replacing it, so
+  an attempt with an unknown outcome can still be checked or cancelled (F-03; Greptile on PR #55). The command refuses with `conflict` + `details.reason = operation_paused`. Every action
   is still audited.
   - Do you want an email or bell item when a switch stops? **Recommended: no.** The screen
     already says it.
@@ -263,7 +264,8 @@ My recommendations:
   row per key and network.
 - `platform.kill_switch_changes`: append-only history (update, delete and truncate refused).
 - `backups.restore_rows` (archive rows staged for one comparison, removed when the request
-  finishes) and `backups.restore_checks` (validation result; migration `20261009180300`).
+  finishes), `backups.restore_runs` (the one current validation run per request) and
+  `backups.restore_checks` (validation result; migration `20261009180300`).
 - RLS on, no policies, no client grants. Feature flags are not built (Q5).
 
 ### B2. Rules
@@ -284,6 +286,10 @@ My recommendations:
 - **Restores:** `in_review` only through a passing validation (`admin_restore_validated`, which
   also checks that the staged row counts equal the manifest); an operator can still fail a stuck
   validation; restoring and completed stay manual with a reason.
+- **One validation run at a time:** `admin_restore_source` starts a run and returns its `runId`;
+  staging and completion need the current run id, so an older run gets
+  `conflict{reason: run_superseded}` instead of erasing a newer run's rows. A storage failure
+  ends the run without a verdict (the request stays in validating and can be run again).
 
 ### B3. Database functions (all `api.*`, `security definer`, `search_path = ''`, platform admin)
 - **Reads:** `admin_me` (no admin check: says whether you are one), `admin_overview`,
@@ -291,7 +297,8 @@ My recommendations:
   `admin_tenant`, `admin_accounts`, `admin_account` (memberships, status history, PIN state,
   sessions, last sign-in, unusual sign-ins in 7 days; no IPs), `admin_search` (UID, name, email
   prefix, phone — last 10 digits so 0801… finds +234801…, any public reference, network, office;
-  bank account by fingerprint list), `admin_bank_codes`, `admin_audit` (merged security and
+  bank account by fingerprint list; a 10-digit search also matches phones by
+  SHA-256 of `phone:` + digits, so the digits themselves never reach SQL), `admin_bank_codes`, `admin_audit` (merged security and
   network events, filters: text, action group, actor UID, network, WAT dates; cursor),
   `admin_admins`, `admin_switches`, `admin_restores`, `admin_restore` (validation, per-section
   differences computed live: archive vs now, added / removed / changed, manual vs kept).

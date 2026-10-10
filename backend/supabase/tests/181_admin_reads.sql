@@ -4,7 +4,7 @@
 -- immutable audit with filters and a cursor; paged lists.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(34);
+select plan(35);
 
 create function pg_temp.u(n int) returns uuid language sql immutable as
   $$ select ('18100000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
@@ -110,13 +110,16 @@ select is(jsonb_array_length(api.admin_accounts(pg_temp.u(9), pg_temp.s(9), 'oka
 select is(api.admin_account(pg_temp.u(9), pg_temp.s(9), pg_temp.uid(1))->>'phone', '+234 •• •••• 2210',
   'phones are masked');
 
--- ── Global search (7) ──
+-- ── Global search (8) ──
 select is(api.admin_search(pg_temp.u(9), pg_temp.s(9), pg_temp.uid(2))->'accounts'->0->>'matchedOn', 'uid', 'by UID');
 select is(jsonb_array_length(api.admin_search(pg_temp.u(9), pg_temp.s(9), 'Okaforqz')->'accounts'), 2, 'by name');
 select is(api.admin_search(pg_temp.u(9), pg_temp.s(9), 'person2@example')->'accounts'->0->>'matchedOn', 'email',
   'by email prefix');
 select is(api.admin_search(pg_temp.u(9), pg_temp.s(9), '0801 234 2210')->'accounts'->0->>'matchedOn', 'phone',
   'by phone digits');
+select is(api.admin_search(pg_temp.u(9), pg_temp.s(9), '•••• 2210', null, null,
+  encode(extensions.digest('phone:8012342210', 'sha256'), 'hex'))->'accounts'->0->>'matchedOn', 'phone',
+  'a 10-digit search also matches the phone, by hash only');
 select is(api.admin_search(pg_temp.u(9), pg_temp.s(9), 'lagos kxq')->'offices'->0->>'name', 'Lagos Kxq office', 'by office');
 select is(api.admin_search(pg_temp.u(9), pg_temp.s(9), 'pine kxq')->'networks'->0->>'name', 'Pine Kxq Network',
   'by network');

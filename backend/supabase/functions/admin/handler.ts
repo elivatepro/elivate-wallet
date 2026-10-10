@@ -12,6 +12,7 @@ import {
   isErrorCode,
   success,
 } from "../_shared/http.ts";
+import { sha256Hex } from "../_shared/evidence.ts";
 import { sameSecret } from "../_shared/secret.ts";
 import * as v from "../_shared/validate.ts";
 
@@ -214,6 +215,16 @@ function queryCursor(query: URLSearchParams): string | null {
   return value;
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** The validation run a staging or completion call belongs to. */
+function runIdOf(body: Record<string, unknown>): string {
+  if (typeof body.runId !== "string" || !UUID.test(body.runId)) {
+    throw new ApiError("validation_error", { field: "runId" });
+  }
+  return body.runId;
+}
+
 /** A searched 10-digit account number (spaces and dashes allowed), else null. */
 export function accountNumberIn(query: string): string | null {
   const digits = query.replace(/[\s-]/g, "");
@@ -264,9 +275,12 @@ export function createHandler(
     }
     // Bank account (W-23): fingerprint the number for every bank that has a
     // saved account; the number itself never reaches the database or logs.
+    // The same 10 digits may be a phone number: send only its hash.
     let fingerprints: string[] | null = null;
+    let phoneSha256: string | null = null;
     const number = accountNumberIn(q);
     if (number !== null) {
+      phoneSha256 = await sha256Hex(new TextEncoder().encode(`phone:${number}`));
       const codes = await call("admin_bank_codes", actorArgs(c));
       if (
         !Array.isArray(codes) || codes.some((code) => typeof code !== "string")
@@ -281,6 +295,7 @@ export function createHandler(
       ...actorArgs(c),
       p_query: number === null ? q : `•••• ${number.slice(-4)}`,
       p_bank_fingerprints: fingerprints,
+      p_phone_sha256: phoneSha256,
     });
   }
 
@@ -501,7 +516,7 @@ export function createHandler(
     }),
 
     route("POST", "/restores/:id/rows", async (c) => {
-      const body = await v.readBody(c.request, ["section", "rows"]);
+      const body = await v.readBody(c.request, ["runId", "section", "rows"]);
       const section = body.section;
       if (typeof section !== "string" || !/^[a-z_]{2,40}$/.test(section)) {
         throw new ApiError("validation_error", { field: "section" });
@@ -516,6 +531,7 @@ export function createHandler(
       return call("admin_restore_rows", {
         ...actorArgs(c),
         p_restore_id: c.params.id,
+        p_run_id: runIdOf(body),
         p_section: section,
         p_rows: rows,
       });
@@ -523,6 +539,7 @@ export function createHandler(
 
     route("POST", "/restores/:id/validated", async (c) => {
       const body = await v.readBody(c.request, [
+        "runId",
         "ok",
         "failReason",
         "sections",
@@ -553,6 +570,7 @@ export function createHandler(
       return call("admin_restore_validated", {
         ...commandArgs(c),
         p_restore_id: c.params.id,
+        p_run_id: runIdOf(body),
         p_ok: body.ok,
         p_fail_reason: failReason,
         p_report: {

@@ -130,9 +130,7 @@ export type RootPose =
 	| 'admin-sign-in'
 	| 'admin-account'
 	| 'admin-accounts'
-	| 'admin-restore'
-	// Paper "App — Screens v2" X-series feature paused (traffic cone; Blueprint 18).
-	| 'operation-paused';
+	| 'admin-restore';
 
 /** Rendered Root size on mobile gate screens (Paper: 120×160, 150×200, 180×240). */
 export type RootSize = 'sm' | 'md' | 'lg';
@@ -255,8 +253,7 @@ export const ROOT_HEIGHTS: Record<RootPose, number> = {
 	'admin-sign-in': 527,
 	'admin-account': 527,
 	'admin-accounts': 527,
-	'admin-restore': 527,
-	'operation-paused': 527
+	'admin-restore': 527
 };
 
 export const rootSrc = (pose: RootPose) => `/root/${pose}.webp`;

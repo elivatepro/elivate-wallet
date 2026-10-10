@@ -1,6 +1,11 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { checkArchive, StagingError, type RestoreCheckDeps } from './restore-check';
+import {
+	checkArchive,
+	StagingError,
+	StorageReadError,
+	type RestoreCheckDeps
+} from './restore-check';
 import { ZipWriter } from './zip';
 
 const encoder = new TextEncoder();
@@ -170,5 +175,19 @@ describe('checkArchive', () => {
 			}
 		});
 		await expect(checkArchive(d)).rejects.toBeInstanceOf(StagingError);
+	});
+
+	it('stops without a verdict when storage fails mid-read', async () => {
+		const built = await build({ offices });
+		let sent = false;
+		const broken = new ReadableStream<Uint8Array>({
+			pull(controller) {
+				if (sent) return controller.error(new Error('storage reset'));
+				sent = true;
+				controller.enqueue(built.bytes.slice(0, 100));
+			}
+		});
+		const { d } = deps(built, broken);
+		await expect(checkArchive(d)).rejects.toBeInstanceOf(StorageReadError);
 	});
 });

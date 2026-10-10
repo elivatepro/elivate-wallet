@@ -1,7 +1,7 @@
 // Platform Admin app (Blueprint 18), against the local stack with synthetic
 // people only (APP_SURFACE=both serves /admin/* beside the Wallet app). An
 // admin signs in with password + PIN, searches, suspends and reactivates an
-// account (reason + PIN), stops withdrawals so a member sees the paused page,
+// account (reason + PIN), stops withdrawals so a member sees the paused banner,
 // starts them again, and validates a restore request end to end (archive
 // re-read, differences, restoring, completed). Sessions stay separate per
 // site, and a non-admin only sees "not an admin".
@@ -118,6 +118,16 @@ test('an admin searches, suspends and reactivates an account with reason + PIN',
 	await page.waitForLoadState('networkidle');
 	await page.getByRole('dialog').getByLabel('New status').selectOption('suspended');
 	await shot(page, 'A09b-status');
+	// A wrong PIN keeps the dialog open with the error and the typed reason.
+	const dialog = page.getByRole('dialog');
+	await dialog.getByRole('textbox', { name: /Reason/ }).fill('Wrong PIN first.');
+	await dialog.getByLabel(/4-digit PIN/).fill(PIN === '0000' ? '1111' : '0000');
+	await dialog.getByRole('button', { name: 'Suspend account' }).click();
+	await expect(page.getByRole('dialog')).toBeVisible();
+	await expect(page).toHaveURL(/dialog=/);
+	await expect(page.getByRole('dialog').getByRole('textbox', { name: /Reason/ })).toHaveValue(
+		'Wrong PIN first.'
+	);
 	await confirm(page, 'Suspicious sign-in reported by the office.', 'Suspend account');
 	await expect(page.getByText('Suspended').first()).toBeVisible();
 	expect(localSql(`select status from identity.accounts where uid = '${memberUid}'`).trim()).toBe(

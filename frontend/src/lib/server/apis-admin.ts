@@ -130,11 +130,13 @@ export interface AdminApiShape {
 	readonly restoreSource: (id: string) => Effect.Effect<RestoreSource, EdgeFailure>;
 	readonly restoreRows: (
 		id: string,
+		runId: string,
 		section: string,
 		rows: ReadonlyArray<Record<string, unknown>>
 	) => Effect.Effect<typeof CommandResult.Type, EdgeFailure>;
 	readonly restoreValidated: (
 		id: string,
+		runId: string,
 		report: {
 			ok: boolean;
 			failReason: string | null;
@@ -228,10 +230,10 @@ export const AdminApiLive = Layer.effect(
 					Effect.flatMap((body) => command(AdminRoutes.advanceRestore(id), body, CommandResult))
 				),
 			restoreSource: (id) => command(AdminRoutes.restoreSource(id), {}, RestoreSource),
-			restoreRows: (id, section, rows) =>
-				command(AdminRoutes.restoreRows(id), { section, rows }, CommandResult),
-			restoreValidated: (id, report) =>
-				command(AdminRoutes.restoreValidated(id), report, CommandResult),
+			restoreRows: (id, runId, section, rows) =>
+				command(AdminRoutes.restoreRows(id), { runId, section, rows }, CommandResult),
+			restoreValidated: (id, runId, report) =>
+				command(AdminRoutes.restoreValidated(id), { runId, ...report }, CommandResult),
 			deadLetters: read(AdminRoutes.outbox, DeadLetters, { limit: '100' }),
 			requeue: (id, input) =>
 				checked(ReasonRequest, input, 'reason').pipe(

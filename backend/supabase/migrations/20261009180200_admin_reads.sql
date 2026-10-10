@@ -492,7 +492,10 @@ create function api.admin_search(
   p_session_id uuid,
   p_query text,
   p_bank_fingerprints text[] default null,
-  p_limit int default null
+  p_limit int default null,
+  -- A 10-digit search as SHA-256 of 'phone:' || digits (the Edge sends the
+  -- number itself to SQL only masked, since it may be a bank account).
+  p_phone_sha256 text default null
 )
 returns jsonb
 language plpgsql
@@ -510,6 +513,9 @@ begin
   q := platform.require_query(p_query, true);
   if length(q) < 2 then
     perform identity.fail('validation_error', jsonb_build_object('field', 'q'));
+  end if;
+  if p_phone_sha256 is not null and p_phone_sha256 !~ '^[0-9a-f]{64}$' then
+    perform identity.fail('validation_error', jsonb_build_object('field', 'phoneSha256'));
   end if;
   if p_bank_fingerprints is not null and (cardinality(p_bank_fingerprints) > 500
      or exists (select 1 from unnest(p_bank_fingerprints) f where f !~ '^[0-9a-f]{64}$')) then
@@ -536,6 +542,8 @@ begin
           union all
           select p.user_id, 'phone', 4 from identity.profiles p
           where platform.phone_matches(p.phone, digits)
+             or (p_phone_sha256 is not null and p.phone is not null and encode(extensions.digest(
+               'phone:' || right(regexp_replace(p.phone, '[^0-9]', '', 'g'), 10), 'sha256'), 'hex') = p_phone_sha256)
           union all
           select pa.owner_user_id, 'bank_account', 5 from payout.accounts pa
           where p_bank_fingerprints is not null and pa.account_fingerprint = any (p_bank_fingerprints)
@@ -748,7 +756,7 @@ begin
     'api.admin_accounts(uuid, uuid, text, text, text, int)',
     'api.admin_account(uuid, uuid, text)',
     'api.admin_bank_codes(uuid, uuid)',
-    'api.admin_search(uuid, uuid, text, text[], int)',
+    'api.admin_search(uuid, uuid, text, text[], int, text)',
     'api.admin_audit(uuid, uuid, text, text, text, uuid, date, date, text, int)',
     'api.admin_admins(uuid, uuid)',
     'api.admin_restores(uuid, uuid)'

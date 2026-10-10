@@ -38,10 +38,20 @@ export function stoppedHere(path: string, stopped: readonly string[]): string | 
 	return null;
 }
 
+/** Banner copy for a stopped operation. */
+export function pausedCopy(operation: string): { title: string; lead: string } {
+	const name = OPERATION_NAMES[operation] ?? 'This';
+	const verb = name.endsWith('s') && !name.startsWith('Recording') ? 'are' : 'is';
+	return {
+		title: `${name} ${verb} paused for now`,
+		lead: 'Your money is safe; open requests keep their place.'
+	};
+}
+
 /** "Withdrawals are paused for now…" when a command was refused by a stop. */
 export function pausedMessage(failure: ApiFailure | undefined): string | null {
 	if (failure?._tag !== 'BackendError' || failure.code !== 'conflict') return null;
 	if (failure.details.reason !== 'operation_paused') return null;
-	const name = OPERATION_NAMES[String(failure.details.operation ?? '')] ?? 'This';
-	return `${name} ${name.endsWith('s') && !name.startsWith('Recording') ? 'are' : 'is'} paused for now. Your money is safe; open requests keep their place.`;
+	const { title, lead } = pausedCopy(String(failure.details.operation ?? ''));
+	return `${title}. ${lead}`;
 }
