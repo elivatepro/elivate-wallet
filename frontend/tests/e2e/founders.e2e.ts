@@ -64,7 +64,8 @@ async function apply(page: Page, person: { name: string; email: string; team: st
 	await page.getByLabel('Your rank').selectOption('ruby_director_4');
 	await humanReady(page);
 	await page.getByRole('button', { name: 'Send application' }).click();
-	await expect(page).toHaveURL(/\/apply\/sent$/);
+	// The first call may wake a cold Edge Function.
+	await expect(page).toHaveURL(/\/apply\/sent$/, { timeout: 20_000 });
 	await expect(page.getByRole('heading', { name: 'We have your application' })).toBeVisible();
 }
 
@@ -76,7 +77,7 @@ async function decide(page: Page, email: string, choice: 'approve' | 'reject', r
 	const dialog = page.getByRole('dialog', { name: 'Review application' });
 	await expect(dialog).toBeVisible();
 	await page.waitForLoadState('networkidle');
-	await dialog.getByLabel(choice === 'approve' ? /^Approve/ : /^Not approved/).check();
+	await dialog.getByLabel(choice === 'approve' ? /Approve · email/ : /Not approved · they/).check();
 	await dialog.getByRole('textbox', { name: 'Reason' }).fill(reason);
 	await dialog.getByLabel(/4-digit PIN/).fill(PIN);
 	return dialog;
@@ -124,7 +125,7 @@ test('apply → admin approves → founder invitation → account → PIN → tr
 	expect(
 		localSql(`select status from founders.applications where email = '${founder.email}'`)
 	).toBe('approved');
-	await adminPage.getByRole('link', { name: 'Approved' }).click();
+	await adminPage.getByRole('link', { name: 'Approved', exact: true }).click();
 	await expect(adminPage.getByRole('row').filter({ hasText: founder.email })).toContainText(
 		'Sent · until'
 	);

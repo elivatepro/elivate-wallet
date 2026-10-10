@@ -1,6 +1,7 @@
 # Blueprint 19 — Founder applications (slice 19)
 
-Status: **owner decisions 2026-10-10; Paper drafts approved 2026-10-10 ("I approve all").**
+Status: **owner decisions 2026-10-10; Paper drafts approved 2026-10-10 ("I approve all"); built
+in slice 19.**
 
 Contract: P-09 (founder entry), 01 W-19 billing ("an approved founder's first network"), 02 W-01
 step 1 (apply first), `docs/member-build-plan.md` "Founder applications (2026-10-10)". Builds on
@@ -59,9 +60,11 @@ trial) and 18 (Admin app, reason + PIN dialogs). Migrations `2026100919xxxx`; pg
 - Delete and truncate are refused.
 
 **`founders.invitations`**
-- At most one per application at a time. Fields: `application_id`, `email`, `token_id`,
-  `token_digest` (32 bytes, unique), `expires_at` (**14 days**), `issue_count`, `status`
-  (`pending`, `accepted`, `replaced`), `accepted_at`, `accepted_user_id`.
+- One per approved application. Fields: `application_id`, `email`, `token_id`,
+  `token_digest` (32 bytes, unique), `expires_at` (**14 days**), `issue_count` (1–6),
+  `status` (`pending` or `accepted`), `accepted_at`, `accepted_user_id`.
+- A resend replaces the token on the same row (as Blueprint 03 reissue), so the old link
+  stops working.
 - The token is the Blueprint 03 HMAC token (`_shared/invite_token.ts`). Only its digest is
   stored.
 

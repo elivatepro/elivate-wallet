@@ -232,9 +232,10 @@
 			gap: 28px;
 		}
 
-		/* 13d: a 560 px panel with paired fields. */
-		:global(.panel:has(.apply-form)) {
+		/* 13d: a 560 px panel with paired fields (outranks the gate layout's 500 px). */
+		:global(div.auth .frame .content:has(.stage) .panel:has(form.apply-form)) {
 			width: 560px;
+			padding: 40px;
 		}
 
 		.grid {
@@ -242,6 +243,10 @@
 			grid-template-columns: 1fr 1fr;
 			gap: 24px 16px;
 			align-items: start;
+		}
+
+		.grid > :global(*) {
+			min-width: 0;
 		}
 
 		.wide {
