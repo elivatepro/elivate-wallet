@@ -195,9 +195,10 @@ test('in-app list: "Invitations for you" → Accept → wizard', async ({ page }
 	await page.getByRole('button', { name: 'Accept invitation to Maple Test Network' }).click();
 	await expect(page.getByRole('heading', { name: 'Welcome to Maple Test Network' })).toBeVisible();
 
-	// The invitation left the list; unfinished setup resumes instead of the picker.
+	// The invitation left the list; unfinished setup resumes at its real step
+	// instead of the picker (Blueprint 22: the backend gate).
 	await page.goto('/workspaces?switch');
-	await expect(page).toHaveURL(/\/onboarding$/);
+	await expect(page).toHaveURL(/\/onboarding\/identity$/);
 });
 
 test('unknown or missing link: one unavailable page', async ({ page }) => {

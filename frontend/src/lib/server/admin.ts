@@ -27,8 +27,13 @@ const GATE_TO_PATH: Record<SecurityState['gate'], string> = {
 	pin_setup_required: ADMIN_PATHS.setupPin,
 	pin_required: ADMIN_PATHS.pin,
 	pin_locked: ADMIN_PATHS.pinLocked,
+	// Blueprint 22: member setup never gates the admin-only calls.
+	profile_required: ADMIN_PATHS.home,
 	ready: ADMIN_PATHS.home
 };
+
+/** Past the PIN gate: member setup (profile_required) doesn't apply here. */
+const pastPin = (gate: SecurityState['gate']) => gate === 'ready' || gate === 'profile_required';
 
 /** Admin page for a gate/auth failure code, or null. */
 export function adminPathForCode(code: string): string | null {
@@ -102,7 +107,7 @@ export const adminPathForGate = (gate: SecurityState['gate']): string => GATE_TO
  */
 async function checkAdmin(event: RequestEvent): Promise<{ session: VerifiedSession; me: AdminMe }> {
 	const { session, state } = await adminGateState(event);
-	if (state.gate !== 'ready') redirect(303, GATE_TO_PATH[state.gate]);
+	if (!pastPin(state.gate)) redirect(303, GATE_TO_PATH[state.gate]);
 	const me = await adminCall(
 		event,
 		session,

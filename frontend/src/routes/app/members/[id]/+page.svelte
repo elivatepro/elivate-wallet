@@ -3,7 +3,9 @@
 	Suspend R09/R10, Move R11/R12 and End R13/R14 (reason + PIN, W-05). The
 	wallet card shows this network's money per currency, only when the leader
 	may see it (never mixed). Reactivate reuses the suspend dialog; "Change
-	role" opens a stub page (no Paper composition yet).
+	role" opens a stub page (no Paper composition yet). Blueprint 22: a
+	director's "Funds" row (President Team) switches "funds not managed" with a
+	reason and the PIN; it says why when the wallet still holds money.
 -->
 <script lang="ts">
 	import '#lib/ui/org/org.css';
@@ -24,7 +26,13 @@
 	import { loadView, OrgCommand } from '#lib/client/org.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { formatMoney, hiddenMoney } from '#lib/money.js';
-	import { LEADER_ROLE, OFFICE_TYPE_LABELS, personName, STATUS_LABELS } from '#lib/org.js';
+	import {
+		fundsRow,
+		LEADER_ROLE,
+		OFFICE_TYPE_LABELS,
+		personName,
+		STATUS_LABELS
+	} from '#lib/org.js';
 	import { ROLE_LABELS } from '#lib/labels.js';
 	import OrgDialog from '#lib/ui/org/OrgDialog.svelte';
 	import OrgHero from '#lib/ui/org/OrgHero.svelte';
@@ -102,6 +110,9 @@
 		role: 'Role changed.'
 	};
 
+	/** Blueprint 22: the Funds row (President Team, or anyone once switched). */
+	const funds = $derived(member ? fundsRow(member) : null);
+
 	async function confirm({ reason, pin }: { reason: string; pin: string | undefined }) {
 		if (!workspace || !dialog) return;
 		const action = dialog;
@@ -112,13 +123,19 @@
 				reason,
 				...(action === 'move' ? { toOfficeId: toOffice } : {}),
 				...(action === 'role' ? { role: newRole } : {}),
+				...(action === 'funds' ? { notManaged: !member?.fundsNotManaged } : {}),
 				...(pin ? { pin } : {})
 			},
 			workspace.membershipId
 		);
 		if (!result) return;
 		open = false;
-		notice = DONE[action] ?? null;
+		notice =
+			action === 'funds'
+				? result.fundsNotManaged === true
+					? 'Funds marked as not managed.'
+					: 'Funds are managed again.'
+				: (DONE[action] ?? null);
 		// A move or role change ends this membership: show the one that replaced it.
 		const moved = typeof result.membershipId === 'string' ? result.membershipId : null;
 		if ((action === 'move' || action === 'role') && moved && moved !== id) {
@@ -242,6 +259,36 @@
 							<dt>Role</dt>
 							<dd>{ROLE_LABELS[member.role]}{member.isPrimary ? ' · primary' : ''}</dd>
 						</div>
+						{#if funds}
+							<div>
+								<dt>Funds</dt>
+								<dd class="funds-cell">
+									<span class="o-stack">
+										<span>{funds.notManaged ? 'Not managed' : 'Managed'}</span>
+										{#if funds.notManaged}
+											<span class="o-sub"
+												>Holds no money. Still records income and runs the team.</span
+											>
+										{:else if funds.blocked}
+											<span class="o-sub"
+												>Can’t switch while their wallet holds money or has something in progress.</span
+											>
+										{/if}
+									</span>
+									{#if funds.action}
+										<button
+											type="button"
+											class="o-ghost funds-action"
+											disabled={!shell.canAct}
+											onclick={() => ask('funds')}
+											>{funds.action === 'clear'
+												? 'Manage funds again'
+												: 'Funds not managed'}</button
+										>
+									{/if}
+								</dd>
+							</div>
+						{/if}
 						<div>
 							<dt>{member.status === 'ended' ? 'Ended' : 'Joined'}</dt>
 							<dd>{date(member.endedAt ?? member.startedAt)}</dd>
@@ -385,6 +432,21 @@
 				</p>
 			</div>
 		</OrgDialog>
+	{:else if dialog === 'funds'}
+		<OrgDialog
+			bind:open
+			pose="member-role"
+			title={member.fundsNotManaged ? 'Manage funds again' : 'Funds not managed'}
+			subtitle={member.fundsNotManaged
+				? 'Their wallet works again; setup asks for their NIN, phone and bank'
+				: 'They stay a director but hold no money'}
+			confirmLabel={member.fundsNotManaged ? 'Manage funds again' : 'Mark funds not managed'}
+			mobileConfirmLabel="Confirm"
+			busy={command.busy}
+			error={command.error}
+			pinError={command.pinError}
+			onConfirm={confirm}
+		/>
 	{:else if dialog === 'end'}
 		<OrgDialog
 			bind:open
@@ -501,6 +563,18 @@
 		margin: 0;
 		font-size: var(--text-14);
 		overflow-wrap: anywhere;
+	}
+
+	.funds-cell {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		padding: 8px 0;
+	}
+
+	.funds-action {
+		flex-shrink: 0;
 	}
 
 	.office-cell {

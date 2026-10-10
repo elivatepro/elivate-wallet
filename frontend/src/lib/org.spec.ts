@@ -5,6 +5,7 @@ import {
 	auditFacts,
 	auditSentence,
 	describeOrgFailure,
+	fundsRow,
 	groupPermissions,
 	initials,
 	keepsKey,
@@ -125,5 +126,53 @@ describe('permission labels (slice 21)', () => {
 		const { permissionLabel } = await import('./org.js');
 		expect(permissionLabel('manage_team_settings')).toBe('Team settings & branding');
 		expect(permissionLabel('request_restore')).toBe('Request a restore');
+	});
+});
+
+describe('funds not managed (Blueprint 22)', () => {
+	const actions = { suspend: false, move: false, end: false, changeRole: false };
+	const director = { role: 'director' as const, actions: { ...actions, funds: true } };
+
+	it('offers the switch to the President Team on a director with an empty wallet', () => {
+		expect(fundsRow({ ...director, fundsNotManaged: false, fundsBlocked: null })).toEqual({
+			notManaged: false,
+			blocked: false,
+			action: 'set'
+		});
+		expect(fundsRow({ ...director, fundsNotManaged: true, fundsBlocked: null })?.action).toBe(
+			'clear'
+		);
+	});
+
+	it('shows why it is blocked while the wallet holds money', () => {
+		expect(
+			fundsRow({ ...director, fundsNotManaged: false, fundsBlocked: 'wallet_not_empty' })
+		).toEqual({ notManaged: false, blocked: true, action: null });
+	});
+
+	it('shows the state to others only once switched, and never for other roles', () => {
+		const leader = { role: 'director' as const, actions };
+		expect(fundsRow({ ...leader, fundsNotManaged: false })).toBeNull();
+		expect(fundsRow({ ...leader, fundsNotManaged: true })).toEqual({
+			notManaged: true,
+			blocked: false,
+			action: null
+		});
+		expect(fundsRow({ role: 'member', actions: { ...actions, funds: true } })).toBeNull();
+	});
+
+	it('explains a refused switch', () => {
+		const refused = (reason: string) =>
+			describeOrgFailure({
+				_tag: 'BackendError',
+				status: 409,
+				code: 'conflict',
+				message: '',
+				retryable: false,
+				details: { reason },
+				requestId: null
+			} as never);
+		expect(refused('wallet_not_empty').kind).toBe('message');
+		expect(refused('wallet_not_empty')).toMatchObject({ text: expect.stringContaining('money') });
 	});
 });

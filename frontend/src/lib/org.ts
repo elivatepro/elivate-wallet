@@ -4,7 +4,12 @@
 
 import type { OfficeType, Role } from '#lib/contract/common.js';
 import type { ApiFailure } from '#lib/contract/errors.js';
-import type { AuditEvent, MembershipStatus, OfficeRow } from '#lib/contract/org-admin.js';
+import type {
+	AuditEvent,
+	MemberDetail,
+	MembershipStatus,
+	OfficeRow
+} from '#lib/contract/org-admin.js';
 import { ROLE_LABELS } from '#lib/labels.js';
 
 export const OFFICE_TYPE_LABELS: Record<OfficeType, string> = {
@@ -324,6 +329,11 @@ export type Outcome =
 	| { readonly kind: 'message'; readonly text: string };
 
 const CONFLICTS: Record<string, string> = {
+	// Blueprint 22 (funds not managed).
+	wallet_not_empty:
+		'Their wallet still holds money or has something in progress here. It can switch once it’s empty.',
+	not_a_director: 'Only a director’s funds can be switched.',
+	funds_not_managed: 'This director’s funds aren’t managed, so no money can go to them.',
 	// Blueprint 16 (billing).
 	seat_limit_reached: 'This network is full. Move up a plan to add more people.',
 	seats_exceed_plan: 'Your network has more people than that plan covers.',
@@ -433,3 +443,29 @@ export function describeOrgFailure(failure: ApiFailure | undefined): Outcome {
 /** Whether the next try must reuse the same idempotency key (outcome unknown, W-00). */
 export const keepsKey = (failure: ApiFailure | undefined) =>
 	!failure || failure._tag !== 'BackendError' || failure.code === 'internal_error';
+
+/**
+ * Blueprint 22: a director's "Funds" row on the member page. Shown to the
+ * President Team (who may switch it) and to anyone once it is switched. The
+ * action is offered only when the backend allows it and nothing blocks it.
+ */
+export interface FundsRow {
+	readonly notManaged: boolean;
+	/** Their wallet holds money (or has something in progress): can't switch on. */
+	readonly blocked: boolean;
+	readonly action: 'set' | 'clear' | null;
+}
+
+export function fundsRow(
+	member: Pick<MemberDetail, 'role' | 'actions' | 'fundsNotManaged' | 'fundsBlocked'>
+): FundsRow | null {
+	const notManaged = member.fundsNotManaged === true;
+	const canSwitch = member.actions.funds === true;
+	if (member.role !== 'director' || (!canSwitch && !notManaged)) return null;
+	const blocked = !notManaged && member.fundsBlocked === 'wallet_not_empty';
+	return {
+		notManaged,
+		blocked,
+		action: !canSwitch || blocked ? null : notManaged ? 'clear' : 'set'
+	};
+}

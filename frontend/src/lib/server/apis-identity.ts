@@ -48,6 +48,9 @@ const readPolicy = {
 
 export interface ProfileChanges {
 	readonly displayName?: string | null;
+	/** Blueprint 22: the light setup names the person (refused once a NIN locks it). */
+	readonly firstName?: string;
+	readonly lastName?: string;
 	readonly phone?: string;
 	readonly rank?: string;
 }

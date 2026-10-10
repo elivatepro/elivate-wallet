@@ -4,7 +4,7 @@ import { error, redirect, type RequestEvent } from '@sveltejs/kit';
 import { Cause, Effect, Exit, Option } from 'effect';
 import type { BackendError } from '#lib/contract/errors.js';
 import type { Gate, SecurityState } from '#lib/contract/security.js';
-import { GATE_PATHS, pathForGateCode, SIGN_IN_PATH, withNext } from '#lib/gate.js';
+import { gatePath, pathForGateCode, SIGN_IN_PATH } from '#lib/gate.js';
 import { SecurityApi } from './apis';
 import type { VerifiedSession } from './auth';
 import type { EdgeFailure } from './edge';
@@ -80,12 +80,10 @@ export async function expectGate(
 	const result = await loadState(event);
 	const gate = result.state.gate;
 	if (!gates.includes(gate)) {
-		// Slice 21: the PIN page and the picker keep an app page asked for in `next`.
-		const keepsNext = gate === 'pin_required' || gate === 'ready';
-		redirect(
-			303,
-			keepsNext ? withNext(GATE_PATHS[gate], event.url.searchParams.get('next')) : GATE_PATHS[gate]
-		);
+		// Slice 21: the PIN page, the setup wizard (Blueprint 22) and the picker
+		// keep the page asked for in `next`, else this page when it is one.
+		const next = event.url.searchParams.get('next') ?? event.url.pathname + event.url.search;
+		redirect(303, gatePath(gate, next));
 	}
 	return result;
 }

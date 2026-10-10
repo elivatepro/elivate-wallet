@@ -52,7 +52,9 @@ export const ERROR_CODES = [
 	'payout_account_unusable',
 	'nin_not_verified',
 	'nin_in_use',
-	'nin_review_required'
+	'nin_review_required',
+	// Blueprint 22: setup by role, enforced on every call.
+	'profile_required'
 ] as const;
 
 export const ErrorCode = Schema.Literals(ERROR_CODES);
@@ -125,6 +127,7 @@ export function categorize(error: ApiFailure): FailureCategory {
 				case 'pin_required':
 				case 'pin_locked':
 				case 'account_blocked':
+				case 'profile_required':
 					return 'session_gate';
 				case 'pin_incorrect':
 					return 'validation';

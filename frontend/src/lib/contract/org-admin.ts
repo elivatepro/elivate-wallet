@@ -104,6 +104,10 @@ export const MemberDetail = Schema.Struct({
 	officeLeaders: Schema.Array(Leader),
 	isSelf: Schema.Boolean,
 	walletId: Schema.NullOr(Uuid),
+	/** Blueprint 22: the director's funds are not managed (no wallet use). */
+	fundsNotManaged: Schema.optional(Schema.Boolean),
+	/** Why the switch can't be turned on now (President Team view only). */
+	fundsBlocked: Schema.optional(Schema.NullOr(Schema.Literal('wallet_not_empty'))),
 	memberships: Schema.Array(
 		Schema.Struct({
 			membershipId: Uuid,
@@ -127,7 +131,9 @@ export const MemberDetail = Schema.Struct({
 		suspend: Schema.Boolean,
 		move: Schema.Boolean,
 		end: Schema.Boolean,
-		changeRole: Schema.Boolean
+		changeRole: Schema.Boolean,
+		/** Blueprint 22: President Team, a director's funds switch. */
+		funds: Schema.optional(Schema.Boolean)
 	})
 });
 export type MemberDetail = typeof MemberDetail.Type;
@@ -236,7 +242,7 @@ export const OrgAdminRoutes = {
 	wallet: (id: string) => ({ method: 'GET', path: `/wallets/${id}` }) as const
 } as const;
 
-export type MembershipAction = 'suspend' | 'reactivate' | 'end' | 'move' | 'role';
+export type MembershipAction = 'suspend' | 'reactivate' | 'end' | 'move' | 'role' | 'funds';
 
 // ── App server endpoints (/api/org/*) ────────────────────────────────────
 
@@ -311,6 +317,8 @@ export const ReplaceLeaderCommand = Command({
 	reason: Reason
 });
 export const MoveCommand = Command({ toOfficeId: Uuid, reason: Reason });
+/** Blueprint 22: "funds not managed" on (true) or off for a director. */
+export const FundsCommand = Command({ notManaged: Schema.Boolean, reason: Reason });
 export const RoleCommand = Command({
 	role: Schema.Literals(['member', 'team_leader', 'director', 'world_team_member']),
 	reason: Reason

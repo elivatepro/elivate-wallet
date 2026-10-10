@@ -4,14 +4,14 @@ import { fail, redirect } from '@sveltejs/kit';
 import { Effect, Exit } from 'effect';
 import { SecurityApi } from '#lib/server/apis.js';
 import { failureOf, redirectForFailure } from '#lib/server/flow.js';
-import { expectStep } from '#lib/server/onboarding.js';
+import { expectStep, stepTotal } from '#lib/server/onboarding.js';
 import { runApi } from '#lib/server/request.js';
 import { pinFieldErrors } from '../../pin/pin-errors';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
-	await expectStep(event, 'pin');
-	return {};
+	const { wizard } = await expectStep(event, 'pin');
+	return { total: stepTotal(wizard.level) };
 };
 
 export const actions: Actions = {

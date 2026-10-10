@@ -5,7 +5,7 @@ import { redirect } from '@sveltejs/kit';
 import { Effect, Exit } from 'effect';
 import { IdentityApi } from '#lib/server/apis-identity.js';
 import { failureOf, redirectForFailure } from '#lib/server/flow.js';
-import { loadWizard } from '#lib/server/onboarding.js';
+import { loadWizard, stepTotal } from '#lib/server/onboarding.js';
 import { runApi } from '#lib/server/request.js';
 import type { PageServerLoad } from './$types';
 
@@ -27,5 +27,5 @@ export const load: PageServerLoad = async (event) => {
 		}
 		redirectForFailure(failure);
 	}
-	return { workspace: exit.value };
+	return { workspace: exit.value, total: stepTotal(wizard.level), light: wizard.level === 'light' };
 };

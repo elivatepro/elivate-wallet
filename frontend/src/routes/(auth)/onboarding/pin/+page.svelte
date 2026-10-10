@@ -8,14 +8,14 @@
 	import { useRoot } from '#lib/ui/root.svelte.js';
 	import type { PageProps } from './$types';
 
-	let { form }: PageProps = $props();
+	let { data, form }: PageProps = $props();
 	let busy = $state(false);
 	useRoot('onboard-pin');
 </script>
 
 <svelte:head><title>Create your PIN · Elivate Wallet</title></svelte:head>
 
-<WizardProgress step={1} backHref="/onboarding" />
+<WizardProgress step={1} total={data.total} backHref="/onboarding" />
 <AuthHeading
 	eyebrow="Step 1 · Security"
 	title="Create your PIN"

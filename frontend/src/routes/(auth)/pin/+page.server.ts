@@ -3,7 +3,7 @@ import { Effect, Exit } from 'effect';
 import { SecurityApi } from '#lib/server/apis.js';
 import { expectGate, failureOf, redirectForFailure } from '#lib/server/flow.js';
 import { runApi } from '#lib/server/request.js';
-import { GATE_PATHS, safeAppNext, safeNext, withNext } from '#lib/gate.js';
+import { GATE_PATHS, gatePath, safeAppNext, safeNext, withNext } from '#lib/gate.js';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
@@ -26,8 +26,13 @@ export const actions: Actions = {
 			})
 		);
 		if (Exit.isSuccess(exit)) {
-			if (exit.value.gate !== 'ready') redirect(303, GATE_PATHS[exit.value.gate]);
 			const next = safeNext(event.url.searchParams.get('next'));
+			if (exit.value.gate === 'profile_required') {
+				// Blueprint 22: unfinished setup. /join, /founder and /onboarding run
+				// it themselves; anything else goes through the wizard and back.
+				redirect(303, next && !safeAppNext(next) ? next : gatePath('profile_required', next));
+			}
+			if (exit.value.gate !== 'ready') redirect(303, GATE_PATHS[exit.value.gate]);
 			// An app page goes back through the workspace picker, which opens it once a
 			// workspace is set (slice 21); /join, /founder and /onboarding go straight back.
 			redirect(303, safeAppNext(next) ? withNext('/workspaces', next) : (next ?? '/workspaces'));

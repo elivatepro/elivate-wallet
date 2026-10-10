@@ -4,7 +4,7 @@ import { SecurityApi } from '#lib/server/apis.js';
 import { expectGate, failureOf, redirectForFailure } from '#lib/server/flow.js';
 import { readOnboardingMembership } from '#lib/server/onboarding.js';
 import { runApi } from '#lib/server/request.js';
-import { GATE_PATHS } from '#lib/gate.js';
+import { gatePath } from '#lib/gate.js';
 import { pinFieldErrors } from '../pin-errors';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -33,11 +33,13 @@ export const actions: Actions = {
 		);
 		if (Exit.isSuccess(exit)) {
 			// A founder who just accepted their invitation continues to network
-			// setup (Blueprint 19); the only `next` this page honours.
+			// setup (Blueprint 19); the only `next` this page honours. Their light
+			// setup (Blueprint 22) comes first, then back to /setup.
 			const founder = event.url.searchParams.get('next') === '/setup';
+			const gate = exit.value.gate;
 			redirect(
 				303,
-				founder && exit.value.gate === 'ready' ? '/setup' : GATE_PATHS[exit.value.gate]
+				founder && gate === 'ready' ? '/setup' : gatePath(gate, founder ? '/setup' : null)
 			);
 		}
 		const failure = failureOf(exit);

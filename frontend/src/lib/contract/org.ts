@@ -17,7 +17,9 @@ export const Workspace = Schema.Struct({
 	role: Role,
 	// my_workspaces returns non-ended memberships only.
 	status: Schema.Literals(['active', 'suspended']),
-	isPrimary: Schema.Boolean
+	isPrimary: Schema.Boolean,
+	/** Blueprint 22: a director membership whose funds are not managed (holds no money). */
+	fundsNotManaged: Schema.optional(Schema.Boolean)
 });
 export type Workspace = typeof Workspace.Type;
 

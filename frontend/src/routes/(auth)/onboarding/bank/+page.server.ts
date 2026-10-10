@@ -2,7 +2,8 @@
 // 12 name mismatch, App v3 Y01 identity check pending). Lookup needs a fresh
 // PIN (step-up); right after the PIN step it usually still holds, otherwise
 // the form asks for the PIN once. Lookup is not confirmation: the person
-// saves it explicitly.
+// saves it explicitly. Blueprint 22: the backend names the wallet membership
+// the account is added in.
 
 import { fail, redirect } from '@sveltejs/kit';
 import { Effect, Exit } from 'effect';
@@ -49,7 +50,7 @@ export const actions: Actions = {
 		if (!ACCOUNT_NUMBER_PATTERN.test(accountNumber))
 			errors.accountNumber = 'Enter the 10-digit account number.';
 		if (Object.keys(errors).length) return fail(400, { ...echo, errors });
-		const membershipId = wizard.membershipId;
+		const membershipId = wizard.walletMembershipId;
 		if (!membershipId) redirect(303, '/onboarding/continue');
 
 		if (pin) {
@@ -116,7 +117,7 @@ export const actions: Actions = {
 		const form = await event.request.formData();
 		const lookupId = String(form.get('lookupId') ?? '');
 		const idempotencyKey = String(form.get('idempotencyKey') ?? '');
-		const membershipId = wizard.membershipId;
+		const membershipId = wizard.walletMembershipId;
 		if (!membershipId) redirect(303, '/onboarding/continue');
 		const exit = await runApi(
 			event,
