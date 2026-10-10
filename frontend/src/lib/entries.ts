@@ -3,6 +3,7 @@
 // out with BigInt, never floats (F-01.4). The backend decides everything.
 
 import type { ApiFailure } from '#lib/contract/errors.js';
+import { pausedMessage } from '#lib/operations.js';
 import type { Currency } from '#lib/contract/ledger.js';
 import type { Entry, EntryKind, ReversalCategory } from '#lib/contract/entries.js';
 import { currencySymbol, formatMoney } from '#lib/money.js';
@@ -146,6 +147,8 @@ export const signedEntryAmount = (e: Pick<Entry, 'direction' | 'amount' | 'curre
 /** Plain refusal copy for these commands (backend reasons kept). */
 export function entryMessage(failure: ApiFailure | undefined): string {
 	if (failure?._tag !== 'BackendError') return 'We couldn’t reach Elivate. Check your connection.';
+	const paused = pausedMessage(failure);
+	if (paused) return paused;
 	const reason = String(failure.details.reason ?? '');
 	switch (failure.code) {
 		case 'insufficient_funds':

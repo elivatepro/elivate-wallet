@@ -56,9 +56,11 @@
 	import { ROLE_LABELS } from '#lib/labels.js';
 	import InstallHint from '#lib/ui/app/InstallHint.svelte';
 	import PausedView from '#lib/ui/app/PausedView.svelte';
+	import OperationPaused from '#lib/ui/app/OperationPaused.svelte';
 	import QuickSearch from '#lib/ui/app/QuickSearch.svelte';
 	import { isSearchShortcut, type SearchPage } from '#lib/client/search.js';
 	import { pausedWriteRoute } from '#lib/paused.js';
+	import { OPERATION_NAMES, stoppedHere } from '#lib/operations.js';
 	import RootHero from '#lib/ui/app/RootHero.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
 	import type { LayoutProps } from './$types';
@@ -333,6 +335,25 @@
 	});
 	/** PL06: a write page on a paused network shows the paused view instead. */
 	const pausedHere = $derived(tenantStatus === 'suspended' && pausedWriteRoute(path));
+
+	// Blueprint 18: a write page whose operation Elivate has stopped (kill
+	// switch) shows the paused state instead. Read fresh on each write page;
+	// the database refuses the operation either way.
+	let stoppedOps = $state<string[]>([]);
+	const onWritePage = $derived(stoppedHere(path, Object.keys(OPERATION_NAMES)) !== null);
+	$effect(() => {
+		if (!onWritePage || !summary) return;
+		const controller = new AbortController();
+		fetch('/api/operations', { signal: controller.signal })
+			.then((r) => (r.ok ? r.json() : null))
+			.then((body: { data?: { stopped?: unknown } } | null) => {
+				const list = body?.data?.stopped;
+				stoppedOps = Array.isArray(list) ? list.filter((x) => typeof x === 'string') : [];
+			})
+			.catch(() => undefined);
+		return () => controller.abort();
+	});
+	const operationHere = $derived(onWritePage ? stoppedHere(path, stoppedOps) : null);
 </script>
 
 <svelte:window onkeydown={onKeydown} />
@@ -831,6 +852,8 @@
 				</div>
 			{:else if pausedHere && summary}
 				<PausedView network={summary.tenantName} canPay={billing} />
+			{:else if operationHere}
+				<OperationPaused operation={operationHere} />
 			{:else}
 				{@render children()}
 			{/if}

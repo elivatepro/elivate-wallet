@@ -138,7 +138,7 @@
 									name="pin"
 									type="password"
 									inputmode="numeric"
-									pattern="[0-9]{4}"
+									pattern={'[0-9]{4}'}
 									maxlength="4"
 									autocomplete="off"
 									value={pin}

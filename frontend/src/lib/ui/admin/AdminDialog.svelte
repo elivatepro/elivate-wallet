@@ -55,7 +55,7 @@
 				{#if lead}<p>{lead}</p>{/if}
 			</div>
 		</header>
-		<form method="POST" {action}>
+		<form method="POST" {action} novalidate>
 			<input type="hidden" name="idempotencyKey" value={idempotencyKey} />
 			{@render children?.()}
 			<label class="reason">
@@ -66,8 +66,8 @@
 					minlength="3"
 					maxlength="500"
 					rows="3"
-					placeholder={reasonPlaceholder}>{reason}</textarea
-				>
+					placeholder={reasonPlaceholder}
+					value={reason}></textarea>
 			</label>
 			<PinField id="admin-pin" name="pin" label="Confirm it’s you · 4-digit PIN" />
 			{#if error}<p class="error" role="alert">{error}</p>{/if}

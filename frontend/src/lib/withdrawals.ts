@@ -3,6 +3,7 @@
 // decimal strings only; NGN only for withdrawals (W-09).
 
 import type { ApiFailure } from '#lib/contract/errors.js';
+import { pausedMessage } from '#lib/operations.js';
 import type {
 	Payout,
 	PayoutRevision,
@@ -231,6 +232,8 @@ export function transferStage(t: PocketTransfer): { label: string; tone: Tone } 
 /** Plain refusal copy for the money-move commands (backend reasons kept). */
 export function moveMessage(failure: ApiFailure | undefined): string {
 	if (failure?._tag !== 'BackendError') return 'We couldn’t reach Elivate. Check your connection.';
+	const paused = pausedMessage(failure);
+	if (paused) return paused;
 	const reason = String(failure.details.reason ?? '');
 	switch (failure.code) {
 		case 'insufficient_funds':
