@@ -12,27 +12,40 @@
 		hasPhoto = false,
 		photoSrc = null,
 		required = true,
+		converting = $bindable(false),
 		error
 	}: {
 		hasPhoto?: boolean;
 		photoSrc?: string | null;
 		required?: boolean;
+		/** True while a chosen photo is being shrunk; the form waits for it. */
+		converting?: boolean;
 		error?: string | null;
 	} = $props();
 
 	let preview = $state<string | null>(null);
 	const onChange = async (event: Event) => {
 		const input = event.currentTarget as HTMLInputElement;
+		const chosen = input.files?.[0] ?? null;
 		if (preview) URL.revokeObjectURL(preview);
 		preview = null;
+		converting = !!chosen;
 		const file = await shrinkInputPhoto(input);
+		// Only the latest choice updates the preview (a newer one may be converting).
+		if (input.files?.[0] !== chosen && input.files?.[0] !== file) return;
+		converting = false;
 		preview = file ? URL.createObjectURL(file) : null;
 	};
 	const shown = $derived(preview ?? (hasPhoto ? photoSrc : null));
 </script>
 
 <div class="photo">
-	<label class="circle" class:filled={!!shown} class:invalid={!!error}>
+	<label
+		class="circle"
+		class:filled={!!shown}
+		class:invalid={!!error}
+		aria-busy={converting ? 'true' : undefined}
+	>
 		{#if shown}
 			<img src={shown} alt="" />
 		{:else}

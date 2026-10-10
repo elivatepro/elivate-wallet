@@ -150,4 +150,12 @@ test('President Team: every Invite entry opens Invitations; no wallet modules', 
 	await page.getByLabel('PIN', { exact: true }).fill(PIN);
 	await page.getByRole('button', { name: 'Verify' }).click();
 	await expectInvitations(page);
+
+	// ... and through the server gates too (sign-in while signed in → picker → PIN).
+	lapse();
+	await page.goto('/sign-in?next=%2Fapp%2Finvitations');
+	await expect(page).toHaveURL(/\/pin\?next=%2Fapp%2Finvitations$/);
+	await page.getByLabel('PIN', { exact: true }).fill(PIN);
+	await page.getByRole('button', { name: 'Verify' }).click();
+	await expectInvitations(page);
 });

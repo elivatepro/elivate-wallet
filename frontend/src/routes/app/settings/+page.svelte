@@ -94,7 +94,10 @@
 
 	const assetUrl = (kind: 'logo' | 'icon' | 'logo-light') =>
 		previews[kind] ??
-		(view && hasAsset(kind) ? `/api/brand/${kind}?v=${view.settings.revision}` : null);
+		(view && hasAsset(kind)
+			? // The network too: revisions count per network (slice 21).
+				`/api/brand/${kind}?t=${shell.state.kind === 'ready' ? shell.state.view.workspace.tenantId : ''}&v=${view.settings.revision}`
+			: null);
 	const hasAsset = (kind: 'logo' | 'icon' | 'logo-light') =>
 		!!view &&
 		(kind === 'logo'

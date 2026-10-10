@@ -247,6 +247,10 @@
 			delete root.dataset.teamTheme;
 		};
 	});
+	/** Revisions count per network: the network keeps cached icons apart (slice 21). */
+	const brandTenant = $derived(
+		shell.state.kind === 'ready' ? shell.state.view.workspace.tenantId : ''
+	);
 	const tileInitial = $derived(
 		(brand?.name ?? summary?.tenantName ?? '').trim().charAt(0).toUpperCase()
 	);
@@ -402,7 +406,7 @@
 	<!-- Blueprint 17: the network's square icon, else its initial on the theme colour. -->
 	{#if brand?.hasIcon}
 		<span class="brand-tile icon" aria-hidden="true"
-			><img src="/api/brand/icon?v={brand.revision}" alt="" /></span
+			><img src="/api/brand/icon?t={brandTenant}&v={brand.revision}" alt="" /></span
 		>
 	{:else if tileInitial}
 		<span class="brand-tile initial" aria-hidden="true">{tileInitial}</span>

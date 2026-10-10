@@ -84,6 +84,8 @@ export async function shrinkInputPhoto(input: HTMLInputElement): Promise<File | 
 	const file = input.files?.[0];
 	if (!file) return null;
 	const small = await shrinkPhoto(file);
+	// A newer choice while this one was converting wins: leave it alone.
+	if (input.files?.[0] !== file) return null;
 	if (small !== file && typeof DataTransfer === 'function') {
 		try {
 			const transfer = new DataTransfer();
