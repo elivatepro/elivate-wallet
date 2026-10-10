@@ -49,9 +49,10 @@
 	let notice = $state<string | null>(null);
 
 	async function load() {
+		const ticket = read.begin();
 		const result = await loadView(AppOrgRoutes.offices, OfficesView);
 		if (result.ok) {
-			read.fresh(result.value, shell.scope);
+			if (!read.fresh(result.value, shell.scope, ticket)) return load();
 			loadError = null;
 		} else loadError = result.text;
 	}

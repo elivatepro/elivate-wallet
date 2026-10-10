@@ -275,10 +275,13 @@
 		controller = current;
 		if (more) loadingMore = true;
 		else loading = true;
+		const ticket = cached.begin();
 		const exit = await Effect.runPromiseExit(
 			getJson(`/api/activity?${params(more ? nextCursor : null)}`, ActivityView, current.signal)
 		);
 		if (current.signal.aborted) return;
+		// Another tab switched workspace while this ran: the entries are not ours.
+		if (!cached.current(ticket)) return load();
 		loading = false;
 		loadingMore = false;
 		if (Exit.isSuccess(exit)) {
@@ -296,7 +299,7 @@
 			if (!more) total = view.activity.total ?? null;
 			failure = null;
 			loaded = true;
-			if (!more && !wallet && !filtered) cached.fresh(view, shell.scope);
+			if (!more && !wallet && !filtered) cached.fresh(view, shell.scope, ticket);
 			cachedAt = null;
 			return;
 		}

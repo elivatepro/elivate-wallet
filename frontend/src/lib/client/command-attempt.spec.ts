@@ -246,7 +246,7 @@ describe('CommandAttempt invalidation (Blueprint 20 B6)', () => {
 	])('%s clears balances, history and wallets on success', async (command, path) => {
 		const { attempt, cleared } = make(command, path);
 		await attempt.send('ws-1', {});
-		expect(cleared).toEqual([['balances', 'history', 'wallets']]);
+		expect(cleared).toEqual([['balances', 'history', 'wallets', 'offices']]);
 	});
 
 	it('falls back to the path for other commands', async () => {

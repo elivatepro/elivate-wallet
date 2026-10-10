@@ -47,10 +47,11 @@
 		controller?.abort();
 		const current = new AbortController();
 		controller = current;
+		const ticket = read.begin();
 		void Effect.runPromiseExit(loadHome(fetch, current.signal)).then((exit) => {
 			if (current.signal.aborted) return;
 			if (Exit.isSuccess(exit)) {
-				read.fresh(exit.value, shell.scope);
+				if (!read.fresh(exit.value, shell.scope, ticket)) return load();
 				failed = null;
 				return;
 			}

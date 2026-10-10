@@ -5,7 +5,8 @@
 
 import type { CacheKind } from './device-cache';
 
-const MONEY: readonly CacheKind[] = ['balances', 'history', 'wallets'];
+// Offices show held-money totals too (Greptile P2 on PR #57).
+const MONEY: readonly CacheKind[] = ['balances', 'history', 'wallets', 'offices'];
 const ORG: readonly CacheKind[] = ['offices', 'members'];
 const SETTINGS: readonly CacheKind[] = ['settings'];
 

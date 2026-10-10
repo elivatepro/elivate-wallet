@@ -46,7 +46,7 @@ describe('CachedRead (Blueprint 20 B6)', () => {
 	it('keeps fresh data once the scope is known and serves it from memory', () => {
 		const store = new MemoryStore();
 		const read = new CachedRead<number>('wallets', undefined, store);
-		read.fresh(7, null);
+		read.fresh(7, null, read.begin());
 		expect(read.data).toBe(7);
 		expect(readCache(store, alice, 'wallets', { who: WHO })).toBeNull();
 		read.confirm(alice);
@@ -70,12 +70,47 @@ describe('CachedRead (Blueprint 20 B6)', () => {
 		expect(read.savedAt).toBeNull();
 	});
 
+	it('drops a reply when another tab switched workspace while it ran (PR #57 P1)', () => {
+		const store = new MemoryStore();
+		const read = new CachedRead<number>('balances', undefined, store);
+		const ticket = read.begin();
+		cookie = 'ew_who=b3RoZXItcGVyc29uLTEyMzQ';
+		expect(read.current(ticket)).toBe(false);
+		expect(read.fresh(5, alice, ticket)).toBe(false);
+		expect(read.data).toBeNull();
+		expect(store.keys()).toHaveLength(0);
+		expect(new CachedRead('balances', undefined, new MemoryStore()).show()).toBe(false);
+	});
+
+	it('never keeps a pending reply under a workspace confirmed after a switch', () => {
+		const store = new MemoryStore();
+		const read = new CachedRead<number>('balances', undefined, store);
+		const refetched: number[] = [];
+		read.watch(() => refetched.push(1));
+		expect(read.fresh(5, null, read.begin())).toBe(true);
+		cookie = 'ew_who=b3RoZXItcGVyc29uLTEyMzQ';
+		read.confirm(bob);
+		expect(read.data).toBeNull();
+		expect(store.keys()).toHaveLength(0);
+		expect(refetched).toEqual([1]);
+	});
+
+	it('drops fresh data shown for another workspace and fetches again', () => {
+		const read = new CachedRead<number>('balances', undefined, new MemoryStore());
+		const refetched: number[] = [];
+		read.watch(() => refetched.push(1));
+		read.fresh(5, alice, read.begin());
+		read.confirm(bob);
+		expect(read.data).toBeNull();
+		expect(refetched).toEqual([1]);
+	});
+
 	it('invalidate clears memory and device entries of those kinds and refetches watchers', () => {
 		const store = new MemoryStore();
 		const balances = new CachedRead<number>('balances', undefined, store);
 		const settings = new CachedRead<number>('settings', undefined, store);
-		balances.fresh(1, alice);
-		settings.fresh(2, alice);
+		balances.fresh(1, alice, balances.begin());
+		settings.fresh(2, alice, settings.begin());
 		const refetched: string[] = [];
 		const unwatch = balances.watch(() => refetched.push('balances'));
 		settings.watch(() => refetched.push('settings'));
@@ -92,7 +127,7 @@ describe('CachedRead (Blueprint 20 B6)', () => {
 	it('never keeps a payload the forbidden-field guard refuses', () => {
 		const store = new MemoryStore();
 		const read = new CachedRead<object>('wallets', undefined, store);
-		read.fresh({ accountNumber: '0123456789' }, alice);
+		read.fresh({ accountNumber: '0123456789' }, alice, read.begin());
 		expect(read.data).toEqual({ accountNumber: '0123456789' });
 		expect(store.keys()).toHaveLength(0);
 		expect(new CachedRead('wallets', undefined, new MemoryStore()).show()).toBe(false);
@@ -101,10 +136,10 @@ describe('CachedRead (Blueprint 20 B6)', () => {
 
 describe('invalidatesForPath (Blueprint 20 B6)', () => {
 	it.each([
-		['/api/income', ['balances', 'history', 'wallets']],
-		['/api/queue/abc/approve', ['balances', 'history', 'wallets']],
-		['/api/transfers/abc/approve', ['balances', 'history', 'wallets']],
-		['/api/evidence-reviews/abc/decision', ['balances', 'history', 'wallets']],
+		['/api/income', ['balances', 'history', 'wallets', 'offices']],
+		['/api/queue/abc/approve', ['balances', 'history', 'wallets', 'offices']],
+		['/api/transfers/abc/approve', ['balances', 'history', 'wallets', 'offices']],
+		['/api/evidence-reviews/abc/decision', ['balances', 'history', 'wallets', 'offices']],
 		['/api/org/offices/abc/close', ['offices', 'members']],
 		['/api/org/members/abc/suspend', ['offices', 'members']],
 		['/api/invitations', ['offices', 'members']],

@@ -58,18 +58,21 @@
 		if (officeId) params.set('officeId', officeId);
 		if (more && nextCursor) params.set('cursor', nextCursor);
 		loadingMore = more;
+		const ticket = cached.begin();
 		const result = await loadView(
 			`${AppOrgRoutes.members}${params.size ? `?${params}` : ''}`,
 			MemberRows
 		);
 		if (mine !== seq) return;
 		loadingMore = false;
+		// Another tab switched workspace while this ran: the rows are not ours.
+		if (!cached.current(ticket)) return load();
 		if (result.ok) {
 			items = more ? [...items, ...result.value.items] : [...result.value.items];
 			nextCursor = result.value.nextCursor;
 			loaded = true;
 			loadError = null;
-			if (first) cached.fresh(result.value, shell.scope);
+			if (first) cached.fresh(result.value, shell.scope, ticket);
 			cachedAt = null;
 		} else loadError = result.text;
 	}

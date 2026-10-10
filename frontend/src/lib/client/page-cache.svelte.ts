@@ -2,8 +2,10 @@
 //
 //   const read = new CachedRead<HomeView>('balances');
 //   read.show();                    // memory, else device cache (ew_who must match)
+//   const ticket = read.begin();    // the ew_who the request is sent under
 //   ...fetch at once, without waiting for the shell...
-//   read.fresh(value, shell.scope); // shown at once; kept once the scope is known
+//   if (!read.current(ticket)) return load(); // another tab switched workspace
+//   read.fresh(value, shell.scope, ticket);   // shown at once; kept once the scope is known
 //   $effect(() => { if (shell.scope) read.confirm(shell.scope); });
 //   onMount(() => read.watch(refetch)); // a command cleared this kind
 //
@@ -36,6 +38,11 @@ const memory = new Map<string, MemoryEntry>();
 // eslint-disable-next-line svelte/prefer-svelte-reactivity
 const watchers = new Set<{ readonly kind: CacheKind; readonly refetch: () => void }>();
 
+/** The `ew_who` a request was sent under (Greptile P1 on PR #57). */
+export interface ReadTicket {
+	readonly who: string | null;
+}
+
 const memoryKey = (kind: CacheKind, part?: string) => (part ? `${kind}:${part}` : kind);
 const sameScope = (a: CacheScope, b: CacheScope) =>
 	a.uid === b.uid && a.workspaceId === b.workspaceId;
@@ -67,8 +74,9 @@ export class CachedRead<T> {
 	readonly #kind: CacheKind;
 	readonly #part: string | undefined;
 	readonly #store: KeyValueStore | null;
+	#refetch: (() => void) | null = null;
 	#shownScope: CacheScope | null = null;
-	#pending: { readonly data: T } | null = null;
+	#pending: { readonly data: T; readonly who: string | null } | null = null;
 
 	constructor(kind: CacheKind, part?: string, store: KeyValueStore | null = browserStore()) {
 		this.#kind = kind;
@@ -93,13 +101,36 @@ export class CachedRead<T> {
 		return true;
 	}
 
-	/** Fresh server data: shown at once, kept once the session has named the scope. */
-	fresh(data: T, scope: CacheScope | null): void {
+	/** Call before each request: remembers which person and workspace it is for. */
+	begin(): ReadTicket {
+		return { who: currentWho() };
+	}
+
+	/**
+	 * False when the person or workspace changed while the request ran (e.g.
+	 * another tab switched workspace): the reply belongs to the old one and
+	 * must be neither shown nor kept.
+	 */
+	current(ticket: ReadTicket): boolean {
+		return ticket.who === currentWho();
+	}
+
+	/**
+	 * Fresh server data: shown at once, kept once the session has named the
+	 * scope. A reply for a person or workspace that is no longer current is
+	 * dropped instead (returns false).
+	 */
+	fresh(data: T, scope: CacheScope | null, ticket: ReadTicket): boolean {
+		if (!this.current(ticket)) {
+			this.clear();
+			return false;
+		}
 		this.data = data;
 		this.savedAt = null;
 		this.#shownScope = scope;
-		if (scope) this.#keep(data, scope);
-		else this.#pending = { data };
+		if (scope) this.#keep(data, scope, ticket.who);
+		else this.#pending = { data, who: ticket.who };
+		return true;
 	}
 
 	/**
@@ -107,14 +138,23 @@ export class CachedRead<T> {
 	 * another pair is dropped; fresh data waiting for the scope is kept.
 	 */
 	confirm(scope: CacheScope): void {
-		if (this.savedAt !== null && this.#shownScope && !sameScope(this.#shownScope, scope)) {
+		// Cached or fresh: data shown for another pair is never relabelled; it is
+		// dropped and fetched again for the confirmed pair.
+		if (this.#shownScope && !sameScope(this.#shownScope, scope)) {
 			this.clear();
+			this.#refetch?.();
+			return;
 		}
 		const pending = this.#pending;
 		if (pending) {
 			this.#pending = null;
+			if (pending.who !== currentWho()) {
+				this.clear();
+				this.#refetch?.();
+				return;
+			}
 			this.#shownScope = scope;
-			this.#keep(pending.data, scope);
+			this.#keep(pending.data, scope, pending.who);
 		}
 	}
 
@@ -129,8 +169,12 @@ export class CachedRead<T> {
 	/** Calls `refetch` when a command invalidates this kind. Returns the unsubscribe. */
 	watch(refetch: () => void): () => void {
 		const watcher = { kind: this.#kind, refetch };
+		this.#refetch = refetch;
 		watchers.add(watcher);
-		return () => watchers.delete(watcher);
+		return () => {
+			watchers.delete(watcher);
+			if (this.#refetch === refetch) this.#refetch = null;
+		};
 	}
 
 	#showCached(data: T, savedAt: number, scope: CacheScope): void {
@@ -139,9 +183,9 @@ export class CachedRead<T> {
 		this.#shownScope = scope;
 	}
 
-	#keep(data: T, scope: CacheScope): void {
-		const who = currentWho();
-		if (!who) return;
+	#keep(data: T, scope: CacheScope, who: string | null): void {
+		// Only under the ew_who the request was sent with, and only if still current.
+		if (!who || who !== currentWho()) return;
 		const now = Date.now();
 		try {
 			if (this.#store) {

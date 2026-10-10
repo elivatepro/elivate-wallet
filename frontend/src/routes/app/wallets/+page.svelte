@@ -95,15 +95,18 @@
 		const p = new SvelteURLSearchParams();
 		if (applied) p.set('q', applied);
 		if (more && list?.nextCursor) p.set('cursor', list.nextCursor);
+		const ticket = cached.begin();
 		const exit = await Effect.runPromiseExit(
 			getJson(`/api/wallets?${p}`, ManagedWalletPage, ctrl.signal)
 		);
 		if (ctrl.signal.aborted) return;
+		// Another tab switched workspace while this ran: the wallets are not ours.
+		if (!cached.current(ticket)) return loadList();
 		if (Exit.isSuccess(exit)) {
 			items = more ? [...items, ...exit.value.items] : [...exit.value.items];
 			list = exit.value;
 			listError = null;
-			if (!more && !applied) cached.fresh(exit.value, shell.scope);
+			if (!more && !applied) cached.fresh(exit.value, shell.scope, ticket);
 			cachedAt = null;
 			return;
 		}

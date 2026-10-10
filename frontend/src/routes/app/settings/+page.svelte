@@ -42,10 +42,11 @@
 	let checked = false;
 
 	async function load() {
+		const ticket = read.begin();
 		const result = await loadView('/api/settings', SettingsView);
 		if (checked && !canEdit) return;
 		if (result.ok) {
-			read.fresh(result.value, shell.scope);
+			if (!read.fresh(result.value, shell.scope, ticket)) return load();
 			form = formOf(result.value.settings);
 			loadError = null;
 		} else loadError = result.text;
@@ -72,7 +73,9 @@
 		}
 	});
 
-	const editable = $derived(!!view?.canEdit);
+	// Read-only while cached data shows: the fresh view replaces the form, so
+	// edits made before it arrives would be lost (Greptile P2 on PR #57).
+	const editable = $derived(!!view?.canEdit && read.savedAt === null);
 	const patch = $derived(
 		view && form
 			? buildPatch(
