@@ -77,8 +77,8 @@ build updates the affected contract line (`00-product.md` U-table, `01-domain-ru
 ### Deferred (do not build now)
 - Workspace requests (U-04). Founders create networks directly; invitations only.
 - White-label custom domains (U-05). Network branding (logo, colour, name) is in scope.
-- Kill switches and feature flags (with the Admin app).
-- The Admin app itself.
+- ~~Kill switches and feature flags (with the Admin app).~~ Kill switches built in slice 18 (Blueprint 18); feature flags deferred again (2026-10-10).
+- ~~The Admin app itself.~~ Built in slice 18 (Blueprint 18).
 
 ### Backups (U-06)
 - Build **restore requests** (W-24 statuses, `RST` reference, requester notified; Elivate

@@ -1,0 +1,25 @@
+// Blueprint 18 (owner answer Q1): the platform Admin site. Same build as the
+// Wallet app (wrangler.jsonc), deployed as its own Worker on
+// admin.elivatewallet.com with APP_SURFACE=admin, so it serves only /admin/*,
+// keeps its session in its own host-only cookie and holds its own secrets.
+// Secrets (wrangler secret put --config wrangler.admin.jsonc): SUPABASE_URL,
+// SUPABASE_PUBLISHABLE_KEY, APP_SERVER_SECRET (same value as the Edge secret).
+// Cloudflare Access sits in front of the host (owner answer Q2).
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "elivate-wallet-admin",
+	"compatibility_date": "2026-10-08",
+	"compatibility_flags": ["nodejs_compat"],
+	"main": ".svelte-kit/cloudflare/_worker.js",
+	"assets": {
+		"binding": "ASSETS",
+		"directory": ".svelte-kit/cloudflare"
+	},
+	"vars": { "APP_SURFACE": "admin" },
+	"observability": { "enabled": true },
+	// Restore validation re-reads Team Vault archives (read only; owner answer Q7).
+	"r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "elivate-wallet-dev-backups" }],
+	"routes": [{ "pattern": "admin.elivatewallet.com", "custom_domain": true }],
+	"workers_dev": false,
+	"preview_urls": false
+}

@@ -137,12 +137,15 @@ export function actionLabel(action: string): string {
 export const sectionLabel = (section: string): string => actionLabel(section);
 
 /** Builds a URL for the same page with some query values changed (null removes). */
-export function withQuery(url: URL, changes: Record<string, string | null>): string {
-	const next = new URL(url);
+export function withQuery(
+	url: { readonly pathname: string; readonly search: string },
+	changes: Record<string, string | null>
+): string {
+	const params = new URLSearchParams(url.search);
 	for (const [key, value] of Object.entries(changes)) {
-		if (value === null || value === '') next.searchParams.delete(key);
-		else next.searchParams.set(key, value);
+		if (value === null || value === '') params.delete(key);
+		else params.set(key, value);
 	}
-	const query = next.searchParams.toString();
-	return `${next.pathname}${query ? `?${query}` : ''}`;
+	const query = params.toString();
+	return `${url.pathname}${query ? `?${query}` : ''}`;
 }

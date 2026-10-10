@@ -6,6 +6,7 @@ node_modules
 .netlify
 .wrangler
 .wrangler-dry
+.wrangler-dry-admin
 /.svelte-kit
 /build
 

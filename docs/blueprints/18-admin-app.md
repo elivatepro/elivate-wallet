@@ -254,132 +254,102 @@ My recommendations:
 
 ---
 
-## Part B — Build spec (for the recommended answers; revised after Part A is answered)
+## Part B — Build spec (as built)
 
-### B1. Data (`platform` schema, private)
-- `platform.kill_switches`:
-  - Columns: `key` (`withdrawals`, `payouts`, `transfers`, `conversion`, `income`,
-    `adjustments`, `reversals`, `returned_funds`), `tenant_id` (null = platform-wide), `stopped`,
-    `reason`, `changed_by`, `changed_at`.
-  - Unique on (key, tenant_id).
-  - Platform rows are seeded as running.
-- `platform.kill_switch_changes`: append-only (`audit.reject_change`), one row per stop or start.
-- Optional, if Q5 = (b): `platform.feature_flags`, `platform.flag_targets` and
-  `platform.flag_changes`. These are UI-visibility only and have no link to `authz`.
-- RLS is on, there are no policies, and no grants to `anon`/`authenticated`.
+### B1. Data (`platform` schema, private; migration `20261009180100`)
+- `platform.kill_switches`: `key` (`withdrawals`, `payouts`, `transfers`, `conversion`, `income`,
+  `adjustments`, `reversals`, `returned_funds`), `tenant_id` (null = platform-wide), `stopped`,
+  `reason`, `changed_by`, `changed_at`. One platform row per key (seeded running) and at most one
+  row per key and network.
+- `platform.kill_switch_changes`: append-only history (update, delete and truncate refused).
+- `backups.restore_rows` (archive rows staged for one comparison, removed when the request
+  finishes) and `backups.restore_checks` (validation result; migration `20261009180300`).
+- RLS on, no policies, no client grants. Feature flags are not built (Q5).
 
 ### B2. Rules
-- `platform.switch_for(permission_key)` maps a permission to a switch:
-  - `request_withdrawal`, `approve_withdrawal` → withdrawals
-  - `record_payout` → payouts
-  - `transfer_between_*`, `approve_pocket_transfer` → transfers
-  - `perform_currency_conversion` → conversion
-  - `record_income` → income
-  - `manual_credit_debit_adjustment` → adjustments
-  - `reverse_transaction` → reversals
-  - `record_returned_funds` → returned_funds
-- `authz.require` checks the switch (platform row or the tenant row) after the paused check.
-  If stopped, it raises `conflict{reason: operation_paused, switch}`.
-- Not checked: cancel and reject commands, `finance.require_reviewer`, reads, command-outcome
-  recovery, and payout recording with `p_allow_paused` for withdrawals approved before the stop.
-  - Each of these gets a pgTAP case so that a stop never strands a reservation.
-- Switch reads are `stable` and indexed. No caching that could serve a stale "running".
+- **Where a stop is enforced:** row triggers on the tables a new operation writes, so every
+  command path is covered (not `authz.require`: payout recording and withdrawal approval share
+  the `approve_withdrawal` permission, so a permission key can't tell them apart):
+  - `finance.withdrawals`: insert, and `requested → approved` → withdrawals.
+  - `finance.payouts` / `finance.payout_revisions`: insert → payouts.
+  - `finance.pocket_transfers`: insert, and `requested → completed` → transfers.
+  - `finance.entries`: insert by kind → conversion, adjustments, returned_funds.
+  - `finance.income_records`: insert → income. `finance.reversals`: insert → reversals.
+- A stopped switch (platform row, or the network's row) raises
+  `conflict{reason: operation_paused, operation}`.
+- **Not affected:** cancel, reject and decline; payouts of withdrawals approved before a
+  withdrawals stop; reviews of entries already submitted; reads; replays of committed commands
+  (unknown-outcome recovery returns the stored result before any insert). Reservations are never
+  touched. pgTAP `180` covers each case.
+- **Restores:** `in_review` only through a passing validation (`admin_restore_validated`, which
+  also checks that the staged row counts equal the manifest); an operator can still fail a stuck
+  validation; restoring and completed stay manual with a reason.
 
-### B3. Commands and reads (all `api.*`, `security definer`, `search_path = ''`, platform admin)
-- **Reads:**
-  - `admin_me`: admin yes/no, PIN state, open step-up window.
-  - `admin_overview`: counts, switch strip, open restores, the last 5 audit events.
-  - `admin_tenants`: list with search, status filter and keyset cursor. Plan, period end and
-    seats come from billing.
-  - `admin_tenant`: detail, organisation counts, Billing Owner.
-  - `admin_accounts`: list.
-  - `admin_account`: detail with memberships, status history and security summary. No IPs;
-    city/country only.
-  - `admin_search`:
-    - Keys: UID, name, email prefix, phone digits, any `XXX-XXXX-XXXX` reference, network name.
-    - Bank account: an exact 10-digit number, which the Edge layer turns into the HMAC
-      fingerprint. The full number never reaches SQL or logs.
-    - Results are masked.
-  - `admin_audit`: the union of `security_events` and `tenant_events`, with filters (actor,
-    action group, tenant, date range) and a keyset cursor; safe fields only.
-  - `admin_admins`.
-  - `admin_switches`.
-  - `admin_restores`, plus `admin_restore_diff` if Q7 = (a).
-- **Writes (PIN + reason + idempotency key):**
-  - `admin_set_switch(key, tenant_id?, stopped, reason)`. Audited as `kill_switch.stopped` or
-    `kill_switch.started` in `security_events`. A per-network stop is also written to
-    `tenant_events` as `operations.paused_by_elivate`.
-  - Existing: `set_account_status`, `grant/revoke_platform_admin`, `activate_tenant`,
-    `platform_advance_restore`, `outbox_requeue`, `decide_nin_review`.
-- **Fixes:**
-  - `docs/frontend-plan.md` still lists `authorization_denied{self_target}` for
-    `set_account_status`. Update it to `self_target_forbidden`.
+### B3. Database functions (all `api.*`, `security definer`, `search_path = ''`, platform admin)
+- **Reads:** `admin_me` (no admin check: says whether you are one), `admin_overview`,
+  `admin_tenants` (search incl. President name, state filter, keyset cursor, counts),
+  `admin_tenant`, `admin_accounts`, `admin_account` (memberships, status history, PIN state,
+  sessions, last sign-in, unusual sign-ins in 7 days; no IPs), `admin_search` (UID, name, email
+  prefix, phone — last 10 digits so 0801… finds +234801…, any public reference, network, office;
+  bank account by fingerprint list), `admin_bank_codes`, `admin_audit` (merged security and
+  network events, filters: text, action group, actor UID, network, WAT dates; cursor),
+  `admin_admins`, `admin_switches`, `admin_restores`, `admin_restore` (validation, per-section
+  differences computed live: archive vs now, added / removed / changed, manual vs kept).
+- **Writes:** `admin_set_switch` (PIN, reason, idempotent; audited `kill_switch.stopped|started`;
+  a per-network change also writes `operations.paused_by_elivate|resumed_by_elivate` to that
+  network's audit log), `admin_restore_source` / `admin_restore_rows` / `admin_restore_validated`
+  (the validation run), and the existing commands. `api.stopped_operations` serves the member app.
 
 ### B4. Routes
-- New Edge Function `admin` (`verify_jwt = true`) gathers every admin route: `GET /me`,
-  `/overview`, `/tenants`, `/tenants/:id`, `/accounts`, `/accounts/:uid`, `/search?q=`,
-  `/audit`, `/admins`, `/switches`, `/restores`, `/restores/:id/diff`, `/outbox`, `/nin/reviews`,
-  `/tenants/:id/allocation-versions`; `POST /switches`, `/accounts/:uid/status`, `/admins/grant`,
-  `/admins/revoke`, `/tenants/:id/activate`, `/restores/:id/advance`, `/outbox/:id/requeue`,
-  `/nin/reviews/:id/decide`.
-- The existing admin routes on `security`, `org`, `ledger` and `identity` stay for now and are
-  removed in a follow-up once nothing calls them.
-- Every request and response is validated with the shared envelopes and error codes.
-- Every admin call carries `x-app-server-secret` from the admin Worker. This is defence in depth:
-  only the admin site can reach these routes, even with a valid user token.
+- New Edge Function `admin` (`verify_jwt = true`): every route needs a verified token **and**
+  `x-app-server-secret` (only the admin Worker holds it). `GET /me`, `/overview`, `/search?q=`,
+  `/tenants`, `/tenants/:id`, `/tenants/:id/allocation-versions`, `/accounts`, `/accounts/:uid`,
+  `/switches`, `/audit`, `/admins`, `/restores`, `/restores/:id`, `/outbox`, `/nin/reviews`;
+  `POST /tenants/:id/activate`, `/accounts/:uid/status`, `/switches`, `/admins/grant`,
+  `/admins/revoke`, `/restores/:id/advance`, `/restores/:id/source`, `/restores/:id/rows`,
+  `/restores/:id/validated`, `/outbox/:id/requeue`, `/nin/reviews/:id/decide`.
+- A searched 10-digit account number is fingerprinted at the Edge for every bank with a saved
+  account (`PAYOUT_ACCOUNT_HMAC_KEY`); the number never reaches SQL or logs.
+- `org` gains `GET /operations` (member: stopped operations for the workspace's network).
+- The older admin routes on `security`, `org`, `ledger` and `identity` stay until a follow-up.
 
-### B5. Admin site (`frontend/`, surface `admin`)
-- **Worker and session:**
-  - `wrangler.admin.jsonc` → Worker `elivate-wallet-admin`, custom domain
-    `admin.elivatewallet.com`.
-  - `ADMIN_SURFACE` is set at build time. `hooks.server.ts` 404s routes outside the surface.
-  - Cookie `ew-admin-auth` (host-only, `SameSite=Strict`), a stricter CSP, and
-    `X-Robots-Tag: noindex`.
-- **Routes** (as drawn in A01–A16, plus the approved drafts):
-  - Sign-in and PIN: `/admin/sign-in`, `/admin/pin`.
-  - `/admin` (overview), `/admin/search`.
-  - `/admin/tenants`, `/admin/tenants/[id]`.
-  - `/admin/accounts`, `/admin/accounts/[uid]`.
-  - `/admin/controls`, `/admin/audit`, `/admin/backups`.
-  - `/admin/emails` (failed emails), `/admin/admins`, `/admin/nin`.
-- **App server:** a same-origin BFF under `/admin/api/*`. Tokens stay in the HttpOnly cookie.
-- **Behaviour:**
-  - The "Not elevated" / "Elevated · 4:12" chip shows the live step-up window.
-  - Every write opens the reason + PIN dialog (A09b/A11b pattern).
-- **Member app:**
-  - `operation_paused` maps to the X-series paused state on the affected pages.
-  - A new `/api/operations` read lets pages disable buttons ahead of time. It returns stopped
-    switches for the selected network only, and no reasons.
+### B5. Admin site (`frontend/`)
+- **One build, two Workers:** `APP_SURFACE` (`member` default, `admin`, or `both` for local e2e
+  against a loopback Supabase only). `hooks.server.ts` 404s `/admin/*` on the Wallet app and
+  everything but `/admin/*` on the admin site; admin responses add `X-Robots-Tag: noindex` and
+  `X-Frame-Options: DENY`. `wrangler.admin.jsonc` deploys Worker `elivate-wallet-admin` on
+  `admin.elivatewallet.com` with `APP_SURFACE=admin` and the `BACKUPS` bucket (read, for restore
+  validation). CI dry-runs both bundles.
+- **Session:** `ew-admin-auth`, host-only, `SameSite=Strict`, separate from `ew-auth`; each site
+  reads only its own cookies. Password + PIN (Q2); no Turnstile on the admin form (Cloudflare
+  Access gates the host). Gate pages: set your PIN first (links to the Wallet app), PIN locked
+  (email reset), not an admin.
+- **Server-rendered pages with form actions** (no admin JSON API and no offline cache):
+  `/admin` overview, `/admin/search`, `/admin/networks[/id]`, `/admin/accounts[/uid]`,
+  `/admin/nin`, `/admin/switches`, `/admin/audit`, `/admin/backups[/id]`, `/admin/emails`,
+  `/admin/admins`, `/admin/more` (mobile). Every write is a URL-driven dialog (works without
+  JavaScript): reason + PIN; the action verifies the PIN (opening the five-minute window) and
+  then runs the command once with the form's idempotency key.
+- **Restore validation:** the admin server streams the archive from R2, checks the archive and
+  per-file SHA-256 and row counts against the manifest, and sends the rows to the database in
+  batches of 1,000.
+- **Member app:** `operation_paused` reads "<Operation> is paused for now…"; `/api/operations`
+  lets write pages show the paused state ahead of time.
 
 ### B6. Tests
-- pgTAP `180_`–`18x_`:
-  - Every `admin_*` read and write refuses non-admins, including a President.
-  - Masking and allowlisted fields; no PINs, NINs, full account numbers, IPs or evidence.
-  - Search by every key, including the bank fingerprint.
-  - Audit merge, filters and cursor; append-only on the new tables.
-  - Each switch, platform-wide and per network, refuses its new operations and lets every
-    continuation through (cancel, reject, approved payout, review, recovery). Reservations
-    are unchanged after a stop.
-  - Switch PIN, reason, idempotency and audit.
-  - Restore diff and validation (Q7a).
-- Deno: route and contract validation for `admin`.
-- Frontend unit: surface gating, cookie isolation, error mapping for `operation_paused`.
-- e2e (local):
-  - Admin signs in (password + PIN), searches, opens an account, suspends it (PIN).
-  - Stops withdrawals; a member sees the paused state while an already-approved payout still
-    records; then starts it again.
-  - Advances a restore to completed; requeues a failed email.
-  - A member-surface session can't open `/admin`.
-  - axe at 320 px and desktop.
+- pgTAP `180` (kill switches, 40), `181` (admin reads, 34), `182` (restore review, 22).
+- Deno `admin_handler_test.ts` (secret, validation, fingerprinting, logs).
+- Frontend unit tests for the restore reader and helpers; e2e `admin.e2e.ts` (sign-in + PIN,
+  search, account status, kill switch stop/start with a member seeing it, restore validation,
+  axe at 320 px and desktop) with `APP_SURFACE=both`.
 
 ### B7. Deploy (after merge, from fresh `origin/main`)
-1. Migrations: check the dev history through the Management API, then push. Say which path
-   was used.
-2. Deploy the `admin` function.
-3. Build and deploy the app Worker (paused-state handling).
-4. **With owner approval:**
-   - create Worker `elivate-wallet-admin` and its secrets;
-   - add the custom domain `admin.elivatewallet.com`;
-   - add the Auth redirect URL;
-   - add the Cloudflare Access policy (Q2a).
-5. Bootstrap the first admin (Q3). Smoke-test with synthetic data.
+1. Migrations: check the dev history through the Management API, then push; say which path.
+2. Deploy the `admin` and `org` functions (`admin` needs `APP_SERVER_SECRET`,
+   `PAYOUT_ACCOUNT_ENC_KEY`, `PAYOUT_ACCOUNT_HMAC_KEY`, already set for other functions).
+3. Build and deploy the app Worker.
+4. **With owner approval:** create Worker `elivate-wallet-admin` and its secrets
+   (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `APP_SERVER_SECRET`); custom domain
+   `admin.elivatewallet.com`; Auth redirect URL `https://admin.elivatewallet.com`; Cloudflare
+   Access application for the host.
+5. Bootstrap the first admin (Q3, guarded one-time SQL). Smoke-test with synthetic data.

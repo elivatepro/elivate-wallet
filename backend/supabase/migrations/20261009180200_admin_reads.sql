@@ -256,7 +256,7 @@ begin
     'items', rows,
     'nextCursor', case when has_more then org.encode_cursor(last_key) end,
     'counts', (
-      select jsonb_build_object('all', count(*)::int) || coalesce(jsonb_object_agg(state, n) filter (where state is not null), '{}'::jsonb)
+      select jsonb_build_object('all', coalesce(sum(n), 0)::int) || coalesce(jsonb_object_agg(state, n) filter (where state is not null), '{}'::jsonb)
       from (
         select platform.network_state(t, s) as state, count(*)::int as n
         from org.tenants t left join billing.subscriptions s on s.tenant_id = t.id group by 1
@@ -367,7 +367,7 @@ begin
     'items', page,
     'nextCursor', case when has_more then org.encode_cursor(jsonb_build_object('uid', last_uid)) end,
     'counts', (
-      select jsonb_build_object('all', count(*)::int) || coalesce(jsonb_object_agg(status, n), '{}'::jsonb)
+      select jsonb_build_object('all', coalesce(sum(n), 0)::int) || coalesce(jsonb_object_agg(status, n), '{}'::jsonb)
       from (select a.status::text as status, count(*)::int as n from identity.accounts a group by 1) x
     )
   );

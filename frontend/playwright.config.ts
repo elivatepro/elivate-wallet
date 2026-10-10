@@ -43,7 +43,10 @@ export default defineConfig({
 			// Blueprint 15: export runner secret and the local file directory
 			// (local only; refused unless SUPABASE_URL is a loopback address).
 			EXPORTS_WORKER_SECRET: process.env.EXPORTS_WORKER_SECRET ?? '',
-			E2E_LOCAL_EXPORTS: process.env.E2E_LOCAL_EXPORTS ?? ''
+			E2E_LOCAL_EXPORTS: process.env.E2E_LOCAL_EXPORTS ?? '',
+			// Blueprint 18: one server serves the Wallet app and /admin/* (local
+			// only; refused unless SUPABASE_URL is a loopback address).
+			APP_SURFACE: 'both'
 		}
 	}
 });
