@@ -18,11 +18,13 @@
 
 <svelte:head><title>Welcome · Elivate Wallet</title></svelte:head>
 
-<WizardProgress step={0} />
+<WizardProgress step={0} total={data.total} />
 <AuthHeading
 	eyebrow="Invitation accepted"
 	title={`Welcome to ${data.workspace.tenantName}`}
-	lead="Root will help you set up your wallet in four quick steps."
+	lead={data.light
+		? 'Root will help you set up your account in two quick steps.'
+		: 'Root will help you set up your wallet in four quick steps.'}
 />
 <SummaryCard {rows} />
 <PrimaryButton label="Let’s begin" href="/onboarding/continue" />

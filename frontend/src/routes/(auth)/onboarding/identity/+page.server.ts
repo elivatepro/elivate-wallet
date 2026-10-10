@@ -26,7 +26,7 @@ export const load: PageServerLoad = async (event) => {
 				: identity.checksRemaining === 0 || wantsReview
 					? ('review' as const)
 					: ('verify' as const),
-		canReview: wizard.membershipId !== null,
+		canReview: (wizard.walletMembershipId ?? wizard.membershipId) !== null,
 		idempotencyKey: newIdempotencyKey()
 	};
 };
@@ -97,7 +97,8 @@ export const actions: Actions = {
 		if (!values.surname || values.surname.length > 80) errors.surname = 'Enter your surname.';
 		if (values.middleNames.length > 4) errors.middleNames = 'At most four middle names.';
 		if (Object.keys(errors).length) return fail(400, { ...echo, errors });
-		const membershipId = wizard.membershipId;
+		// The review is asked in the network of the wallet membership (Blueprint 22).
+		const membershipId = wizard.walletMembershipId ?? wizard.membershipId;
 		if (!membershipId)
 			return fail(409, { ...echo, message: 'Open your network first, then ask again.' });
 

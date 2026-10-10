@@ -1,6 +1,8 @@
 -- Blueprint 12 — B6 121: adjustments (W-14): authority, reason and evidence
 -- always, policy split fixed at submission, review, debit availability twice.
 begin;
+-- Slice 22: these fixtures predate setup by role (pgTAP 220 tests the gate).
+set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
 select plan(21);
 

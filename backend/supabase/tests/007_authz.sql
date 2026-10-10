@@ -1,6 +1,8 @@
 -- Blueprint 02 — B6 tests 7–14: resolver, role policy, access rules, reviewers,
 -- workspace and replay.
 begin;
+-- Slice 22: these fixtures predate setup by role (pgTAP 220 tests the gate).
+set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
 select plan(44);
 

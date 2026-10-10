@@ -3,6 +3,8 @@
 -- or at payment), proration in exact kobo, upgrades, stale payments,
 -- automatic renewals, webhook deduplication and no cross-tenant access.
 begin;
+-- Slice 22: these fixtures predate setup by role (pgTAP 220 tests the gate).
+set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
 select plan(52);
 

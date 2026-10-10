@@ -101,6 +101,15 @@ test('sign out, then another person signs in: no flash of the first person’s d
 	await page.getByRole('button', { name: 'Sign in' }).click();
 	await page.getByLabel('PIN', { exact: true }).fill(PIN);
 	await page.getByRole('button', { name: 'Verify' }).click();
+	// The founder (set up already, Blueprint 22) holds two workspaces: pick theirs.
+	if (
+		await page.waitForURL(/\/workspaces/, { timeout: 3000 }).then(
+			() => true,
+			() => false
+		)
+	) {
+		await page.getByRole('button', { name: new RegExp(`${NETWORK}.*President Team`) }).click();
+	}
 	if (
 		await page.waitForURL(/\/onboarding/, { timeout: 3000 }).then(
 			() => true,

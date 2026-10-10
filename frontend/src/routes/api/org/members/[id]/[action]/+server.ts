@@ -1,7 +1,9 @@
 // Membership lifecycle (Paper R09–R14; W-05): suspend, reactivate, end and
 // move need a reason and the PIN; a role change (Blueprint 07) ends the
-// membership and creates the new one.
+// membership and creates the new one. Blueprint 22: "funds not managed" for a
+// director (President Team, reason and the PIN).
 import {
+	FundsCommand,
 	MoveCommand,
 	OrgAdminRoutes,
 	ReasonCommand,
@@ -26,6 +28,8 @@ export const POST: RequestHandler = (event) => {
 			return orgCommand(event, MoveCommand, () => route);
 		case 'role':
 			return orgCommand(event, RoleCommand, () => route);
+		case 'funds':
+			return orgCommand(event, FundsCommand, () => route);
 		default:
 			return Promise.resolve(respondError(invalidRequest('action')));
 	}

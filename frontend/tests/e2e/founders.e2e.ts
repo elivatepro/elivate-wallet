@@ -14,6 +14,7 @@ import {
 	expectAccessible,
 	expectNoHorizontalScroll,
 	humanReady,
+	lightSetupWizard,
 	localSql,
 	mailFor,
 	setJoinPassword,
@@ -166,6 +167,9 @@ test('apply → admin approves → founder invitation → account → PIN → tr
 	await page.getByLabel('PIN', { exact: true }).fill(PIN);
 	await page.getByLabel('Repeat PIN').fill(PIN);
 	await page.getByRole('button', { name: 'Save PIN' }).click();
+	// Blueprint 22: the light setup (name, photo, rank) before naming the network.
+	await lightSetupWizard(page);
+	await page.getByRole('link', { name: 'Set up your network' }).click();
 	await expect(page).toHaveURL(/\/setup$/);
 	await page.getByLabel('Network name').fill(founder.team);
 	await page.getByRole('button', { name: 'Continue' }).click();

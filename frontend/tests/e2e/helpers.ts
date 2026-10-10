@@ -58,10 +58,100 @@ const key = () => crypto.randomUUID();
 /**
  * Blueprint 19: only an approved founder starts a network. Setup-only tests
  * record the grant directly (the application flow itself is founders.e2e.ts).
+ * Blueprint 22: a founder owes the light setup (name, photo, rank) before
+ * anything else works; setup-only tests record it too, unless `setup` is
+ * false (setup.e2e.ts drives the wizard itself).
  */
-export function approveFounder(email: string) {
+export function approveFounder(email: string, { setup = true }: { setup?: boolean } = {}) {
 	localSql(`insert into founders.approved (user_id, source)
 	  select id, 'existing' from auth.users where email = '${email}' on conflict do nothing`);
+	if (setup) lightSetupSql(email);
+}
+
+/**
+ * Blueprint 22: records the light setup (first and last name, a photo key,
+ * rank) for an account directly in the LOCAL database. Setup only: the wizard
+ * itself is covered by setup.e2e.ts. A NIN-locked name is left alone.
+ */
+export function lightSetupSql(email: string) {
+	localSql(`update identity.profiles p
+	  set first_name = coalesce(p.first_name, 'Bola'), last_name = coalesce(p.last_name, 'Ige'),
+	      rank = coalesce(p.rank, 'Diamond Director'),
+	      photo_key = coalesce(p.photo_key, 'photos/' || p.user_id || '/' || gen_random_uuid() || '.png'),
+	      photo_updated_at = coalesce(p.photo_updated_at, now())
+	  from auth.users u where u.id = p.user_id and u.email = '${email}'`);
+}
+
+type ApiCall = <T = Record<string, unknown>>(
+	fn: string,
+	path: string,
+	body?: unknown,
+	membershipId?: string,
+	method?: 'PATCH'
+) => Promise<T>;
+
+interface SetupState {
+	readonly setup?: {
+		readonly level: 'wallet' | 'light' | 'none';
+		readonly next: 'identity' | 'profile' | 'bank' | null;
+		readonly walletMembershipId: string | null;
+	};
+}
+
+/**
+ * Blueprint 22: finishes whatever setup the backend still asks for, through
+ * the real Edge Functions (NIN by the fake provider, photo key, phone and rank,
+ * a payout account). Setup only; the wizard screens are covered elsewhere.
+ */
+export async function completeSetup(api: { userId: string; call: ApiCall }) {
+	let { setup } = await api.call<SetupState>('security', '/state');
+	if (!setup?.next) return;
+	if (setup.next === 'identity') {
+		await api.call('identity', '/nin/verify', { nin: verifiableNin() });
+	}
+	const profile = await api.call<{
+		hasPhoto: boolean;
+		phone: string | null;
+		identity: { status: string };
+	}>('identity', '/profile');
+	if (!profile.hasPhoto) {
+		await api.call('identity', '/profile/photo', {
+			photoKey: `photos/${api.userId}/${crypto.randomUUID()}.png`
+		});
+	}
+	const light = setup.level !== 'wallet';
+	await api.call(
+		'identity',
+		'/profile',
+		{
+			rank: light ? 'Diamond Director' : 'Distributor',
+			...(light && profile.identity.status !== 'verified'
+				? { firstName: 'Bola', lastName: 'Ige' }
+				: {}),
+			...(!light && !profile.phone ? { phone: '+2348032145678' } : {}),
+			idempotencyKey: key()
+		},
+		undefined,
+		'PATCH'
+	);
+	({ setup } = await api.call<SetupState>('security', '/state'));
+	const membership = setup?.walletMembershipId;
+	if (setup?.next === 'bank' && membership) {
+		// The bank list is filled from the (fake) provider on first read, as the screen does.
+		await api.call('payout', '/banks', undefined, membership);
+		const lookup = await api.call<{ lookupId: string }>(
+			'payout',
+			'/lookups',
+			{ bankCode: '058', accountNumber: '0123456789', idempotencyKey: key() },
+			membership
+		);
+		await api.call(
+			'payout',
+			'/accounts',
+			{ lookupId: lookup.lookupId, confirmed: true, idempotencyKey: key() },
+			membership
+		);
+	}
 }
 
 /** A signed-in API session for setup steps, with the PIN already verified. */
@@ -72,7 +162,7 @@ export async function apiSession(email: string, password: string, pin: string) {
 	const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 	if (error || !data.session) throw new Error('test sign-in failed');
 	const token = data.session.access_token;
-	const call = async <T = Record<string, unknown>>(
+	const call: ApiCall = async <T = Record<string, unknown>>(
 		fn: string,
 		path: string,
 		body?: unknown,
@@ -163,6 +253,9 @@ export async function inviteMember(
 		},
 		started.membershipId
 	);
+	// Leading the World Team office gives the founder a wallet: the wallet setup
+	// (Blueprint 22) comes before anything else they do.
+	await completeSetup(api);
 	const invitation = await api.call<{ invitationId: string }>(
 		'invitations',
 		'/',
@@ -281,6 +374,26 @@ export async function completeIdentityAndProfile(page: Page) {
 }
 
 /**
+ * Blueprint 22: the light wizard's profile step (name, photo, rank; no phone),
+ * through to "You're all set".
+ */
+export async function lightSetupWizard(page: Page) {
+	await expect(page).toHaveURL(/\/onboarding\/profile$/);
+	await expect(page.getByText('2 / 2')).toBeVisible();
+	await expect(page.getByLabel('Phone number')).toHaveCount(0);
+	await page.getByLabel('First name').fill('Bola');
+	await page.getByLabel('Last name').fill('Ige');
+	await page
+		.getByLabel('Profile photo')
+		.setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: TINY_PNG });
+	await page.getByRole('button', { name: /Your rank/ }).click();
+	await page.getByRole('listbox', { name: 'Rank' }).press('ArrowDown');
+	await page.getByRole('button', { name: 'Set rank' }).click();
+	await page.getByRole('button', { name: 'Continue' }).click();
+	await expect(page.getByRole('heading', { name: /You’re all set/ })).toBeVisible();
+}
+
+/**
  * Records income for a member through the real api.record_income command,
  * as the founder (President Team), with a synthetic receipt record. Runs the
  * command in the local database with the founder's live session.
@@ -289,7 +402,8 @@ export async function recordIncome(
 	founder: { email: string; password: string; pin: string },
 	memberEmail: string,
 	amount = '1000.00',
-	currency: 'NGN' | 'USD' = 'NGN'
+	currency: 'NGN' | 'USD' = 'NGN',
+	role: 'member' | 'director' = 'member'
 ) {
 	const api = await apiSession(founder.email, founder.password, founder.pin);
 	const workspaces = await api.call<Array<{ membershipId: string; role: string }>>(
@@ -301,7 +415,7 @@ export async function recordIncome(
 	localSql(`do $$
 declare
   target uuid := (select m.id from org.memberships m join auth.users u on u.id = m.user_id
-                  where u.email = '${memberEmail}' and m.role = 'member' and m.status = 'active'
+                  where u.email = '${memberEmail}' and m.role = '${role}' and m.status = 'active'
                     and m.tenant_id = (select tenant_id from org.memberships where id = '${president}') limit 1);
   evidence uuid;
 begin
@@ -388,6 +502,7 @@ begin
      where u.email = '${reviewerEmail}' and m.role = 'president_team_member' and m.status = 'active'),
     'e2e reviewer', '${key()}');
 end $$`);
+	lightSetupSql(reviewerEmail);
 	await api.close();
 }
 
@@ -407,6 +522,7 @@ export async function addPresident(
 	const president = workspaces.find((w) => w.role === 'president_team_member')!.membershipId;
 	localSql(`select api.add_president('${api.userId}', '${api.sessionId}', '${president}',
 	  '${uidOf(presidentEmail)}', 'e2e president', '${key()}')`);
+	lightSetupSql(presidentEmail);
 	await api.close();
 }
 
@@ -482,33 +598,7 @@ async function memberWithAccount(
 	await createConfirmedAccount(email, PASSWORD, PIN);
 	const api = await apiSession(email, PASSWORD, PIN);
 	await api.call('invitations', '/accept', { token, idempotencyKey: key() });
-	await api.call('identity', '/nin/verify', { nin: verifiableNin() });
-	await api.call(
-		'identity',
-		'/profile',
-		{ phone: '+2348032145678', rank: 'Distributor', idempotencyKey: key() },
-		undefined,
-		'PATCH'
-	);
-	const workspaces = await api.call<Array<{ membershipId: string; role: string }>>(
-		'org',
-		'/workspaces'
-	);
-	const membership = workspaces.find((w) => w.role === 'member')!.membershipId;
-	// The bank list is filled from the (fake) provider on first read, as the screen does.
-	await api.call('payout', '/banks', undefined, membership);
-	const lookup = await api.call<{ lookupId: string }>(
-		'payout',
-		'/lookups',
-		{ bankCode: '058', accountNumber: '0123456789', idempotencyKey: key() },
-		membership
-	);
-	await api.call(
-		'payout',
-		'/accounts',
-		{ lookupId: lookup.lookupId, confirmed: true, idempotencyKey: key() },
-		membership
-	);
+	await completeSetup(api);
 	await api.close();
 }
 

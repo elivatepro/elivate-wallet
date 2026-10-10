@@ -1,6 +1,8 @@
 -- Blueprint 16 — review fixes: sync versions, seats against next year's
 -- smaller band (paused reads that share command checks: 163).
 begin;
+-- Slice 22: these fixtures predate setup by role (pgTAP 220 tests the gate).
+set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
 select plan(7);
 

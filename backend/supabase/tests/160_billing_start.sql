@@ -2,6 +2,8 @@
 -- skip-trial pay-first, the founder as Billing Owner, setup reads and the
 -- support activation (complimentary period / development exception).
 begin;
+-- Slice 22: these fixtures predate setup by role (pgTAP 220 tests the gate).
+set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
 select plan(32);
 

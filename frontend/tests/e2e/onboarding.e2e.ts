@@ -1,6 +1,7 @@
 import { expect, test } from './fixtures';
 import {
-	completeIdentityAndProfile,
+	lightSetupWizard,
+	localSql,
 	confirmLinkFor,
 	createNetworkFor,
 	expectAccessible,
@@ -48,17 +49,16 @@ test('sign-up → email confirm → PIN setup → workspace picker → shell, th
 	await expect(page.getByRole('heading', { name: 'No workspace yet' })).toBeVisible();
 	await expect(page.getByText(/EW-\d{5,}/)).toBeVisible();
 
-	// 5. Once a workspace exists, first-use setup runs (W-01 step 6): NIN and
-	// profile; a President Team member has no wallet, so no bank step.
+	// 5. Once a workspace exists, first-use setup runs (W-01 step 6). Blueprint
+	// 22: a President Team member owes the light setup only (name, photo,
+	// rank; no NIN, phone or bank). The helper records it; forget it here so
+	// the wizard runs.
 	await createNetworkFor(email, PASSWORD, PIN, 'Sunrise Test Network');
+	localSql(`update identity.profiles p set photo_key = null, photo_updated_at = null, rank = null,
+	  first_name = null, last_name = null from auth.users u where u.id = p.user_id and u.email = '${email}'`);
 	await page.goto('/workspaces');
-	await expect(page).toHaveURL(/\/onboarding$/);
-	await expect(
-		page.getByRole('heading', { name: 'Welcome to Sunrise Test Network' })
-	).toBeVisible();
-	await page.getByRole('link', { name: 'Let’s begin' }).click();
-	await completeIdentityAndProfile(page);
-	await expect(page.getByRole('heading', { name: 'You’re all set, Ada' })).toBeVisible();
+	await lightSetupWizard(page);
+	await expect(page.getByRole('heading', { name: 'You’re all set, Bola' })).toBeVisible();
 
 	// 6. With exactly one workspace it is opened automatically (decision 48).
 	await page.goto('/workspaces');

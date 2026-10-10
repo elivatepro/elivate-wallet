@@ -3,6 +3,8 @@
 -- an archive leaves out, the PIN and audit on download, 90-day expiry, and
 -- restore requests (one open, cancel window, Elivate-only transitions, T04).
 begin;
+-- Slice 22: these fixtures predate setup by role (pgTAP 220 tests the gate).
+set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
 select plan(49);
 

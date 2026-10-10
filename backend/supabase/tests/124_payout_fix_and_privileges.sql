@@ -2,6 +2,8 @@
 -- wallet names its memberships; the new tables stay private, the new functions
 -- are service-only or invoker helpers.
 begin;
+-- Slice 22: these fixtures predate setup by role (pgTAP 220 tests the gate).
+set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
 select plan(12);
 

@@ -5,15 +5,36 @@ import { Schema } from 'effect';
 import { AccountStatus, IsoDateTime, PIN_PATTERN, Uid, Uuid } from './common';
 import { Capabilities, Workspace } from './org';
 
-export const Gate = Schema.Literals(['pin_setup_required', 'pin_locked', 'pin_required', 'ready']);
+export const Gate = Schema.Literals([
+	'pin_setup_required',
+	'pin_locked',
+	'pin_required',
+	// Blueprint 22: the PIN is fine but the setup for the person's role is not.
+	'profile_required',
+	'ready'
+]);
 export type Gate = typeof Gate.Type;
+
+/** Blueprint 22: the setup the person owes (identity.setup_state). */
+export const SetupLevel = Schema.Literals(['wallet', 'light', 'none']);
+export type SetupLevel = typeof SetupLevel.Type;
+export const SetupStep = Schema.Literals(['identity', 'profile', 'bank']);
+export type SetupStep = typeof SetupStep.Type;
+export const Setup = Schema.Struct({
+	level: SetupLevel,
+	next: Schema.NullOr(SetupStep),
+	/** The membership the bank step uses; null below the wallet level. */
+	walletMembershipId: Schema.NullOr(Uuid)
+});
+export type Setup = typeof Setup.Type;
 
 export const SecurityState = Schema.Struct({
 	gate: Gate,
 	uid: Uid,
 	accountStatus: AccountStatus,
 	attemptsRemaining: Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 5 })),
-	stepUpExpiresAt: Schema.NullOr(IsoDateTime)
+	stepUpExpiresAt: Schema.NullOr(IsoDateTime),
+	setup: Schema.optional(Setup)
 });
 export type SecurityState = typeof SecurityState.Type;
 

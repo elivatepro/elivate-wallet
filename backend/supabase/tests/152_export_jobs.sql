@@ -4,6 +4,8 @@
 -- re-checked, expire, need the PIN for reports and are audited; M15 + bell
 -- for big jobs only; privileges.
 begin;
+-- Slice 22: these fixtures predate setup by role (pgTAP 220 tests the gate).
+set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
 select plan(42);
 

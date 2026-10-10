@@ -643,6 +643,26 @@ export function createHandler(
       });
     }),
 
+    // Blueprint 22: "funds not managed" for a director. President Team,
+    // reason + step-up; refused while the wallet holds money.
+    route("POST", "/memberships/:id/funds", async (c) => {
+      const body = await v.readBody(c.request, [
+        "notManaged",
+        "reason",
+        "idempotencyKey",
+      ]);
+      if (typeof body.notManaged !== "boolean") {
+        throw new ApiError("validation_error", { field: "notManaged" });
+      }
+      return call("set_funds_managed", {
+        ...commandInWorkspace(c),
+        p_target_membership_id: c.params.id,
+        p_not_managed: body.notManaged,
+        p_reason: v.reason(body),
+        p_idempotency_key: v.idempotencyKey(body),
+      });
+    }),
+
     route("POST", "/presidents", async (c) => {
       const body = await v.readBody(c.request, [
         "memberUid",

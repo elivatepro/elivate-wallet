@@ -1,5 +1,7 @@
 -- Blueprint 04 — B6 040: ledger invariants, projection, holds, exact decimals.
 begin;
+-- Slice 22: these fixtures predate setup by role (pgTAP 220 tests the gate).
+set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
 select plan(36);
 

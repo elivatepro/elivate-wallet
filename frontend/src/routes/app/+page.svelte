@@ -150,7 +150,10 @@
 	<RootHero
 		pose="home-empty"
 		title="No wallet in this workspace"
-		lead="The President Team runs the network. Members’ money is in Team overview and Member wallets."
+		lead={shell.state.kind === 'ready' &&
+		shell.state.view.workspace.role !== 'president_team_member'
+			? 'Your funds aren’t managed here, so this workspace holds no money. Your team’s money is in Team overview and Member wallets.'
+			: 'The President Team runs the network. Members’ money is in Team overview and Member wallets.'}
 		compact
 	/>
 	{#if teamView}

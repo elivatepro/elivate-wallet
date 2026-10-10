@@ -1,6 +1,8 @@
 -- Blueprint 04 — B6 044: own wallet (decision 21), managed wallets, activity,
 -- office subtree totals (W-05) and closed offices (decision 23).
 begin;
+-- Slice 22: these fixtures predate setup by role (pgTAP 220 tests the gate).
+set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
 select plan(31);
 

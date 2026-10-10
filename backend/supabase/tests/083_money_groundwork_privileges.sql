@@ -1,6 +1,8 @@
 -- Blueprint 08 — B6 083: the new reads are service-only api functions; the
 -- helpers stay private and invoker.
 begin;
+-- Slice 22: these fixtures predate setup by role (pgTAP 220 tests the gate).
+set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
 select plan(6);
 

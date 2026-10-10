@@ -12,7 +12,7 @@ import { InvitationsApi } from '#lib/server/apis.js';
 import type { VerifiedSession } from '#lib/server/auth.js';
 import { readFounderToken, readJoinToken, readWorkspace } from '#lib/server/cookies.js';
 import { expectGate, failureOf, isBackendError, redirectForFailure } from '#lib/server/flow.js';
-import { onboardingIncomplete, writeOnboardingMembership } from '#lib/server/onboarding.js';
+import { writeOnboardingMembership } from '#lib/server/onboarding.js';
 import { runApi } from '#lib/server/request.js';
 import { listWorkspaces, newIdempotencyKey, selectWorkspace } from '#lib/server/workspace.js';
 import type { Actions, PageServerLoad } from './$types';
@@ -52,11 +52,9 @@ export const load: PageServerLoad = async (event) => {
 		listWorkspaces(event, session),
 		listInvitations(event, session)
 	]);
+	// Unfinished first-use setup (W-01 step 6, W-02) never reaches this page:
+	// the backend's profile_required gate sends it to the wizard (Blueprint 22).
 	const selectable = workspaces.filter(isSelectable);
-	// Unfinished first-use setup (W-01 step 6, W-02) resumes before any workspace opens.
-	if (selectable.length > 0 && (await onboardingIncomplete(event, session))) {
-		redirect(303, '/onboarding');
-	}
 	const switching = event.url.searchParams.has('switch');
 	// Slice 21: the app page a gate interrupted, opened once a workspace is set.
 	const next = safeAppNext(event.url.searchParams.get('next'));

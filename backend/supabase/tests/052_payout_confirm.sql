@@ -1,5 +1,7 @@
 -- Blueprint 05 — B6 test 3: confirming a proof into a payout account.
 begin;
+-- Slice 22: these fixtures predate setup by role (pgTAP 220 tests the gate).
+set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
 select plan(26);
 

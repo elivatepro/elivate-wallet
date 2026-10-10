@@ -1,6 +1,8 @@
 -- Blueprint 09 follow-up: Record income member search across the whole
 -- network (api.income_targets p_query). Same scope and eligibility as before.
 begin;
+-- Slice 22: these fixtures predate setup by role (pgTAP 220 tests the gate).
+set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
 select plan(11);
 

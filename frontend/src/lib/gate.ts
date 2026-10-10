@@ -7,8 +7,18 @@ export const GATE_PATHS = {
 	pin_setup_required: '/pin/setup',
 	pin_required: '/pin',
 	pin_locked: '/pin/locked',
+	// Blueprint 22: the first-use wizard finds the step the backend asks for.
+	profile_required: '/onboarding/continue',
 	ready: '/workspaces'
 } as const satisfies Record<Gate, string>;
+
+/** Gates whose page sends the person back to `next` once they are through. */
+const KEEPS_NEXT: ReadonlySet<Gate> = new Set(['pin_required', 'profile_required', 'ready']);
+
+/** The page for a gate, carrying a safe `next` when that gate returns to it. */
+export function gatePath(gate: Gate, next: string | null | undefined): string {
+	return KEEPS_NEXT.has(gate) ? withNext(GATE_PATHS[gate], next) : GATE_PATHS[gate];
+}
 
 export const BLOCKED_PATH = '/blocked';
 export const SIGN_IN_PATH = '/sign-in';
@@ -24,6 +34,8 @@ export function pathForGateCode(code: string): string | null {
 			return GATE_PATHS.pin_required;
 		case 'pin_locked':
 			return GATE_PATHS.pin_locked;
+		case 'profile_required':
+			return GATE_PATHS.profile_required;
 		case 'account_blocked':
 			return BLOCKED_PATH;
 		default:
@@ -46,14 +58,17 @@ export function safeNext(value: string | null | undefined): string | null {
 
 /**
  * A `next` that may only return to a page of the signed-in app (/app or
- * /app/…): the gate pages (PIN, workspace picker, sign-in) send the person
- * back there once they are through (slice 21).
+ * /app/…), or to founder network setup (/setup, Blueprint 22): the gate pages
+ * (PIN, setup wizard, workspace picker, sign-in) send the person back there
+ * once they are through (slice 21).
  */
 export function safeAppNext(value: string | null | undefined): string | null {
 	const next = safeNext(value);
 	if (!next || [...next].some((c) => c.charCodeAt(0) < 0x20)) return null;
 	const path = next.split(/[?#]/)[0] ?? '';
-	return path === '/app' || path.startsWith('/app/') ? next : null;
+	const app = path === '/app' || path.startsWith('/app/');
+	const setup = path === '/setup' || path.startsWith('/setup/');
+	return app || setup ? next : null;
 }
 
 /** `path` with `?next=` (or `&next=`) for a safe app page; `path` alone otherwise. */
