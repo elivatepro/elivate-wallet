@@ -11,7 +11,6 @@
 	import MessageCircle from '@lucide/svelte/icons/message-circle';
 	import { chatScreen, openSupportChat, SUPPORT_EMAIL } from '#lib/client/chat.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
-	import { maskPhone } from '#lib/devices.js';
 	import PageBar from '#lib/ui/account/PageBar.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
 
@@ -40,7 +39,7 @@
 			kind: 'contact' as const,
 			title: support.name?.trim() || `${brand.name} support`,
 			email: support.email,
-			phone: maskPhone(support.phone),
+			phone: support.phone,
 			helpUrl
 		};
 	});
@@ -128,7 +127,8 @@
 					{#if network.phone}
 						<div class="row">
 							<dt>Phone</dt>
-							<dd>{network.phone}</dd>
+							<!-- The network's shared support line: shown in full so members can call it. -->
+							<dd><a href="tel:{network.phone}">{network.phone}</a></dd>
 						</div>
 					{/if}
 					{#if network.helpUrl}

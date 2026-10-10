@@ -316,7 +316,7 @@ export async function runBackup(
 	}
 }
 
-/** Removes the files of expired archives (90 days, owner answer Q2). */
+/** Removes the files of expired archives (90 days, owner answer Q2) and of failed ones. */
 export async function removeExpired(deps: BackupRunnerDeps): Promise<number> {
 	let removed = 0;
 	const list = await deps.client.expired();

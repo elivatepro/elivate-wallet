@@ -193,6 +193,30 @@
  * light-mode accent text is at least 5.6:1 on white. The Elivate mark
  * (--color-brand) never changes. The app shell sets data-team-theme on <html>.
  */
+/* Ember spelled out, so a preview can show it inside another live theme. */
+[data-team-theme='ember'] {
+	--color-accent: #ff7f4f;
+	--color-accent-strong: #b74725;
+	--button-primary-bg: linear-gradient(
+		in oklab 135deg,
+		oklab(78.2% 0.097 0.093) 0%,
+		oklab(73.5% 0.128 0.109) 55%,
+		oklab(68.2% 0.142 0.112) 100%
+	);
+	--button-primary-chip-arrow: #ff9a6e;
+	--color-accent-subtle: #3a251f;
+	--color-accent-text: #ff9872;
+	--color-accent-label: #ffb08f;
+	--focus-ring: #ff7f4f;
+}
+
+[data-team-theme='ember'][data-theme='light'] {
+	--color-accent-subtle: #fff0ea;
+	--color-accent-text: #b74725;
+	--color-accent-label: #b74725;
+	--focus-ring: #b74725;
+}
+
 [data-team-theme='cobalt'] {
 	--color-accent: #6aacfe;
 	--color-accent-strong: #2463ae;

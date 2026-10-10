@@ -85,23 +85,25 @@ describe('quick search destinations', () => {
 		expect(officeHref(results.offices[0]!)).toBe(`/app/offices/${ID.office}`);
 	});
 
-	it('routes withdrawals to your list or the approval queue', () => {
+	it('routes records to what the workspace can open', () => {
+		const approver = ['approve_withdrawal', 'approve_pocket_transfer', 'record_returned_funds'];
+		const wallet = '00000000-0000-0000-0000-0000000000c9';
 		expect(recordHref(record({ own: true }))).toBe('/app/withdrawals');
-		expect(recordHref(record())).toBe(`/app/queue?withdrawal=${ID.record}`);
-	});
-
-	it('routes pocket moves to the split page or the transfers review', () => {
-		expect(recordHref(record({ kind: 'transfer', own: true }))).toBe('/app/split');
-		expect(recordHref(record({ kind: 'transfer' }))).toBe('/app/transfers');
-	});
-
-	it('routes returned funds to the returns queue for the withdrawal', () => {
-		expect(recordHref(record({ kind: 'returned_funds', withdrawalId: ID.withdrawal }))).toBe(
-			`/app/queue/returns?withdrawal=${ID.withdrawal}`
+		expect(recordHref(record(), approver)).toBe(`/app/queue?withdrawal=${ID.record}`);
+		expect(recordHref(record({ walletId: wallet }), ['view_managed_wallets'])).toBe(
+			`/app/wallets?wallet=${wallet}&view=activity`
 		);
-		expect(recordHref(record({ kind: 'returned_funds', withdrawalId: null }))).toBe(
+		expect(recordHref(record({ kind: 'transfer', own: true }))).toBe('/app/split');
+		expect(recordHref(record({ kind: 'transfer' }), approver)).toBe('/app/transfers');
+		expect(recordHref(record({ kind: 'transfer' }))).toBe('/app/wallets');
+		expect(
+			recordHref(record({ kind: 'returned_funds', withdrawalId: ID.withdrawal }), approver)
+		).toBe(`/app/queue/returns?withdrawal=${ID.withdrawal}`);
+		expect(recordHref(record({ kind: 'returned_funds', withdrawalId: null }), approver)).toBe(
 			'/app/queue/returns'
 		);
+		// A member's own returned funds open their history, never the leaders' queue.
+		expect(recordHref(record({ kind: 'returned_funds', own: true }))).toBe('/app/activity');
 	});
 
 	it('opens a transaction in your activity or the member wallet activity', () => {
@@ -142,7 +144,11 @@ describe('quick search pages', () => {
 
 describe('quick search grouping', () => {
 	it('flattens in the drawn order: people, offices, transactions, pages', () => {
-		const groups = buildGroups(results, [{ label: 'Members', href: '/app/members' }]);
+		const groups = buildGroups(
+			results,
+			[{ label: 'Members', href: '/app/members' }],
+			['approve_withdrawal']
+		);
 		expect(groups.map((g) => g.label)).toEqual(['People', 'Offices', 'Transactions', 'Pages']);
 		expect(flatten(groups).map((i) => i.kind)).toEqual([
 			'person',

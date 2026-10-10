@@ -49,7 +49,7 @@ create table backups.archives (
   started_at timestamptz,
   finished_at timestamptz,
   expires_at timestamptz,
-  -- Set when the R2 object of an expired archive is gone.
+  -- Set when the files of an expired or failed archive are gone.
   deleted_at timestamptz,
   download_count int not null default 0 check (download_count >= 0),
   last_downloaded_at timestamptz,
@@ -57,7 +57,7 @@ create table backups.archives (
   check ((status in ('ready', 'expired')) = (finished_at is not null and expires_at is not null and sha256 is not null
     and byte_size is not null and record_count is not null and manifest is not null)),
   check ((lease_owner is null) = (lease_expires_at is null)),
-  check (deleted_at is null or status = 'expired')
+  check (deleted_at is null or status in ('expired', 'failed', 'too_large'))
 );
 
 create index archives_tenant_idx on backups.archives (tenant_id, created_at desc, id desc);
@@ -565,7 +565,7 @@ begin
   ) and not exists (
     select 1 from backups.archives
     where status = 'queued' or (status in ('preparing', 'building') and lease_expires_at < now())
-      or (status = 'expired' and deleted_at is null)
+      or (status in ('expired', 'failed', 'too_large') and deleted_at is null and attempts > 0)
   ) then
     return null;
   end if;
@@ -634,7 +634,7 @@ begin
     'backups', coalesce((
       select jsonb_agg(backups.archive_json(a, can_manage) order by a.created_at desc, a.id desc)
       from (select * from backups.archives where tenant_id = workspace.tenant_id
-            and (deleted_at is null) order by created_at desc, id desc limit 50) a
+            and (status <> 'expired' or deleted_at is null) order by created_at desc, id desc limit 50) a
     ), '[]'::jsonb),
     'restores', coalesce((
       select jsonb_agg(backups.restore_json(r, p_user_id, can_manage) order by r.created_at desc, r.id desc)
@@ -1077,7 +1077,10 @@ begin
 end;
 $$;
 
--- Expired archives whose files still need removing (every attempt's key).
+-- Archives whose files still need removing (every attempt's key): expired
+-- ones after 90 days, and failed ones at once. A failed archive is final (a
+-- retry is a new backup), so an upload left by an attempt that never
+-- finalized never outlives it (Greptile on PR #53). Ready ones are never listed.
 create function api.backup_expired(p_limit int default 20)
 returns jsonb
 language sql
@@ -1086,9 +1089,12 @@ set search_path = ''
 as $$
   select jsonb_build_object('items', coalesce(jsonb_agg(jsonb_build_object('backupId', a.id,
     'objectKeys', (select jsonb_agg('backups/' || a.tenant_id::text || '/' || a.id::text || '/' || n::text || '.zip')
-                   from generate_series(1, greatest(a.attempts, 1)) n)) order by a.expires_at), '[]'::jsonb))
-  from (select * from backups.archives where status = 'expired' and deleted_at is null
-        order by expires_at limit least(greatest(coalesce(p_limit, 20), 1), 100)) a;
+                   from generate_series(1, greatest(a.attempts, 1)) n))
+    order by coalesce(a.expires_at, a.created_at)), '[]'::jsonb))
+  from (select * from backups.archives
+        where deleted_at is null
+          and (status = 'expired' or (status in ('failed', 'too_large') and attempts > 0))
+        order by coalesce(expires_at, created_at) limit least(greatest(coalesce(p_limit, 20), 1), 100)) a;
 $$;
 
 create function api.backup_deleted(p_backup_id uuid)
@@ -1101,7 +1107,7 @@ declare
   a backups.archives;
 begin
   update backups.archives set deleted_at = now()
-  where id = p_backup_id and status = 'expired' and deleted_at is null
+  where id = p_backup_id and status in ('expired', 'failed', 'too_large') and deleted_at is null
   returning * into a;
   if a.id is null then
     return jsonb_build_object('status', 'unchanged');

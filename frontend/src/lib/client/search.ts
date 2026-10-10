@@ -118,22 +118,35 @@ export const officeHref = (o: SearchOffice) => `/app/offices/${encodeURIComponen
  * the M03 detail (?tx=), or the member's wallet activity (Q05, ?wallet=
  * &view=activity&tx=) for leaders; the wallets list when no wallet came back.
  */
-export function recordHref(r: SearchRecord): string {
+/**
+ * Where a record opens, by what this workspace can open (Greptile on PR #53):
+ * owners go to their own history; approvers to their queue; leaders who only
+ * view wallets to that member's wallet activity.
+ */
+export function recordHref(r: SearchRecord, permissions: readonly string[] = []): string {
 	const id = encodeURIComponent(r.id);
+	const has = (key: string) => permissions.includes(key);
+	const walletView = (tx?: string) =>
+		r.walletId
+			? `/app/wallets?wallet=${encodeURIComponent(r.walletId)}&view=activity${tx ? `&tx=${tx}` : ''}`
+			: '/app/wallets';
 	switch (r.kind) {
 		case 'withdrawal':
-			return r.own ? '/app/withdrawals' : `/app/queue?withdrawal=${id}`;
+			if (r.own) return '/app/withdrawals';
+			return has('approve_withdrawal') ? `/app/queue?withdrawal=${id}` : walletView();
 		case 'transfer':
-			return r.own ? '/app/split' : '/app/transfers';
+			if (r.own) return '/app/split';
+			return has('approve_pocket_transfer') ? '/app/transfers' : walletView();
 		case 'returned_funds':
-			return r.withdrawalId
-				? `/app/queue/returns?withdrawal=${encodeURIComponent(r.withdrawalId)}`
-				: '/app/queue/returns';
+			if (r.own) return '/app/activity';
+			if (has('record_returned_funds')) {
+				return r.withdrawalId
+					? `/app/queue/returns?withdrawal=${encodeURIComponent(r.withdrawalId)}`
+					: '/app/queue/returns';
+			}
+			return walletView();
 		case 'transaction':
-			if (r.own) return `/app/activity?tx=${id}`;
-			return r.walletId
-				? `/app/wallets?wallet=${encodeURIComponent(r.walletId)}&view=activity&tx=${id}`
-				: '/app/wallets';
+			return r.own ? `/app/activity?tx=${id}` : walletView(id);
 	}
 }
 
@@ -164,7 +177,8 @@ export function matchPages(
 /** Groups in the drawn order (People, Offices, Transactions, Pages); empty ones dropped. */
 export function buildGroups(
 	results: SearchResults | null,
-	pages: readonly SearchPage[]
+	pages: readonly SearchPage[],
+	permissions: readonly string[] = []
 ): SearchGroup[] {
 	const groups: SearchGroup[] = [];
 	if (results) {
@@ -194,7 +208,7 @@ export function buildGroups(
 			items: results.records.map((record) => ({
 				kind: 'record',
 				id: `${record.kind}-${record.id}`,
-				href: recordHref(record),
+				href: recordHref(record, permissions),
 				record
 			}))
 		});

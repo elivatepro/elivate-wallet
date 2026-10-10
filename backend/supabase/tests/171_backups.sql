@@ -4,7 +4,7 @@
 -- restore requests (one open, cancel window, Elivate-only transitions, T04).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(47);
+select plan(49);
 
 create function pg_temp.u(n int) returns uuid language sql immutable as
   $$ select ('10000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
@@ -143,6 +143,11 @@ select is((select count(*)::int from notify.items where kind = 'backup.failed' a
 select is(pg_temp.fails($$ select api.authorize_backup_download(pg_temp.u(1), pg_temp.s(1), pg_temp.ws(1),
   pg_temp.id('b2')) $$), 'conflict:backup_not_ready', 'a failed backup cannot be downloaded');
 
+-- ── Failed files are removed at once (2) ──
+select ok((api.backup_expired()->'items') @> jsonb_build_array(jsonb_build_object('backupId', pg_temp.id('b2'))),
+  'a failed backup''s files are listed for removal');
+select is(api.backup_deleted(pg_temp.id('b2'))->>'status', 'deleted', 'and marked gone, while the row stays');
+
 -- ── Paused networks (2) ──
 update org.tenants set status = 'suspended' where id = pg_temp.id('cedar');
 select is(pg_temp.fails($$ select api.backup_vault(pg_temp.u(1), pg_temp.s(1), pg_temp.ws(1)) $$), 'no error',
@@ -187,7 +192,8 @@ select is((select count(*)::int from audit.tenant_events where tenant_id = pg_te
 update backups.archives set finished_at = now() - interval '91 days', expires_at = now() - interval '1 day'
 where id = pg_temp.id('b1');
 select is(backups.expire(), 1, 'backups past 90 days expire');
-select is((api.backup_expired()->'items'->0->>'backupId')::uuid, pg_temp.id('b1'), 'their files are listed for removal');
+select ok((api.backup_expired()->'items') @> jsonb_build_array(jsonb_build_object('backupId', pg_temp.id('b1'))),
+  'their files are listed for removal');
 select is(api.backup_deleted(pg_temp.id('b1'))->>'status', 'deleted', 'and marked gone');
 select is(pg_temp.fails($$ select api.authorize_backup_download(pg_temp.u(1), pg_temp.s(1), pg_temp.ws(1),
   pg_temp.id('b1')) $$), 'conflict:backup_expired', 'an expired backup cannot be downloaded');

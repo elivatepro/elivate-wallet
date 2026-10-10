@@ -133,7 +133,8 @@ begin
       from (
         select jsonb_build_object('kind', 'withdrawal', 'id', w.id, 'reference', w.reference, 'status', w.status,
           'amount', jsonb_build_object('amount', ledger.money(w.amount, w.currency), 'currency', w.currency), 'person', org.person(w.owner_user_id),
-          'officeName', o.name, 'at', w.created_at, 'own', w.owner_user_id = p_user_id) as item,
+          'officeName', o.name, 'walletId', w.wallet_id, 'at', w.created_at,
+          'own', w.owner_user_id = p_user_id) as item,
           w.created_at as at, w.reference
         from finance.withdrawals w left join org.offices o on o.id = w.office_id
         where w.tenant_id = workspace.tenant_id and w.reference like ref_prefix || '%'
@@ -143,7 +144,8 @@ begin
         union all
         select jsonb_build_object('kind', 'transfer', 'id', t.id, 'reference', t.reference, 'status', t.status,
           'amount', jsonb_build_object('amount', ledger.money(t.amount, t.currency), 'currency', t.currency), 'person', org.person(t.owner_user_id),
-          'officeName', o.name, 'at', t.created_at, 'own', t.owner_user_id = p_user_id),
+          'officeName', o.name, 'walletId', t.wallet_id, 'at', t.created_at,
+          'own', t.owner_user_id = p_user_id),
           t.created_at, t.reference
         from finance.pocket_transfers t left join org.offices o on o.id = t.office_id
         where t.tenant_id = workspace.tenant_id and t.reference like ref_prefix || '%'
@@ -153,7 +155,8 @@ begin
         union all
         select jsonb_build_object('kind', 'returned_funds', 'id', e.id, 'reference', e.reference,
           'status', e.status, 'withdrawalId', e.withdrawal_id, 'amount', jsonb_build_object('amount', ledger.money(e.amount, e.currency), 'currency', e.currency),
-          'person', org.person(e.owner_user_id), 'officeName', o.name, 'at', e.created_at,
+          'person', org.person(e.owner_user_id), 'officeName', o.name, 'walletId', e.wallet_id,
+          'at', e.created_at,
           'own', e.owner_user_id = p_user_id),
           e.created_at, e.reference
         from finance.entries e left join org.offices o on o.id = e.office_id

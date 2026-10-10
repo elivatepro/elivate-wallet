@@ -49,11 +49,14 @@
 		open = $bindable(false),
 		pages,
 		hideAmounts,
+		permissions = [],
 		onclose
 	}: {
 		open?: boolean;
 		pages: ReadonlyArray<SearchPage>;
 		hideAmounts: boolean;
+		/** The workspace's permissions: they choose where a record opens. */
+		permissions?: readonly string[];
 		onclose?: () => void;
 	} = $props();
 
@@ -72,7 +75,7 @@
 
 	const q = $derived(searchableQuery(query));
 	const pageMatches = $derived(q ? matchPages(pages, q) : []);
-	const groups = $derived(buildGroups(q ? results : null, pageMatches));
+	const groups = $derived(buildGroups(q ? results : null, pageMatches, permissions));
 	const items = $derived(flatten(groups));
 	const activeIndex = $derived.by(() => {
 		if (items.length === 0) return -1;

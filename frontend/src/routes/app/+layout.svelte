@@ -878,7 +878,12 @@
 <InstallHint />
 
 {#if shell.state.kind === 'ready'}
-	<QuickSearch bind:open={searchOpen} pages={searchPages} hideAmounts={shell.hideAmounts} />
+	<QuickSearch
+		bind:open={searchOpen}
+		pages={searchPages}
+		hideAmounts={shell.hideAmounts}
+		permissions={shell.state.view.capabilities?.permissions ?? []}
+	/>
 {/if}
 
 <style>
