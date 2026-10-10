@@ -1,19 +1,34 @@
-// Device cache for the offline PWA shell (decision 36a).
+// Device cache for the PWA shell (decision 36a, amended by Blueprint 20 B6:
+// signed-in pages open from it, then refresh in the background).
 //
 // - Only last-loaded READ-ONLY data of approved kinds (balances, history,
-//   offices, members, and the workspace summary the shell needs to label it).
+//   offices, members, wallets, settings, and the workspace summary the shell
+//   needs to label it).
 // - Scoped per user + workspace; an entry is never returned for another pair.
+// - Guarded by the readable `ew_who` cookie (a keyed hash of user + workspace
+//   set by the server): an entry is returned only while its `who` matches the
+//   cookie, so sign-out or another sign-in never shows the previous data.
 // - Maximum age 7 days; older entries are deleted when read or swept.
 // - Erased on sign-out (and whenever the sign-in page is shown).
 // - Never: bank/account numbers, evidence files, tokens, auth responses. A
 //   forbidden-field guard refuses such payloads even if a caller tries.
 
-export const CACHE_KINDS = ['workspace', 'balances', 'history', 'offices', 'members'] as const;
+export const CACHE_KINDS = [
+	'workspace',
+	'balances',
+	'history',
+	'offices',
+	'members',
+	'wallets',
+	'settings'
+] as const;
 export type CacheKind = (typeof CACHE_KINDS)[number];
 
 export const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 const PREFIX = 'ew:cache:v1:';
+/** Blueprint 20 B6: the server-set cache guard (#lib/server/who.ts). */
+export const WHO_COOKIE = 'ew_who';
 export const SCOPE_KEY = 'ew:scope:v1';
 const LAST_SCOPE_KEY = SCOPE_KEY;
 
@@ -59,39 +74,81 @@ export function assertCacheable(value: unknown, path = ''): void {
 const isKind = (kind: string): kind is CacheKind =>
 	(CACHE_KINDS as readonly string[]).includes(kind);
 
-const keyFor = (scope: CacheScope, kind: CacheKind) =>
-	`${PREFIX}${encodeURIComponent(scope.uid)}:${encodeURIComponent(scope.workspaceId)}:${kind}`;
+/** The current `ew_who` value, or null (no cookie, or outside the browser). */
+export function currentWho(
+	cookie: string = typeof document === 'undefined' ? '' : document.cookie
+): string | null {
+	for (const part of cookie.split(';')) {
+		const [name, ...rest] = part.trim().split('=');
+		if (name === WHO_COOKIE) {
+			const value = rest.join('=');
+			return /^[A-Za-z0-9_-]{16,64}$/.test(value) ? value : null;
+		}
+	}
+	return null;
+}
 
+export interface CacheOptions {
+	readonly now?: number;
+	/** The cache guard; defaults to the `ew_who` cookie. */
+	readonly who?: string | null;
+	/** A sub-entry of a kind (e.g. `overview` under `wallets`). */
+	readonly part?: string;
+}
+
+const PART_PATTERN = /^[a-z0-9-]{1,32}$/;
+
+const keyFor = (scope: CacheScope, kind: CacheKind, part?: string) =>
+	`${PREFIX}${encodeURIComponent(scope.uid)}:${encodeURIComponent(scope.workspaceId)}:${kind}${
+		part ? `:${part}` : ''
+	}`;
+
+/** Stores an entry; skipped without a `who` (it could never be read back). */
 export function writeCache<T>(
 	store: KeyValueStore,
 	scope: CacheScope,
 	kind: CacheKind,
 	data: T,
-	now: number = Date.now()
+	options: CacheOptions = {}
 ): void {
 	if (!isKind(kind)) throw new Error(`device cache refused kind ${String(kind)}`);
+	if (options.part !== undefined && !PART_PATTERN.test(options.part)) {
+		throw new Error(`device cache refused part ${options.part}`);
+	}
 	assertCacheable(data);
-	const entry = { uid: scope.uid, workspaceId: scope.workspaceId, savedAt: now, data };
+	const who = options.who === undefined ? currentWho() : options.who;
+	if (!who) return;
+	const now = options.now ?? Date.now();
+	const entry = { uid: scope.uid, workspaceId: scope.workspaceId, who, savedAt: now, data };
 	try {
-		store.setItem(keyFor(scope, kind), JSON.stringify(entry));
+		store.setItem(keyFor(scope, kind, options.part), JSON.stringify(entry));
 	} catch {
 		// Quota or privacy mode: caching is best-effort, never required.
 	}
 }
 
+/**
+ * The entry for this scope and kind, only while its `who` equals the current
+ * `ew_who` cookie. Without a cookie nothing is returned (and nothing deleted:
+ * the next session reply sets it again).
+ */
 export function readCache<T>(
 	store: KeyValueStore,
 	scope: CacheScope,
 	kind: CacheKind,
-	now: number = Date.now()
+	options: CacheOptions = {}
 ): CachedEntry<T> | null {
-	const key = keyFor(scope, kind);
+	const who = options.who === undefined ? currentWho() : options.who;
+	const now = options.now ?? Date.now();
+	if (!who) return null;
+	const key = keyFor(scope, kind, options.part);
 	const raw = store.getItem(key);
 	if (!raw) return null;
 	try {
 		const entry = JSON.parse(raw) as {
 			uid?: unknown;
 			workspaceId?: unknown;
+			who?: unknown;
 			savedAt?: unknown;
 			data?: unknown;
 		};
@@ -99,8 +156,13 @@ export function readCache<T>(
 			typeof entry.savedAt === 'number' &&
 			entry.savedAt <= now &&
 			now - entry.savedAt <= MAX_AGE_MS;
-		// Belt and braces: the stored scope must match, not just the key.
-		if (!fresh || entry.uid !== scope.uid || entry.workspaceId !== scope.workspaceId) {
+		// Belt and braces: the stored scope and guard must match, not just the key.
+		if (
+			!fresh ||
+			entry.uid !== scope.uid ||
+			entry.workspaceId !== scope.workspaceId ||
+			entry.who !== who
+		) {
 			store.removeItem(key);
 			return null;
 		}
@@ -123,6 +185,17 @@ export function sweepExpired(store: KeyValueStore, now: number = Date.now()): vo
 		} catch {
 			store.removeItem(key);
 		}
+	}
+}
+
+/** Blueprint 20 B6: a command changed these kinds; drop them for every scope. */
+export function clearKinds(store: KeyValueStore, kinds: readonly CacheKind[]): void {
+	if (kinds.length === 0) return;
+	for (const key of store.keys()) {
+		if (!key.startsWith(PREFIX)) continue;
+		// Key: prefix + uid : workspace : kind [: part]; uid and workspace are URI-encoded.
+		const kind = key.slice(PREFIX.length).split(':')[2];
+		if (kind && (kinds as readonly string[]).includes(kind)) store.removeItem(key);
 	}
 }
 

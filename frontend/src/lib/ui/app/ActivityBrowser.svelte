@@ -8,7 +8,7 @@
 	Used for your own activity and, with `wallet`, a managed wallet's.
 -->
 <script lang="ts">
-	import { getContext, untrack } from 'svelte';
+	import { getContext, onMount, untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
@@ -30,6 +30,7 @@
 		type TransactionDetail
 	} from '#lib/contract/ledger.js';
 	import { getJson } from '#lib/client/api.js';
+	import { CachedRead } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import {
 		browserTimeZone,
@@ -47,6 +48,7 @@
 		type DateRange
 	} from '#lib/activity.js';
 	import { formatMoney, hiddenMoney } from '#lib/money.js';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import RootHero from '#lib/ui/app/RootHero.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
 	import TransactionDetailView from '#lib/ui/app/TransactionDetail.svelte';
@@ -234,6 +236,37 @@
 	const failureOf = (exit: Exit.Exit<unknown, ApiFailure>) =>
 		Exit.isFailure(exit) ? Option.getOrUndefined(Cause.findErrorOption(exit.cause)) : undefined;
 
+	// Blueprint 20 B6: your own unfiltered first page opens from cache, then refreshes.
+	const cached = new CachedRead<ActivityView>('history');
+	let cachedAt = $state<number | null>(null);
+	function apply(view: ActivityView) {
+		items = [...view.activity.items];
+		months = [...view.activity.months];
+		if (view.pockets) pockets = view.pockets;
+		nextCursor = view.activity.nextCursor;
+		total = view.activity.total ?? null;
+		loaded = true;
+	}
+	onMount(() => {
+		if (!wallet && !filtered && cached.show() && cached.data) {
+			apply(cached.data);
+			cachedAt = cached.savedAt;
+		}
+		return cached.watch(() => void load());
+	});
+	$effect(() => {
+		if (!shell.scope) return;
+		cached.confirm(shell.scope);
+		if (cachedAt !== null && !cached.data) {
+			items = [];
+			months = [];
+			nextCursor = null;
+			total = null;
+			loaded = false;
+			cachedAt = null;
+		}
+	});
+
 	let controller: AbortController | null = null;
 
 	async function load(more = false) {
@@ -242,10 +275,13 @@
 		controller = current;
 		if (more) loadingMore = true;
 		else loading = true;
+		const ticket = cached.begin();
 		const exit = await Effect.runPromiseExit(
 			getJson(`/api/activity?${params(more ? nextCursor : null)}`, ActivityView, current.signal)
 		);
 		if (current.signal.aborted) return;
+		// Another tab switched workspace while this ran: the entries are not ours.
+		if (!cached.current(ticket)) return load();
 		loading = false;
 		loadingMore = false;
 		if (Exit.isSuccess(exit)) {
@@ -263,6 +299,8 @@
 			if (!more) total = view.activity.total ?? null;
 			failure = null;
 			loaded = true;
+			if (!more && !wallet && !filtered) cached.fresh(view, shell.scope, ticket);
+			cachedAt = null;
 			return;
 		}
 		const error = failureOf(exit);
@@ -285,7 +323,8 @@
 			customTo,
 			wallet
 		];
-		if (shell.state.kind !== 'ready') return;
+		// Starts with /api/session, not after it (Blueprint 20 B6), and again when back online.
+		if (!shell.readable) return;
 		untrack(() => void load());
 	});
 
@@ -293,7 +332,7 @@
 		const id = selected;
 		detail = null;
 		detailError = null;
-		if (!id || shell.state.kind !== 'ready') return;
+		if (!id || !shell.readable) return;
 		const current = new AbortController();
 		const path = `/api/activity/${encodeURIComponent(id)}${wallet ? `?wallet=${wallet}` : ''}`;
 		void Effect.runPromiseExit(getJson(path, DetailSchema, current.signal)).then((exit) => {
@@ -440,6 +479,7 @@
 {:else}
 	<div class="activity">
 		<h1 class="title" tabindex="-1">{heading}</h1>
+		<CacheNote savedAt={cachedAt} online={shell.online} failed={failure !== null} />
 		<div class="toolbar">
 			<label class="search">
 				<Search size={16} strokeWidth={2} aria-hidden="true" />
@@ -488,7 +528,7 @@
 						<button type="button" class="more" onclick={() => load()}>Try again</button>
 						{#if reference}<p class="ref-note">Reference <span>{reference}</span></p>{/if}
 					</div>
-				{:else if failure}
+				{:else if failure && cachedAt === null}
 					<div class="retry" role="alert">
 						<p class="ref-note">We couldn’t apply these filters. {failure}</p>
 						<button type="button" class="more" onclick={() => load()}>Try again</button>
@@ -773,7 +813,7 @@
 	}
 
 	.nm-grain {
-		background: url('/auth-bg/grain-256.png') 50% / 256px 256px;
+		background: url('/auth-bg/grain-128.webp') 50% / 128px 128px;
 		mix-blend-mode: overlay;
 		opacity: 0.25;
 	}

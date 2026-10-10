@@ -115,6 +115,19 @@
 	--focus-ring: #ff7f4f;
 }
 
+/* Blueprint 20 B8: AVIF, then WebP, then the original JPEG, where image-set()
+   with type() is understood; older browsers keep the JPEG above. */
+@supports (background-image: image-set(url('/auth-bg/desktop-dark.avif') type('image/avif'))) {
+	:root,
+	[data-theme='dark'] {
+		--auth-bg-desktop: image-set(
+			url('/auth-bg/desktop-dark.avif') type('image/avif'),
+			url('/auth-bg/desktop-dark.webp') type('image/webp'),
+			url('/auth-bg/desktop-dark.jpg') type('image/jpeg')
+		);
+	}
+}
+
 [data-theme='light'] {
 	color-scheme: light;
 	--color-canvas: #f7f6f3;

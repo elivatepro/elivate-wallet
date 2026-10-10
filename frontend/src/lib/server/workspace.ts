@@ -8,8 +8,10 @@ import { isSelectable, type Workspace } from '#lib/contract/org.js';
 import { OrgApi } from './apis';
 import type { VerifiedSession } from './auth';
 import { clearWorkspace, writeWorkspace } from './cookies';
+import { appServerSecret } from './config';
 import { callOrRedirect, failureOf, redirectForFailure } from './flow';
 import { runApi } from './request';
+import { writeWho } from './who';
 
 export const listWorkspaces = (event: RequestEvent, session: VerifiedSession) =>
 	callOrRedirect(
@@ -37,6 +39,14 @@ export async function selectWorkspace(
 	);
 	if (Exit.isSuccess(exit)) {
 		writeWorkspace(event.cookies, workspace.membershipId, event.locals.secureCookies);
+		// Blueprint 20 B6: the device-cache guard follows the chosen workspace.
+		await writeWho(
+			event.cookies,
+			appServerSecret(),
+			session.userId,
+			workspace.membershipId,
+			event.locals.secureCookies
+		);
 		return true;
 	}
 	const failure = failureOf(exit);

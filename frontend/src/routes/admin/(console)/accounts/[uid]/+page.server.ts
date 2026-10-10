@@ -1,7 +1,7 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { Effect } from 'effect';
 import { AdminApi } from '#lib/server/apis-admin.js';
-import { adminCall, newKey, readCommandForm, withStepUp } from '#lib/server/admin.js';
+import { adminCall, adminPage, newKey, readCommandForm, withStepUp } from '#lib/server/admin.js';
 import type { AccountStatus } from '#lib/contract/common.js';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -13,19 +13,18 @@ function uidOf(params: { uid: string }): string {
 	return params.uid.toUpperCase();
 }
 
-export const load: PageServerLoad = async (event) => {
-	await event.parent();
-	const session = (await event.locals.session())!;
-	const uid = uidOf(event.params);
-	const account = await adminCall(
-		event,
-		session,
-		Effect.gen(function* () {
-			return yield* (yield* AdminApi).account(uid);
-		})
-	);
-	return { title: account.name ?? account.uid, account, statusKey: newKey() };
-};
+export const load: PageServerLoad = (event) =>
+	adminPage(event, async (session) => {
+		const uid = uidOf(event.params);
+		const account = await adminCall(
+			event,
+			session,
+			Effect.gen(function* () {
+				return yield* (yield* AdminApi).account(uid);
+			})
+		);
+		return { title: account.name ?? account.uid, account, statusKey: newKey() };
+	});
 
 export const actions: Actions = {
 	status: async (event) => {

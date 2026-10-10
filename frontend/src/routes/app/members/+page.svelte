@@ -7,7 +7,7 @@
 -->
 <script lang="ts">
 	import '#lib/ui/org/org.css';
-	import { getContext } from 'svelte';
+	import { getContext, onMount, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import Plus from '@lucide/svelte/icons/plus';
@@ -15,9 +15,11 @@
 	import { UUID_PATTERN } from '#lib/contract/common.js';
 	import { AppOrgRoutes, MemberRows, type MemberRow } from '#lib/contract/org-admin.js';
 	import { loadView } from '#lib/client/org.svelte.js';
+	import { CachedRead } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { initials, personName, STATUS_LABELS } from '#lib/org.js';
 	import { ROLE_LABELS } from '#lib/labels.js';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import OrgHero from '#lib/ui/org/OrgHero.svelte';
 
 	const shell = getContext<Shell>('shell');
@@ -38,11 +40,16 @@
 	let query = $state('');
 	let status = $state<'all' | 'active' | 'suspended' | 'ended'>('all');
 	let seq = 0;
-	let started = false;
 	let timer: ReturnType<typeof setTimeout> | undefined;
+
+	/** Blueprint 20 B6: the unfiltered first page opens from cache, then refreshes. */
+	const cached = new CachedRead<typeof MemberRows.Type>('members');
+	let cachedAt = $state<number | null>(null);
+	const unfiltered = () => !query.trim() && status === 'all' && !officeId;
 
 	async function load(more = false) {
 		const mine = ++seq;
+		const first = !more && unfiltered();
 		// Built and read once per call; not reactive state.
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const params = new URLSearchParams();
@@ -51,24 +58,46 @@
 		if (officeId) params.set('officeId', officeId);
 		if (more && nextCursor) params.set('cursor', nextCursor);
 		loadingMore = more;
+		const ticket = cached.begin();
 		const result = await loadView(
 			`${AppOrgRoutes.members}${params.size ? `?${params}` : ''}`,
 			MemberRows
 		);
 		if (mine !== seq) return;
 		loadingMore = false;
+		// Another tab switched workspace while this ran: the rows are not ours.
+		if (!cached.current(ticket)) return load();
 		if (result.ok) {
 			items = more ? [...items, ...result.value.items] : [...result.value.items];
 			nextCursor = result.value.nextCursor;
 			loaded = true;
 			loadError = null;
+			if (first) cached.fresh(result.value, shell.scope, ticket);
+			cachedAt = null;
 		} else loadError = result.text;
 	}
 
+	onMount(() => {
+		if (unfiltered() && cached.show() && cached.data) {
+			items = [...cached.data.items];
+			nextCursor = cached.data.nextCursor;
+			loaded = true;
+			cachedAt = cached.savedAt;
+		}
+		return cached.watch(() => void load());
+	});
+	// Starts with /api/session, not after it, and again when back online.
 	$effect(() => {
-		if (shell.state.kind === 'ready' && !started) {
-			started = true;
-			void load();
+		if (shell.readable) untrack(() => void load());
+	});
+	$effect(() => {
+		if (!shell.scope) return;
+		cached.confirm(shell.scope);
+		if (cachedAt !== null && !cached.data) {
+			items = [];
+			nextCursor = null;
+			loaded = false;
+			cachedAt = null;
 		}
 	});
 
@@ -133,10 +162,11 @@
 		</fieldset>
 	</div>
 
-	{#if !loaded && !loadError}
+	<CacheNote savedAt={cachedAt} online={shell.online} failed={loadError !== null} />
+	{#if !loaded && (!loadError || shell.state.kind === 'loading')}
 		<div class="o-skeleton" aria-hidden="true"></div>
 		<p class="visually-hidden" role="status">Loading members</p>
-	{:else if loadError}
+	{:else if loadError && cachedAt === null}
 		<div class="o-error" role="alert">
 			<p>{loadError}</p>
 			<button type="button" class="o-ghost" onclick={() => load()}>Try again</button>

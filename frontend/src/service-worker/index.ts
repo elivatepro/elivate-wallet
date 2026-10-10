@@ -1,5 +1,8 @@
-// Service worker (decisions 36/36a/40): precaches the build assets, the static
-// files and the prerendered app shell so the installed app opens offline.
+// Service worker (decisions 36/36a/40): precaches the signed-in shell's build
+// files, the static files and the prerendered app shell so the installed app
+// opens offline. Blueprint 20 B8: other route chunks (Admin included) are not
+// precached; a hashed /_app/immutable/ file is kept the first time it loads.
+// The Admin site registers no service worker (src/routes/+layout.svelte).
 //
 // It NEVER caches: /api/* (wallet data, which lives in the device cache under
 // the 36a rules instead), server-rendered auth/onboarding pages, form-action
@@ -12,23 +15,30 @@
 import { self } from '$app/service-worker';
 import { version } from '$app/env';
 import { assets, immutable, prerendered } from '$app/manifest';
+import { shellFiles } from 'virtual:ew-precache';
 
 const CACHE = `ew-shell-${version}`;
 const SHELL = '/app';
 const OFFLINE = '/offline.html';
 
 // Large auth backgrounds and the gate-screen Root poses are only needed online;
-// the shell keeps the poses it can show offline. Email images (static/email/)
-// are for mail clients, never the app.
-const SHELL_POSES = ['offline-empty', 'load-error', 'home-empty', 'notifications'];
+// the shell keeps the poses it shows when it has nothing else to show offline
+// (Blueprint 20 B8: other poses, e.g. home-empty, are kept once seen). Email
+// images (static/email/) are for mail clients, never the app.
+const SHELL_POSES = ['offline-empty', 'load-error'];
 const neededOffline = (path: string) =>
 	!path.startsWith('/auth-bg/desktop') &&
 	!path.startsWith('/email/') &&
 	(!path.startsWith('/root/') || SHELL_POSES.some((pose) => path.startsWith(`/root/${pose}`)));
+// Blueprint 20 B8: the shell's chunks only (scripts/precache-plugin.ts); all of
+// them if the list is missing.
+const shell = shellFiles ? new Set(shellFiles) : null;
 const precache = [
-	...immutable.map((f) => `/${f.path}`),
+	...immutable.filter((f) => !shell || shell.has(f.path)).map((f) => `/${f.path}`),
 	...assets.map((f) => `/${f.path}`).filter(neededOffline),
-	...prerendered.map((f) => `/${f.path}`)
+	// Offline, every /app/* navigation opens the /app shell: the other
+	// prerendered pages are not needed.
+	...prerendered.map((f) => `/${f.path}`).filter((p) => p.replace(/\/{2,}/g, '/') === SHELL)
 ].map((p) => p.replace(/\/{2,}/g, '/'));
 const precached = new Set(precache);
 
@@ -69,6 +79,25 @@ self.addEventListener('fetch', (event) => {
 
 	if (precached.has(url.pathname) && request.mode !== 'navigate') {
 		event.respondWith(caches.match(url.pathname).then((hit) => hit ?? fetch(request)));
+		return;
+	}
+
+	// Hashed build files never change, and Root poses are static: keep each one
+	// the first time it loads, so a page opened online also opens offline
+	// (code and images only, never data).
+	if (url.pathname.startsWith('/_app/immutable/') || url.pathname.startsWith('/root/')) {
+		event.respondWith(
+			(async () => {
+				const hit = await caches.match(url.pathname);
+				if (hit) return hit;
+				const response = await fetch(request);
+				if (response.ok) {
+					const cache = await caches.open(CACHE);
+					await cache.put(url.pathname, response.clone());
+				}
+				return response;
+			})()
+		);
 		return;
 	}
 

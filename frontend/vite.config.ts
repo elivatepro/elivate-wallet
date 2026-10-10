@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitest/config';
 import adapter from '@sveltejs/adapter-cloudflare';
 import { sveltekit } from '@sveltejs/kit/vite';
+import { precachePlugin } from './scripts/precache-plugin.ts';
 
 export default defineConfig({
 	plugins: [
@@ -35,8 +36,12 @@ export default defineConfig({
 				}
 			},
 			// Update prompt (decision 36a): check for a new deployed version every 5 minutes.
-			version: { pollInterval: 5 * 60 * 1000 }
-		})
+			version: { pollInterval: 5 * 60 * 1000 },
+			// Blueprint 20 B8: registered by the root layout, and never on the Admin site.
+			serviceWorker: { register: false }
+		}),
+		// Blueprint 20 B8: the service worker precaches the shell's files only.
+		precachePlugin()
 	],
 	test: {
 		expect: { requireAssertions: true },

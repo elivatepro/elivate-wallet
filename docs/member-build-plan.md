@@ -183,6 +183,16 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
   Authentication v2 invitation screens (08, 09) with founder wording, then network setup.
   Paper drafts: Authentication v2 13/14, Admin A22/A22b, Emails A17–A19, each with a new Root
   pose (awaiting approval).
+- **Speed and caching (2026-10-10, Blueprint 20, amends 36a and frontend plan §5.9):** every
+  page is slow, so the fix is global, for Nigerian mobile data and office desktops alike, using
+  free Cloudflare config and Supabase tuning only. Signed-in pages open from the device cache
+  (balances included) and refresh in the background. Writes clear the affected data and always
+  go to the server. Server responses stay `no-store`. Cached data is shown only when it matches
+  the readable `ew_who` cookie: an HMAC of the user and membership, holding no ids and never
+  trusted by the server. Capabilities are not cached. The new reads `api.app_bootstrap` and
+  `api.home_view` replace the call chains behind `/api/session` and `/api/home`. Session
+  last-activity is written at most every 30 s. The Worker uses Smart Placement. Root images
+  stay exactly as they are. Set-based authorization moves to slice 21.
 - **Sequencing:** one slice at a time, each new slice in its own thread. Order: 4 → 5 → 8 →
   slice 9 follow-up (IP storage, signed-in password change, PIN-change email, sign-out
   choice after reset) → 6 → 7 → 10.

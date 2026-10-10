@@ -80,8 +80,24 @@ test('a non-admin sees "not an admin"; each site keeps its own session', async (
 	await page.getByLabel('PIN', { exact: true }).fill(PIN);
 	await page.getByRole('button', { name: 'Verify' }).click();
 	await expect(page.getByRole('heading', { name: 'This account isn’t an admin' })).toBeVisible();
-	await page.goto('/admin/networks');
-	await expect(page).toHaveURL(/\/admin\/no-access$/);
+	// Blueprint 20 B7: pages no longer await parent(); the gate still runs on each one.
+	for (const path of [
+		'/admin',
+		'/admin/networks',
+		'/admin/accounts',
+		'/admin/search?q=x',
+		'/admin/audit',
+		'/admin/admins',
+		'/admin/switches',
+		'/admin/emails',
+		'/admin/nin',
+		'/admin/applications',
+		'/admin/backups',
+		'/admin/more'
+	]) {
+		await page.goto(path);
+		await expect(page, path).toHaveURL(/\/admin\/no-access$/);
+	}
 
 	const cookies = await page.context().cookies();
 	const admin = cookies.filter((c) => c.name.startsWith('ew-admin-auth'));

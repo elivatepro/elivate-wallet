@@ -1,23 +1,22 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { Effect } from 'effect';
 import { AdminApi } from '#lib/server/apis-admin.js';
-import { adminCall, newKey, readCommandForm, withStepUp } from '#lib/server/admin.js';
+import { adminCall, adminPage, newKey, readCommandForm, withStepUp } from '#lib/server/admin.js';
 import type { Actions, PageServerLoad } from './$types';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export const load: PageServerLoad = async (event) => {
-	await event.parent();
-	const session = (await event.locals.session())!;
-	const reviews = await adminCall(
-		event,
-		session,
-		Effect.gen(function* () {
-			return yield* (yield* AdminApi).ninReviews;
-		})
-	);
-	return { title: 'NIN reviews', reviews, idempotencyKey: newKey() };
-};
+export const load: PageServerLoad = (event) =>
+	adminPage(event, async (session) => {
+		const reviews = await adminCall(
+			event,
+			session,
+			Effect.gen(function* () {
+				return yield* (yield* AdminApi).ninReviews;
+			})
+		);
+		return { title: 'NIN reviews', reviews, idempotencyKey: newKey() };
+	});
 
 export const actions: Actions = {
 	decide: async (event) => {

@@ -116,6 +116,37 @@ function parseDetails(raw: string | null | undefined): Details {
   }
 }
 
+function noQuery(request: Request): void {
+  for (const key of new URL(request.url).searchParams.keys()) {
+    throw new ApiError("validation_error", { field: key, reason: "unknown_field" });
+  }
+}
+
+/** Blueprint 20: the selected workspace, optional; a malformed one is refused. */
+function optionalMembership(request: Request): string | null {
+  const value = request.headers.get("x-membership");
+  if (value === null) return null;
+  if (!uuidPattern.test(value)) throw new ApiError("workspace_invalid");
+  return value.toLowerCase();
+}
+
+const bootstrapKeys = ["state", "profile", "workspace", "capabilities", "brand"] as const;
+
+/** Output check: exactly the five parts, objects or null, and never a photo's storage key. */
+function bootstrapShape(result: Record<string, unknown>): Record<string, unknown> {
+  const keys = Object.keys(result).sort();
+  const parts = bootstrapKeys.map((k) => result[k]);
+  if (
+    keys.join() !== [...bootstrapKeys].sort().join() ||
+    typeof result.state !== "object" || result.state === null ||
+    parts.some((p) => p !== null && (typeof p !== "object" || Array.isArray(p))) ||
+    (typeof result.profile === "object" && result.profile !== null && "photoKey" in result.profile)
+  ) {
+    throw new Error("app_bootstrap returned an unexpected result");
+  }
+  return result;
+}
+
 export function createHandler(deps: Deps): (request: Request) => Promise<Response> {
   async function call(fn: string, args: Record<string, unknown>): Promise<unknown> {
     const { data, error } = await deps.rpc(fn, args);
@@ -141,6 +172,19 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
   const routes: Record<string, Route> = {
     "GET /state": (_r, actor) =>
       call("security_state", { p_user_id: actor.userId, p_session_id: actor.sessionId }),
+
+    // Blueprint 20: opening the app in one read — the state, then (once the
+    // PIN gate is ready) the profile, the workspace, its capabilities and its
+    // brand. The workspace (X-Membership) is optional.
+    "GET /bootstrap": async (request, actor) => {
+      noQuery(request);
+      const result = await call("app_bootstrap", {
+        p_user_id: actor.userId,
+        p_session_id: actor.sessionId,
+        p_membership_id: optionalMembership(request),
+      }) as Record<string, unknown>;
+      return bootstrapShape(result);
+    },
 
     "POST /pin/set": async (request, actor, requestId) => {
       const pin = v.matchingPins(await v.readBody(request, ["pin", "pinConfirm"]));

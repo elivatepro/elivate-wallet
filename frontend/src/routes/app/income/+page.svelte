@@ -1764,7 +1764,12 @@
 		.stage-grain {
 			position: absolute;
 			inset: 0;
-			background: url('/auth-bg/grain-256.png') 50% / 256px 256px no-repeat;
+			/* Blueprint 20 B8: the 128 px tile, four times, fills the same centred 256 px square. */
+			background:
+				url('/auth-bg/grain-128.webp') calc(50% - 64px) calc(50% - 64px) / 128px 128px no-repeat,
+				url('/auth-bg/grain-128.webp') calc(50% + 64px) calc(50% - 64px) / 128px 128px no-repeat,
+				url('/auth-bg/grain-128.webp') calc(50% - 64px) calc(50% + 64px) / 128px 128px no-repeat,
+				url('/auth-bg/grain-128.webp') calc(50% + 64px) calc(50% + 64px) / 128px 128px no-repeat;
 			mix-blend-mode: overlay;
 			opacity: 0.25;
 		}

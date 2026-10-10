@@ -1,23 +1,22 @@
 import { fail, redirect, type RequestEvent } from '@sveltejs/kit';
 import { Effect } from 'effect';
 import { AdminApi } from '#lib/server/apis-admin.js';
-import { adminCall, newKey, readCommandForm, withStepUp } from '#lib/server/admin.js';
+import { adminCall, adminPage, newKey, readCommandForm, withStepUp } from '#lib/server/admin.js';
 import type { Actions, PageServerLoad } from './$types';
 
 const UID = /^EW-[1-9][0-9]{4,}$/i;
 
-export const load: PageServerLoad = async (event) => {
-	await event.parent();
-	const session = (await event.locals.session())!;
-	const admins = await adminCall(
-		event,
-		session,
-		Effect.gen(function* () {
-			return yield* (yield* AdminApi).admins;
-		})
-	);
-	return { title: 'Admins', admins, idempotencyKey: newKey() };
-};
+export const load: PageServerLoad = (event) =>
+	adminPage(event, async (session) => {
+		const admins = await adminCall(
+			event,
+			session,
+			Effect.gen(function* () {
+				return yield* (yield* AdminApi).admins;
+			})
+		);
+		return { title: 'Admins', admins, idempotencyKey: newKey() };
+	});
 
 async function change(event: RequestEvent, grant: boolean) {
 	const session = await event.locals.session();

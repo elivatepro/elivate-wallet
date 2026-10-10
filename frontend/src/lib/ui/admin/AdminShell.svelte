@@ -63,7 +63,8 @@
 	);
 </script>
 
-<div class="shell">
+<!-- Blueprint 20 B7: load on tap, not hover (each admin load is a gated server round trip). -->
+<div class="shell" data-sveltekit-preload-data="tap">
 	<aside class="sidebar" aria-label="Admin">
 		<div class="brand">
 			<div class="brand-card">

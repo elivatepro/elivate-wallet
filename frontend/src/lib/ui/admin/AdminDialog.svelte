@@ -134,7 +134,7 @@
 		background: linear-gradient(90deg, #1b1e1fec 0%, #1b1e1f99 55%, #1b1e1f00 100%);
 	}
 	.grain {
-		background: url('/auth-bg/grain-256.png') repeat;
+		background: url('/auth-bg/grain-128.webp') repeat;
 		mix-blend-mode: overlay;
 		opacity: 0.25;
 	}

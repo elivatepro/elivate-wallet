@@ -9,7 +9,7 @@ select ok(
     select 1 from unnest(array[
       'api.command_outcome(uuid, uuid, text, text)',
       'api.leadership_overview(uuid, uuid, uuid, text)',
-      'api.my_activity(uuid, uuid, uuid, text, uuid, text, text, text, text, text, integer, text, text, text)',
+      'api.my_activity(uuid, uuid, uuid, text, uuid, text, text, text, text, text, integer, text, text, text, uuid)',
       'api.managed_wallet_activity(uuid, uuid, uuid, uuid, text, uuid, text, text, text, text, text, integer, text, text, text)'
     ]) f
     where not has_function_privilege('service_role', f::regprocedure, 'execute')

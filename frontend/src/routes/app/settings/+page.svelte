@@ -6,13 +6,15 @@
 -->
 <script lang="ts">
 	import '#lib/ui/settings/settings.css';
-	import { getContext } from 'svelte';
+	import { getContext, onMount, untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import Upload from '@lucide/svelte/icons/upload';
 	import { SettingsView, THEME_LABELS, THEMES, type Theme } from '#lib/contract/settings.js';
 	import { loadView, OrgCommand } from '#lib/client/org.svelte.js';
+	import { CachedRead } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { buildPatch, formOf, type PendingAssets, type SettingsForm } from '#lib/settings.js';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import OrgDialog from '#lib/ui/org/OrgDialog.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
 	import SettingsTabs from '#lib/ui/settings/SettingsTabs.svelte';
@@ -27,7 +29,9 @@
 	const canEdit = $derived(can('manage_team_settings'));
 	const canVault = $derived(canEdit || can('request_restore'));
 
-	let view = $state<SettingsView | null>(null);
+	// Blueprint 20 B6: cached first, then fresh; saving waits for the fresh view.
+	const read = new CachedRead<SettingsView>('settings');
+	const view = $derived(read.data);
 	let loadError = $state<string | null>(null);
 	let form = $state<SettingsForm | null>(null);
 	let pending = $state<PendingAssets>({});
@@ -35,30 +39,45 @@
 	let uploading = $state<'logo' | 'icon' | 'logo-light' | null>(null);
 	let uploadError = $state<string | null>(null);
 	let saved = $state<number | null>(null);
-	let started = false;
+	let checked = false;
 
 	async function load() {
+		const ticket = read.begin();
 		const result = await loadView('/api/settings', SettingsView);
+		if (checked && !canEdit) return;
 		if (result.ok) {
-			view = result.value;
+			if (!read.fresh(result.value, shell.scope, ticket)) return load();
 			form = formOf(result.value.settings);
 			loadError = null;
 		} else loadError = result.text;
 	}
 
+	onMount(() => {
+		if (read.show() && read.data) form = formOf(read.data.settings);
+		return read.watch(() => void load());
+	});
+	// Starts with /api/session, not after it, and again when back online.
 	$effect(() => {
-		if (shell.state.kind !== 'ready' || started) return;
-		started = true;
+		if (shell.readable) untrack(() => void load());
+	});
+	$effect(() => {
+		if (shell.scope) read.confirm(shell.scope);
+		if (shell.state.kind !== 'ready' || checked) return;
+		checked = true;
 		// World Team members only reach the vault (request_restore).
 		if (!canEdit) {
+			read.clear();
+			form = null;
 			if (canVault) void goto('/app/settings/backups', { replaceState: true });
 			else loadError = 'You don’t have access to team settings.';
-			return;
 		}
-		void load();
 	});
 
 	const editable = $derived(!!view?.canEdit);
+	// Read-only while cached data shows: the fresh view replaces the form, so
+	// edits made before it arrives would be lost (Greptile P2 on PR #57). Kept
+	// apart from `editable`, which alone drives the paused-network notice.
+	const writable = $derived(editable && read.savedAt === null);
 	const patch = $derived(
 		view && form
 			? buildPatch(
@@ -135,7 +154,7 @@
 
 	function openSave(event: SubmitEvent) {
 		event.preventDefault();
-		if (!dirty || !editable) return;
+		if (!dirty || !writable) return;
 		if (sloganLength > 60) return;
 		save.reset(JSON.stringify(patch));
 		confirmOpen = true;
@@ -166,7 +185,8 @@
 <div class="s-page">
 	<SettingsTabs {canEdit} {canVault} />
 
-	{#if loadError}
+	<CacheNote savedAt={read.savedAt} online={shell.online} failed={loadError !== null} />
+	{#if loadError && !view && shell.state.kind !== 'loading'}
 		<p class="s-notice bad" role="alert">{loadError}</p>
 	{:else if !view || !form}
 		<p class="s-notice" aria-busy="true">Loading…</p>
@@ -183,7 +203,7 @@
 		{/if}
 		<div class="s-body">
 			<form class="s-form" onsubmit={openSave} novalidate aria-label="Branding">
-				<fieldset class="s-section" disabled={!editable}>
+				<fieldset class="s-section" disabled={!writable}>
 					<legend class="s-section-label">Logo</legend>
 					<div class="logos">
 						<label class="logo-tile main" class:filled={!!assetUrl('logo')}>
@@ -242,7 +262,7 @@
 					{#if uploadError}<p class="s-error" role="alert">{uploadError}</p>{/if}
 				</fieldset>
 
-				<fieldset class="s-section" disabled={!editable}>
+				<fieldset class="s-section" disabled={!writable}>
 					<legend class="s-section-label">Theme</legend>
 					<div class="themes">
 						{#each THEMES as theme (theme)}
@@ -264,14 +284,14 @@
 						class="s-input"
 						maxlength="60"
 						bind:value={form.slogan}
-						disabled={!editable}
+						disabled={!writable}
 						aria-invalid={sloganLength > 60 ? 'true' : undefined}
 					/>
 				</div>
 
 				<div class="s-actions">
 					<button type="button" class="s-ghost" onclick={discard} disabled={!dirty}>Discard</button>
-					<button type="submit" class="s-primary" disabled={!dirty || !editable || !shell.canAct}
+					<button type="submit" class="s-primary" disabled={!dirty || !writable || !shell.canAct}
 						>Save changes</button
 					>
 				</div>

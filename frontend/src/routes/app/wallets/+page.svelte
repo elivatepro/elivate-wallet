@@ -7,7 +7,7 @@
 	M03 composition. The backend authorizes every segment; never your own.
 -->
 <script lang="ts">
-	import { getContext } from 'svelte';
+	import { getContext, onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	import { Cause, Effect, Exit, Option } from 'effect';
@@ -19,11 +19,13 @@
 	import type { ApiFailure } from '#lib/contract/errors.js';
 	import { ManagedWalletPage, type Currency } from '#lib/contract/ledger.js';
 	import { getJson } from '#lib/client/api.js';
+	import { CachedRead } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { initials, isCredit, typeLabel } from '#lib/activity.js';
 	import { ROLE_LABELS } from '#lib/labels.js';
 	import { formatMoney, hiddenMoney, isZero } from '#lib/money.js';
 	import ActivityBrowser from '#lib/ui/app/ActivityBrowser.svelte';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import CurrencySwitch from '#lib/ui/app/CurrencySwitch.svelte';
 	import RootHero from '#lib/ui/app/RootHero.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
@@ -54,6 +56,30 @@
 	let list = $state<ManagedWalletPage | null>(null);
 	let items = $state<ManagedWalletPage['items'][number][]>([]);
 	let listError = $state<string | null>(null);
+	/** Blueprint 20 B6: the unfiltered first page opens from cache, then refreshes. */
+	const cached = new CachedRead<ManagedWalletPage>('wallets');
+	let cachedAt = $state<number | null>(null);
+	const showCached = () => {
+		if (!cached.data) return;
+		list = cached.data;
+		items = [...cached.data.items];
+		cachedAt = cached.savedAt;
+	};
+	onMount(() => {
+		if (!wallet && cached.show()) showCached();
+		return cached.watch(() => {
+			if (!wallet) void loadList();
+		});
+	});
+	$effect(() => {
+		if (!shell.scope) return;
+		cached.confirm(shell.scope);
+		if (cachedAt !== null && !cached.data) {
+			list = null;
+			items = [];
+			cachedAt = null;
+		}
+	});
 
 	$effect(() => {
 		const value = query.trim();
@@ -69,14 +95,19 @@
 		const p = new SvelteURLSearchParams();
 		if (applied) p.set('q', applied);
 		if (more && list?.nextCursor) p.set('cursor', list.nextCursor);
+		const ticket = cached.begin();
 		const exit = await Effect.runPromiseExit(
 			getJson(`/api/wallets?${p}`, ManagedWalletPage, ctrl.signal)
 		);
 		if (ctrl.signal.aborted) return;
+		// Another tab switched workspace while this ran: the wallets are not ours.
+		if (!cached.current(ticket)) return loadList();
 		if (Exit.isSuccess(exit)) {
 			items = more ? [...items, ...exit.value.items] : [...exit.value.items];
 			list = exit.value;
 			listError = null;
+			if (!more && !applied) cached.fresh(exit.value, shell.scope, ticket);
+			cachedAt = null;
 			return;
 		}
 		listError = failureText(exit, 'We couldn’t load the wallets.');
@@ -84,7 +115,8 @@
 
 	$effect(() => {
 		void applied;
-		if (shell.state.kind === 'ready' && !wallet) void loadList();
+		// Starts with /api/session, not after it (Blueprint 20 B6).
+		if (shell.readable && !wallet) void loadList();
 	});
 
 	const cell = (item: ManagedWalletPage['items'][number], c: Currency) => {
@@ -319,6 +351,7 @@
 	{/if}
 {:else}
 	<h1 class="title mobile-only">Member wallets</h1>
+	<CacheNote savedAt={cachedAt} online={shell.online} failed={listError !== null} />
 	{#if list}
 		<div class="list-hero">
 			{@render hero(
@@ -333,7 +366,7 @@
 		<span class="visually-hidden">Search members</span>
 		<input type="search" placeholder="Search name or UID" bind:value={query} maxlength="100" />
 	</label>
-	{#if listError}
+	{#if listError && cachedAt === null}
 		<p class="notice" role="alert">{listError}</p>
 	{:else if !list}
 		<div class="skeleton" aria-hidden="true"></div>
@@ -478,7 +511,7 @@
 	}
 
 	.hero-grain {
-		background: url('/auth-bg/grain-256.png') 50% / 256px 256px repeat;
+		background: url('/auth-bg/grain-128.webp') 50% / 128px 128px repeat;
 		mix-blend-mode: overlay;
 		opacity: 0.25;
 	}

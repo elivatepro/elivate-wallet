@@ -447,7 +447,7 @@ select.en-input {
 .en-art-grain {
 	position: absolute;
 	inset: 0;
-	background: url('/auth-bg/grain-256.png') 50% / 256px 256px repeat;
+	background: url('/auth-bg/grain-128.webp') 50% / 128px 128px repeat;
 	mix-blend-mode: overlay;
 	opacity: 0.25;
 }

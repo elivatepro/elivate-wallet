@@ -2,11 +2,11 @@
 	Home, Paper "App — Screens v3" H04 (desktop) / T04-style mobile, H06 hidden
 	amounts, H09 no income yet. Own money in the selected network only, one
 	currency at a time (W-07: no cross-currency total). Loaded from /api/home;
-	the last good view is kept on this device for offline reading (36a), and
-	labelled by the shell's offline banner.
+	the last good view is kept on this device (36a) and, Blueprint 20 B6, shown
+	at once on the next visit with a quiet "Updating…" until the fresh reply.
 -->
 <script lang="ts">
-	import { getContext } from 'svelte';
+	import { getContext, onMount, untrack } from 'svelte';
 	import { Cause, Effect, Exit, Option } from 'effect';
 	import ArrowDown from '@lucide/svelte/icons/arrow-down';
 	import ArrowUp from '@lucide/svelte/icons/arrow-up';
@@ -17,16 +17,19 @@
 	import type { HomeView } from '#lib/contract/app.js';
 	import type { Currency } from '#lib/contract/ledger.js';
 	import { loadHome } from '#lib/client/api.js';
-	import { browserStore, lastScope, readCache, writeCache } from '#lib/client/device-cache.js';
+	import { CachedRead } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { formatMoney, hiddenMoney, isZero } from '#lib/money.js';
 	import BalanceCard from '#lib/ui/app/BalanceCard.svelte';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import CurrencySwitch from '#lib/ui/app/CurrencySwitch.svelte';
 	import RootHero from '#lib/ui/app/RootHero.svelte';
 
 	const shell = getContext<Shell>('shell');
 
-	let home = $state<HomeView | null>(null);
+	// Blueprint 20 B6: memory, else device-cache data at once, then fresh.
+	const read = new CachedRead<HomeView>('balances');
+	const home = $derived(read.data);
 	let failed = $state<string | null>(null);
 	let chosen = $state<Currency | null>(null);
 
@@ -39,38 +42,39 @@
 		'var(--color-muted)'
 	];
 
-	const scope = $derived(
-		shell.state.kind === 'ready'
-			? { uid: shell.state.view.state.uid, workspaceId: shell.state.view.workspace.membershipId }
-			: null
-	);
+	let controller: AbortController | null = null;
+	function load() {
+		controller?.abort();
+		const current = new AbortController();
+		controller = current;
+		const ticket = read.begin();
+		void Effect.runPromiseExit(loadHome(fetch, current.signal)).then((exit) => {
+			if (current.signal.aborted) return;
+			if (Exit.isSuccess(exit)) {
+				if (!read.fresh(exit.value, shell.scope, ticket)) return load();
+				failed = null;
+				return;
+			}
+			const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
+			if (failure?._tag === 'TransportError' && failure.reason === 'aborted') return;
+			failed = failure?._tag === 'BackendError' ? failure.message : 'We couldn’t load your wallet.';
+		});
+	}
 
+	onMount(() => {
+		read.show();
+		const unwatch = read.watch(load);
+		return () => {
+			unwatch();
+			controller?.abort();
+		};
+	});
+	// Starts with /api/session (not after it), and again when back online.
 	$effect(() => {
-		const kind = shell.state.kind;
-		if (kind === 'ready' && scope) {
-			const current = scope;
-			const controller = new AbortController();
-			void Effect.runPromiseExit(loadHome(fetch, controller.signal)).then((exit) => {
-				if (controller.signal.aborted) return;
-				if (Exit.isSuccess(exit)) {
-					home = exit.value;
-					failed = null;
-					const store = browserStore();
-					if (store) writeCache(store, current, 'balances', exit.value);
-					return;
-				}
-				const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
-				if (failure?._tag === 'TransportError' && failure.reason === 'aborted') return;
-				failed =
-					failure?._tag === 'BackendError' ? failure.message : 'We couldn’t load your wallet.';
-			});
-			return () => controller.abort();
-		}
-		if (kind === 'offline' && !home) {
-			const store = browserStore();
-			const last = store ? lastScope(store) : null;
-			home = (store && last && readCache<HomeView>(store, last, 'balances')?.data) || null;
-		}
+		if (shell.readable) untrack(load);
+	});
+	$effect(() => {
+		if (shell.scope) read.confirm(shell.scope);
 	});
 
 	const network = $derived(home?.network ?? null);
@@ -123,7 +127,8 @@
 
 <svelte:head><title>Home · Elivate Wallet</title></svelte:head>
 
-{#if !home && !failed && shell.state.kind !== 'offline'}
+<CacheNote savedAt={read.savedAt} online={shell.online} failed={failed !== null} />
+{#if !home && (!failed || shell.state.kind === 'loading') && shell.state.kind !== 'offline'}
 	<div class="skeleton" aria-hidden="true"></div>
 	<p class="visually-hidden" role="status">Loading your wallet</p>
 {:else if failed && !home}

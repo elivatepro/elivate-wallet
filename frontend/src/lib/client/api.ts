@@ -6,6 +6,8 @@ import { Effect, Schedule, type Schema } from 'effect';
 import { AppRoutes, HomeView, SessionView } from '#lib/contract/app.js';
 import { isRetryableRead, type ApiFailure } from '#lib/contract/errors.js';
 import { COMMAND_TIMEOUT_MS, READ_TIMEOUT_MS, requestJson } from '#lib/contract/transport.js';
+import { invalidatesForPath } from './invalidation';
+import { invalidate } from './page-cache.svelte';
 
 export function loadSession(
 	fetcher: typeof fetch,
@@ -77,9 +79,23 @@ export function getJson<S extends Schema.ConstraintDecoder<unknown>>(
 /**
  * A same-origin command. Carries the workspace it was rendered for
  * (X-EW-Workspace, plan §5.8) and is never retried: on an unknown outcome
- * the caller resubmits with the same idempotency key.
+ * the caller resubmits with the same idempotency key. On success the cached
+ * reads its path affects are forgotten and refetched (Blueprint 20 B6).
  */
 export function sendCommand<S extends Schema.ConstraintDecoder<unknown>>(
+	path: string,
+	method: 'POST' | 'PUT' | 'PATCH',
+	body: unknown,
+	workspaceId: string,
+	schema: S
+): Effect.Effect<S['Type'], ApiFailure> {
+	return sendCommandOnly(path, method, body, workspaceId, schema).pipe(
+		Effect.tap(() => Effect.sync(() => invalidate(invalidatesForPath(path))))
+	);
+}
+
+/** sendCommand without the cache step: CommandAttempt invalidates per command. */
+export function sendCommandOnly<S extends Schema.ConstraintDecoder<unknown>>(
 	path: string,
 	method: 'POST' | 'PUT' | 'PATCH',
 	body: unknown,

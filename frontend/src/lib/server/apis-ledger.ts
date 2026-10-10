@@ -4,6 +4,7 @@
 // lookup. Reads retry; the command never does (the caller keeps its key).
 
 import { Context, Effect, Layer, Schedule } from 'effect';
+import { HomeView } from '#lib/contract/app.js';
 import { isRetryableRead } from '#lib/contract/errors.js';
 import {
 	Activity,
@@ -47,7 +48,18 @@ export interface SplitInput {
 
 export interface LedgerApiShape {
 	readonly wallet: Effect.Effect<typeof Wallet.Type, EdgeFailure>;
-	readonly activity: (query: ActivityQuery) => Effect.Effect<typeof Activity.Type, EdgeFailure>;
+	/** Blueprint 20: the own wallet limited to the workspace's network (resolved by the backend). */
+	readonly walletIn: (membershipId: string) => Effect.Effect<typeof Wallet.Type, EdgeFailure>;
+	/**
+	 * Own activity. With a membership id (Blueprint 20) the backend resolves the
+	 * network from the caller's own membership; `query.tenantId` must then be unset.
+	 */
+	readonly activity: (
+		query: ActivityQuery,
+		membershipId?: string
+	) => Effect.Effect<typeof Activity.Type, EdgeFailure>;
+	/** Blueprint 20: Home (W-07) in one read for the workspace. */
+	readonly home: (membershipId: string) => Effect.Effect<HomeView, EdgeFailure>;
 	readonly transaction: (id: string) => Effect.Effect<TransactionDetail, EdgeFailure>;
 	readonly commandOutcome: (
 		idempotencyKey: string,
@@ -94,9 +106,25 @@ export const LedgerApiLive = Layer.effect(
 		const fn = 'ledger' as const;
 		return {
 			wallet: edge.call({ fn, route: LedgerRoutes.wallet }, Wallet).pipe(Effect.retry(readPolicy)),
-			activity: (query) =>
+			walletIn: (membershipId) =>
 				edge
-					.call({ fn, route: LedgerRoutes.activity, query: activityParams(query) }, Activity)
+					.call({ fn, route: LedgerRoutes.wallet, membershipId }, Wallet)
+					.pipe(Effect.retry(readPolicy)),
+			activity: (query, membershipId) =>
+				edge
+					.call(
+						{
+							fn,
+							route: LedgerRoutes.activity,
+							query: activityParams(query),
+							...(membershipId ? { membershipId } : {})
+						},
+						Activity
+					)
+					.pipe(Effect.retry(readPolicy)),
+			home: (membershipId) =>
+				edge
+					.call({ fn, route: LedgerRoutes.home, membershipId }, HomeView)
 					.pipe(Effect.retry(readPolicy)),
 			transaction: (id) =>
 				edge

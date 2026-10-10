@@ -170,7 +170,7 @@
 		}
 
 		.grain {
-			background: url('/auth-bg/grain-256.png') 50% / 256px 256px;
+			background: url('/auth-bg/grain-128.webp') 50% / 128px 128px;
 			mix-blend-mode: overlay;
 			opacity: 0.25;
 		}

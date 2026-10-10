@@ -1,14 +1,13 @@
 // Shared pieces of the slice 08 money reads (Blueprint 08): the selected
 // workspace from the cookie, and the activity query parsed from a same-origin
-// URL. Everything is validated here before it reaches the Edge.
+// URL. Everything is validated here before it reaches the Edge. Blueprint 20:
+// the reads pass the membership and the backend resolves (and checks) the
+// network, so the workspace list is no longer refetched here.
 
 import type { RequestEvent } from '@sveltejs/kit';
-import { Effect } from 'effect';
 import { UUID_PATTERN } from '#lib/contract/common.js';
 import { BackendError } from '#lib/contract/errors.js';
 import type { ActivityQuery } from '#lib/contract/ledger.js';
-import type { Workspace } from '#lib/contract/org.js';
-import { OrgApi } from './apis';
 import { readWorkspace } from './cookies';
 
 export const workspaceGone = () =>
@@ -20,15 +19,6 @@ export const workspaceGone = () =>
 		details: {},
 		requestId: null
 	});
-
-/** The selected workspace, re-read from the backend (never trusted from the cookie alone). */
-export const currentWorkspace = (membershipId: string) =>
-	Effect.gen(function* () {
-		const workspace = (yield* (yield* OrgApi).workspaces).find(
-			(w) => w.membershipId === membershipId
-		);
-		return workspace ?? (yield* Effect.fail(workspaceGone()));
-	}) satisfies Effect.Effect<Workspace, unknown, OrgApi>;
 
 export const workspaceCookie = (event: RequestEvent) => readWorkspace(event.cookies);
 

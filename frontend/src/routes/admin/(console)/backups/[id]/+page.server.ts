@@ -4,6 +4,7 @@ import type { RestoreStatus } from '#lib/contract/admin.js';
 import { AdminApi } from '#lib/server/apis-admin.js';
 import {
 	adminCall,
+	adminPage,
 	adminPathForCode,
 	newKey,
 	readCommandForm,
@@ -50,27 +51,26 @@ const NOTICES = {
 } as const;
 type Notice = keyof typeof NOTICES;
 
-export const load: PageServerLoad = async (event) => {
-	await event.parent();
-	const session = (await event.locals.session())!;
-	const id = restoreId(event.params);
-	const restore = await adminCall(
-		event,
-		session,
-		Effect.gen(function* () {
-			return yield* (yield* AdminApi).restore(id);
-		})
-	);
-	const asked = event.url.searchParams.get('dialog');
-	const dialog = isDialog(asked) && ALLOWED[restore.status]?.includes(asked) ? asked : null;
-	return {
-		title: `Backups & restores / ${restore.reference}`,
-		restore,
-		dialog,
-		notice: NOTICES[event.url.searchParams.get('notice') as Notice] ?? null,
-		idempotencyKey: newKey()
-	};
-};
+export const load: PageServerLoad = (event) =>
+	adminPage(event, async (session) => {
+		const id = restoreId(event.params);
+		const restore = await adminCall(
+			event,
+			session,
+			Effect.gen(function* () {
+				return yield* (yield* AdminApi).restore(id);
+			})
+		);
+		const asked = event.url.searchParams.get('dialog');
+		const dialog = isDialog(asked) && ALLOWED[restore.status]?.includes(asked) ? asked : null;
+		return {
+			title: `Backups & restores / ${restore.reference}`,
+			restore,
+			dialog,
+			notice: NOTICES[event.url.searchParams.get('notice') as Notice] ?? null,
+			idempotencyKey: newKey()
+		};
+	});
 
 /** Runs one validation pass; returns a notice for the page when it couldn't finish. */
 async function runValidation(
