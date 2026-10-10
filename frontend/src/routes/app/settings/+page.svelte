@@ -73,9 +73,11 @@
 		}
 	});
 
+	const editable = $derived(!!view?.canEdit);
 	// Read-only while cached data shows: the fresh view replaces the form, so
-	// edits made before it arrives would be lost (Greptile P2 on PR #57).
-	const editable = $derived(!!view?.canEdit && read.savedAt === null);
+	// edits made before it arrives would be lost (Greptile P2 on PR #57). Kept
+	// apart from `editable`, which alone drives the paused-network notice.
+	const writable = $derived(editable && read.savedAt === null);
 	const patch = $derived(
 		view && form
 			? buildPatch(
@@ -152,7 +154,7 @@
 
 	function openSave(event: SubmitEvent) {
 		event.preventDefault();
-		if (!dirty || !editable || read.savedAt !== null) return;
+		if (!dirty || !writable) return;
 		if (sloganLength > 60) return;
 		save.reset(JSON.stringify(patch));
 		confirmOpen = true;
@@ -201,7 +203,7 @@
 		{/if}
 		<div class="s-body">
 			<form class="s-form" onsubmit={openSave} novalidate aria-label="Branding">
-				<fieldset class="s-section" disabled={!editable}>
+				<fieldset class="s-section" disabled={!writable}>
 					<legend class="s-section-label">Logo</legend>
 					<div class="logos">
 						<label class="logo-tile main" class:filled={!!assetUrl('logo')}>
@@ -260,7 +262,7 @@
 					{#if uploadError}<p class="s-error" role="alert">{uploadError}</p>{/if}
 				</fieldset>
 
-				<fieldset class="s-section" disabled={!editable}>
+				<fieldset class="s-section" disabled={!writable}>
 					<legend class="s-section-label">Theme</legend>
 					<div class="themes">
 						{#each THEMES as theme (theme)}
@@ -282,14 +284,14 @@
 						class="s-input"
 						maxlength="60"
 						bind:value={form.slogan}
-						disabled={!editable}
+						disabled={!writable}
 						aria-invalid={sloganLength > 60 ? 'true' : undefined}
 					/>
 				</div>
 
 				<div class="s-actions">
 					<button type="button" class="s-ghost" onclick={discard} disabled={!dirty}>Discard</button>
-					<button type="submit" class="s-primary" disabled={!dirty || !editable || !shell.canAct}
+					<button type="submit" class="s-primary" disabled={!dirty || !writable || !shell.canAct}
 						>Save changes</button
 					>
 				</div>
