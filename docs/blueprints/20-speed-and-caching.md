@@ -41,7 +41,8 @@ Contract: frontend plan decision 36a (device cache) and §5.9 (no-store), 02 W-0
 - **Idle timer.** `last_activity_at` is written at most once every **30 s**. Step-up still uses
   `verified_at`, which doesn't change.
 - **Authorization rewrite deferred.** Set-based `visible_segments` and `my_capabilities` move to
-  slice 21, with an equivalence suite against `authz.decide`.
+  a later slice (after slice 25 since the 2026-10-10 feedback round), with an equivalence suite
+  against `authz.decide`.
 - **Measuring.** The owner runs the speed test after deploy (2026-10-10). The synthetic test
   account has no workspace yet, so no signed-in baseline was taken before the change.
 
@@ -197,7 +198,7 @@ Contract: frontend plan decision 36a (device cache) and §5.9 (no-store), 02 W-0
     header above.
 
 ## Not in this slice
-- Set-based authorization (slice 21).
+- Set-based authorization (after slice 25; see `docs/member-build-plan.md`).
 - Paid add-ons.
 - The production region.
 - Caching any Edge or HTTP response at Cloudflare.
