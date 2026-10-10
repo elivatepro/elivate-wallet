@@ -49,6 +49,8 @@ export interface WorkerClient {
 		}
 	): Promise<{ status: string }>;
 	fail(id: string, worker: string, reason: FailReason): Promise<void>;
+	/** Blueprint 17: the logo key of the file's network (rendering only). */
+	brand?(id: string, worker: string): Promise<{ logoKey: string | null }>;
 }
 
 export interface RunnerDeps {
@@ -57,6 +59,8 @@ export interface RunnerDeps {
 	readonly renderer: PdfRenderer;
 	readonly log: (entry: Record<string, unknown>) => void;
 	readonly pageSize?: number;
+	/** Blueprint 17: a stored logo as a data URI (null when absent or unreadable). */
+	readonly logo?: (key: string | null) => Promise<string | null>;
 }
 
 export interface JobOutcome {
@@ -105,9 +109,13 @@ export function edgeWorkerClient(options: {
 			call('POST', `/${id}/finalize`, StepResult, { worker, ...file }),
 		fail: async (id, worker, reason) => {
 			await call('POST', `/${id}/fail`, StepResult, { worker, reason });
-		}
+		},
+		brand: (id, worker) =>
+			call('GET', `/${id}/brand?${new URLSearchParams({ worker })}`, BrandResult)
 	};
 }
+
+const BrandResult = Schema.Struct({ logoKey: Schema.NullOr(Schema.String) });
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
 	const digest = new Uint8Array(
@@ -161,7 +169,8 @@ async function build(
 	job: ClaimedJob,
 	summary: unknown,
 	rows: RowsPage['rows'],
-	renderer: PdfRenderer
+	renderer: PdfRenderer,
+	logo: string | null = null
 ): Promise<{ bytes: Uint8Array; pages: number | null; preview: Uint8Array | null; type: string }> {
 	const txns = () => rows.map((r) => decode(TxnRow, r.data));
 	const members = () => rows.map((r) => decode(MemberFigure, r.data));
@@ -191,8 +200,8 @@ async function build(
 		case 'office_pdf': {
 			const html =
 				job.kind === 'statement_pdf'
-					? statementHtml(decode(StatementSummary, summary), txns())
-					: reportHtml(decode(ReportSummary, summary), members());
+					? statementHtml(decode(StatementSummary, summary), txns(), logo)
+					: reportHtml(decode(ReportSummary, summary), members(), logo);
 			try {
 				const out = await renderer.render(html, { preview: job.kind === 'statement_pdf' });
 				if (out.pages < 1) throw new Error('empty pdf');
@@ -201,6 +210,16 @@ async function build(
 				throw new StepFailure('render_failed');
 			}
 		}
+	}
+}
+
+/** The network logo for PDFs; any failure falls back to the initial tile. */
+async function logoFor(deps: RunnerDeps, job: ClaimedJob, worker: string): Promise<string | null> {
+	if (job.format !== 'pdf' || !deps.logo || !deps.client.brand) return null;
+	try {
+		return await deps.logo((await deps.client.brand(job.exportId, worker)).logoKey);
+	} catch {
+		return null;
 	}
 }
 
@@ -225,7 +244,13 @@ export async function runJob(
 		if (rowCount < 0) throw new StepFailure('read_failed');
 
 		const rows = await readAllRows(deps.client, id, worker, rowCount, deps.pageSize ?? 1000);
-		const file = await build(job, prepared.summary, rows, deps.renderer);
+		const file = await build(
+			job,
+			prepared.summary,
+			rows,
+			deps.renderer,
+			await logoFor(deps, job, worker)
+		);
 
 		try {
 			await deps.storage.put(job.objectKey, file.bytes, file.type);

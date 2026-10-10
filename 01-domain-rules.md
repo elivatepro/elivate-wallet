@@ -111,6 +111,8 @@ Defaults seed a new tenant's exact-role policies atomically. They are not role-r
 | `transfer_presidency` | 0 | 0 | 0 | 0 | 1 | yes | no | tenant | no |
 | `deactivate_tenant` | 0 | 0 | 0 | 0 | 1 | yes | no | tenant | no |
 | `manage_allocation` | 0 | 0 | 0 | 0 | 1 | yes | no | tenant | no |
+| `manage_team_settings` | 0 | 0 | 0 | 0 | 1 | yes | no | tenant | no |
+| `request_restore` | 0 | 0 | 0 | 1 | 1 | yes | no | tenant | no |
 | `review_financial_evidence` | 0 | 0 | 0 | 0 | 1* | no | yes* | assignment | no |
 
 Special interpretation:
@@ -118,8 +120,10 @@ Special interpretation:
 - `withdraw_on_behalf` is an optional tenant capability. President decides which roles/users receive it; listed W/P defaults do not substitute for the approved operational policy.
 - `review_financial_evidence`: the matrix lists P as default, but actual review authority/routing is the President-controlled specific-person reviewer assignment. No presidency, role choice, generic routing list or financial-operation permission substitutes for current designated assignment. Self-review is forbidden. Do not create independently administered routing and review-authority systems.
 - Office-scoped defaults still use tenant-wide President scope where applicable and the target-based resolver. “Own wallet=no” is the leadership self-target guard, not a denial of separately eligible self-service.
-- Tenant configuration and workspace-request approval require explicit trusted capabilities; this source matrix does not settle their exact additional wire keys. Use reviewed existing contracts or U-04/U-09 rather than inventing a catalog entry.
-- `manage_allocation` (owner decision 2026-10-08): the tenant's pocket catalogue and allocation percentages (rename, add and retire pockets; change the split). Protected and President-only, so the catalogue now has 32 rows. Every change needs reason and step-up, creates a new policy version and applies to future income only. Elivate platform admins may view versions but do not edit them.
+- Workspace-request approval requires an explicit trusted capability; this source matrix does not settle its wire key. Use reviewed existing contracts or U-04/U-09 rather than inventing a catalog entry.
+- `manage_team_settings` (owner decision 2026-10-10, Blueprint 17): team settings and branding (D-11, W-20), their revisions and restore, and the Team Backup Vault (back up, download). Protected and President-only; the PIN is needed to save, to restore a revision and to download a backup.
+- `request_restore` (Blueprint 17, encoding the 2026-10-07 W-24 decision): asking Elivate for a restore, with a reason. Protected; World Team and President. The catalogue now has 34 rows.
+- `manage_allocation` (owner decision 2026-10-08): the tenant's pocket catalogue and allocation percentages (rename, add and retire pockets; change the split). Protected and President-only (32 rows at the time). Every change needs reason and step-up, creates a new policy version and applies to future income only. Elivate platform admins may view versions but do not edit them.
 - Retired names: `grant_cross_access` → `manage_access_rules`; `view_financial_reports` → `view_scoped_financial_reports`; `export_reports` → `export_scoped_reports`.
 
 ## A-04 — Self-service, approval and evidence-review separation

@@ -433,10 +433,10 @@
 		width: 56px;
 		height: 56px;
 		overflow: clip;
-		border: 1px solid #ff7f4f44;
+		border: 1px solid var(--color-accent-edge);
 		border-radius: var(--radius-pill);
-		background: #3a251f;
-		color: #ff9c77;
+		background: var(--color-accent-subtle);
+		color: var(--color-accent-text);
 		font-size: 19px;
 		font-weight: var(--font-weight-semibold);
 		line-height: 24px;
@@ -576,7 +576,7 @@
 	}
 
 	.link {
-		color: #ff9c77;
+		color: var(--color-accent-text);
 		font-size: 13px;
 		font-weight: var(--font-weight-medium);
 		line-height: var(--leading-16);
@@ -620,7 +620,7 @@
 		overflow: clip;
 		border: 1px solid #5a3a2e;
 		border-radius: var(--radius-pill);
-		background: #3a251f;
+		background: var(--color-accent-subtle);
 		color: var(--color-accent);
 		font-size: 18px;
 		font-weight: var(--font-weight-semibold);

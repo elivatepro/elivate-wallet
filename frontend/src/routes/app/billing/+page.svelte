@@ -763,7 +763,7 @@
 		padding: 3px 10px;
 		border-radius: var(--radius-pill);
 		background: var(--color-accent-subtle);
-		color: var(--o-coral-text, #ff9c77);
+		color: var(--o-coral-text, var(--color-accent-text));
 		font-size: var(--text-12);
 		line-height: var(--leading-16);
 	}

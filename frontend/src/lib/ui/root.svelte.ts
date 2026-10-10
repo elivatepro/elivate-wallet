@@ -104,7 +104,22 @@ export type RootPose =
 	| 'seat-limit'
 	| 'upgrade'
 	| 'payment-confirmed'
-	| 'payment-confirming';
+	| 'payment-confirming'
+	// Paper "App — Screens v2" K01/K02 quick search (binoculars).
+	| 'quick-search'
+	// Paper "App — Screens v1" E11/E12 (headset; Blueprint 17).
+	| 'support'
+	// Paper "App — Screens v2" X01/X02 (upside-down map) and X03/X04 (velvet
+	// rope). PL06's sleep mask reuses 'dialog-sign-out'.
+	| 'not-found'
+	| 'no-access'
+	// Paper "App — Screens v1" F01 (paint palette) and E09 (safe), "App —
+	// Screens v2" V01 (life ring) and V03 (nod with clipboard); Blueprint 17.
+	// F02's signboard reuses 'setup-name'.
+	| 'settings-branding'
+	| 'backup-vault'
+	| 'restore-request'
+	| 'restore-sent';
 
 /** Rendered Root size on mobile gate screens (Paper: 120×160, 150×200, 180×240). */
 export type RootSize = 'sm' | 'md' | 'lg';
@@ -211,7 +226,15 @@ export const ROOT_HEIGHTS: Record<RootPose, number> = {
 	'seat-limit': 525,
 	upgrade: 525,
 	'payment-confirmed': 525,
-	'payment-confirming': 525
+	'payment-confirming': 525,
+	'quick-search': 520,
+	support: 523,
+	'not-found': 507,
+	'no-access': 461,
+	'settings-branding': 523,
+	'backup-vault': 524,
+	'restore-request': 527,
+	'restore-sent': 527
 };
 
 export const rootSrc = (pose: RootPose) => `/root/${pose}.webp`;

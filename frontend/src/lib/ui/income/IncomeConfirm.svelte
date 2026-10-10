@@ -207,7 +207,7 @@
 	.go {
 		border: 0;
 		background: var(--button-primary-bg);
-		box-shadow: #ff7f4f8c 0px 12px 32px -8px;
+		box-shadow: var(--button-primary-glow) 0px 12px 32px -8px;
 		color: var(--button-primary-ink);
 		font-weight: var(--font-weight-semibold);
 	}

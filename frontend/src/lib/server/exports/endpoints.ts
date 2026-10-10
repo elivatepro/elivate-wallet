@@ -9,6 +9,7 @@ import { ExportsApi } from '../apis-exports';
 import { appServerSecret, exportsWorkerSecret, localExportsDir, requireConfig } from '../config';
 import { respondError, toBackendError, unauthenticated } from '../relay';
 import { runApi } from '../request';
+import { logoDataUri } from '../brand';
 import { browserRenderer, localRenderer, type PdfRenderer } from './render';
 import { edgeWorkerClient, runExports, type RunnerDeps } from './runner';
 import { exportStorage, workerBindings } from './storage';
@@ -34,6 +35,7 @@ export async function runnerDeps(): Promise<RunnerDeps | null> {
 		}),
 		storage,
 		renderer,
+		logo: logoDataUri,
 		log: (entry) => console.log(JSON.stringify({ route: 'exports.run', ...entry }))
 	};
 }

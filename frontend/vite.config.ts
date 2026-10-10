@@ -17,14 +17,15 @@ export default defineConfig({
 				mode: 'auto',
 				directives: {
 					'default-src': ['self'],
-					// Cloudflare Turnstile on the auth forms (Blueprint 10).
-					'script-src': ['self', 'https://challenges.cloudflare.com'],
-					'frame-src': ['https://challenges.cloudflare.com'],
+					// Cloudflare Turnstile on the auth forms (Blueprint 10). Chatwoot
+					// Cloud's support chat (Blueprint 17, W-21), loaded only on Start a chat.
+					'script-src': ['self', 'https://challenges.cloudflare.com', 'https://app.chatwoot.com'],
+					'frame-src': ['https://challenges.cloudflare.com', 'https://app.chatwoot.com'],
 					'style-src': ['self', 'unsafe-inline'],
-					// blob: shows the chosen profile photo before upload.
-					'img-src': ['self', 'data:', 'blob:'],
+					// blob: shows the chosen profile photo or logo before upload.
+					'img-src': ['self', 'data:', 'blob:', 'https://app.chatwoot.com'],
 					'font-src': ['self'],
-					'connect-src': ['self'],
+					'connect-src': ['self', 'https://app.chatwoot.com', 'wss://app.chatwoot.com'],
 					'manifest-src': ['self'],
 					'worker-src': ['self'],
 					'frame-ancestors': ['none'],

@@ -954,12 +954,7 @@
 		height: 54px;
 		border: 0;
 		border-radius: var(--radius-pill);
-		background-image: linear-gradient(
-			in oklab 135deg,
-			oklab(78.7% 0.097 0.085) 0%,
-			oklab(73.5% 0.128 0.109) 55%,
-			oklab(68.6% 0.137 0.113) 100%
-		);
+		background-image: var(--button-primary-bg);
 		color: var(--button-primary-ink, #14100e);
 		font: inherit;
 		font-size: 16px;

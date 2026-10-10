@@ -4,6 +4,9 @@
 	(mobile), notifications, offline and update banners, load-error and
 	offline-empty Root heroes, iOS install hint. Only routes that exist are
 	linked; nothing here shows or invents balances (W-00, decision 36a).
+	Blueprint 17: the network's team theme (data-team-theme on <html>) and tile,
+	⌘K quick search (K01/K02), Support and Branding & settings entries, and the
+	PL06 paused view on write pages of a paused network.
 -->
 <script lang="ts">
 	import { onMount, setContext, untrack } from 'svelte';
@@ -42,6 +45,9 @@
 	import UserCog from '@lucide/svelte/icons/user-cog';
 	import WalletIcon from '@lucide/svelte/icons/wallet';
 	import WifiOff from '@lucide/svelte/icons/wifi-off';
+	import Palette from '@lucide/svelte/icons/palette';
+	import Search from '@lucide/svelte/icons/search';
+	import CircleHelp from '@lucide/svelte/icons/circle-help';
 	import { Appearance, THEME_LABELS } from '#lib/client/appearance.svelte.js';
 	import { purgeAllDeviceData, staleLabel } from '#lib/client/device-cache.js';
 	import { Shell } from '#lib/client/shell.svelte.js';
@@ -49,6 +55,10 @@
 	import NotificationList from '#lib/ui/app/NotificationList.svelte';
 	import { ROLE_LABELS } from '#lib/labels.js';
 	import InstallHint from '#lib/ui/app/InstallHint.svelte';
+	import PausedView from '#lib/ui/app/PausedView.svelte';
+	import QuickSearch from '#lib/ui/app/QuickSearch.svelte';
+	import { isSearchShortcut, type SearchPage } from '#lib/client/search.js';
+	import { pausedWriteRoute } from '#lib/paused.js';
 	import RootHero from '#lib/ui/app/RootHero.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
 	import type { LayoutProps } from './$types';
@@ -130,10 +140,18 @@
 		'/app/access': 'Roles & access',
 		'/app/audit': 'Audit log',
 		'/app/billing/payments': 'Billing  /  Payment',
-		'/app/billing': 'Billing'
+		'/app/billing': 'Billing',
+		// Blueprint 17 (Paper F01/F02/E09/V01 breadcrumbs).
+		'/app/settings/backups/restore': 'Settings  /  Backup vault  /  Request a restore',
+		'/app/settings/backups': 'Settings  /  Backup vault',
+		'/app/settings/details': 'Settings  /  Team details',
+		'/app/settings': 'Settings  /  Branding',
+		'/app/support': 'Support'
 	};
 	const pageTitle = $derived(
-		Object.entries(TITLES).find(([prefix]) => path.startsWith(prefix))?.[1] ?? 'Home'
+		Object.entries(TITLES).find(([prefix]) => path.startsWith(prefix))?.[1] ??
+			// Blueprint 17 (Paper X01): an unknown page is "Not found", not Home.
+			(page.route.id === '/app/[...missing]' ? 'Not found' : 'Home')
 	);
 	/** Blueprint 06 Q4 reviewers (the backend re-checks each review). */
 	const reviewer = $derived(
@@ -156,6 +174,7 @@
 			path.startsWith('/app/account') ||
 			path.startsWith('/app/statements') ||
 			path.startsWith('/app/reports') ||
+			path.startsWith('/app/support') ||
 			(path.startsWith('/app/activity') && page.url.searchParams.has('tx'))
 	);
 	/** Leadership views (W-07); the backend authorizes every read. */
@@ -195,7 +214,128 @@
 	}
 
 	const switchWorkspace = () => window.location.assign('/workspaces?switch');
+
+	// ── Blueprint 17: brand, team theme, settings, quick search ──────────
+	const brand = $derived(shell.state.kind === 'ready' ? (shell.state.view.brand ?? null) : null);
+	const teamTheme = $derived(brand?.theme ?? summary?.theme ?? 'ember');
+	// On <html> so dialogs (portalled to <body>) follow the theme too.
+	$effect(() => {
+		const root = document.documentElement;
+		if (teamTheme === 'ember') delete root.dataset.teamTheme;
+		else root.dataset.teamTheme = teamTheme;
+		return () => {
+			delete root.dataset.teamTheme;
+		};
+	});
+	const tileInitial = $derived(
+		(brand?.name ?? summary?.tenantName ?? '').trim().charAt(0).toUpperCase()
+	);
+	/** Branding & settings: Presidents edit; World Team only reaches the vault (W-24). */
+	const settings = $derived(can('manage_team_settings') || can('request_restore'));
+	const settingsHref = $derived(
+		can('manage_team_settings') ? '/app/settings' : '/app/settings/backups'
+	);
+
+	let searchOpen = $state(false);
+	function onKeydown(event: KeyboardEvent) {
+		if (shell.state.kind !== 'ready' || !isSearchShortcut(event)) return;
+		event.preventDefault();
+		searchOpen = !searchOpen;
+	}
+	/** Pages quick search may offer: the same hints as the navigation. */
+	const searchPages = $derived.by((): SearchPage[] => {
+		const pages: (SearchPage | false)[] = [
+			{ label: 'Home', href: '/app', icon: House },
+			{
+				label: 'Activity',
+				href: '/app/activity',
+				keywords: 'transactions history',
+				icon: Activity
+			},
+			can('initiate_own_withdrawal') && {
+				label: 'Withdrawals',
+				href: '/app/withdrawals',
+				keywords: 'withdraw cash out',
+				icon: Upload
+			},
+			can('approve_withdrawal') && {
+				label: 'Withdrawal queue',
+				href: '/app/queue',
+				keywords: 'approve payouts',
+				icon: ListChecks
+			},
+			can('approve_pocket_transfer') && {
+				label: 'Transfers',
+				href: '/app/transfers',
+				keywords: 'pocket moves',
+				icon: ArrowLeftRight
+			},
+			can('reverse_transaction') && { label: 'Reversals', href: '/app/reversals', icon: Undo2 },
+			can('review_financial_evidence') && {
+				label: 'Evidence review',
+				href: '/app/evidence',
+				icon: Gavel
+			},
+			leader && { label: 'Team overview', href: '/app/team', icon: LayoutGrid },
+			leader && { label: 'Member wallets', href: '/app/wallets', icon: WalletIcon },
+			reports && {
+				label: 'Reports & exports',
+				href: '/app/reports',
+				keywords: 'csv pdf',
+				icon: ChartColumn
+			},
+			{ label: 'Payout accounts', href: '/app/payout-accounts', keywords: 'bank', icon: Landmark },
+			{ label: 'Statements', href: '/app/statements', icon: FileIcon },
+			can('record_income') && { label: 'Record income', href: '/app/income', icon: Download },
+			can('perform_currency_conversion') && {
+				label: 'Record conversion',
+				href: '/app/convert',
+				icon: Repeat
+			},
+			can('invite_members') && {
+				label: 'Invitations',
+				href: '/app/invitations',
+				keywords: 'invite',
+				icon: MailPlus
+			},
+			{ label: 'Pockets & split', href: '/app/split', icon: PieChart },
+			leads && { label: 'Offices', href: '/app/offices', icon: Building },
+			leads && { label: 'Members', href: '/app/members', keywords: 'people', icon: Users },
+			(president || can('manage_access_rules')) && {
+				label: 'Roles & access',
+				href: '/app/access',
+				keywords: 'permissions',
+				icon: Shield
+			},
+			settings && {
+				label: 'Branding & settings',
+				href: settingsHref,
+				keywords: 'theme logo backup restore team details',
+				icon: Palette
+			},
+			billing && {
+				label: 'Billing',
+				href: '/app/billing',
+				keywords: 'plan payment',
+				icon: CreditCard
+			},
+			president && { label: 'Audit log', href: '/app/audit', icon: FileText },
+			{
+				label: 'Profile & security',
+				href: '/app/account',
+				keywords: 'pin password',
+				icon: UserCog
+			},
+			{ label: 'Support', href: '/app/support', keywords: 'help chat contact', icon: CircleHelp },
+			{ label: 'Notifications', href: '/app/notifications', icon: Bell }
+		];
+		return pages.filter((p): p is SearchPage => !!p);
+	});
+	/** PL06: a write page on a paused network shows the paused view instead. */
+	const pausedHere = $derived(tenantStatus === 'suspended' && pausedWriteRoute(path));
 </script>
+
+<svelte:window onkeydown={onKeydown} />
 
 <svelte:head><title>Elivate Wallet</title></svelte:head>
 
@@ -209,7 +349,16 @@
 {/snippet}
 
 {#snippet brandTile()}
-	<span class="brand-tile" aria-hidden="true"><img src="/icons/mark.svg" alt="" /></span>
+	<!-- Blueprint 17: the network's square icon, else its initial on the theme colour. -->
+	{#if brand?.hasIcon}
+		<span class="brand-tile icon" aria-hidden="true"
+			><img src="/api/brand/icon?v={brand.revision}" alt="" /></span
+		>
+	{:else if tileInitial}
+		<span class="brand-tile initial" aria-hidden="true">{tileInitial}</span>
+	{:else}
+		<span class="brand-tile" aria-hidden="true"><img src="/icons/mark.svg" alt="" /></span>
+	{/if}
 {/snippet}
 
 {#snippet avatar()}
@@ -233,6 +382,17 @@
 			</button>
 		</div>
 		<nav class="side-nav">
+			<button
+				type="button"
+				class="side-search"
+				onclick={() => (searchOpen = true)}
+				aria-haspopup="dialog"
+				aria-keyshortcuts="Meta+K Control+K"
+			>
+				<Search size={16} strokeWidth={1.8} aria-hidden="true" />
+				<span class="side-search-label">Quick search…</span>
+				<kbd class="side-kbd" aria-hidden="true">⌘K</kbd>
+			</button>
 			<a class="side-item" href="/app" aria-current={path === '/app' ? 'page' : undefined}>
 				<House size={18} strokeWidth={1.5} aria-hidden="true" /><span>Home</span>
 			</a>
@@ -395,6 +555,17 @@
 					<Shield size={18} strokeWidth={1.5} aria-hidden="true" /><span>Roles &amp; access</span>
 				</a>
 			{/if}
+			{#if settings}
+				<a
+					class="side-item"
+					href={settingsHref}
+					aria-current={path.startsWith('/app/settings') ? 'page' : undefined}
+				>
+					<Palette size={18} strokeWidth={1.5} aria-hidden="true" /><span
+						>Branding &amp; settings</span
+					>
+				</a>
+			{/if}
 			{#if billing}
 				<a
 					class="side-item"
@@ -420,6 +591,13 @@
 	<div class="main">
 		<header class="topbar">
 			<span class="breadcrumb">{pageTitle}</span>
+			<a
+				class="support-link"
+				href="/app/support"
+				aria-current={path.startsWith('/app/support') ? 'page' : undefined}
+			>
+				<CircleHelp size={18} strokeWidth={1.6} aria-hidden="true" /><span>Support</span>
+			</a>
 			<Popover.Root bind:open={bellOpen}>
 				<Popover.Trigger class="bell" aria-label={bellLabel}>
 					<Bell size={19} strokeWidth={1.5} aria-hidden="true" />
@@ -566,6 +744,15 @@
 					<ChevronsUpDown size={14} strokeWidth={1.6} aria-hidden="true" />
 				</button>
 				<div class="appbar-actions">
+					<button
+						type="button"
+						class="bell"
+						onclick={() => (searchOpen = true)}
+						aria-label="Quick search"
+						aria-haspopup="dialog"
+					>
+						<Search size={19} strokeWidth={1.5} aria-hidden="true" />
+					</button>
 					<a class="bell" href="/app/notifications" aria-label={bellLabel}>
 						<Bell size={19} strokeWidth={1.5} aria-hidden="true" />
 						{#if bell.unread > 0}<span class="bell-dot" aria-hidden="true"></span>{/if}
@@ -642,6 +829,8 @@
 				<div class="hero-actions">
 					<button type="button" class="primary" onclick={() => shell.load()}>Try again</button>
 				</div>
+			{:else if pausedHere && summary}
+				<PausedView network={summary.tenantName} canPay={billing} />
 			{:else}
 				{@render children()}
 			{/if}
@@ -688,6 +877,10 @@
 
 <InstallHint />
 
+{#if shell.state.kind === 'ready'}
+	<QuickSearch bind:open={searchOpen} pages={searchPages} hideAmounts={shell.hideAmounts} />
+{/if}
+
 <style>
 	.shell {
 		--shell-line: #1f2324;
@@ -697,7 +890,7 @@
 		--shell-strong: #d5dadb;
 		--shell-faint: #7d8588;
 		--shell-active: #1f2324;
-		--shell-coral-tint: #3a251f;
+		--shell-coral-tint: var(--color-accent-subtle);
 
 		display: flex;
 		min-height: 100dvh;
@@ -765,7 +958,7 @@
 		flex-shrink: 0;
 		width: 38px;
 		height: 38px;
-		border: 1px solid #ff7f4f33;
+		border: 1px solid var(--color-accent-ring);
 		border-radius: 10px;
 		background: #2a1e1a;
 	}
@@ -773,6 +966,78 @@
 	.brand-tile img {
 		width: 20px;
 		height: 20px;
+	}
+
+	.brand-tile.initial {
+		border-color: transparent;
+		background: var(--color-accent);
+		color: var(--button-primary-ink);
+		font-size: 15px;
+		font-weight: var(--font-weight-bold);
+	}
+
+	.brand-tile.icon {
+		overflow: hidden;
+		border-color: transparent;
+	}
+
+	.brand-tile.icon img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.side-search {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		height: 38px;
+		margin-bottom: 12px;
+		padding: 0 6px 0 12px;
+		border: 1px solid var(--shell-edge);
+		border-radius: 10px;
+		background: var(--shell-field);
+		color: var(--color-muted);
+		font: inherit;
+		font-size: var(--text-14);
+		cursor: pointer;
+	}
+
+	.side-search-label {
+		flex: 1;
+		text-align: left;
+	}
+
+	.side-kbd {
+		padding: 2px 6px;
+		border: 1px solid var(--shell-edge);
+		border-radius: 6px;
+		color: var(--color-muted);
+		font-family: var(--font-sans);
+		font-size: 11px;
+		line-height: 14px;
+	}
+
+	.side-search:focus-visible,
+	.support-link:focus-visible {
+		outline: 2px solid var(--focus-ring);
+		outline-offset: 2px;
+	}
+
+	.support-link {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		height: 40px;
+		padding: 0 14px;
+		border-radius: var(--radius-pill);
+		color: var(--shell-strong);
+		font-size: var(--text-14);
+		text-decoration: none;
+	}
+
+	.support-link[aria-current='page'] {
+		background: var(--shell-edge);
 	}
 
 	.ws-text {
@@ -978,7 +1243,7 @@
 	}
 
 	.banner.update {
-		border: 1px solid #ff7f4f40;
+		border: 1px solid var(--color-accent-edge);
 		background: var(--shell-coral-tint);
 	}
 
@@ -986,7 +1251,7 @@
 		flex-shrink: 0;
 		width: 18px;
 		height: 18px;
-		color: #ff9a6e;
+		color: var(--color-accent-text);
 	}
 
 	.banner-copy {
@@ -1081,15 +1346,10 @@
 		padding: 0 26px;
 		border: 0;
 		border-radius: var(--radius-pill);
-		background-image: linear-gradient(
-			in oklab 135deg,
-			oklab(78.7% 0.097 0.085) 0%,
-			oklab(73.5% 0.128 0.109) 55%,
-			oklab(68.6% 0.137 0.113) 100%
-		);
+		background-image: var(--button-primary-bg);
 		box-shadow:
 			#ffffff59 0px 1px 0px inset,
-			#ff7f4f99 0px 10px 28px -10px;
+			var(--button-primary-glow) 0px 10px 28px -10px;
 		color: var(--button-primary-ink);
 		font-size: 15px;
 		font-weight: var(--font-weight-semibold);
@@ -1350,8 +1610,8 @@
 		width: 40px;
 		height: 40px;
 		border-radius: var(--radius-pill);
-		background: #3a251f;
-		color: #ff9c77;
+		background: var(--color-accent-subtle);
+		color: var(--color-accent-text);
 		overflow: hidden;
 	}
 

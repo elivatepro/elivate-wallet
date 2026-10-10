@@ -174,7 +174,7 @@
 
 	.num {
 		width: 24px;
-		color: #ff9a6e;
+		color: var(--color-accent-text);
 		font-family: var(--font-mono);
 		font-size: 13px;
 		line-height: var(--leading-16);

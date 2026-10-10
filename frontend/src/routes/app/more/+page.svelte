@@ -1,7 +1,7 @@
 <!--
 	More tab (mobile account menu), Paper "App — Screens v3" H05 mobile. Only
-	what exists is listed: Wallet rows, Security & PIN, Language, Timezone and
-	Support arrive with their screens. No person name exists yet, so the profile
+	what exists is listed: Wallet rows, Security & PIN, Language and Timezone
+	arrive with their screens. Blueprint 17: Branding & settings and Support. No person name exists yet, so the profile
 	card shows role, network and the Elivate ID.
 -->
 <script lang="ts">
@@ -28,6 +28,8 @@
 	import ListChecks from '@lucide/svelte/icons/list-checks';
 	import Upload from '@lucide/svelte/icons/upload';
 	import EyeOff from '@lucide/svelte/icons/eye-off';
+	import Palette from '@lucide/svelte/icons/palette';
+	import CircleHelp from '@lucide/svelte/icons/circle-help';
 	import LogOut from '@lucide/svelte/icons/log-out';
 	import Moon from '@lucide/svelte/icons/moon';
 	import UserRound from '@lucide/svelte/icons/user-round';
@@ -228,6 +230,13 @@
 <section class="group" aria-labelledby="account-label">
 	<h2 class="eyebrow" id="account-label">Account</h2>
 	<div class="card">
+		{#if can('manage_team_settings') || can('request_restore')}
+			<a class="row" href={can('manage_team_settings') ? '/app/settings' : '/app/settings/backups'}>
+				<Palette size={20} strokeWidth={1.8} aria-hidden="true" />
+				<span class="label">Branding & settings</span>
+				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
+			</a>
+		{/if}
 		{#if billing}
 			<a class="row" href="/app/billing">
 				<CreditCard size={20} strokeWidth={1.8} aria-hidden="true" />
@@ -238,6 +247,11 @@
 		<a class="row" href="/app/account">
 			<UserCog size={20} strokeWidth={1.8} aria-hidden="true" />
 			<span class="label">Profile & security</span>
+			<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
+		</a>
+		<a class="row" href="/app/support">
+			<CircleHelp size={20} strokeWidth={1.8} aria-hidden="true" />
+			<span class="label">Support</span>
 			<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
 		</a>
 		<button type="button" class="row" onclick={nextTheme}>
@@ -311,8 +325,8 @@
 		width: 52px;
 		height: 52px;
 		border-radius: var(--radius-pill);
-		background: #3a251f;
-		color: #ff9c77;
+		background: var(--color-accent-subtle);
+		color: var(--color-accent-text);
 	}
 
 	.profile-text {
@@ -361,7 +375,7 @@
 		flex-shrink: 0;
 		width: 38px;
 		height: 38px;
-		border: 1px solid #ff7f4f33;
+		border: 1px solid var(--color-accent-ring);
 		border-radius: var(--radius-pill);
 		background: #2a1e1a;
 	}

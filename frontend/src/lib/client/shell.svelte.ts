@@ -5,6 +5,7 @@
 import { Cause, Effect, Exit, Option } from 'effect';
 import type { SessionView } from '#lib/contract/app.js';
 import type { Workspace } from '#lib/contract/org.js';
+import type { Theme } from '#lib/contract/settings.js';
 import type { ApiFailure } from '#lib/contract/errors.js';
 import { GATE_PATHS, pathForGateCode, SIGN_IN_PATH } from '#lib/gate.js';
 import { sweepAttempts } from '#lib/recovery.js';
@@ -25,6 +26,8 @@ export interface WorkspaceSummary {
 	readonly tenantName: string;
 	readonly officeName: string | null;
 	readonly role: Workspace['role'];
+	/** Blueprint 17: the team theme, so an offline shell keeps the network's look. */
+	readonly theme?: Theme;
 }
 
 export type ShellState =
@@ -125,7 +128,8 @@ export class Shell {
 		const summary: WorkspaceSummary = {
 			tenantName: workspace.tenantName,
 			officeName: workspace.officeName,
-			role: workspace.role
+			role: workspace.role,
+			...(view.brand ? { theme: view.brand.theme } : {})
 		};
 		const scope: CacheScope = { uid: view.state.uid, workspaceId: workspace.membershipId };
 		const store = browserStore();

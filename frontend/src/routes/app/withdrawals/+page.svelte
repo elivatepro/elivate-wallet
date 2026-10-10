@@ -31,6 +31,7 @@
 	import RootHero from '#lib/ui/app/RootHero.svelte';
 	import Pill from '#lib/ui/money/Pill.svelte';
 	import '#lib/ui/money/money.css';
+	import NoAccess from '#lib/ui/app/NoAccess.svelte';
 
 	const shell = getContext<Shell>('shell');
 	type Filter = 'all' | 'open' | 'completed' | 'closed';
@@ -39,6 +40,7 @@
 	let page = $state<WithdrawalPage | null>(null);
 	let items = $state<WithdrawalType[]>([]);
 	let loadError = $state<string | null>(null);
+	let denied = $state(false);
 	let loadingMore = $state(false);
 	let notice = $state<string | null>(null);
 
@@ -77,13 +79,14 @@
 			page = exit.value;
 			items = more ? [...items, ...exit.value.items] : [...exit.value.items];
 			loadError = null;
+			denied = false;
 			return;
 		}
 		const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
-		loadError =
-			failure?._tag === 'BackendError' && failure.code === 'authorization_denied'
-				? 'Withdrawals aren’t open to you in this network.'
-				: 'We couldn’t load your withdrawals.';
+		denied = failure?._tag === 'BackendError' && failure.code === 'authorization_denied';
+		loadError = denied
+			? 'Withdrawals aren’t open to you in this network.'
+			: 'We couldn’t load your withdrawals.';
 	}
 
 	let loadedFor = $state<string | null>(null);
@@ -147,95 +150,99 @@
 
 <svelte:head><title>Withdrawals · Elivate Wallet</title></svelte:head>
 
-<div class="mm-page">
-	<RootHero
-		pose="withdrawals"
-		kicker="Reserved for open withdrawals"
-		title={page ? formatMoney(page.reserved, 'NGN') : '—'}
-	>
-		{#if counts && (counts.requested || counts.approved)}
-			<div class="hero-chips">
-				{#if counts.requested}<span>{counts.requested} requested</span>{/if}
-				{#if counts.approved}<span>{counts.approved} approved</span>{/if}
-			</div>
-		{/if}
-	</RootHero>
+{#if denied}
+	<NoAccess lead={loadError ?? undefined} />
+{:else}
+	<div class="mm-page">
+		<RootHero
+			pose="withdrawals"
+			kicker="Reserved for open withdrawals"
+			title={page ? formatMoney(page.reserved, 'NGN') : '—'}
+		>
+			{#if counts && (counts.requested || counts.approved)}
+				<div class="hero-chips">
+					{#if counts.requested}<span>{counts.requested} requested</span>{/if}
+					{#if counts.approved}<span>{counts.approved} approved</span>{/if}
+				</div>
+			{/if}
+		</RootHero>
 
-	<div class="toolbar">
-		<div class="segments" role="tablist" aria-label="Show">
-			{#each filters as f (f.key)}
+		<div class="toolbar">
+			<div class="segments" role="tablist" aria-label="Show">
+				{#each filters as f (f.key)}
+					<button
+						type="button"
+						role="tab"
+						aria-selected={filter === f.key}
+						onclick={() => (filter = f.key)}>{f.label}</button
+					>
+				{/each}
+			</div>
+			{#if shell.canAct}
+				<a class="mm-btn primary new" href="/app/withdrawals/new">
+					<Upload size={18} strokeWidth={1.8} /> New withdrawal
+				</a>
+			{/if}
+		</div>
+
+		{#if notice}<p class="mm-notice" role="status">{notice}</p>{/if}
+
+		{#if !page && !loadError}
+			<div class="mm-skeleton" aria-hidden="true"></div>
+		{:else if loadError}
+			<p class="mm-empty" role="alert">{loadError}</p>
+		{:else if items.length === 0}
+			<p class="mm-empty">
+				{filter === 'all' ? 'No withdrawals yet.' : 'Nothing here.'}
+			</p>
+		{:else}
+			<div class="mm-list wd">
+				<div class="mm-list-head" aria-hidden="true">
+					<span class="lane-icon"></span>
+					<span class="wide">Withdrawal</span>
+					<span class="from">From</span>
+					<span class="st">Status</span>
+					<span class="num">Amount</span>
+					<span class="lane-action"></span>
+				</div>
+				{#each items as w (w.withdrawalId)}
+					{@const stage = memberStage(w)}
+					<div class="mm-row static">
+						<span class="lane-icon icon" aria-hidden="true"
+							><ArrowUp size={16} strokeWidth={1.8} /></span
+						>
+						<div class="mm-names wide">
+							<span class="mm-name">{destinationTitle(w)}</span>
+							<span class="mm-sub">{memberLine(w)}</span>
+							<span class="mobile-only"><Pill {...stage} /></span>
+						</div>
+						<span class="from mm-muted">{w.pocket.name}</span>
+						<span class="mm-status"><Pill {...stage} /></span>
+						<span class="mm-amount" class:muted={closed(w)}>{amountText(w)}</span>
+						<span class="lane-action">
+							{#if w.can.cancel && w.status === 'requested'}
+								<button
+									type="button"
+									class="mm-btn sm"
+									disabled={!shell.canAct}
+									onclick={() => askCancel(w)}>Cancel</button
+								>
+							{/if}
+						</span>
+					</div>
+				{/each}
+			</div>
+			{#if page?.nextCursor}
 				<button
 					type="button"
-					role="tab"
-					aria-selected={filter === f.key}
-					onclick={() => (filter = f.key)}>{f.label}</button
+					class="mm-btn more"
+					disabled={loadingMore || loadingFirst}
+					onclick={() => load(true)}>{loadingMore ? 'Loading…' : 'Show more'}</button
 				>
-			{/each}
-		</div>
-		{#if shell.canAct}
-			<a class="mm-btn primary new" href="/app/withdrawals/new">
-				<Upload size={18} strokeWidth={1.8} /> New withdrawal
-			</a>
+			{/if}
 		{/if}
 	</div>
-
-	{#if notice}<p class="mm-notice" role="status">{notice}</p>{/if}
-
-	{#if !page && !loadError}
-		<div class="mm-skeleton" aria-hidden="true"></div>
-	{:else if loadError}
-		<p class="mm-empty" role="alert">{loadError}</p>
-	{:else if items.length === 0}
-		<p class="mm-empty">
-			{filter === 'all' ? 'No withdrawals yet.' : 'Nothing here.'}
-		</p>
-	{:else}
-		<div class="mm-list wd">
-			<div class="mm-list-head" aria-hidden="true">
-				<span class="lane-icon"></span>
-				<span class="wide">Withdrawal</span>
-				<span class="from">From</span>
-				<span class="st">Status</span>
-				<span class="num">Amount</span>
-				<span class="lane-action"></span>
-			</div>
-			{#each items as w (w.withdrawalId)}
-				{@const stage = memberStage(w)}
-				<div class="mm-row static">
-					<span class="lane-icon icon" aria-hidden="true"
-						><ArrowUp size={16} strokeWidth={1.8} /></span
-					>
-					<div class="mm-names wide">
-						<span class="mm-name">{destinationTitle(w)}</span>
-						<span class="mm-sub">{memberLine(w)}</span>
-						<span class="mobile-only"><Pill {...stage} /></span>
-					</div>
-					<span class="from mm-muted">{w.pocket.name}</span>
-					<span class="mm-status"><Pill {...stage} /></span>
-					<span class="mm-amount" class:muted={closed(w)}>{amountText(w)}</span>
-					<span class="lane-action">
-						{#if w.can.cancel && w.status === 'requested'}
-							<button
-								type="button"
-								class="mm-btn sm"
-								disabled={!shell.canAct}
-								onclick={() => askCancel(w)}>Cancel</button
-							>
-						{/if}
-					</span>
-				</div>
-			{/each}
-		</div>
-		{#if page?.nextCursor}
-			<button
-				type="button"
-				class="mm-btn more"
-				disabled={loadingMore || loadingFirst}
-				onclick={() => load(true)}>{loadingMore ? 'Loading…' : 'Show more'}</button
-			>
-		{/if}
-	{/if}
-</div>
+{/if}
 
 {#if target}
 	<RootDialog

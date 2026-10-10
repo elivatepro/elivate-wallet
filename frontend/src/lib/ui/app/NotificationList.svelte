@@ -200,7 +200,7 @@
 	}
 
 	.row.action {
-		background: #ff7f4f0d;
+		background: var(--color-accent-wash);
 	}
 
 	.row:hover {
@@ -208,7 +208,7 @@
 	}
 
 	.row.action:hover {
-		background: #ff7f4f17;
+		background: var(--color-accent-wash-strong);
 	}
 
 	.row:focus-visible {

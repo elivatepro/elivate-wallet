@@ -184,7 +184,20 @@ const SummaryPeriod = Schema.Struct({
 const SummaryNetwork = Schema.Struct({
 	tenantId: Uuid,
 	name: Schema.String,
-	initial: Schema.String
+	initial: Schema.String,
+	// Blueprint 17: the team theme, whether a logo exists and the support contact.
+	theme: Schema.optional(Schema.String),
+	hasLogo: Schema.optional(Schema.Boolean),
+	support: Schema.optional(
+		Schema.NullOr(
+			Schema.Struct({
+				name: Schema.NullOr(Schema.String),
+				email: Schema.NullOr(Schema.String),
+				phone: Schema.NullOr(Schema.String),
+				helpUrl: Schema.NullOr(Schema.String)
+			})
+		)
+	)
 });
 
 export const PendingItem = Schema.Struct({

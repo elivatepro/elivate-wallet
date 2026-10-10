@@ -31,6 +31,7 @@
 	import QueueTabs from '#lib/ui/money/QueueTabs.svelte';
 	import WithdrawalPanel from '#lib/ui/money/WithdrawalPanel.svelte';
 	import '#lib/ui/money/money.css';
+	import NoAccess from '#lib/ui/app/NoAccess.svelte';
 
 	const shell = getContext<Shell>('shell');
 	/** Navigation hint only; the backend authorizes every command. */
@@ -49,6 +50,7 @@
 	let page = $state<WithdrawalPage | null>(null);
 	let items = $state<WithdrawalType[]>([]);
 	let loadError = $state<string | null>(null);
+	let denied = $state(false);
 	let selectedId = $state<string | null>(appPage.url.searchParams.get('withdrawal'));
 	/** The linked withdrawal opens once even when it isn't on the first page. */
 	let linked = appPage.url.searchParams.get('withdrawal');
@@ -83,6 +85,7 @@
 			page = exit.value;
 			items = more ? [...items, ...exit.value.items] : [...exit.value.items];
 			loadError = null;
+			denied = false;
 			// Keep the selection when it's still listed, but always show its current state.
 			if (!more) {
 				const keep = items.some((w) => w.withdrawalId === selectedId);
@@ -93,10 +96,10 @@
 			return;
 		}
 		const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
-		loadError =
-			failure?._tag === 'BackendError' && failure.code === 'authorization_denied'
-				? 'Only people who approve withdrawals see this queue.'
-				: 'We couldn’t load the queue.';
+		denied = failure?._tag === 'BackendError' && failure.code === 'authorization_denied';
+		loadError = denied
+			? 'Only people who approve withdrawals see this queue.'
+			: 'We couldn’t load the queue.';
 	}
 
 	async function select(id: string | null, refresh = false) {
@@ -189,82 +192,86 @@
 
 <svelte:head><title>Withdrawal queue · Elivate Wallet</title></svelte:head>
 
-<div class="mm-page">
-	<QueueTabs {tabs} bind:value={tab} label="Withdrawal queue" />
-	{#if notice}<p class="mm-notice" role="status">{notice}</p>{/if}
+{#if denied}
+	<NoAccess lead={loadError ?? undefined} />
+{:else}
+	<div class="mm-page">
+		<QueueTabs {tabs} bind:value={tab} label="Withdrawal queue" />
+		{#if notice}<p class="mm-notice" role="status">{notice}</p>{/if}
 
-	{#if !page && !loadError}
-		<div class="mm-skeleton" aria-hidden="true"></div>
-	{:else if loadError}
-		<p class="mm-empty" role="alert">{loadError}</p>
-	{:else}
-		<div class="mm-split">
-			<div class="mm-col">
-				{#if items.length === 0}
-					<p class="mm-empty">
-						{tab === 'action' ? 'Nothing needs you right now.' : 'Nothing here yet.'}
-					</p>
-				{:else}
-					<div class="mm-list">
-						<div class="mm-list-head" aria-hidden="true">
-							<span class="wide">Member</span><span class="num">Amount</span><span class="st"
-								>Status</span
-							>
+		{#if !page && !loadError}
+			<div class="mm-skeleton" aria-hidden="true"></div>
+		{:else if loadError}
+			<p class="mm-empty" role="alert">{loadError}</p>
+		{:else}
+			<div class="mm-split">
+				<div class="mm-col">
+					{#if items.length === 0}
+						<p class="mm-empty">
+							{tab === 'action' ? 'Nothing needs you right now.' : 'Nothing here yet.'}
+						</p>
+					{:else}
+						<div class="mm-list">
+							<div class="mm-list-head" aria-hidden="true">
+								<span class="wide">Member</span><span class="num">Amount</span><span class="st"
+									>Status</span
+								>
+							</div>
+							{#each items as w (w.withdrawalId)}
+								{@const stage = withdrawalStage(w)}
+								<button
+									type="button"
+									class="mm-row"
+									aria-current={selectedId === w.withdrawalId ? 'true' : undefined}
+									onclick={() => select(w.withdrawalId)}
+								>
+									<span class="mm-who">
+										<span class="mm-avatar">{initials(w.member?.name, w.member?.uid ?? '')}</span>
+										<span class="mm-names">
+											<span class="mm-name">{w.member?.name ?? w.member?.uid}</span>
+											<span class="mm-sub">{queueLine(w)}</span>
+											<Pill {...stage} inline />
+										</span>
+									</span>
+									<span class="mm-amount">{formatMoney(w.amount, 'NGN')}</span>
+									<span class="mm-status"><Pill {...stage} /></span>
+								</button>
+							{/each}
 						</div>
-						{#each items as w (w.withdrawalId)}
-							{@const stage = withdrawalStage(w)}
+						{#if page?.nextCursor}
 							<button
 								type="button"
-								class="mm-row"
-								aria-current={selectedId === w.withdrawalId ? 'true' : undefined}
-								onclick={() => select(w.withdrawalId)}
+								class="mm-btn sm more"
+								disabled={loadingMore || loadingFirst}
+								onclick={() => load(true)}>{loadingMore ? 'Loading…' : 'Show more'}</button
 							>
-								<span class="mm-who">
-									<span class="mm-avatar">{initials(w.member?.name, w.member?.uid ?? '')}</span>
-									<span class="mm-names">
-										<span class="mm-name">{w.member?.name ?? w.member?.uid}</span>
-										<span class="mm-sub">{queueLine(w)}</span>
-										<Pill {...stage} inline />
-									</span>
-								</span>
-								<span class="mm-amount">{formatMoney(w.amount, 'NGN')}</span>
-								<span class="mm-status"><Pill {...stage} /></span>
-							</button>
-						{/each}
-					</div>
-					{#if page?.nextCursor}
-						<button
-							type="button"
-							class="mm-btn sm more"
-							disabled={loadingMore || loadingFirst}
-							onclick={() => load(true)}>{loadingMore ? 'Loading…' : 'Show more'}</button
-						>
+						{/if}
 					{/if}
-				{/if}
-				{#if hero}
-					<RootHero pose={hero.pose} title={hero.title} lead={hero.lead} headingLevel={2} card />
-				{:else if tab === 'action'}
-					<div class="mm-card info">
-						<p class="mm-box-title">Approving doesn’t move money</p>
-						<p class="mm-note">
-							It keeps the amount reserved. The member’s balance only changes once your payout
-							receipt is verified.
-						</p>
-					</div>
+					{#if hero}
+						<RootHero pose={hero.pose} title={hero.title} lead={hero.lead} headingLevel={2} card />
+					{:else if tab === 'action'}
+						<div class="mm-card info">
+							<p class="mm-box-title">Approving doesn’t move money</p>
+							<p class="mm-note">
+								It keeps the amount reserved. The member’s balance only changes once your payout
+								receipt is verified.
+							</p>
+						</div>
+					{/if}
+				</div>
+				{#if detail && workspaceId}
+					<WithdrawalPanel
+						withdrawal={detail}
+						canReturn={can('record_returned_funds')}
+						{workspaceId}
+						canAct={shell.canAct}
+						onChanged={changed}
+					/>
 				{/if}
 			</div>
-			{#if detail && workspaceId}
-				<WithdrawalPanel
-					withdrawal={detail}
-					canReturn={can('record_returned_funds')}
-					{workspaceId}
-					canAct={shell.canAct}
-					onChanged={changed}
-				/>
-			{/if}
-		</div>
-	{/if}
-</div>
+		{/if}
+	</div>
+{/if}
 
 <style>
 	.more {

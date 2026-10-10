@@ -31,6 +31,7 @@
 	import OutcomeUnknown from '#lib/ui/app/OutcomeUnknown.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
 	import '#lib/ui/money/money.css';
+	import NoAccess from '#lib/ui/app/NoAccess.svelte';
 
 	const shell = getContext<Shell>('shell');
 	// Same pocket colours as Pockets & split (Paper L01).
@@ -45,6 +46,7 @@
 
 	let data = $state<WithdrawalSources | null>(null);
 	let loadError = $state<string | null>(null);
+	let denied = $state(false);
 	let sourceId = $state<string | null>(null);
 	let amountText = $state('');
 	let payoutAccountId = $state<string | null>(null);
@@ -91,13 +93,14 @@
 			const usable = exit.value.payoutAccounts.filter((a) => a.usable);
 			payoutAccountId ??= (usable.find((a) => a.isPrimary) ?? usable[0])?.payoutAccountId ?? null;
 			loadError = null;
+			denied = false;
 			return;
 		}
 		const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
-		loadError =
-			failure?._tag === 'BackendError' && failure.code === 'authorization_denied'
-				? 'Withdrawals aren’t open to you in this network.'
-				: 'We couldn’t load your pockets.';
+		denied = failure?._tag === 'BackendError' && failure.code === 'authorization_denied';
+		loadError = denied
+			? 'Withdrawals aren’t open to you in this network.'
+			: 'We couldn’t load your pockets.';
 	}
 	$effect(() => {
 		if (shell.state.kind === 'ready' && !data && !loadError) void load();
@@ -210,6 +213,8 @@
 		</div>
 		<p class="mm-ref">Reference {result.reference}</p>
 	</section>
+{:else if denied}
+	<NoAccess lead={loadError ?? undefined} />
 {:else}
 	<div class="mm-page">
 		<h1 class="mm-title" tabindex="-1">

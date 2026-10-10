@@ -52,6 +52,8 @@ body{font-family:Lexend,system-ui,sans-serif;color:#212628;background:#fff;font-
 .head{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:20px;border-bottom:2px solid #212628}
 .brand{display:flex;align-items:center;gap:10px;font-size:16px;line-height:20px;font-weight:600}
 .tile{width:28px;height:28px;border-radius:6px;background:#212628;color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600}
+.logo{max-height:32px;max-width:200px;object-fit:contain}
+.contact{font-size:12px;line-height:16px;color:#5E686B;margin-top:6px}
 .title{font-size:28px;line-height:34px;font-weight:600;letter-spacing:-0.02em;margin-top:14px}
 .sub{font-size:14px;line-height:20px;color:#5E686B;margin-top:2px}
 .meta{display:flex;flex-direction:column;align-items:flex-end;gap:4px;padding-top:4px;font-size:12px;line-height:16px;color:#5E686B;text-align:right}
@@ -121,12 +123,53 @@ const money = (amount: string, currency: Currency, signed = false) =>
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const toneOf = (amount: string) => (isZero(amount) ? '' : amount.startsWith('-') ? '' : 'pos');
 
-/** "Cedar Network · Powered by Elivate Wallet · support@…" (slice 10 adds team contact). */
+/** "Cedar Network · Powered by Elivate Wallet · support@…" (the team contact is in the header). */
 const footerFor = (network: string, tail = SUPPORT_EMAIL) =>
 	`${network} · Powered by Elivate Wallet · ${tail}`;
 
-function brand(network: { name: string; initial: string }): string {
-	return `<div class="brand"><div class="tile">${e(network.initial)}</div><div>${e(network.name)}</div></div>`;
+/** Team theme fills (Blueprint 17, Paper TS01d); ink #14100e reads on each. */
+const THEME_FILLS: Readonly<Record<string, string>> = {
+	ember: '#FF7F4F',
+	cobalt: '#6AACFE',
+	fern: '#53C382',
+	iris: '#B194FE',
+	saffron: '#D4A004',
+	rose: '#F67D9C'
+};
+
+const LOGO_URI = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
+
+interface BrandNetwork {
+	readonly name: string;
+	readonly initial: string;
+	readonly theme?: string | undefined;
+	readonly support?:
+		| {
+				readonly name: string | null;
+				readonly email: string | null;
+				readonly phone: string | null;
+		  }
+		| null
+		| undefined;
+}
+
+/**
+ * The network header (Blueprint 17, deferred in Blueprint 15 Q3): its logo, or
+ * its initial on the team theme colour, then its support contact when set.
+ * Elivate's own address stays in the footer, labelled as Elivate's.
+ */
+function brand(network: BrandNetwork, logo: string | null = null): string {
+	const mark =
+		logo && LOGO_URI.test(logo)
+			? `<img class="logo" src="${logo}" alt="${e(network.name)}">`
+			: `<div class="tile" style="background:${THEME_FILLS[network.theme ?? 'ember'] ?? THEME_FILLS.ember};color:#14100E">${e(network.initial)}</div><div>${e(network.name)}</div>`;
+	const s = network.support;
+	const contact = s ? [s.email, s.phone].filter((v): v is string => !!v) : [];
+	return `<div class="brand">${mark}</div>${
+		contact.length > 0
+			? `<div class="contact">${e(`${s?.name ?? `${network.name} support`}: ${contact.join(' · ')}`)}</div>`
+			: ''
+	}`;
 }
 
 // ── Statement ────────────────────────────────────────────────────────────────
@@ -184,7 +227,11 @@ function txnRow(row: TxnRow, currency: Currency, withBalance: boolean): string {
 	)}</td>${withBalance ? `<td class="r bal">${row.balance ? e(money(row.balance, currency)) : ''}</td>` : ''}</tr>`;
 }
 
-export function statementHtml(summary: StatementSummary, rows: readonly TxnRow[]): string {
+export function statementHtml(
+	summary: StatementSummary,
+	rows: readonly TxnRow[],
+	logo: string | null = null
+): string {
 	const c = summary.currency;
 	const p = summary.period;
 	const person = summary.person;
@@ -197,7 +244,7 @@ export function statementHtml(summary: StatementSummary, rows: readonly TxnRow[]
 	const other = c === 'NGN' ? 'USD' : 'NGN';
 	const hasMoves = rows.some((r) => r.type === 'pocket_transfer');
 
-	const head = `<div class="head"><div>${brand(summary.network)}<div class="title">Account statement</div><div class="sub">${e(
+	const head = `<div class="head"><div>${brand(summary.network, logo)}<div class="title">Account statement</div><div class="sub">${e(
 		`${range} · ${CURRENCY_NAMES[c]} (${c})`
 	)}</div></div><div class="meta"><div class="mono">${e(summary.reference)}</div><div>Generated ${e(
 		watDateTime(summary.generatedAt)
@@ -324,7 +371,11 @@ export function reportTitle(summary: ReportSummary): string {
 	return summary.scope.kind === 'network' ? 'Network report' : 'Office report';
 }
 
-export function reportHtml(summary: ReportSummary, members: readonly MemberFigure[]): string {
+export function reportHtml(
+	summary: ReportSummary,
+	members: readonly MemberFigure[],
+	logo: string | null = null
+): string {
 	const c = summary.currency;
 	const p = summary.period;
 	const title = reportTitle(summary);
@@ -335,7 +386,7 @@ export function reportHtml(summary: ReportSummary, members: readonly MemberFigur
 	const who = summary.preparedFor;
 	const end = p.cutShort ? `as of ${watDateTime(p.asOf)}` : shortDate(p.to);
 
-	const head = `<div class="head"><div>${brand(summary.network)}<div class="title">${e(title)}</div><div class="sub">${e(
+	const head = `<div class="head"><div>${brand(summary.network, logo)}<div class="title">${e(title)}</div><div class="sub">${e(
 		`${scopeName} · ${range} · ${c}`
 	)}</div></div><div class="meta"><div class="mono">${e(summary.reference)}</div><div>${e(
 		`Prepared for ${who.name ?? who.uid}${who.role ? ` · ${ROLE_LABELS[who.role]}` : ''}`

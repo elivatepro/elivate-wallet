@@ -23,12 +23,14 @@
 	import CurrencySwitch from '#lib/ui/app/CurrencySwitch.svelte';
 	import RootHero from '#lib/ui/app/RootHero.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
+	import NoAccess from '#lib/ui/app/NoAccess.svelte';
 
 	const shell = getContext<Shell>('shell');
 	const tz = browserTimeZone();
 
 	let overview = $state<LeadershipOverview | null>(null);
 	let failed = $state<string | null>(null);
+	let denied = $state(false);
 	let chosen = $state<Currency | null>(null);
 
 	$effect(() => {
@@ -41,16 +43,17 @@
 			if (Exit.isSuccess(exit)) {
 				overview = exit.value;
 				failed = null;
+				denied = false;
 				return;
 			}
 			const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
 			if (failure?._tag === 'TransportError' && failure.reason === 'aborted') return;
-			failed =
-				failure?._tag === 'BackendError' && failure.code === 'authorization_denied'
-					? 'This workspace has no team overview.'
-					: failure?._tag === 'BackendError'
-						? failure.message
-						: 'We couldn’t load the overview.';
+			denied = failure?._tag === 'BackendError' && failure.code === 'authorization_denied';
+			failed = denied
+				? 'This workspace has no team overview.'
+				: failure?._tag === 'BackendError'
+					? failure.message
+					: 'We couldn’t load the overview.';
 		});
 		return () => controller.abort();
 	});
@@ -138,6 +141,8 @@
 {#if !overview && !failed}
 	<div class="skeleton" aria-hidden="true"></div>
 	<p class="visually-hidden" role="status">Loading the overview</p>
+{:else if denied}
+	<NoAccess lead={failed ?? undefined} />
 {:else if failed || !overview}
 	<RootHero pose="load-error" title="Couldn’t load the overview" lead={failed ?? ''} compact />
 {:else}
@@ -388,7 +393,7 @@
 	}
 
 	.shortcut.coral {
-		border-color: #ff7f4f40;
+		border-color: var(--color-accent-edge);
 		background: var(--color-accent-subtle);
 	}
 
@@ -405,12 +410,7 @@
 	}
 
 	.tile.coral {
-		background-image: linear-gradient(
-			in oklab 135deg,
-			oklab(79.8% 0.091 0.081) 0%,
-			oklab(73.5% 0.128 0.109) 55%,
-			oklab(68.2% 0.137 0.111) 100%
-		);
+		background-image: var(--button-primary-bg);
 		color: #14100e;
 	}
 

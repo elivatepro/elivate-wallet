@@ -110,7 +110,7 @@
 
 	.control:focus-within {
 		border-color: var(--color-accent);
-		box-shadow: #ff7f4f33 0px 0px 0px 3px;
+		box-shadow: var(--color-accent-ring) 0px 0px 0px 3px;
 	}
 
 	.control.invalid {

@@ -36,6 +36,7 @@
 	import EvidencePicker from '#lib/ui/money/EvidencePicker.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
 	import '#lib/ui/money/entry.css';
+	import NoAccess from '#lib/ui/app/NoAccess.svelte';
 
 	const shell = getContext<Shell>('shell');
 	const workspaceId = $derived(
@@ -47,6 +48,7 @@
 	let nextCursor = $state<string | null>(null);
 	let loadingMore = $state(false);
 	let loadError = $state<string | null>(null);
+	let denied = $state(false);
 	let target = $state<EntryTarget | null>(null);
 	let segments = $state<EntrySegments | null>(null);
 	let direction = $state<'credit' | 'debit'>('credit');
@@ -91,13 +93,14 @@
 			targets = [...exit.value.items];
 			nextCursor = exit.value.nextCursor;
 			loadError = null;
+			denied = false;
 			return;
 		}
 		const failure = failureOf(exit);
-		loadError =
-			failure?._tag === 'BackendError' && failure.code === 'authorization_denied'
-				? 'Adjustments are for leaders with that permission.'
-				: 'We couldn’t load your members.';
+		denied = failure?._tag === 'BackendError' && failure.code === 'authorization_denied';
+		loadError = denied
+			? 'Adjustments are for leaders with that permission.'
+			: 'We couldn’t load your members.';
 	}
 	let started = false;
 	$effect(() => {
@@ -280,7 +283,9 @@
 		<span></span>
 	</header>
 	<div class="en-page">
-		{#if loadError}
+		{#if denied}
+			<NoAccess lead={loadError ?? undefined} headingLevel={2} />
+		{:else if loadError}
 			<p class="mm-empty" role="alert">{loadError}</p>
 		{:else}
 			<form

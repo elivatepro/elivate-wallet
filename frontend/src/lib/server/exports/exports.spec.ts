@@ -319,3 +319,31 @@ describe('the runner completes or fails', () => {
 		expect(calls).toContain('fail:render_failed');
 	});
 });
+
+// Blueprint 17: the network header on PDFs.
+describe('PDF branding', () => {
+	it('uses the logo, else the initial on the theme colour, and the team contact', () => {
+		const base = statementSummary;
+		const themed = statementHtml(
+			{
+				...base,
+				network: {
+					...base.network,
+					theme: 'cobalt',
+					support: {
+						name: null,
+						email: 'help@cedar.example',
+						phone: '+2348012342210',
+						helpUrl: null
+					}
+				}
+			},
+			[]
+		);
+		expect(themed).toContain('background:#6AACFE');
+		expect(themed).toContain('Cedar Network support: help@cedar.example · +2348012342210');
+		const logo = `data:image/png;base64,${'A'.repeat(16)}`;
+		expect(statementHtml(base, [], logo)).toContain(`<img class="logo" src="${logo}"`);
+		expect(statementHtml(base, [], 'javascript:alert(1)')).not.toContain('javascript:');
+	});
+});

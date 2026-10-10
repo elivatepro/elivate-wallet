@@ -4,6 +4,7 @@ import type { SessionView } from '#lib/contract/app.js';
 import { shownName } from '#lib/contract/identity.js';
 import { IdentityApi } from '#lib/server/apis-identity.js';
 import { OrgApi, SecurityApi } from '#lib/server/apis.js';
+import { SettingsApi } from '#lib/server/apis-settings.js';
 import { clearWorkspace, readWorkspace } from '#lib/server/cookies.js';
 import { respond, respondError, unauthenticated } from '#lib/server/relay.js';
 import { runApi } from '#lib/server/request.js';
@@ -34,7 +35,11 @@ export const GET: RequestHandler = async (event) => {
 			const workspace = workspaces.find((w) => w.membershipId === membershipId) ?? null;
 			if (!workspace) return view;
 			const capabilities = yield* org.capabilities(membershipId);
-			return { ...view, workspace, capabilities };
+			// Blueprint 17: the brand is a nicety too; Ember is the fallback.
+			const brand = yield* (yield* SettingsApi)
+				.brand(membershipId)
+				.pipe(Effect.orElseSucceed(() => null));
+			return { ...view, workspace, capabilities, brand };
 		})
 	);
 	// workspace_invalid: the cookie no longer names a usable workspace.

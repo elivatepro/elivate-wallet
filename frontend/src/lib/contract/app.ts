@@ -14,6 +14,7 @@ import {
 } from './ledger';
 import { IdempotencyKey, InvitationPage, InvitationStatus } from './invitations';
 import { OfficeType, Person, PIN_PATTERN, Role, Uuid } from './common';
+import { Brand } from './settings';
 import { ACCOUNT_NUMBER_PATTERN, Bank, PayoutAccount } from './payout';
 import { Capabilities, Workspace } from './org';
 import { SecurityState } from './security';
@@ -26,7 +27,9 @@ export const SessionView = Schema.Struct({
 	/** Own name and photo flag (Blueprint 06); null when unavailable. Never cached on device. */
 	profile: Schema.NullOr(
 		Schema.Struct({ name: Schema.NullOr(Schema.String), hasPhoto: Schema.Boolean })
-	)
+	),
+	/** The selected network's brand (Blueprint 17); null when unavailable. */
+	brand: Schema.optional(Schema.NullOr(Brand))
 });
 export type SessionView = typeof SessionView.Type;
 
