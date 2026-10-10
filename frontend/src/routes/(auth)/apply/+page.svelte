@@ -104,7 +104,9 @@
 				>
 					<option value="" disabled selected={!values?.rank}>Choose your rank</option>
 					{#each FOUNDER_RANKS as rank (rank)}
-						<option value={rank} selected={values?.rank === rank}>{FOUNDER_RANK_LABELS[rank]}</option>
+						<option value={rank} selected={values?.rank === rank}
+							>{FOUNDER_RANK_LABELS[rank]}</option
+						>
 					{/each}
 				</select>
 				<ChevronDown size={18} strokeWidth={1.6} aria-hidden="true" />

@@ -1,7 +1,8 @@
 <!--
 	Admin shell, Paper "Admin — Screens v1" (A03…) with the approved draft
-	sidebar (A17d…): Overview, Search · Networks, Accounts, NIN reviews · Kill
-	switches, Audit, Backups & restores, Failed emails, Admins. Top bar: page
+	sidebar (A17d…): Overview, Search · Founder applications (A22d), Networks,
+	Accounts, NIN reviews · Kill switches, Audit, Backups & restores, Failed
+	emails, Admins. Top bar: page
 	title, the live step-up state and the account menu (sign out). Mobile:
 	app bar and floating bottom tabs (Overview, Search, Networks, More).
 -->
@@ -12,6 +13,7 @@
 	import Building from '@lucide/svelte/icons/building-2';
 	import UserRound from '@lucide/svelte/icons/user-round';
 	import IdCard from '@lucide/svelte/icons/id-card';
+	import ClipboardList from '@lucide/svelte/icons/clipboard-list';
 	import Flag from '@lucide/svelte/icons/flag';
 	import FileText from '@lucide/svelte/icons/file-text';
 	import Database from '@lucide/svelte/icons/database';
@@ -39,6 +41,7 @@
 	} = $props();
 
 	const directory = [
+		{ href: '/admin/applications', label: 'Founder applications', icon: ClipboardList },
 		{ href: '/admin/networks', label: 'Networks', icon: Building },
 		{ href: '/admin/accounts', label: 'Accounts', icon: UserRound },
 		{ href: '/admin/nin', label: 'NIN reviews', icon: IdCard }
@@ -54,7 +57,9 @@
 	const active = (href: string) =>
 		href === '/admin' ? path === '/admin' : path === href || path.startsWith(`${href}/`);
 	const moreActive = $derived(
-		[...directory.slice(1), ...controls].some((item) => active(item.href)) || active('/admin/more')
+		[...directory, ...controls].some(
+			(item) => item.href !== '/admin/networks' && active(item.href)
+		) || active('/admin/more')
 	);
 </script>
 

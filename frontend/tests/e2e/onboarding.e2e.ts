@@ -6,6 +6,7 @@ import {
 	expectAccessible,
 	expectNoHorizontalScroll,
 	humanReady,
+	signUpOnly,
 	uniqueEmail
 } from './helpers';
 
@@ -19,13 +20,11 @@ test('sign-up → email confirm → PIN setup → workspace picker → shell, th
 }) => {
 	const email = uniqueEmail('founder');
 
-	// 1. Start your network (founder entry, W-01).
+	// 1. An account exists but is unconfirmed (open sign-up is withdrawn,
+	// Blueprint 19; founders.e2e.ts covers the founder invitation screens).
 	await page.goto('/sign-up');
-	await page.getByLabel('Email address').fill(email);
-	await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
-	await humanReady(page);
-	await page.getByRole('button', { name: 'Create account' }).click();
-	await expect(page.getByRole('heading', { name: 'Check your inbox' })).toBeVisible();
+	await expect(page).toHaveURL(/\/apply$/);
+	await signUpOnly(email, PASSWORD);
 
 	// 2. The emailed link lands on a Continue page; GET alone does not verify.
 	const link = await confirmLinkFor(email, /Confirm your Elivate Wallet email/);
@@ -116,7 +115,7 @@ test.describe('320 px, both themes: accessible and no horizontal scroll', () => 
 	for (const theme of ['dark', 'light'] as const) {
 		test(`auth pages in ${theme}`, async ({ page, context }) => {
 			await context.addCookies([{ name: 'ew_theme', value: theme, url: 'http://127.0.0.1:3000' }]);
-			for (const path of ['/sign-in', '/sign-up', '/sign-up/check-email', '/auth/link-expired']) {
+			for (const path of ['/sign-in', '/apply', '/apply/sent', '/auth/link-expired']) {
 				await page.goto(path);
 				await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
 				await expectNoHorizontalScroll(page);
@@ -127,11 +126,7 @@ test.describe('320 px, both themes: accessible and no horizontal scroll', () => 
 
 	test('PIN setup and the empty workspace picker', async ({ page }) => {
 		const email = uniqueEmail('a11y');
-		await page.goto('/sign-up');
-		await page.getByLabel('Email address').fill(email);
-		await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
-		await humanReady(page);
-		await page.getByRole('button', { name: 'Create account' }).click();
+		await signUpOnly(email, PASSWORD);
 		await page.goto(await confirmLinkFor(email, /Confirm your Elivate Wallet email/));
 		await expectAccessible(page);
 		await page.getByRole('button', { name: 'Continue' }).click();

@@ -65,9 +65,7 @@ export const FoundersApiLive = Layer.effect(
 				const secret = appServerSecret();
 				if (!secret) return Effect.fail(unconfigured);
 				if (!Schema.is(FounderApplicationRequest)(input)) {
-					const bad = fields.find(
-						(f) => !Schema.is(FounderApplicationRequest.fields[f])(input[f])
-					);
+					const bad = fields.find((f) => !Schema.is(FounderApplicationRequest.fields[f])(input[f]));
 					return Effect.fail(invalid(bad ?? 'body'));
 				}
 				return edge

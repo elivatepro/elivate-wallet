@@ -35,7 +35,10 @@ export const actions: Actions = {
 			// A founder who just accepted their invitation continues to network
 			// setup (Blueprint 19); the only `next` this page honours.
 			const founder = event.url.searchParams.get('next') === '/setup';
-			redirect(303, founder && exit.value.gate === 'ready' ? '/setup' : GATE_PATHS[exit.value.gate]);
+			redirect(
+				303,
+				founder && exit.value.gate === 'ready' ? '/setup' : GATE_PATHS[exit.value.gate]
+			);
 		}
 		const failure = failureOf(exit);
 		const errors = pinFieldErrors(failure);

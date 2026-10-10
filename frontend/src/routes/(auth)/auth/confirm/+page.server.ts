@@ -39,7 +39,11 @@ export const load: PageServerLoad = ({ url, cookies }) => {
 	if (!link) redirect(303, '/auth/link-expired');
 	// Same rule as the action: with an invitation open here, any link continues
 	// the join, so a Magic Link is not a PIN reset.
-	return { tokenHash: link.tokenHash, type: link.type, joining: !!readJoinToken(cookies) || !!readFounderToken(cookies) };
+	return {
+		tokenHash: link.tokenHash,
+		type: link.type,
+		joining: !!readJoinToken(cookies) || !!readFounderToken(cookies)
+	};
 };
 
 export const actions: Actions = {

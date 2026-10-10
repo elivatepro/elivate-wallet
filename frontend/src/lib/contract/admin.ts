@@ -4,6 +4,7 @@
 // evidence ever arrive.
 
 import { Schema } from 'effect';
+import { FounderRank } from './founders';
 import {
 	AccountStatus,
 	IDEMPOTENCY_KEY_PATTERN,
@@ -47,7 +48,13 @@ export const AdminRoutes = {
 	outbox: { method: 'GET', path: '/outbox' },
 	requeue: (id: string) => ({ method: 'POST', path: `/outbox/${id}/requeue` }) as const,
 	ninReviews: { method: 'GET', path: '/nin/reviews' },
-	decideNin: (id: string) => ({ method: 'POST', path: `/nin/reviews/${id}/decide` }) as const
+	decideNin: (id: string) => ({ method: 'POST', path: `/nin/reviews/${id}/decide` }) as const,
+	applications: { method: 'GET', path: '/founder-applications' },
+	application: (id: string) => ({ method: 'GET', path: `/founder-applications/${id}` }) as const,
+	decideApplication: (id: string) =>
+		({ method: 'POST', path: `/founder-applications/${id}/decide` }) as const,
+	resendApplication: (id: string) =>
+		({ method: 'POST', path: `/founder-applications/${id}/resend` }) as const
 } as const;
 
 // ── Shared pieces ─────────────────────────────────────────────────────────
@@ -185,7 +192,8 @@ export const Overview = Schema.Struct({
 		})
 	),
 	failedEmails: Schema.Int,
-	ninReviews: Schema.Int
+	ninReviews: Schema.Int,
+	founderApplications: Schema.Int
 });
 export type Overview = typeof Overview.Type;
 
@@ -508,6 +516,45 @@ export const AdvanceRestoreRequest = Schema.Struct({
 export const ReasonRequest = Schema.Struct({ reason: Reason, idempotencyKey: IdempotencyKey });
 
 export const NinDecisionRequest = Schema.Struct({
+	decision: Schema.Literals(['approve', 'reject']),
+	reason: Reason,
+	idempotencyKey: IdempotencyKey
+});
+
+// ── Founder applications (Blueprint 19; Paper A22/A22b) ───────────────────
+
+export const APPLICATION_STATUSES = ['waiting', 'approved', 'rejected'] as const;
+export const ApplicationStatus = Schema.Literals(APPLICATION_STATUSES);
+export type ApplicationStatus = typeof ApplicationStatus.Type;
+
+export const FounderApplication = Schema.Struct({
+	applicationId: Uuid,
+	fullName: Schema.String,
+	email: Schema.String,
+	phone: Schema.String,
+	teamName: Schema.String,
+	rank: FounderRank,
+	status: ApplicationStatus,
+	createdAt: IsoDateTime,
+	earlierApplications: Schema.Int,
+	decidedAt: Schema.NullOr(IsoDateTime),
+	decidedBy: Schema.NullOr(Person),
+	decisionReason: Schema.NullOr(Schema.String),
+	invitation: Schema.NullOr(
+		Schema.Struct({
+			status: Schema.Literals(['pending', 'accepted', 'expired']),
+			expiresAt: IsoDateTime,
+			issueCount: Schema.Int,
+			acceptedAt: Schema.NullOr(IsoDateTime)
+		})
+	)
+});
+export type FounderApplication = typeof FounderApplication.Type;
+
+export const ApplicationPage = Page(FounderApplication);
+export type ApplicationPage = typeof ApplicationPage.Type;
+
+export const ApplicationDecisionRequest = Schema.Struct({
 	decision: Schema.Literals(['approve', 'reject']),
 	reason: Reason,
 	idempotencyKey: IdempotencyKey

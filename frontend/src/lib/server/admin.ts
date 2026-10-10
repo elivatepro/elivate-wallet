@@ -153,7 +153,11 @@ const CONFLICT_MESSAGES: Readonly<Record<string, string>> = {
 	not_dead_lettered: 'That email is no longer waiting. Reload the list.',
 	not_pending: 'This network already has the development exception.',
 	archive_unavailable: 'The backup file is no longer available.',
-	operation_paused: 'That operation is stopped right now.'
+	operation_paused: 'That operation is stopped right now.',
+	already_decided: 'Another admin already decided this application. Reload the list.',
+	already_accepted: 'The founder already accepted this invitation.',
+	not_approved: 'Only an approved application can get a new invitation.',
+	resend_limit: 'This invitation was resent too many times. Ask the founder to apply again.'
 };
 
 /** A safe sentence for a command failure shown in its dialog. */
