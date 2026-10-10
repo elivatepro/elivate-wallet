@@ -159,7 +159,7 @@ describe('device cache (decision 36a)', () => {
 		const refused: [Parameters<typeof writeCache>[2], unknown][] = [
 			['queue', { items: [{ payout: { revisions: [{ receipt: { name: 'r.pdf' } }] } }] }],
 			['withdrawals', { facts: { recipientAccount: '0123456789' } }],
-			['evidence', { items: [{ entry: { evidence: [] } }] }],
+			['evidence', { items: [{ entry: { evidence: [{ name: 'r.pdf' }] } }] }],
 			['billing', { authorizationUrl: 'https://checkout.example/x' }],
 			['statements', { files: [{ downloadUrl: 'https://files.example/x' }] }],
 			['account', { sessions: [{ sessionId: 'x' }] }],
@@ -186,7 +186,25 @@ describe('device cache (decision 36a)', () => {
 			{ authorizationUrl: null, plan: 'yearly' },
 			{ now, who: WHO }
 		);
-		expect(store.keys()).toHaveLength(2);
+		writeCache(
+			store,
+			alice,
+			'evidence',
+			{ items: [{ entry: { evidence: [] } }] },
+			{ now, who: WHO }
+		);
+		writeCache(
+			store,
+			alice,
+			'account',
+			{ security: { passwordChangedAt: '2026-10-01T09:30:00.123Z' } },
+			{ now, who: WHO }
+		);
+		expect(store.keys()).toHaveLength(4);
+		// A timestamp name never carries anything else.
+		expect(() => assertCacheable({ passwordChangedAt: 'hunter2' })).toThrow();
+		expect(() => assertCacheable({ resetTokenAt: '2026-10-01T09:30:00Z' })).not.toThrow();
+		expect(() => assertCacheable({ evidence: [{ name: 'r.pdf' }] })).toThrow();
 	});
 
 	it('keeps a record id as a part and only the newest parts of a kind', () => {

@@ -85,6 +85,12 @@ const MASKED_FIELD = /(Masked|Last4)$/;
 const isMasked = (value: unknown) =>
 	typeof value === 'string' && (value.match(/[0-9]/g) ?? []).length <= 4;
 
+const isEmpty = (value: unknown) => value === null || (Array.isArray(value) && value.length === 0);
+const isTimestamp = (key: string, value: unknown) =>
+	/At$/.test(key) &&
+	typeof value === 'string' &&
+	/^\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:?\d{2})$/.test(value);
+
 /** Throws if a payload carries a field that must never be cached. */
 export function assertCacheable(value: unknown, path = ''): void {
 	if (Array.isArray(value)) {
@@ -99,9 +105,10 @@ export function assertCacheable(value: unknown, path = ''): void {
 				}
 				continue;
 			}
-			// Blueprint 23: an empty (null) forbidden field holds nothing, so a
-			// page may keep a projection with such fields set to null.
-			if (FORBIDDEN_FIELD.test(key) && inner !== null) {
+			// Blueprint 23: an empty forbidden field (null or []) holds nothing,
+			// so a page may keep a projection with such fields emptied; a
+			// timestamp (e.g. passwordChangedAt) is not the secret it names.
+			if (FORBIDDEN_FIELD.test(key) && !isEmpty(inner) && !isTimestamp(key, inner)) {
 				throw new Error(`device cache refused a forbidden field at ${path}.${key}`);
 			}
 			assertCacheable(inner, `${path}.${key}`);

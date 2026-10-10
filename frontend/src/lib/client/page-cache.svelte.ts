@@ -160,6 +160,15 @@ export class CachedRead<T> {
 		}
 	}
 
+	/**
+	 * A command changed what is shown (Greptile on PR #60): label it as a saved
+	 * copy ("Updating…") until the replacement arrives, so actions that need
+	 * fresh data wait for it.
+	 */
+	markStale(now = Date.now()): void {
+		if (this.data !== null && this.savedAt === null) this.savedAt = now;
+	}
+
 	/** Shown, but not to be kept when the scope is confirmed. */
 	forget(): void {
 		this.#pending = null;
@@ -348,7 +357,12 @@ export class CachedPage<T> {
 
 	#watch(): void {
 		this.#unwatch?.();
-		this.#unwatch = this.#read.watch(() => void this.reload());
+		const read = this.#read;
+		this.#unwatch = read.watch(() => {
+			read.markStale();
+			this.fresh = false;
+			void this.reload();
+		});
 	}
 
 	#cacheable(): boolean {

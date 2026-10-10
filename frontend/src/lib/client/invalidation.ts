@@ -20,7 +20,9 @@ const MONEY: readonly CacheKind[] = [
 	'split',
 	'entries',
 	'reports',
-	'statements'
+	'statements',
+	// Every money command writes an audit event (Greptile on PR #60).
+	'audit'
 ];
 const ORG: readonly CacheKind[] = ['offices', 'members', 'access', 'invitations'];
 const SETTINGS: readonly CacheKind[] = ['settings', 'vault'];

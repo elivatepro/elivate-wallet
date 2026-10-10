@@ -146,7 +146,8 @@ const MONEY = [
 	'split',
 	'entries',
 	'reports',
-	'statements'
+	'statements',
+	'audit'
 ];
 const ORG = ['offices', 'members', 'access', 'invitations'];
 
@@ -327,10 +328,16 @@ describe('CachedPage (Blueprint 23)', () => {
 		);
 		const stop = page.mount();
 		await page.reload();
+		expect(page.savedAt).toBeNull();
 		invalidate(['transfers'], store);
+		// Until the replacement lands, what is shown counts as a saved copy.
+		expect(page.savedAt).not.toBeNull();
+		expect(page.fresh).toBe(false);
 		await Promise.resolve();
 		await Promise.resolve();
 		expect(calls).toBe(2);
+		expect(page.savedAt).toBeNull();
+		expect(page.fresh).toBe(true);
 		stop();
 		invalidate(['transfers'], store);
 		expect(calls).toBe(2);

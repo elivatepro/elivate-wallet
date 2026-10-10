@@ -118,7 +118,8 @@ item following the tap.
   passwords, PINs, evidence, receipts, authorization, cookies and session ids, and now also
   `recipientAccount` (receipt facts) and `uploadUrl` / `downloadUrl` / `signedUrl`. Keys ending in
   `Masked` or `Last4` pass only when they show 4 digits or fewer. A forbidden key whose value is
-  `null` holds nothing and passes.
+  empty (`null` or `[]`) holds nothing and passes, and so does an ISO timestamp under a name
+  ending in `At` (e.g. `passwordChangedAt`).
 - **Writes made on a saved copy.** Forms prefilled from a read are read-only until the fresh copy
   lands (settings, team details, roles & access, restore request, member funds switch, profile
   Edit). Money forms whose limits come from a read (new withdrawal, move money, conversion,
@@ -126,7 +127,9 @@ item following the tap.
   split editor keeps the version its edits were made on, so a save over a newer split is the
   existing conflict. Commands are unchanged and never answered from the cache.
 - **Invalidation.** Money commands clear every money kind (balances, history, wallets, offices,
-  withdrawals, queue, transfers, evidence, split, entries, reports, statements). Org commands
+  withdrawals, queue, transfers, evidence, split, entries, reports, statements) and the audit log.
+  A page showing an invalidated kind labels what it shows as a saved copy ("Updating…") until
+  the replacement lands, so actions that need fresh data wait for it. Org commands
   clear offices, members, access, invitations and audit; NIN decisions also clear `nin-reviews`;
   settings clear settings and vault; backups and restores clear vault; billing, notifications,
   statements/exports and account commands clear their own kinds. Lookups, revealing a payout

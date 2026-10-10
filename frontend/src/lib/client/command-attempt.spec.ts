@@ -259,7 +259,8 @@ describe('CommandAttempt invalidation (Blueprint 20 B6)', () => {
 				'split',
 				'entries',
 				'reports',
-				'statements'
+				'statements',
+				'audit'
 			]
 		]);
 	});
