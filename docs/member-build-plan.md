@@ -27,7 +27,8 @@ build updates the affected contract line (`00-product.md` U-table, `01-domain-ru
 - **Kill switches:** deferred until the Admin app. Do not build switches now.
 
 ### Billing (W-19, U-03, U-13)
-- **Activation:** a new network starts a **7-day free trial**, then must pay.
+- **Activation:** a new network starts a **7-day free trial**, then must pay. Only an
+  approved founder may create a network (see "Founder applications" below).
 - **One trial per founder account**, ever. Further networks must pay before activation.
 - **Trial cap:** the smallest band (up to 400 users); everything else works, real money
   included.
@@ -118,7 +119,7 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
   only. Supabase Auth always signs out other sessions on a password change, so the "choose
   whether to sign out other devices" decision became: always sign out, and say so (Z09, Z10).
 - **Billing:** seat upgrade costs the price difference × days left in the paid year ÷ 365.
-  A founder may skip the trial and pay for any launch band directly. Paused networks give
+  An approved founder may skip the trial and pay for any launch band directly. Paused networks give
   leaders and the Billing Owner a pay-to-reactivate view; withdrawals approved before the
   pause still get paid out.
 - **Needs your action** bell items are both live tasks (they clear when done) and ordinary
@@ -168,6 +169,20 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
   payment). On a paused network leaders keep read-only history, reports, queues and audit,
   plus Billing; B05 says "Pay to turn it back on" with "Review billing".
 - **Workspace settings (slice 10, 2026-10-10, Blueprint 17):** restores are reviewed and run by **Elivate only** (W-24; the 2026-10-07 "team approves the diff" note and V05/V06 are withdrawn); Team Vault backups are **kept 90 days**; the team colour is **one of six fixed themes** that colour the network's accent (Paper TS01d/TS02d/TS03d drafts approved); branding and team details use a new protected President-only key **`manage_team_settings`** (PIN to save), restore requests the protected **`request_restore`** (World Team and President), so A-03 has 34 rows. Backups go to their own private R2 bucket (`BACKUPS`, no lifecycle rule); logos live privately in `PHOTOS` under `brand/`.
+- **Founder applications (2026-10-10):** founder sign-up is **apply first**; open "Start your
+  network" sign-up is withdrawn. The public form asks for name, email, phone, team name and a
+  self-declared rank, which must be **Ruby Director 4, Ruby Director 5 or Diamond Director**;
+  no proof upload. Any platform admin approves or rejects in the Admin app with a reason;
+  approval emails a founder invitation, the only way to create a founder account and network,
+  and rejection emails a polite no (the same email may apply again after 30 days). Nobody
+  creates a network without approval, paid or not; an approved founder's further networks need
+  no new application and pay before activation as before. The trial stays **7 days**, capped
+  at the 400-user band, with **no card**. Prices are shown on the marketing site
+  (elivatewallet.com), not in the app. Emails: A19 application received (to the applicant),
+  A17 approved (with the founder invitation) and A18 not approved. The invitation reuses the
+  Authentication v2 invitation screens (08, 09) with founder wording, then network setup.
+  Paper drafts: Authentication v2 13/14, Admin A22/A22b, Emails A17–A19, each with a new Root
+  pose (awaiting approval).
 - **Sequencing:** one slice at a time, each new slice in its own thread. Order: 4 → 5 → 8 →
   slice 9 follow-up (IP storage, signed-in password change, PIN-change email, sign-out
   choice after reset) → 6 → 7 → 10.

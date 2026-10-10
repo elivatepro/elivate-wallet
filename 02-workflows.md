@@ -31,7 +31,7 @@ Common acceptance: no duplicate dispatch from reactivity, accessible busy/field/
 **Actors:** New network founder, invited recipient, returning user. These are distinct entry paths, not a public role selector.
 
 **Required behavior:**
-1. Public founder signup says Start your network. Supabase creates/verifies account identity; it does not create President authority merely because a role was selected.
+1. Public founder signup says Start your network. Supabase creates/verifies account identity; it does not create President authority merely because a role was selected. **Owner decision (2026-10-10):** founder entry is apply-first: a public application (name, email, phone, team name, rank Ruby Director 4/5 or Diamond Director) is reviewed by a platform admin, and only an approved application's founder invitation creates a founder account and network (see `docs/member-build-plan.md`, Founder applications).
 2. After verified account ownership, guide founder through approved tenant setup/configurable operational questions. Protected self-service/President controls are not editable role choices. Specific reviewers are assigned after active tenant membership exists.
 3. **Owner decision (2026-10-08):** the founding President Team Member creates their network themselves and chooses a plan and pays during setup; the network stays pending until payment activates it. Production tenant activation must satisfy U-03/approved enrollment contract. Development one-time setup-code bootstrap is not unrestricted production onboarding or evidence of paid purchase.
 4. Returning users use sign-in; recovery/password reset validates the supported Auth continuation and local redirect target. Preserve invitation continuation when applicable.
