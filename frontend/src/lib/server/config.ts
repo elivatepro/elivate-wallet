@@ -1,5 +1,8 @@
 import {
 	APP_SERVER_SECRET,
+	CHATWOOT_BASE_URL,
+	CHATWOOT_HMAC_TOKEN,
+	CHATWOOT_WEBSITE_TOKEN,
 	E2E_GEO_HEADERS,
 	E2E_LOCAL_EXPORTS,
 	EXPORTS_WORKER_SECRET,
@@ -71,4 +74,21 @@ export function localExportsDir(): string | null {
 	if (!E2E_LOCAL_EXPORTS || !SUPABASE_URL) return null;
 	const host = new URL(SUPABASE_URL).hostname;
 	return host === '127.0.0.1' || host === 'localhost' ? E2E_LOCAL_EXPORTS : null;
+}
+
+/**
+ * Blueprint 17: Chatwoot Cloud (W-21). Null when the inbox is not configured,
+ * so Start a chat can say chat is unavailable instead of pretending.
+ */
+export function chatwootConfig(): {
+	baseUrl: string;
+	websiteToken: string;
+	hmacToken: string;
+} | null {
+	if (!CHATWOOT_WEBSITE_TOKEN || !CHATWOOT_HMAC_TOKEN) return null;
+	return {
+		baseUrl: CHATWOOT_BASE_URL ?? 'https://app.chatwoot.com',
+		websiteToken: CHATWOOT_WEBSITE_TOKEN,
+		hmacToken: CHATWOOT_HMAC_TOKEN
+	};
 }

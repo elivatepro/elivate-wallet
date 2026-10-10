@@ -33,6 +33,7 @@ const handler = createHandler({
   allowedOrigins: (Deno.env.get("CORS_ORIGINS") ?? "").split(",").map((o) => o.trim()).filter(
     Boolean,
   ),
+  appServerSecret: Deno.env.get("APP_SERVER_SECRET")?.trim() || null,
 });
 
 Deno.serve(handler);

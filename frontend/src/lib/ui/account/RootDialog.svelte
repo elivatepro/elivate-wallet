@@ -367,7 +367,7 @@
 
 	.rd-cell.active {
 		border-color: var(--color-accent);
-		box-shadow: #ff7f4f33 0px 0px 0px 3px;
+		box-shadow: var(--color-accent-ring) 0px 0px 0px 3px;
 	}
 
 	.rd-cell.invalid {
@@ -414,15 +414,10 @@
 	.rd-go {
 		flex: 1.4 1 0%;
 		border: 0;
-		background-image: linear-gradient(
-			in oklab 135deg,
-			oklab(76.9% 0.087 0.084) 0%,
-			oklab(71.1% 0.113 0.097) 55%,
-			oklab(66.2% 0.12 0.099) 100%
-		);
+		background-image: var(--button-primary-bg);
 		box-shadow:
 			#ffffff59 0px 1px 0px inset,
-			#ff7f4f99 0px 10px 28px -10px;
+			var(--button-primary-glow) 0px 10px 28px -10px;
 		color: #14100e;
 		font-weight: var(--font-weight-semibold);
 	}

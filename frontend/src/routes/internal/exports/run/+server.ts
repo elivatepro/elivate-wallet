@@ -1,6 +1,9 @@
 // Export runner (Blueprint 15 — B4): called every minute by pg_cron/pg_net
 // (Vault exports_worker_url/secret) and on each new request, with
 // `Authorization: Bearer <EXPORTS_WORKER_SECRET>`. Never reachable without it.
+// Blueprint 17: the same call runs waiting backups and removes expired ones.
+import { backupRunnerDeps } from '#lib/server/backups/endpoints.js';
+import { runBackups } from '#lib/server/backups/runner.js';
 import { exportsWorkerSecret } from '#lib/server/config.js';
 import { runnerDeps } from '#lib/server/exports/endpoints.js';
 import { runExports } from '#lib/server/exports/runner.js';
@@ -33,19 +36,27 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json(403, { ok: false, error: { code: 'authorization_denied' } });
 	}
 	const deps = await runnerDeps();
-	if (!deps)
+	const backups = await backupRunnerDeps();
+	if (!deps && !backups)
 		return json(503, {
 			ok: false,
 			error: { code: 'internal_error', message: 'exports not configured' }
 		});
-	const outcomes = await runExports(deps);
+	const outcomes = deps ? await runExports(deps, 60_000) : [];
+	const archived = backups ? await runBackups(backups, 120_000) : [];
 	return json(200, {
 		ok: true,
 		data: {
 			ran: outcomes.length,
 			ready: outcomes.filter((o) => o.status === 'ready').length,
 			failed: outcomes.filter((o) => o.status === 'failed').length,
-			tooLarge: outcomes.filter((o) => o.status === 'too_large').length
+			tooLarge: outcomes.filter((o) => o.status === 'too_large').length,
+			backups: {
+				ran: archived.length,
+				ready: archived.filter((o) => o.status === 'ready').length,
+				failed: archived.filter((o) => o.status === 'failed').length,
+				tooLarge: archived.filter((o) => o.status === 'too_large').length
+			}
 		}
 	});
 };

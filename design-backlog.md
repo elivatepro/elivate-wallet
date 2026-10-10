@@ -50,7 +50,7 @@ Owner answers (2026-10-07, after the Notion check) — recorded in the contract:
 1. Reference formats: adopt the proposal (01 D-01). `<TYPE>-XXXX-XXXX` Crockford Base32; UID `EW-` + ≥5 digits. Paper references unified (WDR/PTR/RTN/INC/ADJ/REV/RST/PAY/STM/RPT; `TRF` → `PTR`, `RR` → `RST`, `PSK`/`ELV-INV` → `PAY`).
 2. Extra plan bands: skipped for now (U-13). B03/B04 unchanged.
 3. Change leader replaces the leader (W-05). O12/O13: "Replaced" tag, required reason, "Replace leader".
-4. Restore: President/World Team request + approve; operators run it; statuses suggested in W-24. V01–V04 copy, A15/A16 steps (Validate → Team approval → Restore), restore email → "diff ready to approve"; new V05/V06 Approve restore.
+4. ~~Restore: President/World Team request + approve; operators run it; statuses suggested in W-24. V01–V04 copy, A15/A16 steps (Validate → Team approval → Restore), restore email → "diff ready to approve"; new V05/V06 Approve restore.~~ Superseded 2026-10-10 (Blueprint 17 Q1): only Elivate reviews and restores (W-24); no team approval step, V05/V06 are not built.
 5. Quick search covers everything visible in the workspace (P-06). K01/K02 already match.
 6. President Team creates every office type incl. World Team; leader required. O04/O06: World Team option + Team Leader field.
 7. Office money = office + everything below. O01/O03 (+ tablet/K01 backgrounds) totals and member counts rolled up.

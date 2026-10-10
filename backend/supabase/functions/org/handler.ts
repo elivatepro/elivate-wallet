@@ -9,6 +9,7 @@ import {
   isErrorCode,
   success,
 } from "../_shared/http.ts";
+import { sameSecret } from "../_shared/secret.ts";
 import * as v from "../_shared/validate.ts";
 
 export interface Actor {
@@ -37,6 +38,8 @@ export interface Deps {
   rpc(fn: string, args: Record<string, unknown>): Promise<RpcResult>;
   log(entry: LogEntry): void;
   readonly allowedOrigins: readonly string[];
+  /** APP_SERVER_SECRET: storage keys (logos, backups) go to the app server only. */
+  readonly appServerSecret?: string | null;
 }
 
 interface Context {
@@ -197,6 +200,59 @@ const roles = [
   "president_team_member",
 ] as const;
 
+// Blueprint 17: the settings a save may carry (D-11). Postgres validates every
+// value again; this layer refuses unknown fields and oversized text.
+const settingsFields: Readonly<Record<string, number>> = {
+  name: 100,
+  shortName: 30,
+  theme: 20,
+  slogan: 60,
+  supportName: 80,
+  supportEmail: 254,
+  supportPhone: 24,
+  helpUrl: 300,
+  locale: 10,
+  timeZone: 64,
+  logoKey: 120,
+  iconKey: 120,
+  logoLightKey: 120,
+};
+
+function settingsPatch(body: v.Body): Record<string, string | null> {
+  const value = body.fields;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new ApiError("validation_error", { field: "fields" });
+  }
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (entries.length < 1) throw new ApiError("validation_error", { field: "fields" });
+  const patch: Record<string, string | null> = {};
+  for (const [key, field] of entries) {
+    const max = settingsFields[key];
+    if (max === undefined) {
+      throw new ApiError("validation_error", { field: key, reason: "unknown_field" });
+    }
+    if (field === null) {
+      patch[key] = null;
+    } else if (typeof field === "string" && [...field].length <= max) {
+      patch[key] = field;
+    } else {
+      throw new ApiError("validation_error", { field: key });
+    }
+  }
+  return patch;
+}
+
+function positiveInt(body: v.Body, field: string): number {
+  const value = body[field];
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 1_000_000) {
+    throw new ApiError("validation_error", { field });
+  }
+  return value;
+}
+
+/** W-24 steps only Elivate takes. */
+const restoreSteps = ["validating", "in_review", "restoring", "completed", "rejected", "failed"];
+
 /** Roles a membership in an office can hold (never President Team). */
 const officeRoles = ["member", "team_leader", "director", "world_team_member"] as const;
 
@@ -223,6 +279,23 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
   const commandArgs = (c: Context) => ({ ...actorArgs(c), p_request_id: c.requestId });
   const inWorkspace = (c: Context) => ({ ...actorArgs(c), p_membership_id: workspace(c.request) });
   const commandInWorkspace = (c: Context) => ({ ...inWorkspace(c), p_request_id: c.requestId });
+
+  async function appServerOnly(c: Context): Promise<void> {
+    const given = c.request.headers.get("x-app-server-secret");
+    if (!deps.appServerSecret || !given || !(await sameSecret(given, deps.appServerSecret))) {
+      throw new ApiError("authorization_denied", { reason: "app_server_only" });
+    }
+  }
+
+  function brandKey(data: unknown): unknown {
+    const key = (data as Record<string, unknown>).objectKey;
+    if (
+      typeof key !== "string" || !/^brand\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(jpg|png|webp)$/.test(key)
+    ) {
+      throw new Error("brand key has an unexpected shape");
+    }
+    return data;
+  }
 
   const route = (method: string, pattern: string, handler: Handler): Route => ({
     method,
@@ -537,6 +610,136 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       return call("end_reviewer", {
         ...commandInWorkspace(c),
         p_assignment_id: c.params.id,
+        p_reason: v.reason(body),
+        p_idempotency_key: v.idempotencyKey(body),
+      });
+    }),
+
+    // ── Blueprint 17: team settings, brand, quick search, backups ──
+
+    route("GET", "/settings", (c) => {
+      onlyQuery(c.query, []);
+      return call("team_settings", inWorkspace(c));
+    }),
+
+    route("PATCH", "/settings", async (c) => {
+      const body = await v.readBody(c.request, ["expectedRevision", "fields", "idempotencyKey"]);
+      return call("update_team_settings", {
+        ...commandInWorkspace(c),
+        p_expected_revision: positiveInt(body, "expectedRevision"),
+        p_fields: settingsPatch(body),
+        p_idempotency_key: v.idempotencyKey(body),
+      });
+    }),
+
+    route("POST", "/settings/restore", async (c) => {
+      const body = await v.readBody(c.request, ["expectedRevision", "revision", "idempotencyKey"]);
+      return call("restore_team_settings_revision", {
+        ...commandInWorkspace(c),
+        p_expected_revision: positiveInt(body, "expectedRevision"),
+        p_revision: positiveInt(body, "revision"),
+        p_idempotency_key: v.idempotencyKey(body),
+      });
+    }),
+
+    route("GET", "/brand", (c) => {
+      onlyQuery(c.query, []);
+      return call("workspace_brand", inWorkspace(c));
+    }),
+
+    // Storage keys for a logo the app server streams or is about to store.
+    route("POST", "/brand/asset-key", async (c) => {
+      await appServerOnly(c);
+      const body = await v.readBody(c.request, ["kind"]);
+      const kind = body.kind;
+      if (kind !== "logo" && kind !== "icon" && kind !== "logo-light") {
+        throw new ApiError("validation_error", { field: "kind" });
+      }
+      return brandKey(await call("brand_asset_key", { ...inWorkspace(c), p_kind: kind }));
+    }),
+
+    route("POST", "/brand/upload-key", async (c) => {
+      await appServerOnly(c);
+      const body = await v.readBody(c.request, ["ext"]);
+      const ext = body.ext;
+      if (ext !== "jpg" && ext !== "png" && ext !== "webp") {
+        throw new ApiError("validation_error", { field: "ext" });
+      }
+      return brandKey(await call("brand_upload_key", { ...inWorkspace(c), p_ext: ext }));
+    }),
+
+    route("GET", "/search", (c) => {
+      onlyQuery(c.query, ["q", "limit"]);
+      const q = c.query.get("q");
+      if (q === null || [...q.trim()].length < 2 || [...q.trim()].length > 80) {
+        throw new ApiError("validation_error", { field: "q" });
+      }
+      const limit = queryLimit(c.query);
+      if (limit !== null && (limit < 1 || limit > 10)) {
+        throw new ApiError("validation_error", { field: "limit" });
+      }
+      return call("quick_search", { ...inWorkspace(c), p_query: q, p_limit: limit });
+    }),
+
+    route("GET", "/backups", (c) => {
+      onlyQuery(c.query, []);
+      return call("backup_vault", inWorkspace(c));
+    }),
+
+    route("POST", "/backups", async (c) => {
+      const body = await v.readBody(c.request, ["idempotencyKey"]);
+      return call("start_backup", {
+        ...commandInWorkspace(c),
+        p_idempotency_key: v.idempotencyKey(body),
+      });
+    }),
+
+    route("POST", "/backups/:id/download", async (c) => {
+      await appServerOnly(c);
+      await v.readBody(c.request, []);
+      const target = await call("authorize_backup_download", {
+        ...commandInWorkspace(c),
+        p_backup_id: c.params.id,
+      }) as Record<string, unknown>;
+      if (
+        typeof target.objectKey !== "string" ||
+        !/^backups\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9]{1,3}\.zip$/.test(target.objectKey)
+      ) {
+        throw new Error("authorize_backup_download returned an unexpected key");
+      }
+      return target;
+    }),
+
+    route("POST", "/restores", async (c) => {
+      const body = await v.readBody(c.request, ["backupId", "reason", "idempotencyKey"]);
+      return call("request_restore", {
+        ...commandInWorkspace(c),
+        p_backup_id: v.uuid(body, "backupId"),
+        p_reason: v.text(body, "reason", 500, 10),
+        p_idempotency_key: v.idempotencyKey(body),
+      });
+    }),
+
+    route("POST", "/restores/:id/cancel", async (c) => {
+      const body = await v.readBody(c.request, ["idempotencyKey"]);
+      return call("cancel_restore_request", {
+        ...commandInWorkspace(c),
+        p_restore_id: c.params.id,
+        p_idempotency_key: v.idempotencyKey(body),
+      });
+    }),
+
+    // Elivate operators only (W-24), until the Admin app has screens.
+    route("POST", "/platform/restores/:id/advance", async (c) => {
+      const body = await v.readBody(c.request, ["status", "reason", "idempotencyKey"]);
+      const status = body.status;
+      if (typeof status !== "string" || !restoreSteps.includes(status)) {
+        throw new ApiError("validation_error", { field: "status" });
+      }
+      return call("platform_advance_restore", {
+        ...commandArgs(c),
+        p_restore_id: c.params.id,
+        p_status: status,
         p_reason: v.reason(body),
         p_idempotency_key: v.idempotencyKey(body),
       });

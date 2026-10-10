@@ -1,7 +1,8 @@
 // Notification emails (Blueprint 13): Paper "Emails — Transactional v2"
 // M01–M14, M16–M18 (approved 2026-10-09), T01, A10–A12, (Blueprint 14) the
 // A06–A08 security emails and (Blueprint 15) M15 Statement ready, on the shared
-// layout, and (Blueprint 16) B01–B05 billing. Money emails show the exact
+// layout, (Blueprint 16) B01–B05 billing and (Blueprint 17) T02–T05 team
+// settings and backups. Money emails show the exact
 // amount and the public reference only
 // (P-06): never balances, account digits, bank details, reasons or evidence.
 // Buttons open the in-app path carried by the event, from an allow-list.
@@ -159,6 +160,69 @@ function build(spec: Spec, params: Params, context: RenderContext): RenderedEmai
 type Renderer = (params: Params, context: RenderContext) => RenderedEmail;
 
 const money = ["network", "amount", "currency", "reference", "path"] as const;
+
+/** "5 Oct 2026, 11:40" (WAT, from the database). */
+function takenAt(params: Params): string {
+  const value = param(params, "taken", 30);
+  if (!/^[0-9]{1,2} [A-Z][a-z]{2} [0-9]{4}, [0-9]{2}:[0-9]{2}$/.test(value)) {
+    throw new TemplateError("template.param_invalid");
+  }
+  return value;
+}
+
+/** T04 copy for each W-24 status (labels from backups.status_label). */
+const restoreCopy: Readonly<
+  Record<string, { tone: StatusTone; subject: string; headline: string; line: string }>
+> = {
+  "Requested": {
+    tone: "warning",
+    subject: "We've received your restore request",
+    headline: "We’ve received your restore request.",
+    line: "Elivate will check it and email you.",
+  },
+  "Checking the backup": {
+    tone: "warning",
+    subject: "Your restore request is being checked",
+    headline: "Elivate is checking your backup.",
+    line: "We’ll email you when it’s done.",
+  },
+  "In review": {
+    tone: "warning",
+    subject: "Your restore request is in review",
+    headline: "Your restore request is in review.",
+    line: "We’ll email you when it’s done.",
+  },
+  "Restoring": {
+    tone: "warning",
+    subject: "Your restore is under way",
+    headline: "Your restore is under way.",
+    line: "We’ll email you when it’s done.",
+  },
+  "Restored": {
+    tone: "success",
+    subject: "Your restore is complete",
+    headline: "Your restore is complete.",
+    line: "Check your network to confirm.",
+  },
+  "Not restored": {
+    tone: "muted",
+    subject: "Your restore request was not approved",
+    headline: "Your restore request was not approved.",
+    line: "Open the request to see why.",
+  },
+  "Cancelled": {
+    tone: "muted",
+    subject: "Your restore request was cancelled",
+    headline: "Your restore request was cancelled.",
+    line: "Nothing was changed.",
+  },
+  "Failed": {
+    tone: "danger",
+    subject: "Your restore didn't complete",
+    headline: "Your restore didn’t complete.",
+    line: "Elivate will contact you about next steps.",
+  },
+};
 
 /** A money email whose hero is the amount and the reference (most M-series). */
 function simple(
@@ -788,6 +852,100 @@ export const notificationRenderers: Readonly<Record<string, Renderer>> = {
         headline: "Your plan is paused.",
         line: "History stays available. Pay to turn it back on.",
         button: "Review billing",
+      },
+      params,
+      context,
+    );
+  },
+
+  // ── Team settings and backups (Blueprint 17): T02–T05 ────────────────────
+  // T02: when it was taken and its size; never the file or its location.
+  "team.backup_ready": (params, context) => {
+    onlyParams(params, ["network", "taken", "size", "path"]);
+    const size = param(params, "size", 20);
+    if (!/^[0-9]{1,5} (bytes|kB|MB|GB)$/.test(size)) {
+      throw new TemplateError("template.param_invalid");
+    }
+    return build(
+      {
+        network: param(params, "network", 100),
+        subject: "Your team backup is ready",
+        chip: "Team Backup Vault",
+        status: { label: "Ready", tone: "success" },
+        display: "Backup ready",
+        reference: `${takenAt(params)} · ${size}`,
+        root: "backup-ready",
+        headline: "Your team backup is ready.",
+        line: "Download it from the vault.",
+        button: "Open vault",
+      },
+      params,
+      context,
+    );
+  },
+  // T03
+  "team.backup_failed": (params, context) => {
+    onlyParams(params, ["network", "taken", "path"]);
+    return build(
+      {
+        network: param(params, "network", 100),
+        subject: "A team backup didn't finish",
+        chip: "Team Backup Vault",
+        status: { label: "Failed", tone: "danger" },
+        display: "Backup failed",
+        reference: takenAt(params),
+        root: "backup-failed",
+        headline: "A team backup didn’t finish.",
+        line: "Nothing was lost. Try again from the vault.",
+        button: "Retry backup",
+      },
+      params,
+      context,
+    );
+  },
+  // T04: one email per W-24 status change, to the requester.
+  "team.restore_update": (params, context) => {
+    onlyParams(params, ["network", "reference", "status", "path"]);
+    const status = param(params, "status", 30);
+    const copy = restoreCopy[status];
+    if (!copy) throw new TemplateError("template.param_invalid");
+    return build(
+      {
+        network: param(params, "network", 100),
+        subject: copy.subject,
+        chip: "Team Backup Vault",
+        status: { label: status, tone: copy.tone },
+        display: "Restore request",
+        reference: reference(params),
+        root: "restore-update",
+        headline: copy.headline,
+        line: copy.line,
+        button: "View request",
+      },
+      params,
+      context,
+    );
+  },
+  // T05: who changed what, never the values themselves.
+  "team.branding_changed": (params, context) => {
+    onlyParams(params, ["network", "actor", "summary", "revision", "path"]);
+    const summary = param(params, "summary", 120);
+    if (!/^the [a-z ,]+$/.test(summary)) throw new TemplateError("template.param_invalid");
+    const revision = param(params, "revision", 7);
+    if (!/^[1-9][0-9]{0,6}$/.test(revision)) throw new TemplateError("template.param_invalid");
+    const what = summary.slice("the ".length);
+    return build(
+      {
+        network: param(params, "network", 100),
+        subject: "Your team's branding changed",
+        chip: "Branding",
+        status: { label: `Revision ${revision}`, tone: "muted" },
+        display: "New look",
+        reference: `${what.charAt(0).toUpperCase()}${what.slice(1)} updated`,
+        root: "branding-changed",
+        headline: "Your team’s branding changed.",
+        line: `${oneLine(param(params, "actor", nameMax), nameMax)} updated ${summary}.`,
+        button: "View branding",
       },
       params,
       context,

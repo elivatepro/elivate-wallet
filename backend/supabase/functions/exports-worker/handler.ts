@@ -2,6 +2,8 @@
 // app Worker's export runner with `Authorization: Bearer <EXPORTS_WORKER_SECRET>`,
 // never with a user JWT. It exposes the job steps: claim a job, prepare its
 // rows (one database transaction), page through them, then finalize or fail.
+// Blueprint 17 adds the same steps for full-network backups under /backups,
+// the removal list of expired backups, and the logo key of a file's network.
 // Postgres re-authorizes and checks completeness; this layer validates input.
 
 import { ApiError, type Details, failure, isErrorCode, success } from "../_shared/http.ts";
@@ -48,9 +50,12 @@ function parseDetails(raw: string | null | undefined): Details {
 async function readJson(
   request: Request,
   allowed: readonly string[],
+  maxLength = 4096,
 ): Promise<Record<string, unknown>> {
   const text = await request.text();
-  if (text.length > 4096) throw new ApiError("validation_error", { reason: "body_too_large" });
+  if (text.length > maxLength) {
+    throw new ApiError("validation_error", { reason: "body_too_large" });
+  }
   let body: unknown;
   try {
     body = text === "" ? {} : JSON.parse(text);
@@ -89,6 +94,35 @@ function queryInt(query: URLSearchParams, field: string, min: number, max: numbe
   return int(Number(raw), field, min, max);
 }
 
+function queryWorker(query: URLSearchParams): string {
+  const name = query.get("worker");
+  if (!name || !workerPattern.test(name)) {
+    throw new ApiError("validation_error", { field: "worker" });
+  }
+  return name;
+}
+
+/** The manifest's file list: one entry per section, with its rows and SHA-256. */
+function backupFiles(value: unknown): { section: string; rows: number; sha256: string }[] {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 100) {
+    throw new ApiError("validation_error", { field: "files" });
+  }
+  return value.map((item) => {
+    if (typeof item !== "object" || item === null || Array.isArray(item)) {
+      throw new ApiError("validation_error", { field: "files" });
+    }
+    const f = item as Record<string, unknown>;
+    if (
+      Object.keys(f).some((k) => !["section", "rows", "sha256"].includes(k)) ||
+      typeof f.section !== "string" || !/^[a-z_]{2,40}$/.test(f.section) ||
+      typeof f.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(f.sha256)
+    ) {
+      throw new ApiError("validation_error", { field: "files" });
+    }
+    return { section: f.section, rows: int(f.rows, "files", 0, 10_000_000), sha256: f.sha256 };
+  });
+}
+
 export function createHandler(deps: Deps): (request: Request) => Promise<Response> {
   async function call(fn: string, args: Record<string, unknown>): Promise<unknown> {
     const { data, error } = await deps.rpc(fn, args);
@@ -110,7 +144,10 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       const body = await readJson(request, ["worker"]);
       return call("export_claim", { p_worker: worker(body) });
     }
-    const match = /^\/([0-9a-f-]{36})\/(prepare|rows|finalize|fail)$/.exec(path);
+    if (path.startsWith("/backups/")) {
+      return backupRoute(request, url, path.slice("/backups".length));
+    }
+    const match = /^\/([0-9a-f-]{36})\/(prepare|rows|finalize|fail|brand)$/.exec(path);
     if (!match || !uuidPattern.test(match[1] ?? "")) throw new ApiError("not_found");
     const id = match[1];
     const step = match[2];
@@ -130,6 +167,9 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
         p_after: queryInt(url.searchParams, "after", 0, 1_000_000),
         p_limit: queryInt(url.searchParams, "limit", 1, 1000),
       });
+    }
+    if (request.method === "GET" && step === "brand") {
+      return call("export_brand", { p_export_id: id, p_worker: queryWorker(url.searchParams) });
     }
     if (request.method !== "POST") throw new ApiError("not_found");
     if (step === "prepare") {
@@ -173,6 +213,81 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
         p_worker: worker(body),
         p_reason: body.reason,
       });
+    }
+    throw new ApiError("not_found");
+  }
+
+  // Backups (Blueprint 17): claim, prepare, rows, finalize, fail; then the
+  // removal of expired archives.
+  async function backupRoute(request: Request, url: URL, path: string): Promise<unknown> {
+    if (request.method === "POST" && path === "/claim") {
+      const body = await readJson(request, ["worker"]);
+      return call("backup_claim", { p_worker: worker(body) });
+    }
+    if (request.method === "GET" && path === "/expired") {
+      for (const key of url.searchParams.keys()) {
+        if (key !== "limit") {
+          throw new ApiError("validation_error", { field: key, reason: "unknown_field" });
+        }
+      }
+      return call("backup_expired", {
+        p_limit: url.searchParams.has("limit") ? queryInt(url.searchParams, "limit", 1, 100) : 20,
+      });
+    }
+    const match = /^\/([0-9a-f-]{36})\/(prepare|rows|finalize|fail|deleted)$/.exec(path);
+    if (!match || !uuidPattern.test(match[1] ?? "")) throw new ApiError("not_found");
+    const id = match[1];
+    const step = match[2];
+    if (request.method === "GET" && step === "rows") {
+      for (const key of url.searchParams.keys()) {
+        if (!["worker", "after", "limit"].includes(key)) {
+          throw new ApiError("validation_error", { field: key, reason: "unknown_field" });
+        }
+      }
+      return call("backup_rows", {
+        p_backup_id: id,
+        p_worker: queryWorker(url.searchParams),
+        p_after: queryInt(url.searchParams, "after", 0, 10_000_000),
+        p_limit: queryInt(url.searchParams, "limit", 1, 2000),
+      });
+    }
+    if (request.method !== "POST") throw new ApiError("not_found");
+    if (step === "prepare") {
+      const body = await readJson(request, ["worker"]);
+      return call("backup_prepare", { p_backup_id: id, p_worker: worker(body) });
+    }
+    if (step === "finalize") {
+      const body = await readJson(
+        request,
+        ["worker", "recordCount", "byteSize", "sha256", "files"],
+        32_768,
+      );
+      if (typeof body.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(body.sha256)) {
+        throw new ApiError("validation_error", { field: "sha256" });
+      }
+      return call("backup_finalize", {
+        p_backup_id: id,
+        p_worker: worker(body),
+        p_record_count: int(body.recordCount, "recordCount", 0, 10_000_000),
+        p_byte_size: int(body.byteSize, "byteSize", 1, 2 ** 40),
+        p_sha256: body.sha256,
+        p_files: backupFiles(body.files),
+      });
+    }
+    if (step === "fail") {
+      const body = await readJson(request, ["worker", "reason"]);
+      if (typeof body.reason !== "string" || !failReasons.includes(body.reason)) {
+        throw new ApiError("validation_error", { field: "reason" });
+      }
+      return call("backup_fail", {
+        p_backup_id: id,
+        p_worker: worker(body),
+        p_reason: body.reason,
+      });
+    }
+    if (step === "deleted") {
+      await readJson(request, []);
+      return call("backup_deleted", { p_backup_id: id });
     }
     throw new ApiError("not_found");
   }

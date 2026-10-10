@@ -66,6 +66,27 @@ export const variables = defineEnvVars({
 			"Local e2e only: a directory for generated files, rendered with Playwright's Chromium instead of the R2 and Browser Rendering bindings. Ignored unless SUPABASE_URL is a loopback address.",
 		schema: (value: string | undefined) => (value === '' ? undefined : value)
 	},
+	// Support chat (Blueprint 17, W-21): Chatwoot Cloud's website inbox. The
+	// widget token is public; the HMAC token signs the UID (identity validation)
+	// and never leaves the server. Missing: Start a chat says chat is unavailable.
+	CHATWOOT_WEBSITE_TOKEN: {
+		description: 'Chatwoot website inbox token (public; loaded into the widget on demand).',
+		schema: (value: string | undefined) => (value === '' ? undefined : value)
+	},
+	CHATWOOT_HMAC_TOKEN: {
+		description:
+			'Chatwoot identity-validation secret for the website inbox. Server only; signs the UID.',
+		schema: (value: string | undefined) => (value === '' ? undefined : value)
+	},
+	CHATWOOT_BASE_URL: {
+		description: 'Chatwoot origin (default https://app.chatwoot.com). Must be https.',
+		schema: (value: string | undefined) => {
+			if (value === undefined || value === '') return undefined;
+			const url = new URL(value);
+			if (url.protocol !== 'https:') throw new Error('CHATWOOT_BASE_URL must use https');
+			return url.origin;
+		}
+	},
 	TURNSTILE_SECRET_KEY: {
 		description: 'Turnstile secret key for server-side siteverify. Never sent to the browser.',
 		schema: (value: string | undefined) => (value === '' ? undefined : value)

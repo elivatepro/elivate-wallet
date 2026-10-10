@@ -34,6 +34,7 @@
 	import Pill from '#lib/ui/money/Pill.svelte';
 	import QueueTabs from '#lib/ui/money/QueueTabs.svelte';
 	import '#lib/ui/money/money.css';
+	import NoAccess from '#lib/ui/app/NoAccess.svelte';
 
 	const shell = getContext<Shell>('shell');
 	type Tab = 'assigned' | 'cleared' | 'rejected' | 'all';
@@ -42,6 +43,7 @@
 	let page = $state<ReviewPage | null>(null);
 	let items = $state<ReviewItemType[]>([]);
 	let loadError = $state<string | null>(null);
+	let denied = $state(false);
 	let selected = $state<ReviewItemType | null>(null);
 	const idOf = (c: ReviewItemType) => (c.kind === 'payout' ? c.payoutId : c.caseId);
 	let reason = $state('');
@@ -76,15 +78,16 @@
 			page = exit.value;
 			items = more ? [...items, ...exit.value.items] : [...exit.value.items];
 			loadError = null;
+			denied = false;
 			if (!more && !items.some((c) => selected && idOf(c) === idOf(selected)))
 				void select(items[0] ?? null);
 			return;
 		}
 		const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
-		loadError =
-			failure?._tag === 'BackendError' && failure.code === 'authorization_denied'
-				? 'Only Financial Evidence Reviewers see these cases.'
-				: 'We couldn’t load the cases.';
+		denied = failure?._tag === 'BackendError' && failure.code === 'authorization_denied';
+		loadError = denied
+			? 'Only Financial Evidence Reviewers see these cases.'
+			: 'We couldn’t load the cases.';
 	}
 
 	async function select(c: ReviewItemType | null) {
@@ -229,199 +232,205 @@
 	</div>
 {/snippet}
 
-<div class="mm-page">
-	<QueueTabs {tabs} bind:value={tab} label="Evidence review" />
-	{#if notice}<p class="mm-notice" role="status">{notice}</p>{/if}
+{#if denied}
+	<NoAccess lead={loadError ?? undefined} />
+{:else}
+	<div class="mm-page">
+		<QueueTabs {tabs} bind:value={tab} label="Evidence review" />
+		{#if notice}<p class="mm-notice" role="status">{notice}</p>{/if}
 
-	{#if !page && !loadError}
-		<div class="mm-skeleton" aria-hidden="true"></div>
-	{:else if loadError}
-		<p class="mm-empty" role="alert">{loadError}</p>
-	{:else}
-		<div class="mm-split">
-			<div class="mm-col">
-				{#if items.length === 0}
-					<p class="mm-empty">{tab === 'assigned' ? 'No cases need you.' : 'Nothing here yet.'}</p>
-				{:else}
-					<div class="mm-list">
-						<div class="mm-list-head" aria-hidden="true">
-							<span class="wide">Case</span><span class="num">Amount</span><span class="st"
-								>Status</span
-							>
+		{#if !page && !loadError}
+			<div class="mm-skeleton" aria-hidden="true"></div>
+		{:else if loadError}
+			<p class="mm-empty" role="alert">{loadError}</p>
+		{:else}
+			<div class="mm-split">
+				<div class="mm-col">
+					{#if items.length === 0}
+						<p class="mm-empty">
+							{tab === 'assigned' ? 'No cases need you.' : 'Nothing here yet.'}
+						</p>
+					{:else}
+						<div class="mm-list">
+							<div class="mm-list-head" aria-hidden="true">
+								<span class="wide">Case</span><span class="num">Amount</span><span class="st"
+									>Status</span
+								>
+							</div>
+							{#each items as c (idOf(c))}
+								{@const stage = stageOf(c)}
+								{@const member = memberOf(c)}
+								<button
+									type="button"
+									class="mm-row"
+									aria-current={selected && idOf(selected) === idOf(c) ? 'true' : undefined}
+									onclick={() => select(c)}
+								>
+									<span class="mm-who">
+										<span class="mm-avatar">{initials(member?.name, member?.uid ?? '')}</span>
+										<span class="mm-names">
+											<span class="mm-name">{member?.name ?? member?.uid}</span>
+											<span class="mm-sub">{subOf(c)}</span>
+											<Pill {...stage} inline />
+										</span>
+									</span>
+									<span class="mm-amount">{amountOf(c)}</span>
+									<span class="mm-status"><Pill {...stage} /></span>
+								</button>
+							{/each}
 						</div>
-						{#each items as c (idOf(c))}
-							{@const stage = stageOf(c)}
-							{@const member = memberOf(c)}
+						{#if page?.nextCursor}
 							<button
 								type="button"
-								class="mm-row"
-								aria-current={selected && idOf(selected) === idOf(c) ? 'true' : undefined}
-								onclick={() => select(c)}
+								class="mm-btn sm more"
+								disabled={loadingMore || loadingFirst}
+								onclick={() => load(true)}>{loadingMore ? 'Loading…' : 'Show more'}</button
 							>
-								<span class="mm-who">
-									<span class="mm-avatar">{initials(member?.name, member?.uid ?? '')}</span>
-									<span class="mm-names">
-										<span class="mm-name">{member?.name ?? member?.uid}</span>
-										<span class="mm-sub">{subOf(c)}</span>
-										<Pill {...stage} inline />
-									</span>
-								</span>
-								<span class="mm-amount">{amountOf(c)}</span>
-								<span class="mm-status"><Pill {...stage} /></span>
-							</button>
-						{/each}
-					</div>
-					{#if page?.nextCursor}
-						<button
-							type="button"
-							class="mm-btn sm more"
-							disabled={loadingMore || loadingFirst}
-							onclick={() => load(true)}>{loadingMore ? 'Loading…' : 'Show more'}</button
-						>
+						{/if}
 					{/if}
-				{/if}
-				{#if tab === 'assigned' && counts?.assigned}
-					<RootHero
-						pose="evidence-review"
-						title={`${counts.assigned} ${counts.assigned === 1 ? 'case needs' : 'cases need'} your decision`}
-						lead="Nothing posts until you clear it"
-						headingLevel={2}
-						card
-					/>
+					{#if tab === 'assigned' && counts?.assigned}
+						<RootHero
+							pose="evidence-review"
+							title={`${counts.assigned} ${counts.assigned === 1 ? 'case needs' : 'cases need'} your decision`}
+							lead="Nothing posts until you clear it"
+							headingLevel={2}
+							card
+						/>
+					{/if}
+				</div>
+
+				{#if payoutCase && rev}
+					<section class="mm-panel" aria-label="Case {payoutCase.withdrawal.reference}">
+						<div class="mm-section top">
+							<div class="mm-spread">
+								<Pill {...stageOf(payoutCase)} />
+								<span class="mm-ref">{payoutCase.withdrawal.reference}</span>
+							</div>
+							<div class="mm-spread base">
+								<span class="mm-big">{naira(payoutCase.withdrawal.amount)}</span>
+								<span class="mm-muted"
+									>payout to {payoutCase.withdrawal.destination.bankName ?? 'bank'}</span
+								>
+							</div>
+						</div>
+						<div class="mm-section">
+							<div class="mm-spread who">
+								<span class="mm-avatar lg"
+									>{initials(
+										payoutCase.withdrawal.member?.name,
+										payoutCase.withdrawal.member?.uid ?? ''
+									)}</span
+								>
+								<div class="mm-names grow">
+									<span class="mm-box-title"
+										>{payoutCase.withdrawal.member?.name ?? payoutCase.withdrawal.member?.uid}</span
+									>
+									<span class="mm-box-sub"
+										>Recorded by {payoutCase.payout.submittedBy?.name ??
+											payoutCase.payout.submittedBy?.uid}</span
+									>
+								</div>
+							</div>
+						</div>
+						<div class="mm-section">
+							<div class="mm-compare">
+								<span></span><span class="h">Recorded</span><span class="h">Receipt shows</span>
+								<span class="k" class:row-bad={bad.has('amount')}>Amount</span>
+								<span class:row-bad={bad.has('amount')}>{naira(rev.amount)}</span>
+								<span class:row-bad={bad.has('amount')} class={bad.has('amount') ? 'bad' : 'ok'}
+									>{facts?.amount ? naira(facts.amount) : '—'}</span
+								>
+								<span class="k" class:row-bad={bad.has('name')}>Name</span>
+								<span class:row-bad={bad.has('name')}
+									>{payoutCase.withdrawal.destination.accountName}</span
+								>
+								<span class:row-bad={bad.has('name')} class={bad.has('name') ? 'bad' : 'ok'}
+									>{facts?.recipientName ?? '—'}</span
+								>
+								<span class="k" class:row-bad={bad.has('date')}>Date paid</span>
+								<span class:row-bad={bad.has('date')}>{calendarDate(rev.paidOn)}</span>
+								<span class:row-bad={bad.has('date')} class={bad.has('date') ? 'bad' : 'ok'}
+									>{facts?.transactionDate ?? '—'}</span
+								>
+								<span class="k" class:row-bad={bad.has('account')}>Account</span>
+								<span class:row-bad={bad.has('account')}
+									>•• {payoutCase.withdrawal.destination.accountLast4}</span
+								>
+								<span class:row-bad={bad.has('account')} class={bad.has('account') ? 'bad' : 'ok'}
+									>{facts?.recipientAccount ? `•• ${facts.recipientAccount.slice(-4)}` : '—'}</span
+								>
+							</div>
+							<ul class="reasons">
+								{#each reasons as r (r)}<li>{reasonText(r)}</li>{/each}
+							</ul>
+						</div>
+						<div class="mm-section">
+							<span class="mm-label">Receipt</span>
+							<div class="mm-box">
+								<div class="mm-names">
+									<a
+										class="mm-box-title receipt-link"
+										href={WithdrawalAppRoutes.receipt(payoutCase.payoutId, rev.revision)}
+										target="_blank"
+										rel="noopener">{rev.receipt.name}</a
+									>
+									<span class="mm-box-sub"
+										>{rev.revision === 2 ? '2nd attempt · ' : ''}{rev.check?.finishedAt
+											? `checked ${when(rev.check.finishedAt)}`
+											: ''}</span
+									>
+								</div>
+								<Pill label="Didn’t match" tone="danger" />
+							</div>
+						</div>
+						{#if payoutCase.canDecide}
+							{@render decideBlock()}
+						{:else if payoutCase.payout.review}
+							<div class="mm-section">
+								<div class="mm-spread">
+									<span class="mm-muted"
+										>{payoutCase.payout.review.decision === 'clear' ? 'Cleared' : 'Rejected'} by {payoutCase
+											.payout.review.reviewer?.name ?? payoutCase.payout.review.reviewer?.uid}</span
+									>
+									<span class="mm-value">{when(payoutCase.payout.review.decidedAt)}</span>
+								</div>
+								<p class="mm-note">“{payoutCase.payout.review.reason}”</p>
+							</div>
+						{/if}
+					</section>
+				{:else if entryCase}
+					<section class="mm-panel" aria-label="Case {entryCase.entry.reference}">
+						<div class="mm-section top">
+							<div class="mm-spread">
+								<Pill {...stageOf(entryCase)} />
+								<span class="mm-ref">{entryCase.entry.reference}</span>
+							</div>
+							<div class="mm-spread base">
+								<span class="mm-big">{amountOf(entryCase)}</span>
+								<span class="mm-muted">{entryTitle(entryCase.entry)}</span>
+							</div>
+						</div>
+						<EntryFacts entry={entryCase.entry} returnable={entryCase.returnable} />
+						{#if entryCase.canDecide}
+							{@render decideBlock()}
+						{:else if entryCase.entry.review}
+							<div class="mm-section">
+								<div class="mm-spread">
+									<span class="mm-muted"
+										>{entryCase.entry.review.decision === 'clear' ? 'Cleared' : 'Rejected'} by {entryCase
+											.entry.review.reviewer?.name ?? entryCase.entry.review.reviewer?.uid}</span
+									>
+									<span class="mm-value">{when(entryCase.entry.review.decidedAt)}</span>
+								</div>
+								<p class="mm-note">“{entryCase.entry.review.reason}”</p>
+							</div>
+						{/if}
+					</section>
 				{/if}
 			</div>
-
-			{#if payoutCase && rev}
-				<section class="mm-panel" aria-label="Case {payoutCase.withdrawal.reference}">
-					<div class="mm-section top">
-						<div class="mm-spread">
-							<Pill {...stageOf(payoutCase)} />
-							<span class="mm-ref">{payoutCase.withdrawal.reference}</span>
-						</div>
-						<div class="mm-spread base">
-							<span class="mm-big">{naira(payoutCase.withdrawal.amount)}</span>
-							<span class="mm-muted"
-								>payout to {payoutCase.withdrawal.destination.bankName ?? 'bank'}</span
-							>
-						</div>
-					</div>
-					<div class="mm-section">
-						<div class="mm-spread who">
-							<span class="mm-avatar lg"
-								>{initials(
-									payoutCase.withdrawal.member?.name,
-									payoutCase.withdrawal.member?.uid ?? ''
-								)}</span
-							>
-							<div class="mm-names grow">
-								<span class="mm-box-title"
-									>{payoutCase.withdrawal.member?.name ?? payoutCase.withdrawal.member?.uid}</span
-								>
-								<span class="mm-box-sub"
-									>Recorded by {payoutCase.payout.submittedBy?.name ??
-										payoutCase.payout.submittedBy?.uid}</span
-								>
-							</div>
-						</div>
-					</div>
-					<div class="mm-section">
-						<div class="mm-compare">
-							<span></span><span class="h">Recorded</span><span class="h">Receipt shows</span>
-							<span class="k" class:row-bad={bad.has('amount')}>Amount</span>
-							<span class:row-bad={bad.has('amount')}>{naira(rev.amount)}</span>
-							<span class:row-bad={bad.has('amount')} class={bad.has('amount') ? 'bad' : 'ok'}
-								>{facts?.amount ? naira(facts.amount) : '—'}</span
-							>
-							<span class="k" class:row-bad={bad.has('name')}>Name</span>
-							<span class:row-bad={bad.has('name')}
-								>{payoutCase.withdrawal.destination.accountName}</span
-							>
-							<span class:row-bad={bad.has('name')} class={bad.has('name') ? 'bad' : 'ok'}
-								>{facts?.recipientName ?? '—'}</span
-							>
-							<span class="k" class:row-bad={bad.has('date')}>Date paid</span>
-							<span class:row-bad={bad.has('date')}>{calendarDate(rev.paidOn)}</span>
-							<span class:row-bad={bad.has('date')} class={bad.has('date') ? 'bad' : 'ok'}
-								>{facts?.transactionDate ?? '—'}</span
-							>
-							<span class="k" class:row-bad={bad.has('account')}>Account</span>
-							<span class:row-bad={bad.has('account')}
-								>•• {payoutCase.withdrawal.destination.accountLast4}</span
-							>
-							<span class:row-bad={bad.has('account')} class={bad.has('account') ? 'bad' : 'ok'}
-								>{facts?.recipientAccount ? `•• ${facts.recipientAccount.slice(-4)}` : '—'}</span
-							>
-						</div>
-						<ul class="reasons">
-							{#each reasons as r (r)}<li>{reasonText(r)}</li>{/each}
-						</ul>
-					</div>
-					<div class="mm-section">
-						<span class="mm-label">Receipt</span>
-						<div class="mm-box">
-							<div class="mm-names">
-								<a
-									class="mm-box-title receipt-link"
-									href={WithdrawalAppRoutes.receipt(payoutCase.payoutId, rev.revision)}
-									target="_blank"
-									rel="noopener">{rev.receipt.name}</a
-								>
-								<span class="mm-box-sub"
-									>{rev.revision === 2 ? '2nd attempt · ' : ''}{rev.check?.finishedAt
-										? `checked ${when(rev.check.finishedAt)}`
-										: ''}</span
-								>
-							</div>
-							<Pill label="Didn’t match" tone="danger" />
-						</div>
-					</div>
-					{#if payoutCase.canDecide}
-						{@render decideBlock()}
-					{:else if payoutCase.payout.review}
-						<div class="mm-section">
-							<div class="mm-spread">
-								<span class="mm-muted"
-									>{payoutCase.payout.review.decision === 'clear' ? 'Cleared' : 'Rejected'} by {payoutCase
-										.payout.review.reviewer?.name ?? payoutCase.payout.review.reviewer?.uid}</span
-								>
-								<span class="mm-value">{when(payoutCase.payout.review.decidedAt)}</span>
-							</div>
-							<p class="mm-note">“{payoutCase.payout.review.reason}”</p>
-						</div>
-					{/if}
-				</section>
-			{:else if entryCase}
-				<section class="mm-panel" aria-label="Case {entryCase.entry.reference}">
-					<div class="mm-section top">
-						<div class="mm-spread">
-							<Pill {...stageOf(entryCase)} />
-							<span class="mm-ref">{entryCase.entry.reference}</span>
-						</div>
-						<div class="mm-spread base">
-							<span class="mm-big">{amountOf(entryCase)}</span>
-							<span class="mm-muted">{entryTitle(entryCase.entry)}</span>
-						</div>
-					</div>
-					<EntryFacts entry={entryCase.entry} returnable={entryCase.returnable} />
-					{#if entryCase.canDecide}
-						{@render decideBlock()}
-					{:else if entryCase.entry.review}
-						<div class="mm-section">
-							<div class="mm-spread">
-								<span class="mm-muted"
-									>{entryCase.entry.review.decision === 'clear' ? 'Cleared' : 'Rejected'} by {entryCase
-										.entry.review.reviewer?.name ?? entryCase.entry.review.reviewer?.uid}</span
-								>
-								<span class="mm-value">{when(entryCase.entry.review.decidedAt)}</span>
-							</div>
-							<p class="mm-note">“{entryCase.entry.review.reason}”</p>
-						</div>
-					{/if}
-				</section>
-			{/if}
-		</div>
-	{/if}
-</div>
+		{/if}
+	</div>
+{/if}
 
 <style>
 	.grow {

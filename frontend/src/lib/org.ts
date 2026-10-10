@@ -346,7 +346,15 @@ const CONFLICTS: Record<string, string> = {
 	not_a_current_leader: 'That person no longer leads this office.',
 	subject_not_member: 'That person isn’t an active member of this network.',
 	already_reviewer: 'That person is already a reviewer.',
-	account_not_active: 'That account isn’t active.'
+	account_not_active: 'That account isn’t active.',
+	// Blueprint 17 (settings, backups, restores).
+	stale_revision: 'Someone saved changes. Reload to see them.',
+	no_changes: 'Nothing has changed.',
+	backup_running: 'A backup is already running. It’ll be ready soon.',
+	backup_not_ready: 'That backup isn’t ready.',
+	backup_expired: 'That backup has expired.',
+	restore_open: 'A restore request is already open. Elivate is working on it.',
+	restore_not_cancellable: 'That restore can’t be cancelled any more.'
 };
 
 /** What to tell the leader when an org command did not go through. */
@@ -396,6 +404,11 @@ export function describeOrgFailure(failure: ApiFailure | undefined): Outcome {
 			return { kind: 'message', text: 'You can’t do that to your own membership.' };
 		case 'authorization_denied':
 			return { kind: 'message', text: 'You don’t have permission to do that here.' };
+		case 'network_not_active':
+			return {
+				kind: 'message',
+				text: 'This network is paused. Changes are off until it’s renewed.'
+			};
 		case 'not_found':
 			return { kind: 'message', text: 'We couldn’t find that. Check the UID or reload.' };
 		case 'idempotency_conflict':

@@ -29,8 +29,9 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
 - Supabase Auth + Postgres + Edge Functions (Deno); Postgres owns authorization and money.
 - `frontend/`: SvelteKit 3, Svelte 5, Effect 4, TypeScript 6, pnpm, Node 24; BFF with HttpOnly
   session cookies; plain CSS + Emberlit tokens, Bits UI, Lucide, Lexend. Cloudflare Worker
-  `elivate-wallet-app` (app.elivatewallet.com) with private R2 `PHOTOS` and `EXPORTS` and
-  Browser Rendering `BROWSER` (PDFs).
+  `elivate-wallet-app` (app.elivatewallet.com) with private R2 `PHOTOS` (also logos),
+  `EXPORTS` (7-day lifecycle) and `BACKUPS` (no lifecycle; 90-day expiry in the database) and
+  Browser Rendering `BROWSER` (PDFs). Support chat: Chatwoot Cloud, loaded on demand.
 - Email: Auth via Cloudflare SMTP; app email via the outbox and Cloudflare REST on
   `_shared/email/layout.ts` (Paper "Emails — Transactional v2"); a new kind adds a template row,
   a renderer and a `notify.emit` call (Blueprint 13). Paystack (test mode) for yearly billing.
@@ -54,7 +55,8 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
   `https://app.elivatewallet.com`, `http://127.0.0.1:3000/**`.
 - Worker secrets: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `TURNSTILE_SITE_KEY`,
   `TURNSTILE_SECRET_KEY`, `APP_SERVER_SECRET` and `EXPORTS_WORKER_SECRET` (each of the last two
-  matches its Edge secret; the exports one also matches Vault). Edge `BILLING_WORKER_SECRET`
+  matches its Edge secret; the exports one also matches Vault), plus `CHATWOOT_WEBSITE_TOKEN`
+  and `CHATWOOT_HMAC_TOKEN` (Blueprint 17). Edge `BILLING_WORKER_SECRET`
   matches Vault `billing_worker_secret`; Paystack is test mode (`PAYSTACK_SECRET_KEY`).
 - Still open: the signed-in dev call test (Edge `verify_jwt` with ES256 user tokens; see
   `docs/production-readiness.md`), the first platform admin, editing the dev Auth email templates.

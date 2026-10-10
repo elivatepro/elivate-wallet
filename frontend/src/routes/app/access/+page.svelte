@@ -1303,7 +1303,7 @@
 			gap: 6px;
 			height: 28px;
 			padding: 0 12px;
-			border: 1px solid #ff7f4f33;
+			border: 1px solid var(--color-accent-ring);
 			border-radius: var(--radius-pill);
 			background: var(--color-accent-subtle);
 			color: var(--o-coral-ink);

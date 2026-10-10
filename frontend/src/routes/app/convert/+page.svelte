@@ -48,6 +48,7 @@
 	import EvidencePicker from '#lib/ui/money/EvidencePicker.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
 	import '#lib/ui/money/entry.css';
+	import NoAccess from '#lib/ui/app/NoAccess.svelte';
 
 	const shell = getContext<Shell>('shell');
 	const workspaceId = $derived(
@@ -58,6 +59,7 @@
 	let nextCursor = $state<string | null>(null);
 	let loadingMore = $state(false);
 	let loadError = $state<string | null>(null);
+	let denied = $state(false);
 	let target = $state<EntryTarget | null>(null);
 	let segments = $state<EntrySegments | null>(null);
 	let sourceId = $state<string | null>(null);
@@ -102,6 +104,7 @@
 			targets = [...exit.value.items];
 			nextCursor = exit.value.nextCursor;
 			loadError = null;
+			denied = false;
 			const wanted = page.url.searchParams.get('member');
 			const pre = targets.find((t) => t.membershipId === wanted);
 			if (pre && !target) void choose(pre);
@@ -109,10 +112,10 @@
 			return;
 		}
 		const failure = failureOf(exit);
-		loadError =
-			failure?._tag === 'BackendError' && failure.code === 'authorization_denied'
-				? 'Recording conversions is for leaders with that permission.'
-				: 'We couldn’t load your members.';
+		denied = failure?._tag === 'BackendError' && failure.code === 'authorization_denied';
+		loadError = denied
+			? 'Recording conversions is for leaders with that permission.'
+			: 'We couldn’t load your members.';
 	}
 	$effect(() => {
 		if (workspaceId && !targets.length && !loadError) void loadTargets();
@@ -333,7 +336,9 @@
 		<span></span>
 	</header>
 	<div class="en-page">
-		{#if loadError}
+		{#if denied}
+			<NoAccess lead={loadError ?? undefined} headingLevel={2} />
+		{:else if loadError}
 			<p class="mm-empty" role="alert">{loadError}</p>
 		{:else}
 			<form

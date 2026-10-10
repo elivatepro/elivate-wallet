@@ -21,6 +21,7 @@
 	import Pill from '#lib/ui/money/Pill.svelte';
 	import QueueTabs from '#lib/ui/money/QueueTabs.svelte';
 	import '#lib/ui/money/money.css';
+	import NoAccess from '#lib/ui/app/NoAccess.svelte';
 
 	const shell = getContext<Shell>('shell');
 	type Tab = 'waiting' | 'history';
@@ -28,6 +29,7 @@
 	let tab = $state<Tab>('waiting');
 	let page = $state<TransferPage | null>(null);
 	let loadError = $state<string | null>(null);
+	let denied = $state(false);
 	let selectedId = $state<string | null>(null);
 	let busy = $state(false);
 	let error = $state<string | null>(null);
@@ -63,16 +65,17 @@
 			page = exit.value;
 			items = more ? [...items, ...exit.value.items] : [...exit.value.items];
 			loadError = null;
+			denied = false;
 			if (!items.some((t) => t.transferId === selectedId)) {
 				selectedId = items[0]?.transferId ?? null;
 			}
 			return;
 		}
 		const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
-		loadError =
-			failure?._tag === 'BackendError' && failure.code === 'authorization_denied'
-				? 'Only people who approve pocket moves see this.'
-				: 'We couldn’t load the pocket moves.';
+		denied = failure?._tag === 'BackendError' && failure.code === 'authorization_denied';
+		loadError = denied
+			? 'Only people who approve pocket moves see this.'
+			: 'We couldn’t load the pocket moves.';
 	}
 
 	let loadedFor = $state<string | null>(null);
@@ -137,157 +140,162 @@
 
 <svelte:head><title>Transfers · Elivate Wallet</title></svelte:head>
 
-<div class="mm-page">
-	<QueueTabs {tabs} bind:value={tab} label="Pocket moves" />
-	{#if notice}<p class="mm-notice" role="status">{notice}</p>{/if}
+{#if denied}
+	<NoAccess lead={loadError ?? undefined} />
+{:else}
+	<div class="mm-page">
+		<QueueTabs {tabs} bind:value={tab} label="Pocket moves" />
+		{#if notice}<p class="mm-notice" role="status">{notice}</p>{/if}
 
-	{#if !page && !loadError}
-		<div class="mm-skeleton" aria-hidden="true"></div>
-	{:else if loadError}
-		<p class="mm-empty" role="alert">{loadError}</p>
-	{:else if page}
-		<div class="mm-split">
-			<div class="mm-col">
-				{#if items.length === 0}
-					<p class="mm-empty">
-						{tab === 'waiting' ? 'No pocket moves waiting.' : 'Nothing here yet.'}
-					</p>
-				{:else}
-					<div class="mm-list">
-						<div class="mm-list-head" aria-hidden="true">
-							<span class="wide">Member</span><span class="num">Amount</span><span class="st"
-								>Status</span
-							>
+		{#if !page && !loadError}
+			<div class="mm-skeleton" aria-hidden="true"></div>
+		{:else if loadError}
+			<p class="mm-empty" role="alert">{loadError}</p>
+		{:else if page}
+			<div class="mm-split">
+				<div class="mm-col">
+					{#if items.length === 0}
+						<p class="mm-empty">
+							{tab === 'waiting' ? 'No pocket moves waiting.' : 'Nothing here yet.'}
+						</p>
+					{:else}
+						<div class="mm-list">
+							<div class="mm-list-head" aria-hidden="true">
+								<span class="wide">Member</span><span class="num">Amount</span><span class="st"
+									>Status</span
+								>
+							</div>
+							{#each items as t (t.transferId)}
+								{@const stage = transferStage(t)}
+								<button
+									type="button"
+									class="mm-row"
+									aria-current={selectedId === t.transferId ? 'true' : undefined}
+									onclick={() => {
+										selectedId = t.transferId;
+										error = null;
+										key = newKey();
+									}}
+								>
+									<span class="mm-who">
+										<span class="mm-avatar">{initials(t.member?.name, t.member?.uid ?? '')}</span>
+										<span class="mm-names">
+											<span class="mm-name">{t.member?.name ?? t.member?.uid}</span>
+											<span class="mm-sub">{moveTitle(t)} · requested {ago(t.createdAt)}</span>
+											<Pill {...stage} inline />
+										</span>
+									</span>
+									<span class="mm-amount">{money(t.amount, t.currency)}</span>
+									<span class="mm-status"><Pill {...stage} /></span>
+								</button>
+							{/each}
 						</div>
-						{#each items as t (t.transferId)}
-							{@const stage = transferStage(t)}
+						{#if page.nextCursor}
 							<button
 								type="button"
-								class="mm-row"
-								aria-current={selectedId === t.transferId ? 'true' : undefined}
-								onclick={() => {
-									selectedId = t.transferId;
-									error = null;
-									key = newKey();
-								}}
+								class="mm-btn sm more"
+								disabled={loadingMore || loadingFirst}
+								onclick={() => load(true)}>{loadingMore ? 'Loading…' : 'Show more'}</button
 							>
-								<span class="mm-who">
-									<span class="mm-avatar">{initials(t.member?.name, t.member?.uid ?? '')}</span>
-									<span class="mm-names">
-										<span class="mm-name">{t.member?.name ?? t.member?.uid}</span>
-										<span class="mm-sub">{moveTitle(t)} · requested {ago(t.createdAt)}</span>
-										<Pill {...stage} inline />
-									</span>
-								</span>
-								<span class="mm-amount">{money(t.amount, t.currency)}</span>
-								<span class="mm-status"><Pill {...stage} /></span>
-							</button>
-						{/each}
-					</div>
-					{#if page.nextCursor}
-						<button
-							type="button"
-							class="mm-btn sm more"
-							disabled={loadingMore || loadingFirst}
-							onclick={() => load(true)}>{loadingMore ? 'Loading…' : 'Show more'}</button
-						>
+						{/if}
 					{/if}
-				{/if}
-				{#if tab === 'waiting' && page.counts.open > 0}
-					<RootHero
-						pose="transfers"
-						title={`${page.counts.open} pocket ${page.counts.open === 1 ? 'move' : 'moves'} waiting on you`}
-						lead={`${reservedLine} reserved across them`}
-						headingLevel={2}
-						card
-					/>
-				{/if}
-			</div>
+					{#if tab === 'waiting' && page.counts.open > 0}
+						<RootHero
+							pose="transfers"
+							title={`${page.counts.open} pocket ${page.counts.open === 1 ? 'move' : 'moves'} waiting on you`}
+							lead={`${reservedLine} reserved across them`}
+							headingLevel={2}
+							card
+						/>
+					{/if}
+				</div>
 
-			{#if selected}
-				<section class="mm-panel" aria-label="Pocket move {selected.reference}">
-					<div class="mm-section top">
-						<div class="mm-spread">
-							<Pill {...transferStage(selected)} />
-							<span class="mm-ref">{selected.reference}</span>
+				{#if selected}
+					<section class="mm-panel" aria-label="Pocket move {selected.reference}">
+						<div class="mm-section top">
+							<div class="mm-spread">
+								<Pill {...transferStage(selected)} />
+								<span class="mm-ref">{selected.reference}</span>
+							</div>
+							<div class="mm-spread base">
+								<span class="mm-big">{money(selected.amount, selected.currency)}</span>
+								<span class="mm-muted">{selected.currency}</span>
+							</div>
 						</div>
-						<div class="mm-spread base">
-							<span class="mm-big">{money(selected.amount, selected.currency)}</span>
-							<span class="mm-muted">{selected.currency}</span>
-						</div>
-					</div>
-					<div class="mm-section">
-						<div class="mm-spread who">
-							<span class="mm-avatar lg"
-								>{initials(selected.member?.name, selected.member?.uid ?? '')}</span
-							>
-							<div class="mm-names grow">
-								<span class="mm-box-title">{selected.member?.name ?? selected.member?.uid}</span>
-								<span class="mm-box-sub">{ROLE_LABELS[selected.role]} · {selected.office.name}</span
+						<div class="mm-section">
+							<div class="mm-spread who">
+								<span class="mm-avatar lg"
+									>{initials(selected.member?.name, selected.member?.uid ?? '')}</span
 								>
+								<div class="mm-names grow">
+									<span class="mm-box-title">{selected.member?.name ?? selected.member?.uid}</span>
+									<span class="mm-box-sub"
+										>{ROLE_LABELS[selected.role]} · {selected.office.name}</span
+									>
+								</div>
+								<a class="mm-link" href={`/app/wallets?wallet=${selected.walletId}`}>View wallet</a>
 							</div>
-							<a class="mm-link" href={`/app/wallets?wallet=${selected.walletId}`}>View wallet</a>
 						</div>
-					</div>
-					<div class="mm-section">
-						<div class="mm-spread">
-							<span class="mm-muted">Requested</span>
-							<span class="mm-value">{when(selected.createdAt)}</span>
-						</div>
-						{#if selected.status === 'requested'}
+						<div class="mm-section">
 							<div class="mm-spread">
-								<span class="mm-muted">Reserved now</span>
-								<span class="mm-value held">{money(selected.reserved, selected.currency)}</span>
+								<span class="mm-muted">Requested</span>
+								<span class="mm-value">{when(selected.createdAt)}</span>
 							</div>
-						{:else if selected.decidedAt}
-							<div class="mm-spread">
-								<span class="mm-muted">{transferStage(selected).label}</span>
-								<span class="mm-value">{when(selected.decidedAt)}</span>
+							{#if selected.status === 'requested'}
+								<div class="mm-spread">
+									<span class="mm-muted">Reserved now</span>
+									<span class="mm-value held">{money(selected.reserved, selected.currency)}</span>
+								</div>
+							{:else if selected.decidedAt}
+								<div class="mm-spread">
+									<span class="mm-muted">{transferStage(selected).label}</span>
+									<span class="mm-value">{when(selected.decidedAt)}</span>
+								</div>
+							{/if}
+						</div>
+						<div class="mm-section">
+							<span class="mm-label">Move</span>
+							<div class="move">
+								<div class="mm-box col">
+									<span class="mm-box-sub">From</span>
+									<span class="mm-box-title dot">{selected.from.name}</span>
+								</div>
+								<span class="arrow" aria-hidden="true"><ArrowRight size={16} /></span>
+								<div class="mm-box col">
+									<span class="mm-box-sub">To</span>
+									<span class="mm-box-title dot to">{selected.to.name}</span>
+								</div>
+							</div>
+							{#if selected.decisionReason}<p class="mm-note">“{selected.decisionReason}”</p>{/if}
+						</div>
+						{#if selected.can.approve || selected.can.reject}
+							<div class="mm-section">
+								{#if error}<p class="mm-error" role="alert">{error}</p>{/if}
+								<div class="mm-actions">
+									<button
+										type="button"
+										class="mm-btn"
+										disabled={!shell.canAct || busy || !selected.can.reject}
+										onclick={() => {
+											dialogError = null;
+											rejectOpen = true;
+										}}>Reject</button
+									>
+									<button
+										type="button"
+										class="mm-btn primary"
+										disabled={!shell.canAct || busy || !selected.can.approve}
+										onclick={() => act('approve')}>Approve &amp; move</button
+									>
+								</div>
 							</div>
 						{/if}
-					</div>
-					<div class="mm-section">
-						<span class="mm-label">Move</span>
-						<div class="move">
-							<div class="mm-box col">
-								<span class="mm-box-sub">From</span>
-								<span class="mm-box-title dot">{selected.from.name}</span>
-							</div>
-							<span class="arrow" aria-hidden="true"><ArrowRight size={16} /></span>
-							<div class="mm-box col">
-								<span class="mm-box-sub">To</span>
-								<span class="mm-box-title dot to">{selected.to.name}</span>
-							</div>
-						</div>
-						{#if selected.decisionReason}<p class="mm-note">“{selected.decisionReason}”</p>{/if}
-					</div>
-					{#if selected.can.approve || selected.can.reject}
-						<div class="mm-section">
-							{#if error}<p class="mm-error" role="alert">{error}</p>{/if}
-							<div class="mm-actions">
-								<button
-									type="button"
-									class="mm-btn"
-									disabled={!shell.canAct || busy || !selected.can.reject}
-									onclick={() => {
-										dialogError = null;
-										rejectOpen = true;
-									}}>Reject</button
-								>
-								<button
-									type="button"
-									class="mm-btn primary"
-									disabled={!shell.canAct || busy || !selected.can.approve}
-									onclick={() => act('approve')}>Approve &amp; move</button
-								>
-							</div>
-						</div>
-					{/if}
-				</section>
-			{/if}
-		</div>
-	{/if}
-</div>
+					</section>
+				{/if}
+			</div>
+		{/if}
+	</div>
+{/if}
 
 {#if selected}
 	<RootDialog

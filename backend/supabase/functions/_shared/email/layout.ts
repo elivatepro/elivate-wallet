@@ -58,7 +58,12 @@ export type RootPose =
   | "renewal-reminder"
   | "owner-assigned"
   | "seats-almost-full"
-  | "plan-paused";
+  | "plan-paused"
+  // Blueprint 17: T02–T05.
+  | "backup-ready"
+  | "backup-failed"
+  | "restore-update"
+  | "branding-changed";
 
 export type StatusTone = "success" | "warning" | "danger" | "muted";
 

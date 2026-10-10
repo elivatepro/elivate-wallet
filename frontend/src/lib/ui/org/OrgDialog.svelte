@@ -258,7 +258,7 @@
 		background: var(--button-primary-bg);
 		box-shadow:
 			#ffffff59 0px 1px 0px inset,
-			#ff7f4f99 0px 10px 28px -10px;
+			var(--button-primary-glow) 0px 10px 28px -10px;
 		color: var(--button-primary-ink);
 		font-weight: var(--font-weight-semibold);
 	}

@@ -22,7 +22,10 @@
 		{ "binding": "PHOTOS", "bucket_name": "elivate-wallet-dev-photos" },
 		// Statements and reports (Blueprint 15): private; a lifecycle rule removes
 		// files after 7 days (owner decision Q6).
-		{ "binding": "EXPORTS", "bucket_name": "elivate-wallet-dev-exports" }
+		{ "binding": "EXPORTS", "bucket_name": "elivate-wallet-dev-exports" },
+		// Team Backup Vault archives (Blueprint 17): private, no lifecycle rule;
+		// the database expires them after 90 days and the runner deletes them.
+		{ "binding": "BACKUPS", "bucket_name": "elivate-wallet-dev-backups" }
 	],
 	// Cloudflare Browser Rendering for PDF statements and reports (Blueprint 15,
 	// owner decision Q2; Workers Paid).

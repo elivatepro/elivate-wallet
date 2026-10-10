@@ -226,15 +226,10 @@
 	.primary {
 		height: 52px;
 		border: 0;
-		background-image: linear-gradient(
-			in oklab 135deg,
-			oklab(78.7% 0.097 0.085) 0%,
-			oklab(73.5% 0.128 0.109) 55%,
-			oklab(68.6% 0.137 0.113) 100%
-		);
+		background-image: var(--button-primary-bg);
 		box-shadow:
 			#ffffff59 0px 1px 0px inset,
-			#ff7f4f99 0px 10px 28px -10px;
+			var(--button-primary-glow) 0px 10px 28px -10px;
 		color: #14100e;
 		font-weight: var(--font-weight-semibold);
 	}

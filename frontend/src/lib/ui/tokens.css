@@ -69,6 +69,13 @@
 	);
 	--button-primary-ink: #14100e;
 	--button-primary-chip-arrow: #ff9a6e;
+
+	/* Accent tints derived from the (themable) accent (Blueprint 17). */
+	--button-primary-glow: color-mix(in srgb, var(--color-accent) 60%, transparent);
+	--color-accent-ring: color-mix(in srgb, var(--color-accent) 20%, transparent);
+	--color-accent-edge: color-mix(in srgb, var(--color-accent) 25%, transparent);
+	--color-accent-wash: color-mix(in srgb, var(--color-accent) 5%, transparent);
+	--color-accent-wash-strong: color-mix(in srgb, var(--color-accent) 9%, transparent);
 }
 
 /* Dark is the default theme (P-06). */
@@ -176,5 +183,212 @@
 		--auth-bg-mobile: url('/auth-bg/mobile-light.jpg');
 		--auth-bg-desktop: url('/auth-bg/mobile-light.jpg');
 		--focus-ring: #b74725;
+	}
+}
+
+/*
+ * Team themes (Blueprint 17, owner answer Q3; Paper TS01d). A President picks
+ * one of six; Ember (above) is the default. Each is a complete accent set,
+ * contrast-checked: button ink #14100e is at least 7.5:1 on every fill, and
+ * light-mode accent text is at least 5.6:1 on white. The Elivate mark
+ * (--color-brand) never changes. The app shell sets data-team-theme on <html>.
+ */
+/* Ember spelled out, so a preview can show it inside another live theme. */
+[data-team-theme='ember'] {
+	--color-accent: #ff7f4f;
+	--color-accent-strong: #b74725;
+	--button-primary-bg: linear-gradient(
+		in oklab 135deg,
+		oklab(78.2% 0.097 0.093) 0%,
+		oklab(73.5% 0.128 0.109) 55%,
+		oklab(68.2% 0.142 0.112) 100%
+	);
+	--button-primary-chip-arrow: #ff9a6e;
+	--color-accent-subtle: #3a251f;
+	--color-accent-text: #ff9872;
+	--color-accent-label: #ffb08f;
+	--focus-ring: #ff7f4f;
+}
+
+[data-team-theme='ember'][data-theme='light'] {
+	--color-accent-subtle: #fff0ea;
+	--color-accent-text: #b74725;
+	--color-accent-label: #b74725;
+	--focus-ring: #b74725;
+}
+
+[data-team-theme='cobalt'] {
+	--color-accent: #6aacfe;
+	--color-accent-strong: #2463ae;
+	--button-primary-bg: linear-gradient(in oklab 135deg, #86bbff 0%, #6aacfe 55%, #539af3 100%);
+	--button-primary-chip-arrow: #8bbeff;
+	--color-accent-subtle: #1a2739;
+	--color-accent-text: #8bbeff;
+	--color-accent-label: #a8cefe;
+	--focus-ring: #6aacfe;
+	--auth-link-underline: color-mix(in srgb, #6aacfe 70%, transparent);
+	--auth-button-shadow:
+		#ffffff59 0px 1px 0px inset, color-mix(in srgb, #6aacfe 55%, transparent) 0px 12px 32px -8px;
+}
+
+[data-team-theme='cobalt'][data-theme='light'] {
+	--color-accent-subtle: #ecf4fe;
+	--color-accent-text: #2463ae;
+	--color-accent-label: #2463ae;
+	--focus-ring: #2463ae;
+	--auth-link-underline: #2463ae;
+	--auth-button-shadow:
+		#ffffff66 0px 1px 0px inset, color-mix(in srgb, #2463ae 45%, transparent) 0px 12px 28px -10px;
+}
+
+@media (prefers-color-scheme: light) {
+	[data-team-theme='cobalt'][data-theme='system'] {
+		--color-accent-subtle: #ecf4fe;
+		--color-accent-text: #2463ae;
+		--color-accent-label: #2463ae;
+		--focus-ring: #2463ae;
+		--auth-link-underline: #2463ae;
+		--auth-button-shadow:
+			#ffffff66 0px 1px 0px inset, color-mix(in srgb, #2463ae 45%, transparent) 0px 12px 28px -10px;
+	}
+}
+[data-team-theme='fern'] {
+	--color-accent: #53c382;
+	--color-accent-strong: #057743;
+	--button-primary-bg: linear-gradient(in oklab 135deg, #7acd98 0%, #53c382 55%, #40b272 100%);
+	--button-primary-chip-arrow: #77d199;
+	--color-accent-subtle: #182c1f;
+	--color-accent-text: #77d199;
+	--color-accent-label: #9addb1;
+	--focus-ring: #53c382;
+	--auth-link-underline: color-mix(in srgb, #53c382 70%, transparent);
+	--auth-button-shadow:
+		#ffffff59 0px 1px 0px inset, color-mix(in srgb, #53c382 55%, transparent) 0px 12px 32px -8px;
+}
+
+[data-team-theme='fern'][data-theme='light'] {
+	--color-accent-subtle: #ebf7ef;
+	--color-accent-text: #057743;
+	--color-accent-label: #057743;
+	--focus-ring: #057743;
+	--auth-link-underline: #057743;
+	--auth-button-shadow:
+		#ffffff66 0px 1px 0px inset, color-mix(in srgb, #057743 45%, transparent) 0px 12px 28px -10px;
+}
+
+@media (prefers-color-scheme: light) {
+	[data-team-theme='fern'][data-theme='system'] {
+		--color-accent-subtle: #ebf7ef;
+		--color-accent-text: #057743;
+		--color-accent-label: #057743;
+		--focus-ring: #057743;
+		--auth-link-underline: #057743;
+		--auth-button-shadow:
+			#ffffff66 0px 1px 0px inset, color-mix(in srgb, #057743 45%, transparent) 0px 12px 28px -10px;
+	}
+}
+[data-team-theme='iris'] {
+	--color-accent: #b194fe;
+	--color-accent-strong: #6b4eab;
+	--button-primary-bg: linear-gradient(in oklab 135deg, #bea8ff 0%, #b194fe 55%, #a182f0 100%);
+	--button-primary-chip-arrow: #c0abfe;
+	--color-accent-subtle: #282238;
+	--color-accent-text: #c0abfe;
+	--color-accent-label: #cec0ff;
+	--focus-ring: #b194fe;
+	--auth-link-underline: color-mix(in srgb, #b194fe 70%, transparent);
+	--auth-button-shadow:
+		#ffffff59 0px 1px 0px inset, color-mix(in srgb, #b194fe 55%, transparent) 0px 12px 32px -8px;
+}
+
+[data-team-theme='iris'][data-theme='light'] {
+	--color-accent-subtle: #f4f1fe;
+	--color-accent-text: #6b4eab;
+	--color-accent-label: #6b4eab;
+	--focus-ring: #6b4eab;
+	--auth-link-underline: #6b4eab;
+	--auth-button-shadow:
+		#ffffff66 0px 1px 0px inset, color-mix(in srgb, #6b4eab 45%, transparent) 0px 12px 28px -10px;
+}
+
+@media (prefers-color-scheme: light) {
+	[data-team-theme='iris'][data-theme='system'] {
+		--color-accent-subtle: #f4f1fe;
+		--color-accent-text: #6b4eab;
+		--color-accent-label: #6b4eab;
+		--focus-ring: #6b4eab;
+		--auth-link-underline: #6b4eab;
+		--auth-button-shadow:
+			#ffffff66 0px 1px 0px inset, color-mix(in srgb, #6b4eab 45%, transparent) 0px 12px 28px -10px;
+	}
+}
+[data-team-theme='saffron'] {
+	--color-accent: #d4a004;
+	--color-accent-strong: #7d5e04;
+	--button-primary-bg: linear-gradient(in oklab 135deg, #dbb256 0%, #d4a004 55%, #c09109 100%);
+	--button-primary-chip-arrow: #e0b450;
+	--color-accent-subtle: #2f2510;
+	--color-accent-text: #e0b450;
+	--color-accent-label: #e8c67f;
+	--focus-ring: #d4a004;
+	--auth-link-underline: color-mix(in srgb, #d4a004 70%, transparent);
+	--auth-button-shadow:
+		#ffffff59 0px 1px 0px inset, color-mix(in srgb, #d4a004 55%, transparent) 0px 12px 32px -8px;
+}
+
+[data-team-theme='saffron'][data-theme='light'] {
+	--color-accent-subtle: #f9f3e6;
+	--color-accent-text: #7d5e04;
+	--color-accent-label: #7d5e04;
+	--focus-ring: #7d5e04;
+	--auth-link-underline: #7d5e04;
+	--auth-button-shadow:
+		#ffffff66 0px 1px 0px inset, color-mix(in srgb, #7d5e04 45%, transparent) 0px 12px 28px -10px;
+}
+
+@media (prefers-color-scheme: light) {
+	[data-team-theme='saffron'][data-theme='system'] {
+		--color-accent-subtle: #f9f3e6;
+		--color-accent-text: #7d5e04;
+		--color-accent-label: #7d5e04;
+		--focus-ring: #7d5e04;
+		--auth-link-underline: #7d5e04;
+		--auth-button-shadow:
+			#ffffff66 0px 1px 0px inset, color-mix(in srgb, #7d5e04 45%, transparent) 0px 12px 28px -10px;
+	}
+}
+[data-team-theme='rose'] {
+	--color-accent: #f67d9c;
+	--color-accent-strong: #9f3b59;
+	--button-primary-bg: linear-gradient(in oklab 135deg, #f897ae 0%, #f67d9c 55%, #e36d8c 100%);
+	--button-primary-chip-arrow: #ff97af;
+	--color-accent-subtle: #361f24;
+	--color-accent-text: #ff97af;
+	--color-accent-label: #feb2c2;
+	--focus-ring: #f67d9c;
+	--auth-link-underline: color-mix(in srgb, #f67d9c 70%, transparent);
+	--auth-button-shadow:
+		#ffffff59 0px 1px 0px inset, color-mix(in srgb, #f67d9c 55%, transparent) 0px 12px 32px -8px;
+}
+
+[data-team-theme='rose'][data-theme='light'] {
+	--color-accent-subtle: #feeff2;
+	--color-accent-text: #9f3b59;
+	--color-accent-label: #9f3b59;
+	--focus-ring: #9f3b59;
+	--auth-link-underline: #9f3b59;
+	--auth-button-shadow:
+		#ffffff66 0px 1px 0px inset, color-mix(in srgb, #9f3b59 45%, transparent) 0px 12px 28px -10px;
+}
+
+@media (prefers-color-scheme: light) {
+	[data-team-theme='rose'][data-theme='system'] {
+		--color-accent-subtle: #feeff2;
+		--color-accent-text: #9f3b59;
+		--color-accent-label: #9f3b59;
+		--focus-ring: #9f3b59;
+		--auth-link-underline: #9f3b59;
+		--auth-button-shadow:
+			#ffffff66 0px 1px 0px inset, color-mix(in srgb, #9f3b59 45%, transparent) 0px 12px 28px -10px;
 	}
 }

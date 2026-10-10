@@ -16,11 +16,13 @@
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { ROLE_LABELS } from '#lib/labels.js';
 	import ConfirmDialog from '#lib/ui/app/ConfirmDialog.svelte';
+	import NoAccess from '#lib/ui/app/NoAccess.svelte';
 
 	const shell = getContext<Shell>('shell');
 
 	let reviews = $state<ReadonlyArray<PendingReview> | null>(null);
 	let loadError = $state<string | null>(null);
+	let denied = $state(false);
 	let target = $state<{ review: PendingReview; decision: 'approve' | 'reject' } | null>(null);
 	let dialogOpen = $state(false);
 	let busy = $state(false);
@@ -34,13 +36,14 @@
 		if (Exit.isSuccess(exit)) {
 			reviews = exit.value;
 			loadError = null;
+			denied = false;
 			return;
 		}
 		const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
-		loadError =
-			failure?._tag === 'BackendError' && failure.code === 'authorization_denied'
-				? 'Only the President Team and World Team review NINs.'
-				: 'We couldn’t load the reviews.';
+		denied = failure?._tag === 'BackendError' && failure.code === 'authorization_denied';
+		loadError = denied
+			? 'Only the President Team and World Team review NINs.'
+			: 'We couldn’t load the reviews.';
 	}
 
 	$effect(() => {
@@ -111,52 +114,55 @@
 
 <svelte:head><title>NIN reviews · Elivate Wallet</title></svelte:head>
 
-<header class="head">
-	<h1 tabindex="-1">NIN reviews</h1>
-	<p class="lead">Check each name against the person’s national ID before approving.</p>
-</header>
+{#if denied}
+	<NoAccess lead={loadError ?? undefined} />
+{:else}
+	<header class="head">
+		<h1 tabindex="-1">NIN reviews</h1>
+		<p class="lead">Check each name against the person’s national ID before approving.</p>
+	</header>
 
-{#if notice}<p class="notice" role="status">{notice}</p>{/if}
+	{#if notice}<p class="notice" role="status">{notice}</p>{/if}
 
-{#if reviews === null && !loadError}
-	<div class="skeleton" aria-hidden="true"></div>
-{:else if loadError}
-	<p class="empty">{loadError}</p>
-{:else if reviews && reviews.length === 0}
-	<p class="empty">No reviews waiting.</p>
-{:else if reviews}
-	<ul class="list">
-		{#each reviews as r (r.reviewId)}
-			<li class="item">
-				<span class="tile" aria-hidden="true"><IdCard size={20} strokeWidth={1.6} /></span>
-				<div class="text">
-					<p class="name">{legal(r)}</p>
-					<p class="sub">
-						NIN •• {r.ninLast4} · {r.requester.uid}{r.officeName ? ` · ${r.officeName}` : ''} · {ROLE_LABELS[
-							r.role
-						]}
-					</p>
-					<p class="sub">Asked {when(r.requestedAt)}</p>
-				</div>
-				<div class="actions">
-					<button
-						type="button"
-						class="ghost"
-						disabled={!shell.canAct}
-						onclick={() => open(r, 'reject')}>Reject</button
-					>
-					<button
-						type="button"
-						class="primary"
-						disabled={!shell.canAct}
-						onclick={() => open(r, 'approve')}>Approve</button
-					>
-				</div>
-			</li>
-		{/each}
-	</ul>
+	{#if reviews === null && !loadError}
+		<div class="skeleton" aria-hidden="true"></div>
+	{:else if loadError}
+		<p class="empty">{loadError}</p>
+	{:else if reviews && reviews.length === 0}
+		<p class="empty">No reviews waiting.</p>
+	{:else if reviews}
+		<ul class="list">
+			{#each reviews as r (r.reviewId)}
+				<li class="item">
+					<span class="tile" aria-hidden="true"><IdCard size={20} strokeWidth={1.6} /></span>
+					<div class="text">
+						<p class="name">{legal(r)}</p>
+						<p class="sub">
+							NIN •• {r.ninLast4} · {r.requester.uid}{r.officeName ? ` · ${r.officeName}` : ''} · {ROLE_LABELS[
+								r.role
+							]}
+						</p>
+						<p class="sub">Asked {when(r.requestedAt)}</p>
+					</div>
+					<div class="actions">
+						<button
+							type="button"
+							class="ghost"
+							disabled={!shell.canAct}
+							onclick={() => open(r, 'reject')}>Reject</button
+						>
+						<button
+							type="button"
+							class="primary"
+							disabled={!shell.canAct}
+							onclick={() => open(r, 'approve')}>Approve</button
+						>
+					</div>
+				</li>
+			{/each}
+		</ul>
+	{/if}
 {/if}
-
 {#if target}
 	<ConfirmDialog
 		bind:open={dialogOpen}

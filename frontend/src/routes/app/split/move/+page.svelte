@@ -31,6 +31,7 @@
 	import RootImage from '#lib/ui/RootImage.svelte';
 	import Pill from '#lib/ui/money/Pill.svelte';
 	import '#lib/ui/money/money.css';
+	import NoAccess from '#lib/ui/app/NoAccess.svelte';
 
 	const shell = getContext<Shell>('shell');
 	// Same pocket colours as Pockets & split (Paper L01).
@@ -46,6 +47,7 @@
 	let choices = $state<TransferChoices | null>(null);
 	let mine = $state<TransferPage | null>(null);
 	let loadError = $state<string | null>(null);
+	let denied = $state(false);
 	let groupIndex = $state(0);
 	let fromId = $state<string | null>(null);
 	let toId = $state<string | null>(null);
@@ -92,12 +94,13 @@
 			const g = c.value.groups[groupIndex];
 			fromId ??= g?.pockets.find((p) => p.canSend)?.pocketId ?? null;
 			loadError = null;
+			denied = false;
 		} else {
 			const failure = Option.getOrUndefined(Cause.findErrorOption(c.cause));
-			loadError =
-				failure?._tag === 'BackendError' && failure.code === 'authorization_denied'
-					? 'Pocket moves aren’t open to you in this network.'
-					: 'We couldn’t load your pockets.';
+			denied = failure?._tag === 'BackendError' && failure.code === 'authorization_denied';
+			loadError = denied
+				? 'Pocket moves aren’t open to you in this network.'
+				: 'We couldn’t load your pockets.';
 		}
 		if (Exit.isSuccess(m)) mine = { ...m.value, items: [...m.value.items] };
 	}
@@ -214,6 +217,8 @@
 			<a class="out-primary" href="/app/activity" onclick={() => attempt.reset()}>View activity</a>
 		{/snippet}
 	</Outcome>
+{:else if denied}
+	<NoAccess lead={loadError ?? undefined} />
 {:else}
 	<div class="mm-page">
 		<h1 class="mm-title" tabindex="-1">Move between pockets</h1>

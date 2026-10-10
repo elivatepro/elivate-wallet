@@ -167,6 +167,7 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
   activation stays for support (complimentary period or the development exception, never a
   payment). On a paused network leaders keep read-only history, reports, queues and audit,
   plus Billing; B05 says "Pay to turn it back on" with "Review billing".
+- **Workspace settings (slice 10, 2026-10-10, Blueprint 17):** restores are reviewed and run by **Elivate only** (W-24; the 2026-10-07 "team approves the diff" note and V05/V06 are withdrawn); Team Vault backups are **kept 90 days**; the team colour is **one of six fixed themes** that colour the network's accent (Paper TS01d/TS02d/TS03d drafts approved); branding and team details use a new protected President-only key **`manage_team_settings`** (PIN to save), restore requests the protected **`request_restore`** (World Team and President), so A-03 has 34 rows. Backups go to their own private R2 bucket (`BACKUPS`, no lifecycle rule); logos live privately in `PHOTOS` under `brand/`.
 - **Sequencing:** one slice at a time, each new slice in its own thread. Order: 4 → 5 → 8 →
   slice 9 follow-up (IP storage, signed-in password change, PIN-change email, sign-out
   choice after reset) → 6 → 7 → 10.
