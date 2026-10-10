@@ -319,5 +319,7 @@ export const LedgerRoutes = {
 	managedTransaction: (walletId: string, id: string) =>
 		({ method: 'GET', path: `/wallets/${walletId}/transactions/${id}` }) as const,
 	allocation: { method: 'GET', path: '/allocation' },
-	setAllocation: { method: 'PUT', path: '/allocation' }
+	setAllocation: { method: 'PUT', path: '/allocation' },
+	// Blueprint 20: Home in one read (X-Membership), decoded as app HomeView.
+	home: { method: 'GET', path: '/home' }
 } as const;

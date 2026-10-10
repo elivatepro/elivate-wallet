@@ -97,9 +97,9 @@
 	.grain {
 		position: absolute;
 		inset: 0;
-		background-image: url('/auth-bg/grain-256.png');
+		background-image: url('/auth-bg/grain-128.webp');
 		background-repeat: repeat;
-		background-size: 256px 256px;
+		background-size: 128px 128px;
 		mix-blend-mode: var(--auth-grain-blend);
 		opacity: var(--auth-grain-opacity);
 		z-index: -1;

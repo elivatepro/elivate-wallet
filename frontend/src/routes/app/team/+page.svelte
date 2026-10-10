@@ -9,7 +9,7 @@
 	report" opens Reports (Blueprint 15); "Recently opened" has no decided data source.
 -->
 <script lang="ts">
-	import { getContext } from 'svelte';
+	import { getContext, onMount, untrack } from 'svelte';
 	import { Cause, Effect, Exit, Option } from 'effect';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import Plus from '@lucide/svelte/icons/plus';
@@ -17,9 +17,11 @@
 	import FileDown from '@lucide/svelte/icons/file-down';
 	import { LeadershipOverview, type Currency } from '#lib/contract/ledger.js';
 	import { getJson } from '#lib/client/api.js';
+	import { CachedRead } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { browserTimeZone, monthLabel } from '#lib/activity.js';
 	import { formatMoney, hiddenMoney, isZero } from '#lib/money.js';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import CurrencySwitch from '#lib/ui/app/CurrencySwitch.svelte';
 	import RootHero from '#lib/ui/app/RootHero.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
@@ -28,20 +30,24 @@
 	const shell = getContext<Shell>('shell');
 	const tz = browserTimeZone();
 
-	let overview = $state<LeadershipOverview | null>(null);
+	// Blueprint 20 B6: cached first (money, so it is cleared with the wallets kind), then fresh.
+	const read = new CachedRead<LeadershipOverview>('wallets', 'overview');
+	const overview = $derived(read.data);
 	let failed = $state<string | null>(null);
 	let denied = $state(false);
 	let chosen = $state<Currency | null>(null);
 
-	$effect(() => {
-		if (shell.state.kind !== 'ready') return;
-		const controller = new AbortController();
+	let controller: AbortController | null = null;
+	function load() {
+		controller?.abort();
+		const current = new AbortController();
+		controller = current;
 		void Effect.runPromiseExit(
-			getJson(`/api/overview?${new URLSearchParams({ tz })}`, LeadershipOverview, controller.signal)
+			getJson(`/api/overview?${new URLSearchParams({ tz })}`, LeadershipOverview, current.signal)
 		).then((exit) => {
-			if (controller.signal.aborted) return;
+			if (current.signal.aborted) return;
 			if (Exit.isSuccess(exit)) {
-				overview = exit.value;
+				read.fresh(exit.value, shell.scope);
 				failed = null;
 				denied = false;
 				return;
@@ -49,13 +55,29 @@
 			const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
 			if (failure?._tag === 'TransportError' && failure.reason === 'aborted') return;
 			denied = failure?._tag === 'BackendError' && failure.code === 'authorization_denied';
+			if (denied) read.clear();
 			failed = denied
 				? 'This workspace has no team overview.'
 				: failure?._tag === 'BackendError'
 					? failure.message
 					: 'We couldn’t load the overview.';
 		});
-		return () => controller.abort();
+	}
+
+	onMount(() => {
+		read.show();
+		const unwatch = read.watch(load);
+		return () => {
+			unwatch();
+			controller?.abort();
+		};
+	});
+	// Starts with /api/session, not after it, and again when back online.
+	$effect(() => {
+		if (shell.readable) untrack(load);
+	});
+	$effect(() => {
+		if (shell.scope) read.confirm(shell.scope);
 	});
 
 	const can = (permission: string) =>
@@ -138,12 +160,13 @@
 
 <svelte:head><title>Team overview · Elivate Wallet</title></svelte:head>
 
-{#if !overview && !failed}
+<CacheNote savedAt={read.savedAt} online={shell.online} failed={failed !== null} />
+{#if !overview && (!failed || shell.state.kind === 'loading')}
 	<div class="skeleton" aria-hidden="true"></div>
 	<p class="visually-hidden" role="status">Loading the overview</p>
 {:else if denied}
 	<NoAccess lead={failed ?? undefined} />
-{:else if failed || !overview}
+{:else if !overview}
 	<RootHero pose="load-error" title="Couldn’t load the overview" lead={failed ?? ''} compact />
 {:else}
 	<header class="head">

@@ -17,6 +17,10 @@
 	},
 	"vars": { "APP_SURFACE": "admin" },
 	"observability": { "enabled": true },
+	// Blueprint 20 B1: Smart Placement runs the Worker near Supabase (eu-west-2)
+	// instead of near the visitor; static assets are still served at the edge
+	// before the Worker (run_worker_first stays false).
+	"placement": { "mode": "smart" },
 	// Restore validation re-reads Team Vault archives (read only; owner answer Q7).
 	"r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "elivate-wallet-dev-backups" }],
 	"routes": [{ "pattern": "admin.elivatewallet.com", "custom_domain": true }],

@@ -32,7 +32,10 @@ import {
 	type PendingAttempt,
 	type Resolution
 } from '#lib/recovery.js';
-import { getJson, newKey, sendCommand } from './api';
+import { getJson, newKey, sendCommandOnly } from './api';
+import type { CacheKind } from './device-cache';
+import { invalidatesFor } from './invalidation';
+import { invalidate } from './page-cache.svelte';
 
 export type AttemptState<A> =
 	| { readonly kind: 'idle' }
@@ -69,6 +72,13 @@ export interface CommandAttemptOptions<S extends Schema.ConstraintDecoder<unknow
 	readonly scope: () => AttemptScope | null;
 	/** False for forms whose body must not be stored (e.g. a full account number). */
 	readonly persistBody?: boolean;
+	/**
+	 * Blueprint 20 B6: cached reads a success makes stale (cleared, then
+	 * refetched where shown). Defaults to the command's list (#lib/client/invalidation).
+	 */
+	readonly invalidates?: readonly CacheKind[];
+	/** Test seam for the cache step; defaults to page-cache `invalidate`. */
+	readonly onInvalidate?: (kinds: readonly CacheKind[]) => void;
 	readonly store?: AttemptStore | null;
 	readonly now?: () => number;
 	/** Test seams; default to the same-origin helpers. */
@@ -197,8 +207,10 @@ export class CommandAttempt<
 			if (replay.kind === 'done') return replay;
 			// e.g. the PIN window closed: it still went through.
 			this.#settle();
+			this.#invalidate();
 		} else if (resolution.kind === 'committed' || resolution.kind === 'cancelled') {
 			this.#settle();
+			if (resolution.kind === 'committed') this.#invalidate();
 		}
 		this.state = { kind: 'resolved', attempt, resolution };
 		return this.state;
@@ -234,6 +246,12 @@ export class CommandAttempt<
 			: null;
 	}
 
+	/** A committed command: the cached reads it affects are stale. */
+	#invalidate(): void {
+		const kinds = this.#o.invalidates ?? invalidatesFor(this.#o.command, this.#o.path);
+		(this.#o.onInvalidate ?? invalidate)(kinds);
+	}
+
 	/** Forgets the stored attempt and starts a new key. */
 	#settle(): void {
 		const scope = this.#o.scope();
@@ -267,7 +285,8 @@ export class CommandAttempt<
 		if (scope && this.#store) saveAttempt(this.#store, scope, attempt);
 		this.state = { kind: 'sending' };
 
-		const send = this.#o.send ?? sendCommand;
+		// Commands always go to the server (never cached, never queued).
+		const send = this.#o.send ?? sendCommandOnly;
 		const payload = {
 			...body,
 			...(options.pin ? { pin: options.pin } : {}),
@@ -278,6 +297,7 @@ export class CommandAttempt<
 		);
 		if (Exit.isSuccess(exit)) {
 			this.#settle();
+			this.#invalidate();
 			this.state = { kind: 'done', result: exit.value };
 			return this.state;
 		}

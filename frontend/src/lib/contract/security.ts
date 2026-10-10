@@ -3,6 +3,7 @@
 
 import { Schema } from 'effect';
 import { AccountStatus, IsoDateTime, PIN_PATTERN, Uid, Uuid } from './common';
+import { Capabilities, Workspace } from './org';
 
 export const Gate = Schema.Literals(['pin_setup_required', 'pin_locked', 'pin_required', 'ready']);
 export type Gate = typeof Gate.Type;
@@ -86,5 +87,23 @@ export const SecurityRoutes = {
 	signIns: { method: 'POST', path: '/sign-ins' },
 	overview: { method: 'GET', path: '/overview' },
 	passwordAuthorize: { method: 'POST', path: '/password/authorize' },
-	passwordChanged: { method: 'POST', path: '/password/changed' }
+	passwordChanged: { method: 'POST', path: '/password/changed' },
+	// Blueprint 20 (X-Membership optional).
+	bootstrap: { method: 'GET', path: '/bootstrap' }
 } as const;
+
+/**
+ * GET /security/bootstrap (Blueprint 20, api.app_bootstrap): opening the app
+ * in one read. Before the PIN gate is ready only `state` is filled. The
+ * profile (GET /identity/profile's shape) and the brand are niceties: the app
+ * server decodes them on their own and drops them on any mismatch, as it did
+ * when they were separate reads.
+ */
+export const AppBootstrap = Schema.Struct({
+	state: SecurityState,
+	profile: Schema.Unknown,
+	workspace: Schema.NullOr(Workspace),
+	capabilities: Schema.NullOr(Capabilities),
+	brand: Schema.Unknown
+});
+export type AppBootstrap = typeof AppBootstrap.Type;

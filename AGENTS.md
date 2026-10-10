@@ -67,7 +67,7 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
 
 - One slice at a time, in worktree `../elivate-wallet-worktrees/<nn-name>` from fresh
   `origin/main` (copy `backend/supabase/.temp` in). Blueprint `docs/blueprints/NN-*.md`;
-  migrations `20261009NNxxxx`, pgTAP `NN0_` (next: `20`/`200_`).
+  migrations `20261009NNxxxx`, pgTAP `NN0_` (next: `21`/`210_`).
 - Checks: `backend/scripts/verify-database.sh`, `deno task check`; frontend `pnpm check`,
   `pnpm lint`, `pnpm test:unit`, e2e via `frontend/scripts/e2e-local.sh` (fake Cloudflare into
   local Mailpit). The local stack is shared: hold the `/tmp/elivate-supabase.lock` directory
@@ -89,4 +89,6 @@ On dev: backend slices 01–06, frontend M1, member slices 1–10 and the slice 
 (blueprints 07–17). Slice 18 (Blueprint 18): the platform Admin app (admin.elivatewallet.com),
 kill switches and guided restore review; feature flags deferred. Slice 19 (Blueprint 19):
 founder applications (apply first at `/apply`, admin review, `/founder` invitation; only approved
-founders start networks).
+founders start networks). Slice 20 (Blueprint 20): speed and caching (Smart Placement,
+bootstrap/home reads, device-cache-first pages, 30 s session touch, indexes); slice 21 next:
+set-based authorization reads.

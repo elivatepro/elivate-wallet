@@ -219,3 +219,48 @@ describe('showsRecovery', () => {
 		await pending;
 	});
 });
+
+describe('CommandAttempt invalidation (Blueprint 20 B6)', () => {
+	const make = (command: string, path: string, reply: 'ok' | BackendError = 'ok') => {
+		const cleared: (readonly string[])[] = [];
+		const attempt = new CommandAttempt({
+			command,
+			path,
+			method: 'POST',
+			schema: {} as never,
+			scope: () => null,
+			store: null,
+			onInvalidate: (kinds) => cleared.push(kinds),
+			send: () => (reply === 'ok' ? Effect.succeed({} as never) : Effect.fail<ApiFailure>(reply))
+		});
+		return { attempt, cleared };
+	};
+
+	it.each([
+		['record_income', '/api/income'],
+		['request_withdrawal', '/api/withdrawals'],
+		['submit_conversion', '/api/conversions'],
+		['submit_adjustment', '/api/adjustments'],
+		['reverse_transaction', '/api/reversals'],
+		['request_pocket_transfer', '/api/pocket-moves']
+	])('%s clears balances, history and wallets on success', async (command, path) => {
+		const { attempt, cleared } = make(command, path);
+		await attempt.send('ws-1', {});
+		expect(cleared).toEqual([['balances', 'history', 'wallets']]);
+	});
+
+	it('falls back to the path for other commands', async () => {
+		const org = make('rename_office', '/api/org/offices/x');
+		await org.attempt.send('ws-1', {});
+		expect(org.cleared).toEqual([['offices', 'members']]);
+		const settings = make('save_settings', '/api/settings');
+		await settings.attempt.send('ws-1', {});
+		expect(settings.cleared).toEqual([['settings']]);
+	});
+
+	it('clears nothing when the command is refused', async () => {
+		const { attempt, cleared } = make('record_income', '/api/income', refused('conflict'));
+		await attempt.send('ws-1', {});
+		expect(cleared).toEqual([]);
+	});
+});

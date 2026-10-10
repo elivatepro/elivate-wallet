@@ -82,8 +82,8 @@
 	}
 
 	.grain {
-		background-image: url('/auth-bg/grain-256.png');
-		background-size: 256px 256px;
+		background-image: url('/auth-bg/grain-128.webp');
+		background-size: 128px 128px;
 		background-repeat: repeat;
 		mix-blend-mode: overlay;
 		opacity: 0.25;

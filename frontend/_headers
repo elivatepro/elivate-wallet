@@ -12,3 +12,14 @@
 
 /service-worker.js
   Cache-Control: no-cache
+
+# Blueprint 20 B8: unhashed static images. One day fresh, then served stale
+# for up to a week while revalidating (the files aren't fingerprinted).
+/root/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/auth-bg/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/icons/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800

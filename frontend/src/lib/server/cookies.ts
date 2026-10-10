@@ -5,6 +5,7 @@ import type { Cookies } from '@sveltejs/kit';
 import { UUID_PATTERN } from '#lib/contract/common.js';
 import { INVITATION_TOKEN_PATTERN } from '#lib/contract/invitations.js';
 import { parseTheme, type Theme } from '#lib/theme.js';
+import { clearWho } from './who';
 
 export const WORKSPACE_COOKIE = 'ew_ws';
 export const THEME_COOKIE = 'ew_theme';
@@ -28,6 +29,8 @@ export function writeWorkspace(cookies: Cookies, membershipId: string, secure: b
 
 export function clearWorkspace(cookies: Cookies): void {
 	cookies.delete(WORKSPACE_COOKIE, { path: '/' });
+	// Blueprint 20 B6: no workspace, no cache guard (sign-out, sign-in, workspace_invalid).
+	clearWho(cookies);
 }
 
 export function readTheme(cookies: Cookies): Theme {

@@ -2,7 +2,7 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import { Effect } from 'effect';
 import { SWITCH_KEYS, type SwitchKey } from '#lib/contract/admin.js';
 import { AdminApi } from '#lib/server/apis-admin.js';
-import { adminCall, newKey, readCommandForm, withStepUp } from '#lib/server/admin.js';
+import { adminCall, adminPage, newKey, readCommandForm, withStepUp } from '#lib/server/admin.js';
 import type { Actions, PageServerLoad } from './$types';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -21,35 +21,34 @@ function tenantIdOf(params: { id: string }): string {
 	return params.id.toLowerCase();
 }
 
-export const load: PageServerLoad = async (event) => {
-	await event.parent();
-	const session = (await event.locals.session())!;
-	const id = tenantIdOf(event.params);
-	const { network, switches, versions } = await adminCall(
-		event,
-		session,
-		Effect.gen(function* () {
-			const api = yield* AdminApi;
-			return yield* Effect.all(
-				{
-					network: api.network(id),
-					switches: api.switches(id),
-					versions: api.allocationVersions(id)
-				},
-				{ concurrency: 'unbounded' }
-			);
-		})
-	);
-	return {
-		title: network.name,
-		network,
-		switches,
-		versions: versions.items,
-		today: watDay.format(new Date()),
-		activateKey: newKey(),
-		switchKey: newKey()
-	};
-};
+export const load: PageServerLoad = (event) =>
+	adminPage(event, async (session) => {
+		const id = tenantIdOf(event.params);
+		const { network, switches, versions } = await adminCall(
+			event,
+			session,
+			Effect.gen(function* () {
+				const api = yield* AdminApi;
+				return yield* Effect.all(
+					{
+						network: api.network(id),
+						switches: api.switches(id),
+						versions: api.allocationVersions(id)
+					},
+					{ concurrency: 'unbounded' }
+				);
+			})
+		);
+		return {
+			title: network.name,
+			network,
+			switches,
+			versions: versions.items,
+			today: watDay.format(new Date()),
+			activateKey: newKey(),
+			switchKey: newKey()
+		};
+	});
 
 const back = (url: URL) => {
 	const next = new URL(url);

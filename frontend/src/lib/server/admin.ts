@@ -100,9 +100,7 @@ export const adminPathForGate = (gate: SecurityState['gate']): string => GATE_TO
  * Every console page: signed in, PIN verified this session, and an active
  * platform admin. Anything else goes to its gate page.
  */
-export async function requireAdmin(
-	event: RequestEvent
-): Promise<{ session: VerifiedSession; me: AdminMe }> {
+async function checkAdmin(event: RequestEvent): Promise<{ session: VerifiedSession; me: AdminMe }> {
 	const { session, state } = await adminGateState(event);
 	if (state.gate !== 'ready') redirect(303, GATE_TO_PATH[state.gate]);
 	const me = await adminCall(
@@ -114,6 +112,46 @@ export async function requireAdmin(
 	);
 	if (!me.isAdmin) redirect(303, ADMIN_PATHS.noAccess);
 	return { session, me };
+}
+
+type AdminGate = Promise<{ session: VerifiedSession; me: AdminMe }>;
+
+/** Blueprint 20 B7: one gate per request, shared by the console layout and its page. */
+const gates = new WeakMap<App.Locals, AdminGate>();
+
+/**
+ * The admin gate (see checkAdmin), memoised per request on `event.locals`:
+ * the layout and the page share one result instead of the page awaiting
+ * `parent()`. It still runs on every request, including client navigations
+ * where Kit runs only the page load.
+ */
+export function requireAdmin(event: RequestEvent): AdminGate {
+	// A form action may change the step-up window before the loads run: only
+	// reads share the result.
+	if (event.request.method !== 'GET' && event.request.method !== 'HEAD') return checkAdmin(event);
+	let gate = gates.get(event.locals);
+	if (!gate) {
+		gate = checkAdmin(event);
+		gates.set(event.locals, gate);
+	}
+	return gate;
+}
+
+/**
+ * A console page load: the admin gate runs alongside the page's own read
+ * (the backend authorizes that read too). A gate refusal wins over anything
+ * the read threw, so the person lands on the right gate page.
+ */
+export async function adminPage<T>(
+	event: RequestEvent,
+	read: (session: VerifiedSession) => Promise<T>
+): Promise<T> {
+	const session = await event.locals.session();
+	if (!session) redirect(303, ADMIN_PATHS.signIn);
+	const [gate, result] = await Promise.allSettled([requireAdmin(event), read(session)]);
+	if (gate.status === 'rejected') throw gate.reason;
+	if (result.status === 'rejected') throw result.reason;
+	return result.value;
 }
 
 /** A fresh idempotency key for one form (kept across resubmits of that form). */

@@ -35,6 +35,7 @@ import {
 	type Workspace
 } from '#lib/contract/org.js';
 import {
+	AppBootstrap,
 	Pin,
 	PinResetRequested,
 	PinSetRequest,
@@ -85,6 +86,8 @@ export function validate<S extends typeof PinSetRequest | typeof PinVerifyReques
 
 export interface SecurityApiShape {
 	readonly state: Effect.Effect<SecurityState, EdgeFailure>;
+	/** Blueprint 20: state, profile, workspace, capabilities and brand in one read. */
+	readonly bootstrap: (membershipId: string | null) => Effect.Effect<AppBootstrap, EdgeFailure>;
 	readonly setPin: (input: {
 		pin: string;
 		pinConfirm: string;
@@ -138,6 +141,17 @@ export const SecurityApiLive = Layer.effect(
 			state: edge
 				.call({ fn: 'security', route: SecurityRoutes.state }, SecurityState)
 				.pipe(Effect.retry(readPolicy)),
+			bootstrap: (membershipId) =>
+				edge
+					.call(
+						{
+							fn: 'security',
+							route: SecurityRoutes.bootstrap,
+							...(membershipId ? { membershipId } : {})
+						},
+						AppBootstrap
+					)
+					.pipe(Effect.retry(readPolicy)),
 			setPin: (input) =>
 				validate(PinSetRequest, input).pipe(
 					Effect.flatMap((body) =>

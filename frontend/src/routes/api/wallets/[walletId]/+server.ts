@@ -5,7 +5,7 @@ import { Effect } from 'effect';
 import type { MemberWalletView } from '#lib/contract/app.js';
 import { UUID_PATTERN } from '#lib/contract/common.js';
 import { LedgerApi } from '#lib/server/apis-ledger.js';
-import { currentWorkspace, workspaceCookie, workspaceGone } from '#lib/server/money.js';
+import { workspaceCookie, workspaceGone } from '#lib/server/money.js';
 import { invalidRequest, respond, respondError, unauthenticated } from '#lib/server/relay.js';
 import { runApi } from '#lib/server/request.js';
 import type { RequestHandler } from './$types';
@@ -24,7 +24,6 @@ export const GET: RequestHandler = async (event) => {
 		session,
 		Effect.gen(function* () {
 			const ledger = yield* LedgerApi;
-			const workspace = yield* currentWorkspace(membershipId);
 			const [wallet, recent] = yield* Effect.all(
 				[
 					ledger.managedWallet(membershipId, walletId),
@@ -34,7 +33,8 @@ export const GET: RequestHandler = async (event) => {
 			);
 			return {
 				wallet,
-				network: wallet.networks.find((n) => n.tenantId === workspace.tenantId) ?? null,
+				// Blueprint 20: the backend limits it to the workspace's network.
+				network: wallet.networks[0] ?? null,
 				recent: recent.items
 			} satisfies MemberWalletView;
 		})

@@ -130,6 +130,15 @@ function workspace(request: Request): string {
   return value.toLowerCase();
 }
 
+/**
+ * Blueprint 20: own-money reads may name the workspace instead of a tenant id;
+ * the database resolves the tenant from the caller's own membership. Absent
+ * header → no argument (the whole account).
+ */
+function optionalWorkspace(request: Request): { p_membership_id?: string } {
+  return request.headers.has("x-membership") ? { p_membership_id: workspace(request) } : {};
+}
+
 function onlyQuery(query: URLSearchParams, allowed: readonly string[]): void {
   for (const key of query.keys()) {
     if (!allowed.includes(key)) {
@@ -431,7 +440,7 @@ export function createHandler(
     // ── Own wallet (account-level; no workspace) ──
     route("GET", "/me/wallet", (c) => {
       onlyQuery(c.query, []);
-      return call("my_wallet", actorArgs(c));
+      return call("my_wallet", { ...actorArgs(c), ...optionalWorkspace(c.request) });
     }),
 
     route("GET", "/me/activity", (c) => {
@@ -442,7 +451,22 @@ export function createHandler(
         ...actorArgs(c),
         ...args,
         p_tenant_id: queryUuid(c.query, "tenantId"),
+        ...optionalWorkspace(c.request),
       });
+    }),
+
+    // Blueprint 20 (W-07): Home in one read — the workspace's network of the
+    // caller's own wallet, the latest five movements and the split.
+    route("GET", "/home", async (c) => {
+      onlyQuery(c.query, []);
+      const home = record(await call("home_view", inWorkspace(c)));
+      if (
+        !Array.isArray(home.activity) || !("network" in home) ||
+        !(home.split === null || Array.isArray(home.split))
+      ) {
+        throw new Error("home_view returned an unexpected result");
+      }
+      return home;
     }),
 
     route("GET", "/me/transactions/:id", (c) => {

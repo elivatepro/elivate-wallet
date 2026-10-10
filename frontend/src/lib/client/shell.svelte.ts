@@ -55,6 +55,19 @@ export class Shell {
 	stopped = $state<readonly string[]>([]);
 	#controller: AbortController | null = null;
 
+	/**
+	 * Blueprint 20 B6: the user and workspace the session reply named. Pages
+	 * start their own read at once (not after the shell) and use this to keep
+	 * or drop cached data.
+	 */
+	readonly scope: CacheScope | null = $derived.by(() =>
+		this.state.kind === 'ready'
+			? { uid: this.state.view.state.uid, workspaceId: this.state.view.workspace.membershipId }
+			: null
+	);
+	/** Pages may read now: online and not failed. Changes only on those edges. */
+	readonly readable: boolean = $derived(this.online && this.state.kind !== 'error');
+
 	get canAct(): boolean {
 		return this.online && this.state.kind === 'ready';
 	}

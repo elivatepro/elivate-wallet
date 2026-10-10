@@ -7,7 +7,7 @@
 -->
 <script lang="ts">
 	import '#lib/ui/org/org.css';
-	import { getContext } from 'svelte';
+	import { getContext, onMount, untrack } from 'svelte';
 	import Building from '@lucide/svelte/icons/building-2';
 	import Check from '@lucide/svelte/icons/check';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
@@ -17,6 +17,7 @@
 	import type { Currency } from '#lib/contract/ledger.js';
 	import { AppOrgRoutes, OfficesView, type OfficeRow } from '#lib/contract/org-admin.js';
 	import { loadView, OrgCommand } from '#lib/client/org.svelte.js';
+	import { CachedRead } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { formatMoney, hiddenMoney } from '#lib/money.js';
 	import {
@@ -30,6 +31,7 @@
 		personName
 	} from '#lib/org.js';
 	import { ROLE_LABELS } from '#lib/labels.js';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import CurrencySwitch from '#lib/ui/app/CurrencySwitch.svelte';
 	import OrgDialog from '#lib/ui/org/OrgDialog.svelte';
 	import OrgHero from '#lib/ui/org/OrgHero.svelte';
@@ -37,9 +39,10 @@
 	const shell = getContext<Shell>('shell');
 	const workspace = $derived(shell.state.kind === 'ready' ? shell.state.view.workspace : null);
 
-	let view = $state<OfficesView | null>(null);
+	// Blueprint 20 B6: cached first, then fresh; office/member commands clear it.
+	const read = new CachedRead<OfficesView>('offices');
+	const view = $derived(read.data);
 	let loadError = $state<string | null>(null);
-	let started = false;
 	let query = $state('');
 	let kind = $state<'all' | OfficeType>('all');
 	let currency = $state<Currency>('NGN');
@@ -48,16 +51,21 @@
 	async function load() {
 		const result = await loadView(AppOrgRoutes.offices, OfficesView);
 		if (result.ok) {
-			view = result.value;
+			read.fresh(result.value, shell.scope);
 			loadError = null;
 		} else loadError = result.text;
 	}
 
+	onMount(() => {
+		read.show();
+		return read.watch(() => void load());
+	});
+	// Starts with /api/session, not after it, and again when back online.
 	$effect(() => {
-		if (shell.state.kind === 'ready' && !started) {
-			started = true;
-			void load();
-		}
+		if (shell.readable) untrack(() => void load());
+	});
+	$effect(() => {
+		if (shell.scope) read.confirm(shell.scope);
 	});
 
 	const active = $derived((view?.offices ?? []).filter((o) => o.status === 'active'));
@@ -205,10 +213,11 @@
 		</p>
 	{/if}
 
-	{#if !view && !loadError}
+	<CacheNote savedAt={read.savedAt} online={shell.online} failed={loadError !== null} />
+	{#if !view && (!loadError || shell.state.kind === 'loading')}
 		<div class="o-skeleton" aria-hidden="true"></div>
 		<p class="visually-hidden" role="status">Loading offices</p>
-	{:else if loadError}
+	{:else if loadError && !view}
 		<div class="o-error" role="alert">
 			<p>{loadError}</p>
 			<button type="button" class="o-ghost" onclick={load}>Try again</button>

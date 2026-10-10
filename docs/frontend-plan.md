@@ -84,7 +84,12 @@ The Phase 1 draft compared (A) SSR with a server-held session and (B) a static S
 - **Built-in service worker** (`src/service-worker/index.ts`): precaches hashed build assets (`$app/manifest` `immutable`), static files (except the large desktop auth background) and prerendered pages, which include the `/app` shell. Navigations under `/app` are network-first and fall back to the cached shell offline; every other navigation falls back to `static/offline.html`. It **never** caches `/api/*`, server-rendered auth pages, form-action responses, Auth/Edge traffic, or anything cross-origin.
 - **Update prompt**: Kit's `version.pollInterval` (5 min) plus `updated.current` from `$app/state` show "A new version of Elivate Wallet is ready · Reload"; Reload asks a waiting worker to `skipWaiting` and reloads.
 - **36a device cache scaffold** (`src/lib/client/device-cache.ts`, unit-tested):
-  - approved kinds only: `workspace` (label), `balances`, `history`, `offices`, `members`;
+  - approved kinds only: `workspace` (label), `balances`, `history`, `offices`, `members`, plus
+    `wallets` and `settings` (Blueprint 20);
+  - **Blueprint 20 (2026-10-10):** cached data is also shown **online**, then refreshed in the
+    background ("Updating…"). It is shown only when the entry's `who` equals the readable
+    `ew_who` cookie (an HMAC of UID + membership; not an authenticator). Each successful command
+    clears the kinds it affects;
   - key and stored payload both scoped to **UID + membership id**; an entry is never returned for another pair;
   - **7-day** maximum age, expired entries deleted on read and swept when the shell starts;
   - a forbidden-field guard refuses payloads with account/bank numbers, NUBAN/BVN/NIN, tokens, secrets, passwords, PINs, evidence/receipts, session ids;
@@ -292,7 +297,8 @@ Before dispatch, the client records a pending attempt in `sessionStorage`: `{ ke
 - The one unavoidable URL secret is the single-use `token_hash` in emailed links (§7.1). Every page sets `Referrer-Policy: same-origin` (not `no-referrer`: with `no-referrer` Chromium sends `Origin: null` on native form POSTs and SvelteKit's CSRF check rejects them — found in the M1 e2e run), so the URL never leaves the origin as a referrer; the confirm page loads no third-party scripts, consumes the token only on POST, and immediately 303-redirects to a clean URL.
 - Server logs mirror the backend rule: `{ requestId, routePattern, status, code, ms }` only. Effect `Redacted` wraps tokens, PINs and passwords so they can't be printed accidentally. No user, session or membership IDs and no email or IP in logs.
 - Analytics (PostHog) is **not** installed in Phase 2. The consent/event taxonomy is open (U-11).
-- Response headers on all authenticated pages: `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`, `frame-ancestors 'none'` via SvelteKit CSP (nonce mode), HSTS at the Cloudflare zone.
+- Response headers on all authenticated pages: `Cache-Control: no-store` (Blueprint 20 keeps
+  this; signed-in speed comes from the 36a device cache, never from HTTP or Cloudflare caching), `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`, `frame-ancestors 'none'` via SvelteKit CSP (nonce mode), HSTS at the Cloudflare zone.
 
 ---
 
