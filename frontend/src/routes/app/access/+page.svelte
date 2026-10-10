@@ -10,7 +10,7 @@
 -->
 <script lang="ts">
 	import '#lib/ui/org/org.css';
-	import { getContext } from 'svelte';
+	import { getContext, untrack } from 'svelte';
 	import { SvelteMap } from 'svelte/reactivity';
 	import Ban from '@lucide/svelte/icons/ban';
 	import Check from '@lucide/svelte/icons/check';
@@ -31,6 +31,7 @@
 	} from '#lib/contract/org-admin.js';
 	import { newKey } from '#lib/client/api.js';
 	import { loadView, OrgCommand } from '#lib/client/org.svelte.js';
+	import { cachedPage } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import {
 		groupPermissions,
@@ -43,6 +44,7 @@
 		ROLE_ORDER
 	} from '#lib/org.js';
 	import { ROLE_LABELS } from '#lib/labels.js';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import OrgDialog from '#lib/ui/org/OrgDialog.svelte';
 	import OrgHero from '#lib/ui/org/OrgHero.svelte';
 
@@ -51,28 +53,36 @@
 	const shell = getContext<Shell>('shell');
 	const workspace = $derived(shell.state.kind === 'ready' ? shell.state.view.workspace : null);
 
-	let view = $state<AccessView | null>(null);
-	let loadError = $state<string | null>(null);
-	let started = false;
 	let tab = $state<Tab>('roles');
 	let notice = $state<string | null>(null);
+	let started = false;
 
-	async function load() {
-		const result = await loadView(AppOrgRoutes.access, AccessView);
-		if (result.ok) {
-			view = result.value;
-			loadError = null;
-			if (!view.rolePermissions && tab === 'roles') tab = view.assignments ? 'access' : 'reviewers';
-		} else loadError = result.text;
-	}
+	// Blueprint 23: roles & access open from cache (kind 'access'), then
+	// refresh. The matrix stays read-only while the cached copy shows.
+	const access = cachedPage(shell, {
+		kind: 'access',
+		load: () => loadView(AppOrgRoutes.access, AccessView)
+	});
+	const view = $derived(access.data);
+	const loadError = $derived(view ? null : access.error);
+	const load = () => access.reload();
+	// No longer allowed to see this: drop the cached copy.
+	$effect(() => {
+		if (access.errorStatus === 403) access.clear();
+	});
 
 	$effect(() => {
-		if (shell.state.kind === 'ready' && !started) {
-			started = true;
-			const asked = new URL(window.location.href).searchParams.get('tab');
-			if (asked === 'access' || asked === 'reviewers') tab = asked;
-			void load();
-		}
+		if (started) return;
+		started = true;
+		const asked = new URL(window.location.href).searchParams.get('tab');
+		if (asked === 'access' || asked === 'reviewers') tab = asked;
+	});
+	$effect(() => {
+		const shown = view;
+		if (!shown || shown.rolePermissions) return;
+		untrack(() => {
+			if (tab === 'roles') tab = shown.assignments ? 'access' : 'reviewers';
+		});
 	});
 
 	const activeAssignments = $derived((view?.assignments?.items ?? []).filter((a) => !a.revokedAt));
@@ -108,7 +118,7 @@
 		const changed = pending.get(cellKey(role, permission));
 		return {
 			allowed: changed ?? row?.allowed ?? false,
-			editable: !!row?.editable && !!view?.canEditRoles,
+			editable: !!row?.editable && !!view?.canEditRoles && access.savedAt === null,
 			locked: !row?.editable
 		};
 	}
@@ -478,6 +488,8 @@
 			<a class="o-link presidents" href="/app/access/presidents">President Team</a>
 		{/if}
 	</div>
+
+	<CacheNote savedAt={access.savedAt} online={shell.online} failed={access.error !== null} />
 
 	{#if notice}
 		<p class="o-notice" role="status">

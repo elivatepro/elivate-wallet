@@ -10,41 +10,32 @@
 	import { getContext } from 'svelte';
 	import { AppOrgRoutes, AuditEvents, type AuditEvent } from '#lib/contract/org-admin.js';
 	import { loadView } from '#lib/client/org.svelte.js';
+	import { cachedPage, MorePages } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { auditArea, auditFacts, auditSentence, personName } from '#lib/org.js';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import OrgHero from '#lib/ui/org/OrgHero.svelte';
 
 	const shell = getContext<Shell>('shell');
 	const workspace = $derived(shell.state.kind === 'ready' ? shell.state.view.workspace : null);
 
-	let items = $state<AuditEvent[]>([]);
-	let nextCursor = $state<string | null>(null);
-	let loaded = $state(false);
-	let loadError = $state<string | null>(null);
-	let loadingMore = $state(false);
-	let selected = $state<AuditEvent | null>(null);
-	let started = false;
-
-	async function load(more = false) {
-		loadingMore = more;
-		const path = `${AppOrgRoutes.audit}${more && nextCursor ? `?cursor=${encodeURIComponent(nextCursor)}` : ''}`;
-		const result = await loadView(path, AuditEvents);
-		loadingMore = false;
-		if (result.ok) {
-			items = more ? [...items, ...result.value.items] : [...result.value.items];
-			nextCursor = result.value.nextCursor;
-			loaded = true;
-			loadError = null;
-			if (!more) selected = items[0] ?? null;
-		} else loadError = result.text;
-	}
-
-	$effect(() => {
-		if (shell.state.kind === 'ready' && !started) {
-			started = true;
-			void load();
-		}
+	// Blueprint 23: the first page opens from cache, then refreshes.
+	const view = cachedPage(shell, {
+		kind: 'audit',
+		load: () => loadView(AppOrgRoutes.audit, AuditEvents)
 	});
+	const pages = new MorePages<AuditEvent>(() => view.data);
+	const items = $derived(pages.items);
+	const nextCursor = $derived(pages.nextCursor);
+	const loaded = $derived(view.data !== null);
+	const loadError = $derived(view.data ? null : view.error);
+	let picked = $state<AuditEvent['id'] | null>(null);
+	const selected = $derived(items.find((e) => e.id === picked) ?? items[0] ?? null);
+
+	const loadMore = () =>
+		pages.more((cursor) =>
+			loadView(`${AppOrgRoutes.audit}?cursor=${encodeURIComponent(cursor)}`, AuditEvents)
+		);
 
 	const when = (iso: string) =>
 		new Intl.DateTimeFormat('en-GB', {
@@ -82,13 +73,15 @@
 		{/snippet}
 	</OrgHero>
 
+	<CacheNote savedAt={view.savedAt} online={shell.online} failed={view.error !== null} />
+
 	{#if !loaded && !loadError}
 		<div class="o-skeleton" aria-hidden="true"></div>
 		<p class="visually-hidden" role="status">Loading the audit log</p>
 	{:else if loadError}
 		<div class="o-error" role="alert">
 			<p>{loadError}</p>
-			<button type="button" class="o-ghost" onclick={() => load()}>Try again</button>
+			<button type="button" class="o-ghost" onclick={() => view.reload()}>Try again</button>
 		</div>
 	{:else if items.length === 0}
 		<p class="o-card o-empty">Nothing recorded yet.</p>
@@ -107,7 +100,7 @@
 								type="button"
 								class="o-row event"
 								aria-pressed={selected?.id === event.id}
-								onclick={() => (selected = event)}
+								onclick={() => (picked = event.id)}
 							>
 								<span class="c-when o-sub">{when(event.at)}</span>
 								<span class="c-who o-stack">
@@ -123,10 +116,11 @@
 					<button
 						type="button"
 						class="o-ghost more"
-						disabled={loadingMore}
-						aria-busy={loadingMore}
-						onclick={() => load(true)}>Show more</button
+						disabled={pages.loading}
+						aria-busy={pages.loading}
+						onclick={loadMore}>Show more</button
 					>
+					{#if pages.error}<p class="o-sub" role="alert">{pages.error}</p>{/if}
 				{/if}
 			</section>
 

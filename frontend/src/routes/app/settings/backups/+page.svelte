@@ -7,11 +7,12 @@
 -->
 <script lang="ts">
 	import '#lib/ui/settings/settings.css';
-	import { getContext, onDestroy } from 'svelte';
+	import { getContext } from 'svelte';
 	import { Exit } from 'effect';
 	import { VaultView, type Backup, type Restore } from '#lib/contract/settings.js';
 	import { unlockDownloads } from '#lib/client/exports.svelte.js';
 	import { loadView, OrgCommand, failureOf } from '#lib/client/org.svelte.js';
+	import { cachedPage } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { describeOrgFailure, personName } from '#lib/org.js';
 	import {
@@ -22,6 +23,7 @@
 		shortChecksum,
 		watDateTime
 	} from '#lib/settings.js';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import OrgDialog from '#lib/ui/org/OrgDialog.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
 	import SettingsTabs from '#lib/ui/settings/SettingsTabs.svelte';
@@ -38,29 +40,35 @@
 		shell.state.kind === 'ready' ? shell.state.view.workspace.tenantName : ''
 	);
 
-	let view = $state<VaultView | null>(null);
-	let loadError = $state<string | null>(null);
-	let started = false;
-	let timer: ReturnType<typeof setTimeout> | undefined;
-
-	async function load() {
-		const result = await loadView('/api/backups', VaultView);
-		if (result.ok) {
-			view = result.value;
-			loadError = null;
-		} else loadError = result.text;
-		clearTimeout(timer);
-		// While a backup is being made, check again until it settles.
-		if (view?.backups.some((b) => backupRunning(b.status))) timer = setTimeout(load, 4000);
-	}
-
-	$effect(() => {
-		if (shell.state.kind === 'ready' && !started) {
-			started = true;
-			void load();
-		}
+	// Blueprint 23: the vault list opens from cache (kind 'vault', shared with
+	// the restore request page), then refreshes. It holds no download links:
+	// a download always asks the server after the PIN.
+	const vault = cachedPage(shell, {
+		kind: 'vault',
+		load: () => loadView('/api/backups', VaultView)
 	});
-	onDestroy(() => clearTimeout(timer));
+	const view = $derived(vault.data);
+	const loadError = $derived(view ? null : vault.error);
+	const load = () => vault.reload();
+
+	// While a backup is being made, check again until it settles.
+	$effect(() => {
+		const shown = view;
+		if (!shown || vault.savedAt !== null || !shown.backups.some((b) => backupRunning(b.status)))
+			return;
+		let stopped = false;
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const tick = async () => {
+			await vault.reload();
+			// A failed check leaves the same view: try again later.
+			if (!stopped && vault.data === shown) timer = setTimeout(tick, 4000);
+		};
+		timer = setTimeout(tick, 4000);
+		return () => {
+			stopped = true;
+			clearTimeout(timer);
+		};
+	});
 
 	const latest = $derived(view?.backups.find((b) => b.status === 'ready') ?? null);
 	const running = $derived(view?.backups.some((b) => backupRunning(b.status)) ?? false);
@@ -180,6 +188,7 @@
 
 <div class="s-page">
 	<SettingsTabs {canEdit} canVault={true} />
+	<CacheNote savedAt={vault.savedAt} online={shell.online} failed={vault.error !== null} />
 
 	{#if loadError}
 		<p class="s-notice bad" role="alert">{loadError}</p>

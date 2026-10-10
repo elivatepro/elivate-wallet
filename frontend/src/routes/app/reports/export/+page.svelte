@@ -3,17 +3,19 @@
 	choices as the desktop dialog, then the workspace's recent reports.
 -->
 <script lang="ts">
-	import { getContext, onDestroy } from 'svelte';
+	import { getContext, onDestroy, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { Exit } from 'effect';
 	import type { ExportFile, ReportKind } from '#lib/contract/exports.js';
 	import type { Currency } from '#lib/contract/ledger.js';
 	import { newKey } from '#lib/client/api.js';
 	import { ExportFiles, messageOf, retryFile } from '#lib/client/exports.svelte.js';
-	import { createReport, loadOverview, loadReports } from '#lib/client/reports.js';
+	import { cachedPage } from '#lib/client/page-cache.svelte.js';
+	import { createReport, overviewPart, readOverview, readReports } from '#lib/client/reports.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { periodPresets, recreatePeriod, watToday, type Period } from '#lib/statements.js';
 	import PageBar from '#lib/ui/account/PageBar.svelte';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import ExportReportForm from '#lib/ui/exports/ExportReportForm.svelte';
 	import FileList from '#lib/ui/exports/FileList.svelte';
 	import ReportDownload from '#lib/ui/exports/ReportDownload.svelte';
@@ -34,9 +36,6 @@
 	let period = $state<Period>(periodPresets(today)[1]!);
 	let member = $state<{ walletId: string; name: string } | null>(null);
 	let who = $state<'all' | 'one'>('all');
-	let scopeName = $state('');
-	let scopeKind = $state<'office' | 'network'>('office');
-	let currencies = $state<readonly Currency[]>(['NGN', 'USD']);
 	let busy = $state(false);
 	let error = $state<string | null>(null);
 	let key = newKey();
@@ -45,18 +44,22 @@
 	const files = new ExportFiles();
 	onDestroy(() => files.stop());
 
+	// Blueprint 23: the scope and currencies come from this month's figures
+	// and the recent files from the list, both from the Reports page's cache
+	// (kind 'reports'), then fresh. The form's own choices are never replaced.
+	const thisMonth = periodPresets(today)[0]!;
+	const figures = cachedPage(shell, {
+		kind: 'reports',
+		part: () => overviewPart(currency, thisMonth),
+		load: () => readOverview(currency, thisMonth)
+	});
+	const scopeName = $derived(figures.data?.scope.name ?? '');
+	const scopeKind = $derived<'office' | 'network'>(figures.data?.scope.kind ?? 'office');
+	const currencies = $derived<readonly Currency[]>(figures.data?.currencies ?? ['NGN', 'USD']);
+	const recent = cachedPage(shell, { kind: 'reports', part: () => 'files', load: readReports });
 	$effect(() => {
-		if (!workspaceId) return;
-		void loadOverview(currency, periodPresets(today)[0]!).then((exit) => {
-			if (Exit.isSuccess(exit)) {
-				scopeName = exit.value.scope.name;
-				scopeKind = exit.value.scope.kind;
-				currencies = exit.value.currencies;
-			}
-		});
-		void loadReports().then((exit) => {
-			if (Exit.isSuccess(exit)) files.set(exit.value.items, exit.value.nextCursor);
-		});
+		const list = recent.data;
+		if (list) untrack(() => files.set(list.items, list.nextCursor));
 	});
 
 	// Changed choices are a new attempt (a new idempotency key); an unchanged
@@ -97,6 +100,7 @@
 <PageBar title="Export report" back="/app/reports" backLabel="Back to Reports" />
 
 <form class="page" onsubmit={submit}>
+	<CacheNote savedAt={recent.savedAt} online={shell.online} failed={recent.error !== null} />
 	<section class="stage" aria-hidden="true">
 		<div class="stage-shade"></div>
 		<RootImage pose="export-mobile" class="stage-root" sizes="116px" eager />

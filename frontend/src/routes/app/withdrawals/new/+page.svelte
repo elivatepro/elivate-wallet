@@ -10,7 +10,7 @@
 	only once the payout receipt is verified.
 -->
 <script lang="ts">
-	import { getContext } from 'svelte';
+	import { getContext, untrack } from 'svelte';
 	import { Cause, Effect, Exit, Option } from 'effect';
 	import Landmark from '@lucide/svelte/icons/landmark';
 	import {
@@ -21,6 +21,7 @@
 	} from '#lib/contract/withdrawals.js';
 	import { getJson } from '#lib/client/api.js';
 	import { CommandAttempt } from '#lib/client/command-attempt.svelte.js';
+	import { cachedPage, type PageLoaded } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { groupAmount, parseAmount } from '#lib/income.js';
 	import { formatMoney, isZero, sumMoney } from '#lib/money.js';
@@ -32,6 +33,7 @@
 	import RootImage from '#lib/ui/RootImage.svelte';
 	import '#lib/ui/money/money.css';
 	import NoAccess from '#lib/ui/app/NoAccess.svelte';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 
 	const shell = getContext<Shell>('shell');
 	// Same pocket colours as Pockets & split (Paper L01).
@@ -44,9 +46,6 @@
 		'#c9a3ff'
 	];
 
-	let data = $state<WithdrawalSources | null>(null);
-	let loadError = $state<string | null>(null);
-	let denied = $state(false);
 	let sourceId = $state<string | null>(null);
 	let amountText = $state('');
 	let payoutAccountId = $state<string | null>(null);
@@ -82,28 +81,48 @@
 	);
 	const result = $derived(attempt.state.kind === 'done' ? attempt.state.result : null);
 
-	async function load() {
+	const DENIED = 'Withdrawals aren’t open to you in this network.';
+	async function readSources(): Promise<PageLoaded<WithdrawalSources>> {
 		const exit = await Effect.runPromiseExit(
 			getJson(WithdrawalAppRoutes.sources, WithdrawalSources)
 		);
-		if (Exit.isSuccess(exit)) {
-			data = exit.value;
-			const firstSource = exit.value.sources.find((s) => !isZero(s.available));
-			sourceId ??= firstSource?.accountId ?? null;
-			const usable = exit.value.payoutAccounts.filter((a) => a.usable);
-			payoutAccountId ??= (usable.find((a) => a.isPrimary) ?? usable[0])?.payoutAccountId ?? null;
-			loadError = null;
-			denied = false;
-			return;
-		}
+		if (Exit.isSuccess(exit)) return { ok: true, value: exit.value };
 		const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
-		denied = failure?._tag === 'BackendError' && failure.code === 'authorization_denied';
-		loadError = denied
-			? 'Withdrawals aren’t open to you in this network.'
-			: 'We couldn’t load your pockets.';
+		const isBackend = failure?._tag === 'BackendError';
+		const denied = isBackend && failure.code === 'authorization_denied';
+		return {
+			ok: false,
+			text: denied ? DENIED : 'We couldn’t load your pockets.',
+			status: isBackend ? failure.status : null
+		};
 	}
+
+	// Blueprint 23: the pockets and payout accounts open from cache, then
+	// refresh (masked account numbers only). The request itself always goes to
+	// the server, and "Continue to review" waits for the fresh copy.
+	const view = cachedPage(shell, {
+		kind: 'withdrawals',
+		part: () => 'sources',
+		load: readSources
+	});
+	const data = $derived(view.data);
+	const denied = $derived(view.error === DENIED);
+	const loadError = $derived(view.data ? null : view.error);
+
+	// Defaults once data is shown; kept by id across refreshes (a choice that
+	// is gone from the fresh copy falls back to the default).
 	$effect(() => {
-		if (shell.state.kind === 'ready' && !data && !loadError) void load();
+		const value = view.data;
+		if (!value) return;
+		untrack(() => {
+			if (!value.sources.some((s) => s.accountId === sourceId)) {
+				sourceId = value.sources.find((s) => !isZero(s.available))?.accountId ?? null;
+			}
+			const usable = value.payoutAccounts.filter((a) => a.usable);
+			if (!value.payoutAccounts.some((a) => a.payoutAccountId === payoutAccountId)) {
+				payoutAccountId = (usable.find((a) => a.isPrimary) ?? usable[0])?.payoutAccountId ?? null;
+			}
+		});
 	});
 
 	const source = $derived<WithdrawalSource | null>(
@@ -174,8 +193,7 @@
 		attempt.reset();
 		dialogError = moveMessage(state.failure);
 		if (state.failure._tag === 'BackendError' && state.failure.code === 'insufficient_funds') {
-			data = null;
-			void load();
+			void view.reload();
 		}
 	}
 
@@ -229,6 +247,8 @@
 			</li>
 			<li aria-current={pinOpen ? 'step' : undefined}><span class="n">3</span> Confirm with PIN</li>
 		</ol>
+
+		<CacheNote savedAt={view.savedAt} online={shell.online} failed={view.error !== null} />
 
 		{#if !data && !loadError}
 			<div class="mm-skeleton" aria-hidden="true"></div>
@@ -369,7 +389,8 @@
 							<button
 								type="submit"
 								class="mm-btn primary grow-0"
-								disabled={!shell.canAct || shell.paused('withdrawals')}>Continue to review</button
+								disabled={!shell.canAct || shell.paused('withdrawals') || view.savedAt !== null}
+								>Continue to review</button
 							>
 						</div>
 					</form>

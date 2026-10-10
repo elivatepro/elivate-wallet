@@ -14,6 +14,7 @@
 	import type { Currency } from '#lib/contract/ledger.js';
 	import { AppOrgRoutes, OfficeView } from '#lib/contract/org-admin.js';
 	import { loadView, OrgCommand } from '#lib/client/org.svelte.js';
+	import { cachedPage } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { formatMoney, hiddenMoney } from '#lib/money.js';
 	import {
@@ -24,6 +25,7 @@
 		STATUS_LABELS
 	} from '#lib/org.js';
 	import { ROLE_LABELS } from '#lib/labels.js';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import OrgDialog from '#lib/ui/org/OrgDialog.svelte';
 	import OrgHero from '#lib/ui/org/OrgHero.svelte';
 
@@ -31,27 +33,21 @@
 	const workspace = $derived(shell.state.kind === 'ready' ? shell.state.view.workspace : null);
 	const id = $derived(page.params.id ?? '');
 
-	let view = $state<OfficeView | null>(null);
-	let loadError = $state<string | null>(null);
-	let loadedFor: string | null = null;
 	let notice = $state<string | null>(null);
 
-	async function load() {
-		const target = id;
-		const result = await loadView(AppOrgRoutes.office(target), OfficeView);
-		if (target !== id) return;
-		if (result.ok) {
-			view = result.value;
-			loadError = null;
-		} else loadError = result.text;
-	}
-
+	// Blueprint 23: an office opens from cache (kind 'offices', part = its id),
+	// then refreshes; another [id] reads (and shows) its own copy.
+	const read = cachedPage(shell, {
+		kind: 'offices',
+		part: () => id.toLowerCase(),
+		load: () => loadView(AppOrgRoutes.office(id), OfficeView)
+	});
+	const view = $derived(read.data);
+	const loadError = $derived(view ? null : read.error);
+	const load = () => read.reload();
+	// Gone, or no longer visible to this person: drop the cached copy.
 	$effect(() => {
-		if (shell.state.kind === 'ready' && loadedFor !== id) {
-			loadedFor = id;
-			view = null;
-			void load();
-		}
+		if (read.errorStatus === 403 || read.errorStatus === 404) read.clear();
 	});
 
 	const office = $derived(view?.office ?? null);
@@ -219,6 +215,7 @@
 <svelte:head><title>{office?.name ?? 'Office'} · Elivate Wallet</title></svelte:head>
 
 <div class="o-page">
+	<CacheNote savedAt={read.savedAt} online={shell.online} failed={read.error !== null} />
 	<nav class="crumbs o-sub" aria-label="Breadcrumb">
 		<a href="/app/offices">Offices</a>
 		{#if parentName}<span aria-hidden="true">/</span><span>{parentName}</span>{/if}

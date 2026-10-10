@@ -2,8 +2,9 @@
 	Payout accounts, Paper "App — Screens v3" Y02 (desktop 160Q, mobile 164Q).
 	The person's own accounts (W-17): verified / identity check pending,
 	primary, and the 24 h cooling-off for any account after the first. Make
-	primary asks for the PIN; Remove asks for a reason and the PIN. Data is read
-	live and never cached on device (decision 36a); only last-4 is shown.
+	primary asks for the PIN; Remove asks for a reason and the PIN. Only last-4
+	is shown. Blueprint 23: the list opens from cache (last-4 and the
+	"•••• 1234" mask only, never a full number), then refreshes.
 -->
 <script lang="ts">
 	import { getContext } from 'svelte';
@@ -24,6 +25,7 @@
 	import { PayoutAccountsView, payoutPrimaryPath, payoutRemovePath } from '#lib/contract/app.js';
 	import { Confirmed, PrimarySet, type PayoutAccount } from '#lib/contract/payout.js';
 	import { getJson, newKey, sendCommand } from '#lib/client/api.js';
+	import { cachedPage, type PageLoaded } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import {
 		accountTitle,
@@ -39,13 +41,12 @@
 	} from '#lib/payout.js';
 	import ConfirmDialog from '#lib/ui/app/ConfirmDialog.svelte';
 	import RootDialog from '#lib/ui/account/RootDialog.svelte';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import { setReplaceIntent } from '#lib/client/replace-intent.js';
 	import RootImage from '#lib/ui/RootImage.svelte';
 
 	const shell = getContext<Shell>('shell');
 
-	let items = $state<ReadonlyArray<PayoutAccount> | null>(null);
-	let loadError = $state<string | null>(null);
 	let now = $state(Date.now());
 	let notice = $state<string | null>(null);
 
@@ -60,28 +61,34 @@
 	/** The request the current key belongs to; a different one gets a new key. */
 	let keyFor = '';
 
-	const accounts = $derived(items ? activeAccounts(items) : []);
-
-	async function load() {
+	async function load(): Promise<PageLoaded<PayoutAccountsView>> {
 		const exit = await Effect.runPromiseExit(getJson('/api/payout-accounts', PayoutAccountsView));
 		now = Date.now();
-		if (Exit.isSuccess(exit)) {
-			items = exit.value.items;
-			loadError = null;
-			return;
-		}
+		if (Exit.isSuccess(exit)) return { ok: true, value: exit.value };
 		const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
-		loadError =
-			failure?._tag === 'BackendError' && failure.code === 'no_wallet'
-				? 'You don’t have a wallet in this network.'
-				: failure?._tag === 'BackendError'
-					? failure.message
-					: 'We couldn’t load your accounts.';
+		const backend = failure?._tag === 'BackendError' ? failure : null;
+		return {
+			ok: false,
+			text:
+				backend?.code === 'no_wallet'
+					? 'You don’t have a wallet in this network.'
+					: (backend?.message ?? 'We couldn’t load your accounts.'),
+			status: backend?.status ?? null
+		};
 	}
 
-	$effect(() => {
-		if (shell.state.kind === 'ready' && !items) void load();
+	// Blueprint 23: the list opens from cache, then refreshes. The kept copy
+	// rebuilds the mask from last-4, so no more than 4 digits are ever stored.
+	const view = cachedPage(shell, {
+		kind: 'payout-accounts',
+		load,
+		keep: (value) => ({
+			items: value.items.map((a) => ({ ...a, accountNumberMasked: `•••• ${a.accountLast4}` }))
+		})
 	});
+	const items = $derived(view.data?.items ?? null);
+	const loadError = $derived(view.data ? null : view.error);
+	const accounts = $derived(items ? activeAccounts(items) : []);
 
 	// Re-render when the next cooling-off ends, so the chip and actions update.
 	$effect(() => {
@@ -150,7 +157,7 @@
 				kind === 'primary'
 					? `${accountTitle(account)} is now your primary account.`
 					: `${accountTitle(account)} removed.`;
-			await load();
+			await view.reload();
 			return;
 		}
 		const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
@@ -195,6 +202,8 @@
 			<Check size={16} strokeWidth={2} aria-hidden="true" />{notice}
 		</p>
 	{/if}
+
+	<CacheNote savedAt={view.savedAt} online={shell.online} failed={view.error !== null} />
 
 	{#if !items && !loadError}
 		<div class="skeleton" aria-hidden="true"></div>

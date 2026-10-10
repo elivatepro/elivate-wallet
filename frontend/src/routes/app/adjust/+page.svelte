@@ -8,7 +8,7 @@
 	Opened from a member's wallet or detail (?member=) or by picking a member.
 -->
 <script lang="ts">
-	import { getContext } from 'svelte';
+	import { getContext, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { Cause, Effect, Exit, Option } from 'effect';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
@@ -21,7 +21,10 @@
 		type EntryTarget
 	} from '#lib/contract/entries.js';
 	import type { Currency } from '#lib/contract/ledger.js';
+	import { UUID_PATTERN } from '#lib/contract/common.js';
 	import { getJson } from '#lib/client/api.js';
+	import { loadView } from '#lib/client/org.svelte.js';
+	import { cachedPage, MorePages, type PageLoaded } from '#lib/client/page-cache.svelte.js';
 	import { CommandAttempt, showsRecovery } from '#lib/client/command-attempt.svelte.js';
 	import { EntryEvidence } from '#lib/client/entry-evidence.svelte.js';
 	import { submitEntry } from '#lib/client/entry-submit.js';
@@ -44,13 +47,8 @@
 	);
 	const OTHER = 'other';
 
-	let targets = $state<EntryTarget[]>([]);
-	let nextCursor = $state<string | null>(null);
-	let loadingMore = $state(false);
-	let loadError = $state<string | null>(null);
 	let denied = $state(false);
 	let target = $state<EntryTarget | null>(null);
-	let segments = $state<EntrySegments | null>(null);
 	let direction = $state<'credit' | 'debit'>('credit');
 	let currency = $state<Currency>('NGN');
 	let amountText = $state('');
@@ -85,46 +83,39 @@
 	const failureOf = <A, E>(exit: Exit.Exit<A, E>) =>
 		Exit.isFailure(exit) ? Option.getOrUndefined(Cause.findErrorOption(exit.cause)) : undefined;
 
-	async function loadTargets() {
+	// Blueprint 23: the default (unsearched) member list opens from cache, then
+	// refreshes; searches and "load more" pages are never cached. Opened with
+	// ?member=, only that member's pockets are read.
+	async function loadTargets(): Promise<PageLoaded<EntryTargetPage>> {
 		const exit = await Effect.runPromiseExit(
 			getJson(`${EntryAppRoutes.targets}?kind=adjustment`, EntryTargetPage)
 		);
 		if (Exit.isSuccess(exit)) {
-			targets = [...exit.value.items];
-			nextCursor = exit.value.nextCursor;
-			loadError = null;
 			denied = false;
-			return;
+			return { ok: true, value: exit.value };
 		}
 		const failure = failureOf(exit);
 		denied = failure?._tag === 'BackendError' && failure.code === 'authorization_denied';
-		loadError = denied
-			? 'Adjustments are for leaders with that permission.'
-			: 'We couldn’t load your members.';
+		if (denied) targetView.clear();
+		return { ok: false, text: 'We couldn’t load your members.', status: null };
 	}
-	let started = false;
-	$effect(() => {
-		if (!workspaceId || started) return;
-		started = true;
-		if (fixedMember) void loadMember(fixedMember);
-		else void loadTargets();
+	const targetView = cachedPage(shell, {
+		kind: 'entries',
+		part: () => 'adjustment-targets',
+		enabled: () => !fixedMember,
+		load: loadTargets
 	});
-
-	async function loadMore() {
-		if (!nextCursor) return;
-		loadingMore = true;
-		const exit = await Effect.runPromiseExit(
-			getJson(
-				`${EntryAppRoutes.targets}?kind=adjustment&cursor=${encodeURIComponent(nextCursor)}`,
+	const pages = new MorePages<EntryTarget>(() => targetView.data);
+	const targets = $derived(pages.items);
+	const nextCursor = $derived(pages.nextCursor);
+	const loadingMore = $derived(pages.loading);
+	const loadMore = () =>
+		pages.more((cursor) =>
+			loadView(
+				`${EntryAppRoutes.targets}?kind=adjustment&cursor=${encodeURIComponent(cursor)}`,
 				EntryTargetPage
 			)
 		);
-		loadingMore = false;
-		if (Exit.isSuccess(exit)) {
-			targets = [...targets, ...exit.value.items];
-			nextCursor = exit.value.nextCursor;
-		}
-	}
 
 	async function search(query: string, cursor: string | null) {
 		// Built and read once per call; not reactive state.
@@ -137,35 +128,79 @@
 		return Exit.isSuccess(exit) ? exit.value : null;
 	}
 
-	/** Only the newest member read is applied (a slower, older one must not win). */
-	let memberSeq = 0;
-	async function loadMember(membershipId: string) {
-		const mine = ++memberSeq;
-		segments = null;
-		formError = null;
-		const params = new URLSearchParams({ kind: 'adjustment', membershipId });
+	// Blueprint 23: a member's pockets and split open from their cached copy
+	// (per member), then refresh; the newest member read wins. Review waits for
+	// the fresh read, and the server checks everything on submit.
+	/** The member whose pockets are shown (lower case); null until one is chosen. */
+	let memberId = $state<string | null>(page.url.searchParams.get('member')?.toLowerCase() ?? null);
+	let segFailure = $state<{ id: string; text: string } | null>(null);
+	async function loadSegments(): Promise<PageLoaded<EntrySegments>> {
+		const id = memberId ?? '';
+		const params = new URLSearchParams({ kind: 'adjustment', membershipId: id });
 		const exit = await Effect.runPromiseExit(
 			getJson(`${EntryAppRoutes.segments}?${params}`, EntrySegments)
 		);
-		if (mine !== memberSeq) return;
-		if (Exit.isFailure(exit)) {
-			const message = entryMessage(failureOf(exit));
-			if (fixedMember) loadError = message;
-			else formError = message;
-			return;
+		if (Exit.isSuccess(exit)) {
+			if (segFailure?.id === id) segFailure = null;
+			return { ok: true, value: exit.value };
 		}
-		segments = exit.value;
-		if (exit.value.office) {
-			target = {
-				membershipId: exit.value.membershipId,
-				person: exit.value.person,
-				role: exit.value.role,
-				officeId: exit.value.office.id,
-				officeName: exit.value.office.name
-			};
-		}
-		currency = (exit.value.currencies[0]?.code as Currency | undefined) ?? 'NGN';
+		const text = entryMessage(failureOf(exit));
+		segFailure = { id, text };
+		return { ok: false, text, status: null };
 	}
+	const segView = cachedPage(shell, {
+		kind: 'entries',
+		part: () => (memberId ? `seg-${memberId}` : undefined),
+		enabled: () => memberId !== null,
+		cacheable: () => memberId !== null && UUID_PATTERN.test(memberId),
+		load: loadSegments
+	});
+	const segments = $derived<EntrySegments | null>(
+		segView.data && segView.data.membershipId === memberId ? segView.data : null
+	);
+	/** The pockets shown came from the server just now, not from the cache. */
+	const segFresh = $derived(segments !== null && segView.savedAt === null);
+	const segError = $derived(
+		!segments && segFailure && segFailure.id === memberId ? segFailure.text : null
+	);
+	const loadError = $derived(
+		denied
+			? 'Adjustments are for leaders with that permission.'
+			: fixedMember
+				? segError
+				: targetView.data
+					? null
+					: targetView.error
+	);
+
+	function loadMember(membershipId: string) {
+		formError = null;
+		const id = membershipId.toLowerCase();
+		if (id === memberId) void segView.reload();
+		else memberId = id;
+	}
+
+	/** The member's first currency for a new member; a choice survives a refresh. */
+	let currencyFor: string | null = null;
+	$effect(() => {
+		const s = segments;
+		if (!s) return;
+		untrack(() => {
+			if (s.office) {
+				target = {
+					membershipId: s.membershipId,
+					person: s.person,
+					role: s.role,
+					officeId: s.office.id,
+					officeName: s.office.name
+				};
+			}
+			const first = (s.currencies[0]?.code as Currency | undefined) ?? 'NGN';
+			if (currencyFor !== s.membershipId) currency = first;
+			else if (!s.currencies.some((c) => c.code === currency)) currency = first;
+			currencyFor = s.membershipId;
+		});
+	});
 
 	const amount = $derived(parseAmount(amountText, 2));
 	const reason = $derived(reasonChoice === OTHER ? reasonOther.trim() : reasonChoice);
@@ -209,6 +244,10 @@
 	function review() {
 		const problem = validate();
 		if (problem) return void (formError = problem);
+		if (!segFresh) {
+			const failed = segFailure?.id === memberId ? segFailure.text : null;
+			return void (formError = failed ?? 'Still updating the pockets. Try again in a moment.');
+		}
 		formError = null;
 		pinError = null;
 		confirmError = null;
@@ -297,7 +336,9 @@
 				novalidate
 			>
 				<div class="en-card">
-					{#if formError}<p class="en-error" role="alert">{formError}</p>{/if}
+					{#if formError ?? segError}<p class="en-error" role="alert">
+							{formError ?? segError}
+						</p>{/if}
 					{#if fixedMember}
 						<div class="en-field">
 							<span class="en-label">Member</span>

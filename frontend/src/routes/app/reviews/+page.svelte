@@ -12,16 +12,16 @@
 	import IdCard from '@lucide/svelte/icons/id-card';
 	import { PendingReviews, ReviewDecided, type PendingReview } from '#lib/contract/identity.js';
 	import { getJson, newKey, sendCommand } from '#lib/client/api.js';
+	import { cachedPage, type PageLoaded } from '#lib/client/page-cache.svelte.js';
 	import { isUnknownOutcome } from '#lib/recovery.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { ROLE_LABELS } from '#lib/labels.js';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import ConfirmDialog from '#lib/ui/app/ConfirmDialog.svelte';
 	import NoAccess from '#lib/ui/app/NoAccess.svelte';
 
 	const shell = getContext<Shell>('shell');
 
-	let reviews = $state<ReadonlyArray<PendingReview> | null>(null);
-	let loadError = $state<string | null>(null);
 	let denied = $state(false);
 	let target = $state<{ review: PendingReview; decision: 'approve' | 'reject' } | null>(null);
 	let dialogOpen = $state(false);
@@ -30,25 +30,34 @@
 	let pinError = $state<string | null>(null);
 	let notice = $state<string | null>(null);
 	let commandKey = newKey();
+	// Decided here: hidden at once, before the refreshed list arrives.
+	let decided = $state<readonly string[]>([]);
 
-	async function load() {
+	async function read(): Promise<PageLoaded<ReadonlyArray<PendingReview>>> {
 		const exit = await Effect.runPromiseExit(getJson('/api/nin-reviews', PendingReviews));
 		if (Exit.isSuccess(exit)) {
-			reviews = exit.value;
-			loadError = null;
 			denied = false;
-			return;
+			return { ok: true, value: exit.value };
 		}
 		const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
 		denied = failure?._tag === 'BackendError' && failure.code === 'authorization_denied';
-		loadError = denied
-			? 'Only the President Team and World Team review NINs.'
-			: 'We couldn’t load the reviews.';
+		// Someone who lost access no longer sees the cached list.
+		if (denied) view.clear();
+		return {
+			ok: false,
+			text: denied
+				? 'Only the President Team and World Team review NINs.'
+				: 'We couldn’t load the reviews.',
+			status: failure?._tag === 'BackendError' ? failure.status : null
+		};
 	}
 
-	$effect(() => {
-		if (shell.state.kind === 'ready' && reviews === null && !loadError) void load();
-	});
+	// Blueprint 23: the waiting reviews open from cache (kind 'nin-reviews';
+	// NIN last 4 and legal names only), then refresh.
+	const view = cachedPage(shell, { kind: 'nin-reviews', load: read });
+	const reviews = $derived(view.data?.filter((r) => !decided.includes(r.reviewId)) ?? null);
+	const loadError = $derived(denied || !view.data ? view.error : null);
+	const load = () => view.reload();
 
 	const legal = (r: PendingReview) =>
 		[r.legalName.given, ...r.legalName.middle, r.legalName.surname].join(' ');
@@ -83,7 +92,7 @@
 		if (Exit.isSuccess(exit)) {
 			notice = `${exit.value.status === 'approved' ? 'Approved' : 'Rejected'}: ${legal(target.review)}.`;
 			dialogOpen = false;
-			reviews = (reviews ?? []).filter((r) => r.reviewId !== target?.review.reviewId);
+			decided = [...decided, target.review.reviewId];
 			return;
 		}
 		const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
@@ -122,6 +131,7 @@
 		<p class="lead">Check each name against the person’s national ID before approving.</p>
 	</header>
 
+	<CacheNote savedAt={view.savedAt} online={shell.online} failed={view.error !== null} />
 	{#if notice}<p class="notice" role="status">{notice}</p>{/if}
 
 	{#if reviews === null && !loadError}

@@ -10,9 +10,10 @@ import {
 	type ReportKind
 } from '#lib/contract/exports.js';
 import type { Currency } from '#lib/contract/ledger.js';
-import type { Period } from '#lib/statements.js';
+import { periodPresets, type Period } from '#lib/statements.js';
 import { getJson, newKey, sendCommand } from './api';
 import { messageOf } from './exports.svelte';
+import type { PageLoaded } from './page-cache.svelte';
 
 export const overviewPath = (currency: Currency, period: Period) =>
 	`/api/reports/overview?${new URLSearchParams({
@@ -26,6 +27,41 @@ export const loadOverview = (currency: Currency, period: Period, signal?: AbortS
 	Effect.runPromiseExit(getJson(overviewPath(currency, period), ReportOverview, signal));
 
 export const loadReports = () => Effect.runPromiseExit(getJson('/api/reports', ExportPage));
+
+// Blueprint 23: the Reports pages open from the device cache (kind 'reports').
+// The files list carries no download links (downloads go through the app
+// server by export id and need the PIN), so it is kept whole.
+
+/** The cache part of one currency and period (lower case, `[a-z0-9-]`). */
+export const overviewPart = (currency: Currency, period: Period): string =>
+	`overview-${currency}-${period.kind}-${period.from}-${period.to}`
+		.toLowerCase()
+		.replaceAll('_', '-');
+
+/** Only the preset periods are kept; a custom range is shown, never kept. */
+export const isPresetPeriod = (period: Period, today: string): boolean =>
+	periodPresets(today).some(
+		(p) => p.kind === period.kind && p.from === period.from && p.to === period.to
+	);
+
+/** The overview as a cached page reads it. */
+export async function readOverview(
+	currency: Currency,
+	period: Period
+): Promise<PageLoaded<ReportOverview>> {
+	const exit = await loadOverview(currency, period);
+	return Exit.isSuccess(exit)
+		? { ok: true, value: exit.value }
+		: { ok: false, text: messageOf(exit, 'We couldn’t load the report figures.'), status: null };
+}
+
+/** The workspace's recent report files as a cached page reads them. */
+export async function readReports(): Promise<PageLoaded<ExportPage>> {
+	const exit = await loadReports();
+	return Exit.isSuccess(exit)
+		? { ok: true, value: exit.value }
+		: { ok: false, text: messageOf(exit, 'We couldn’t load your reports.'), status: null };
+}
 
 export interface ReportChoice {
 	readonly kind: ReportKind;

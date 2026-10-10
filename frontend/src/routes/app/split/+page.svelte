@@ -6,7 +6,7 @@
 	Changes apply to income recorded after saving; nothing already posted moves.
 -->
 <script lang="ts">
-	import { getContext } from 'svelte';
+	import { getContext, untrack } from 'svelte';
 	import { Cause, Effect, Exit, Option } from 'effect';
 	import Check from '@lucide/svelte/icons/check';
 	import Lock from '@lucide/svelte/icons/lock';
@@ -17,10 +17,12 @@
 	import { Allocation, type Allocation as AllocationType } from '#lib/contract/ledger.js';
 	import type { ApiFailure } from '#lib/contract/errors.js';
 	import { getJson, newKey } from '#lib/client/api.js';
+	import { cachedPage, type PageLoaded } from '#lib/client/page-cache.svelte.js';
 	import { CommandAttempt } from '#lib/client/command-attempt.svelte.js';
 	import OutcomeUnknown from '#lib/ui/app/OutcomeUnknown.svelte';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import ConfirmDialog from '#lib/ui/app/ConfirmDialog.svelte';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
 
 	const shell = getContext<Shell>('shell');
@@ -40,13 +42,11 @@
 		percent: string;
 	}
 
-	let view = $state<SplitView | null>(null);
 	/** W-13 pocket moves (Blueprint 11); the backend re-checks the permission. */
 	const canMove = $derived(
 		shell.state.kind === 'ready' &&
 			(shell.state.view.capabilities?.permissions ?? []).includes('transfer_between_own_pockets')
 	);
-	let loadError = $state<string | null>(null);
 	let rows = $state<Row[]>([]);
 	let dialogOpen = $state(false);
 	let busy = $state(false);
@@ -107,8 +107,9 @@
 		attempt.reset();
 		dialogOpen = false;
 		saved = true;
-		view = null;
-		await load();
+		base = null;
+		splitPage.clear();
+		await splitPage.reload();
 	}
 
 	const toRows = (a: AllocationType): Row[] =>
@@ -119,20 +120,33 @@
 			percent: Number(p.percent).toFixed(2)
 		}));
 
-	async function load() {
+	async function load(): Promise<PageLoaded<SplitView>> {
 		const exit = await Effect.runPromiseExit(getJson('/api/split', SplitView));
-		if (Exit.isSuccess(exit)) {
-			view = exit.value;
-			rows = toRows(exit.value.allocation);
-			loadError = null;
-			return;
-		}
+		if (Exit.isSuccess(exit)) return { ok: true, value: exit.value };
 		const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
-		loadError = failure?._tag === 'BackendError' ? failure.message : 'We couldn’t load the split.';
+		return failure?._tag === 'BackendError'
+			? { ok: false, text: failure.message, status: failure.status }
+			: { ok: false, text: 'We couldn’t load the split.', status: null };
 	}
 
+	// Blueprint 23: the split opens from cache, then refreshes. The rows follow
+	// the newest split only while they are unedited; edits keep the version they
+	// were made on (`base`), so saving over a newer split is refused (conflict).
+	// Saving waits for the fresh read.
+	const splitPage = cachedPage(shell, { kind: 'split', load });
+	const view = $derived(splitPage.data);
+	const loadError = $derived(splitPage.data ? null : splitPage.error);
+	const showingFresh = $derived(splitPage.data !== null && splitPage.savedAt === null);
+	/** The split the rows were made from. */
+	let base = $state.raw<AllocationType | null>(null);
 	$effect(() => {
-		if (shell.state.kind === 'ready' && !view) void load();
+		const next = splitPage.data?.allocation;
+		if (!next) return;
+		untrack(() => {
+			if (base === next || (base && dirty)) return;
+			base = next;
+			rows = toRows(next);
+		});
 	});
 
 	/** "40.00" → 4000 basis points; null when not a valid 0–100 value with ≤ 2 decimals. */
@@ -149,7 +163,7 @@
 				basisPoints(r.percent) !== null && r.name.trim().length >= 1 && r.name.trim().length <= 40
 		)
 	);
-	const original = $derived(view ? toRows(view.allocation) : []);
+	const original = $derived(base ? toRows(base) : []);
 	const changes = $derived(
 		rows
 			.map((r) => {
@@ -165,7 +179,7 @@
 			.filter(Boolean)
 	);
 	const dirty = $derived(changes.length > 0 || rows.length !== original.length);
-	const canSave = $derived(dirty && allValid && totalBp === 10000 && shell.canAct);
+	const canSave = $derived(dirty && allValid && totalBp === 10000 && shell.canAct && showingFresh);
 	const canEdit = $derived(!!view?.canEdit && shell.canAct);
 	const live = $derived(view?.versions.find((v) => v.version === view?.allocation.version) ?? null);
 
@@ -174,7 +188,10 @@
 	}
 
 	function discard() {
-		if (view) rows = toRows(view.allocation);
+		if (view) {
+			base = view.allocation;
+			rows = toRows(view.allocation);
+		}
 		saved = false;
 	}
 
@@ -193,7 +210,7 @@
 	}
 
 	async function save({ reason, pin }: { reason: string; pin: string | undefined }) {
-		if (!view || shell.state.kind !== 'ready') return;
+		if (!view || !base || shell.state.kind !== 'ready') return;
 		busy = true;
 		dialogError = null;
 		pinError = null;
@@ -203,7 +220,7 @@
 				: await attempt.send(
 						shell.state.view.workspace.membershipId,
 						{
-							expectedVersion: view.allocation.version,
+							expectedVersion: base.version,
 							pockets: rows.map((r) => ({
 								pocketId: r.pocketId,
 								name: r.name.trim(),
@@ -246,8 +263,9 @@
 		backHref="/app/split"
 		backLabel="Back to the split"
 		onResolved={() => {
-			view = null;
-			void load();
+			base = null;
+			splitPage.clear();
+			void splitPage.reload();
 		}}
 	/>
 {:else if !view && !loadError}
@@ -268,6 +286,11 @@
 
 		<section class="editor" aria-labelledby="split-heading">
 			<h1 id="split-heading" class="visually-hidden">Pockets &amp; split</h1>
+			<CacheNote
+				savedAt={splitPage.savedAt}
+				online={shell.online}
+				failed={splitPage.error !== null}
+			/>
 			{#if canMove}
 				<a class="move-link" href="/app/split/move"
 					><ArrowLeftRight size={16} strokeWidth={1.8} aria-hidden="true" />Move money between

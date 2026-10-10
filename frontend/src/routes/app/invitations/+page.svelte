@@ -32,6 +32,7 @@
 	} from '#lib/contract/invitations.js';
 	import { followGate } from '#lib/client/account.js';
 	import { getJson, newKey, sendCommand } from '#lib/client/api.js';
+	import { cachedPage, MorePages, type PageLoaded } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import {
 		activityLabel,
@@ -46,6 +47,7 @@
 		type StatusFilter
 	} from '#lib/invitations.js';
 	import { ROLE_LABELS } from '#lib/labels.js';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import ConfirmDialog from '#lib/ui/app/ConfirmDialog.svelte';
 	import InviteDialog from '#lib/ui/app/InviteDialog.svelte';
 	import SeatLimitDialog from '#lib/ui/app/SeatLimitDialog.svelte';
@@ -55,63 +57,69 @@
 	const STATUS_ICONS = { pending: Clock, accepted: CircleCheck, expired: TimerOff, revoked: Ban };
 
 	let filter = $state<StatusFilter>('all');
-	let items = $state<Invitation[]>([]);
-	let nextCursor = $state<string | null>(null);
 	let offices = $state<ReadonlyArray<InviteOffice> | null>(null);
-	let loaded = $state(false);
-	let started = false;
-	let loadError = $state<string | null>(null);
-	let loadingMore = $state(false);
 	let notice = $state<{ ok: boolean; text: string } | null>(null);
 	let now = $state(Date.now());
-	let seq = 0;
 
 	const workspace = $derived(shell.state.kind === 'ready' ? shell.state.view.workspace : null);
 	const canInvite = $derived(!!offices && offices.length > 0);
 
-	async function load(more = false) {
-		const mine = ++seq;
+	/** One page of invitations (the first, or the one after `cursor`). */
+	async function read(cursor?: string): Promise<PageLoaded<InvitationsView>> {
 		// Local, built and read once: not state, so no reactive wrapper needed.
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const params = new URLSearchParams();
 		if (filter !== 'all') params.set('status', filter);
-		if (more && nextCursor) params.set('cursor', nextCursor);
+		if (cursor) params.set('cursor', cursor);
 		const query = params.size ? `?${params}` : '';
-		loadingMore = more;
 		const exit = await Effect.runPromiseExit(
 			getJson(`${AppRoutes.invitations.path}${query}`, InvitationsView)
 		);
-		if (mine !== seq) return; // a newer filter or refresh won
-		loadingMore = false;
-		if (Exit.isSuccess(exit)) {
-			const { page } = exit.value;
-			items = more ? [...items, ...page.items] : [...page.items];
-			nextCursor = page.nextCursor;
-			if (!more) offices = exit.value.offices;
-			now = Date.now();
-			loaded = true;
-			loadError = null;
-			return;
-		}
+		if (Exit.isSuccess(exit)) return { ok: true, value: exit.value };
 		const failure = failureOf(exit);
+		const status = failure?._tag === 'BackendError' ? failure.status : null;
 		// Slice 21: a lapsed PIN or session goes to its gate and comes back here.
-		if (followGate(failure, '/app/invitations')) return;
+		if (followGate(failure, '/app/invitations')) return { ok: false, text: '', status };
 		const text =
 			failure?._tag === 'BackendError' ? failure.message : 'We couldn’t load the invitations.';
-		if (more) notice = { ok: false, text };
-		else loadError = text;
+		return { ok: false, text, status };
 	}
 
+	// Blueprint 23: the unfiltered first page opens from cache (kind
+	// 'invitations'; rows carry no link or token), then refreshes. A status
+	// filter is its own read, shown but never kept.
+	const view = cachedPage(shell, {
+		kind: 'invitations',
+		part: () => `status-${filter}`,
+		cacheable: () => filter === 'all',
+		load: () => read()
+	});
+	const pages = new MorePages<Invitation>(() => view.data?.page ?? null);
+	const items = $derived(pages.items);
+	const nextCursor = $derived(pages.nextCursor);
+	const loaded = $derived(view.data !== null);
+	const loadError = $derived(view.data ? null : view.error || null);
+	const load = () => view.reload();
+
+	// Offices come with every first page; kept while another filter loads.
 	$effect(() => {
-		if (shell.state.kind === 'ready' && !started) {
-			started = true;
-			void load();
-		}
+		const shown = view.data;
+		if (!shown) return;
+		offices = shown.offices;
+		now = Date.now();
 	});
 
+	async function loadMore() {
+		await pages.more(async (cursor) => {
+			const result = await read(cursor);
+			return result.ok ? { ok: true, value: result.value.page } : result;
+		});
+		if (pages.error) notice = { ok: false, text: pages.error };
+	}
+
+	/** The filter is part of the read: changing it reads again. */
 	function setFilter(value: StatusFilter) {
 		filter = value;
-		void load();
 	}
 
 	const failureOf = <A,>(exit: Exit.Exit<A, ApiFailure>) =>
@@ -344,6 +352,8 @@
 		{/if}
 	</section>
 
+	<CacheNote savedAt={view.savedAt} online={shell.online} failed={!!view.error} />
+
 	<fieldset class="filter">
 		<legend class="visually-hidden">Show invitations</legend>
 		{#each STATUS_FILTERS as option (option.value)}
@@ -468,9 +478,9 @@
 			<button
 				type="button"
 				class="ghost more-rows"
-				disabled={loadingMore}
-				aria-busy={loadingMore}
-				onclick={() => load(true)}>Show more</button
+				disabled={pages.loading}
+				aria-busy={pages.loading}
+				onclick={loadMore}>Show more</button
 			>
 		{/if}
 	{/if}

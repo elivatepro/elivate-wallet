@@ -10,6 +10,7 @@
 	import { PocketTransfer, TransferPage, WithdrawalAppRoutes } from '#lib/contract/withdrawals.js';
 	import type { Currency } from '#lib/contract/ledger.js';
 	import { getJson, newKey, sendCommand } from '#lib/client/api.js';
+	import { cachedPage, MorePages, type PageLoaded } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { initials } from '#lib/activity.js';
 	import { ROLE_LABELS } from '#lib/labels.js';
@@ -22,14 +23,12 @@
 	import QueueTabs from '#lib/ui/money/QueueTabs.svelte';
 	import '#lib/ui/money/money.css';
 	import NoAccess from '#lib/ui/app/NoAccess.svelte';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 
 	const shell = getContext<Shell>('shell');
 	type Tab = 'waiting' | 'history';
 
 	let tab = $state<Tab>('waiting');
-	let page = $state<TransferPage | null>(null);
-	let loadError = $state<string | null>(null);
-	let denied = $state(false);
 	let selectedId = $state<string | null>(null);
 	let busy = $state(false);
 	let error = $state<string | null>(null);
@@ -41,51 +40,40 @@
 	const workspaceId = $derived(
 		shell.state.kind === 'ready' ? shell.state.view.workspace.membershipId : null
 	);
-	let items = $state<TransferPage['items'][number][]>([]);
-	let loadingMore = $state(false);
-	const selected = $derived(items.find((t) => t.transferId === selectedId) ?? null);
-
-	/** Only the newest read is applied (a slower, older tab must not win). */
-	let seq = 0;
-	/** A replacement first page is loading: its cursor isn't known yet. */
-	let loadingFirst = $state(false);
-	async function load(more = false) {
-		const mine = ++seq;
-		const listFor = tab;
-		if (!more) loadingFirst = true;
-		const cursor = more && page?.nextCursor ? `&cursor=${encodeURIComponent(page.nextCursor)}` : '';
-		if (more) loadingMore = true;
-		const exit = await Effect.runPromiseExit(
-			getJson(`${WithdrawalAppRoutes.transfers}?tab=${tab}${cursor}`, TransferPage)
-		);
-		loadingMore = false;
-		if (mine !== seq || listFor !== tab) return;
-		if (!more) loadingFirst = false;
-		if (Exit.isSuccess(exit)) {
-			page = exit.value;
-			items = more ? [...items, ...exit.value.items] : [...exit.value.items];
-			loadError = null;
-			denied = false;
-			if (!items.some((t) => t.transferId === selectedId)) {
-				selectedId = items[0]?.transferId ?? null;
-			}
-			return;
-		}
+	const DENIED = 'Only people who approve pocket moves see this.';
+	async function read(path: string): Promise<PageLoaded<TransferPage>> {
+		const exit = await Effect.runPromiseExit(getJson(path, TransferPage));
+		if (Exit.isSuccess(exit)) return { ok: true, value: exit.value };
 		const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
-		denied = failure?._tag === 'BackendError' && failure.code === 'authorization_denied';
-		loadError = denied
-			? 'Only people who approve pocket moves see this.'
-			: 'We couldn’t load the pocket moves.';
+		const isBackend = failure?._tag === 'BackendError';
+		const denied = isBackend && failure.code === 'authorization_denied';
+		return {
+			ok: false,
+			text: denied ? DENIED : 'We couldn’t load the pocket moves.',
+			status: isBackend ? failure.status : null
+		};
 	}
 
-	let loadedFor = $state<string | null>(null);
-	$effect(() => {
-		const k = `${workspaceId}:${tab}`;
-		if (workspaceId && loadedFor !== k) {
-			loadedFor = k;
-			void load();
-		}
+	// Blueprint 23: each tab's first page opens from cache, then refreshes (a
+	// new tab is a new `part`, so it reads again by itself).
+	const view = cachedPage(shell, {
+		kind: 'transfers',
+		part: () => tab,
+		load: () => read(`${WithdrawalAppRoutes.transfers}?tab=${tab}`)
 	});
+	const pages = new MorePages<TransferPage['items'][number]>(() => view.data);
+	const page = $derived(view.data);
+	const items = $derived(pages.items);
+	const denied = $derived(view.error === DENIED);
+	const loadError = $derived(view.data ? null : view.error);
+	// Kept by id: a refresh keeps the selection while the move is still listed.
+	const selected = $derived(items.find((t) => t.transferId === selectedId) ?? items[0] ?? null);
+	const loadMore = () => {
+		const forTab = tab;
+		return pages.more((cursor) =>
+			read(`${WithdrawalAppRoutes.transfers}?tab=${forTab}&cursor=${encodeURIComponent(cursor)}`)
+		);
+	};
 
 	async function act(action: 'approve' | 'reject', reason?: string) {
 		if (!selected || !workspaceId) return;
@@ -109,14 +97,14 @@
 				action === 'approve'
 					? `Moved ${money(exit.value.amount, exit.value.currency)} from ${exit.value.from.name} to ${exit.value.to.name}.`
 					: 'Declined. The hold is released.';
-			void load();
+			// The command invalidated 'transfers': the list reads again by itself.
 			return;
 		}
 		const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
 		if (failure && !isUnknownOutcome(failure)) key = newKey();
 		if (rejectOpen) dialogError = moveMessage(failure);
 		else error = moveMessage(failure);
-		if (failure?._tag === 'BackendError' && failure.code === 'conflict') void load();
+		if (failure?._tag === 'BackendError' && failure.code === 'conflict') void view.reload();
 	}
 
 	const money = (amount: string, currency: string) =>
@@ -145,6 +133,7 @@
 {:else}
 	<div class="mm-page">
 		<QueueTabs {tabs} bind:value={tab} label="Pocket moves" />
+		<CacheNote savedAt={view.savedAt} online={shell.online} failed={view.error !== null} />
 		{#if notice}<p class="mm-notice" role="status">{notice}</p>{/if}
 
 		{#if !page && !loadError}
@@ -170,7 +159,7 @@
 								<button
 									type="button"
 									class="mm-row"
-									aria-current={selectedId === t.transferId ? 'true' : undefined}
+									aria-current={selected?.transferId === t.transferId ? 'true' : undefined}
 									onclick={() => {
 										selectedId = t.transferId;
 										error = null;
@@ -190,13 +179,14 @@
 								</button>
 							{/each}
 						</div>
-						{#if page.nextCursor}
+						{#if pages.nextCursor}
 							<button
 								type="button"
 								class="mm-btn sm more"
-								disabled={loadingMore || loadingFirst}
-								onclick={() => load(true)}>{loadingMore ? 'Loading…' : 'Show more'}</button
+								disabled={pages.loading}
+								onclick={loadMore}>{pages.loading ? 'Loading…' : 'Show more'}</button
 							>
+							{#if pages.error}<p class="mm-empty" role="alert">{pages.error}</p>{/if}
 						{/if}
 					{/if}
 					{#if tab === 'waiting' && page.counts.open > 0}

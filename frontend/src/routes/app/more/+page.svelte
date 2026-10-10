@@ -465,6 +465,15 @@
 		cursor: pointer;
 	}
 
+	/* Blueprint 23: the row answers the press at once. */
+	.row {
+		-webkit-tap-highlight-color: transparent;
+	}
+
+	.row:active {
+		background: var(--color-raised);
+	}
+
 	.row + .row {
 		border-top: 1px solid #ffffff0a;
 	}

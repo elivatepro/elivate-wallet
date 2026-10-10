@@ -27,6 +27,7 @@
 	import type { Currency } from '#lib/contract/ledger.js';
 	import { getJson } from '#lib/client/api.js';
 	import { CommandAttempt, showsRecovery } from '#lib/client/command-attempt.svelte.js';
+	import { cachedPage, type PageLoaded } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { typeLabel } from '#lib/activity.js';
 	import { entryMessage, REVERSAL_LABELS } from '#lib/entries.js';
@@ -35,6 +36,7 @@
 	import RootDialog from '#lib/ui/account/RootDialog.svelte';
 	import Outcome from '#lib/ui/app/Outcome.svelte';
 	import OutcomeUnknown from '#lib/ui/app/OutcomeUnknown.svelte';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
 	import '#lib/ui/money/entry.css';
 
@@ -43,9 +45,14 @@
 		shell.state.kind === 'ready' ? shell.state.view.workspace.membershipId : null
 	);
 
-	let lookup = $state(page.url.searchParams.get('reference') ?? '');
-	let preview = $state<ReversalPreview | null>(null);
-	let lookupError = $state<string | null>(null);
+	const linkedReference = (page.url.searchParams.get('reference') ?? '').trim();
+	let lookup = $state(linkedReference);
+	const REFERENCE = /^[A-Za-z0-9-]{11,20}$/;
+	const BAD_REFERENCE = 'Type a reference like INC-7F2K-0931.';
+	/** The reference looked up (opened from ?reference= at once); null: none chosen. */
+	const linkedValid = REFERENCE.test(linkedReference);
+	let searched = $state<string | null>(linkedValid ? linkedReference : null);
+	let typedError = $state<string | null>(linkedReference && !linkedValid ? BAD_REFERENCE : null);
 	let looking = $state(false);
 	let category = $state<ReversalCategory>('recorded_twice');
 	let note = $state('');
@@ -74,15 +81,8 @@
 	const recovering = $derived(showsRecovery(attempt));
 	const result = $derived(attempt.state.kind === 'done' ? attempt.state.result : null);
 
-	async function find(event?: SubmitEvent) {
-		event?.preventDefault();
-		const reference = lookup.trim();
-		if (!/^[A-Za-z0-9-]{11,20}$/.test(reference)) {
-			lookupError = 'Type a reference like INC-7F2K-0931.';
-			return;
-		}
+	async function lookUp(reference: string): Promise<PageLoaded<ReversalPreview>> {
 		looking = true;
-		lookupError = null;
 		const exit = await Effect.runPromiseExit(
 			getJson(
 				`${EntryAppRoutes.reversalPreview}?reference=${encodeURIComponent(reference)}`,
@@ -90,25 +90,52 @@
 			)
 		);
 		looking = false;
-		if (Exit.isSuccess(exit)) {
-			preview = exit.value;
-			confirm = '';
-			formError = null;
+		if (Exit.isSuccess(exit)) return { ok: true, value: exit.value };
+		const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
+		const isBackend = failure?._tag === 'BackendError';
+		return {
+			ok: false,
+			text:
+				isBackend && failure.code === 'authorization_denied'
+					? 'Only the President reverses transactions.'
+					: entryMessage(failure),
+			status: isBackend ? failure.status : null
+		};
+	}
+
+	// Blueprint 23: a looked-up transaction opens from cache (per reference),
+	// then refreshes; reversing waits for the fresh copy (it shows what each
+	// pocket still has available). The reversal itself always goes to the server.
+	const view = cachedPage(shell, {
+		kind: 'entries',
+		part: () => (searched ? `reversal-${searched.toLowerCase()}` : undefined),
+		enabled: () => searched !== null,
+		cacheable: () => searched !== null,
+		load: () => lookUp(searched ?? '')
+	});
+	const preview = $derived(searched ? view.data : null);
+	const lookupError = $derived(typedError ?? (searched && !view.data ? view.error : null));
+
+	function find(event?: SubmitEvent) {
+		event?.preventDefault();
+		const reference = lookup.trim();
+		if (!REFERENCE.test(reference)) {
+			typedError = BAD_REFERENCE;
 			return;
 		}
-		const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
-		lookupError =
-			failure?._tag === 'BackendError' && failure.code === 'authorization_denied'
-				? 'Only the President reverses transactions.'
-				: entryMessage(failure);
+		typedError = null;
+		confirm = '';
+		formError = null;
+		// A new reference is a new `part` and reads by itself; the same one reads again.
+		if (searched === reference) void view.reload();
+		else searched = reference;
 	}
-	let started = false;
-	$effect(() => {
-		if (workspaceId && !started) {
-			started = true;
-			if (lookup) void find();
-		}
-	});
+
+	function chooseAnother() {
+		searched = null;
+		view.clear();
+		confirm = '';
+	}
 
 	const tx = $derived(preview?.transaction ?? null);
 	/** The member-side total per currency (the original's sign). */
@@ -238,6 +265,7 @@
 		<span></span>
 	</header>
 	<div class="en-page">
+		<CacheNote savedAt={view.savedAt} online={shell.online} failed={view.error !== null} />
 		<form
 			class="en-layout"
 			onsubmit={(e) => {
@@ -267,13 +295,8 @@
 							</span>
 							<span class="o-amount" class:credit>{original}</span>
 						</div>
-						<button
-							type="button"
-							class="change"
-							onclick={() => {
-								preview = null;
-								confirm = '';
-							}}>Choose another transaction</button
+						<button type="button" class="change" onclick={chooseAnother}
+							>Choose another transaction</button
 						>
 					{:else}
 						<div class="en-row">
@@ -341,8 +364,11 @@
 					<button
 						type="submit"
 						class="en-primary danger en-mobile-only"
-						disabled={!shell.canAct || shell.paused('reversals') || busy || !!blockerText}
-						>Reverse transaction</button
+						disabled={!shell.canAct ||
+							shell.paused('reversals') ||
+							busy ||
+							!!blockerText ||
+							view.savedAt !== null}>Reverse transaction</button
 					>
 				{/if}
 			</div>
@@ -375,8 +401,11 @@
 							<button
 								type="submit"
 								class="en-primary danger"
-								disabled={!shell.canAct || shell.paused('reversals') || busy || !!blockerText}
-								>Reverse transaction</button
+								disabled={!shell.canAct ||
+									shell.paused('reversals') ||
+									busy ||
+									!!blockerText ||
+									view.savedAt !== null}>Reverse transaction</button
 							>
 						</div>
 					</div>

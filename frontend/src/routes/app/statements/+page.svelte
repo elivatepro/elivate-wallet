@@ -6,7 +6,7 @@
 	WAT. Files are made by a background job and kept 7 days.
 -->
 <script lang="ts">
-	import { onDestroy } from 'svelte';
+	import { getContext, onDestroy, untrack } from 'svelte';
 	import { Effect, Exit } from 'effect';
 	import { ExportFile, StatementsView, type StatementNetwork } from '#lib/contract/exports.js';
 	import type { Currency } from '#lib/contract/ledger.js';
@@ -18,16 +18,18 @@
 		retryFile,
 		saveBlob
 	} from '#lib/client/exports.svelte.js';
+	import { cachedPage } from '#lib/client/page-cache.svelte.js';
+	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { periodPresets, recreatePeriod, watToday, type Period } from '#lib/statements.js';
 	import PageBar from '#lib/ui/account/PageBar.svelte';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import FileList from '#lib/ui/exports/FileList.svelte';
 	import PeriodPicker from '#lib/ui/exports/PeriodPicker.svelte';
 	import PreviewDialog from '#lib/ui/exports/PreviewDialog.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
 	import '#lib/ui/exports/exports.css';
 
-	let view = $state<StatementsView | null>(null);
-	let failed = $state<string | null>(null);
+	const shell = getContext<Shell>('shell');
 	let tenantId = $state<string | null>(null);
 	let currency = $state<Currency>('NGN');
 	let period = $state<Period>(periodPresets(watToday())[1]!);
@@ -48,23 +50,42 @@
 	});
 	onDestroy(() => files.stop());
 
-	async function load() {
-		failed = null;
-		const exit = await Effect.runPromiseExit(getJson('/api/statements', StatementsView));
-		if (Exit.isFailure(exit)) {
-			failed = messageOf(exit, 'We couldn’t load your statements.');
-			return;
+	// Blueprint 23: the options and the first page of files open from cache,
+	// then refresh. Files carry no download links (downloads go through the
+	// app server by export id), so the whole view is kept.
+	const page = cachedPage(shell, {
+		kind: 'statements',
+		load: async () => {
+			const exit = await Effect.runPromiseExit(getJson('/api/statements', StatementsView));
+			return Exit.isSuccess(exit)
+				? { ok: true, value: exit.value }
+				: { ok: false, text: messageOf(exit, 'We couldn’t load your statements.'), status: null };
 		}
-		view = exit.value;
-		files.set(exit.value.files.items, exit.value.files.nextCursor);
-		const first = exit.value.options.networks[0];
-		if (first && !tenantId) {
-			tenantId = first.tenantId;
-			currency = first.currencies[0] ?? 'NGN';
-		}
-		period = periodPresets(exit.value.options.today)[1]!;
-	}
-	void load();
+	});
+	const view = $derived(page.data);
+	const failed = $derived(page.data ? null : page.error);
+	const load = () => page.reload();
+	/** The default period last chosen for the person; a period they picked stays. */
+	let seeded: Period | null = null;
+	const samePeriod = (a: Period, b: Period) =>
+		a.kind === b.kind && a.from === b.from && a.to === b.to;
+
+	$effect(() => {
+		const data = page.data;
+		if (!data) return;
+		untrack(() => {
+			files.set(data.files.items, data.files.nextCursor);
+			const first = data.options.networks[0];
+			if (first && !tenantId) {
+				tenantId = first.tenantId;
+				currency = first.currencies[0] ?? 'NGN';
+			}
+			if (!seeded || samePeriod(period, seeded)) {
+				period = periodPresets(data.options.today)[1]!;
+				seeded = period;
+			}
+		});
+	});
 
 	const networks = $derived<readonly StatementNetwork[]>(view?.options.networks ?? []);
 	const network = $derived(networks.find((n) => n.tenantId === tenantId) ?? networks[0] ?? null);
@@ -146,6 +167,8 @@
 </script>
 
 <PageBar title="Statements" back="/app/more" backLabel="Back to More" />
+
+<CacheNote savedAt={page.savedAt} online={shell.online} failed={page.error !== null} />
 
 {#if failed}
 	<section class="ex-problem" role="alert">

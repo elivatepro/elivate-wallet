@@ -7,7 +7,7 @@
 	listed under the form.
 -->
 <script lang="ts">
-	import { getContext } from 'svelte';
+	import { getContext, untrack } from 'svelte';
 	import { Cause, Effect, Exit, Option } from 'effect';
 	import type { Currency } from '#lib/contract/ledger.js';
 	import {
@@ -19,6 +19,8 @@
 		type TransferChoice
 	} from '#lib/contract/withdrawals.js';
 	import { getJson, newKey } from '#lib/client/api.js';
+	import { loadView } from '#lib/client/org.svelte.js';
+	import { cachedPage, MorePages, type PageLoaded } from '#lib/client/page-cache.svelte.js';
 	import { CommandAttempt } from '#lib/client/command-attempt.svelte.js';
 	import { sendCommand } from '#lib/client/api.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
@@ -32,6 +34,7 @@
 	import Pill from '#lib/ui/money/Pill.svelte';
 	import '#lib/ui/money/money.css';
 	import NoAccess from '#lib/ui/app/NoAccess.svelte';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 
 	const shell = getContext<Shell>('shell');
 	// Same pocket colours as Pockets & split (Paper L01).
@@ -44,9 +47,6 @@
 		'#c9a3ff'
 	];
 
-	let choices = $state<TransferChoices | null>(null);
-	let mine = $state<TransferPage | null>(null);
-	let loadError = $state<string | null>(null);
 	let denied = $state(false);
 	let groupIndex = $state(0);
 	let fromId = $state<string | null>(null);
@@ -81,31 +81,49 @@
 	);
 	const sent = $derived(attempt.state.kind === 'done' ? attempt.state.result : null);
 
-	/** Bumped by every first-page reload; a pending next page from before is dropped. */
-	let movesVersion = 0;
-	async function load() {
-		movesVersion++;
-		const [c, m] = await Promise.all([
-			Effect.runPromiseExit(getJson(WithdrawalAppRoutes.choices, TransferChoices)),
-			Effect.runPromiseExit(getJson(`${WithdrawalAppRoutes.moves}?status=open`, TransferPage))
-		]);
-		if (Exit.isSuccess(c)) {
-			choices = c.value;
-			const g = c.value.groups[groupIndex];
-			fromId ??= g?.pockets.find((p) => p.canSend)?.pocketId ?? null;
-			loadError = null;
+	// Blueprint 23: the pockets to move between and my open requests open from
+	// cache, then refresh (two reads, at once). Review waits for the fresh
+	// pockets; the server checks the amount either way.
+	async function loadChoices(): Promise<PageLoaded<TransferChoices>> {
+		const exit = await Effect.runPromiseExit(getJson(WithdrawalAppRoutes.choices, TransferChoices));
+		if (Exit.isSuccess(exit)) {
 			denied = false;
-		} else {
-			const failure = Option.getOrUndefined(Cause.findErrorOption(c.cause));
-			denied = failure?._tag === 'BackendError' && failure.code === 'authorization_denied';
-			loadError = denied
-				? 'Pocket moves aren’t open to you in this network.'
-				: 'We couldn’t load your pockets.';
+			return { ok: true, value: exit.value };
 		}
-		if (Exit.isSuccess(m)) mine = { ...m.value, items: [...m.value.items] };
+		const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
+		denied = failure?._tag === 'BackendError' && failure.code === 'authorization_denied';
+		if (denied) choicesView.clear();
+		return { ok: false, text: 'We couldn’t load your pockets.', status: null };
 	}
+	const choicesView = cachedPage(shell, {
+		kind: 'split',
+		part: () => 'move-choices',
+		load: loadChoices
+	});
+	const movesView = cachedPage(shell, {
+		kind: 'split',
+		part: () => 'move-open',
+		load: () => loadView(`${WithdrawalAppRoutes.moves}?status=open`, TransferPage)
+	});
+	const morePages = new MorePages<Transfer>(() => movesView.data);
+	const choices = $derived(choicesView.data);
+	const mine = $derived(
+		movesView.data ? { items: morePages.items, nextCursor: morePages.nextCursor } : null
+	);
+	const loadError = $derived(
+		denied
+			? 'Pocket moves aren’t open to you in this network.'
+			: choicesView.data
+				? null
+				: choicesView.error
+	);
+	// The first pocket that can send, once; a choice survives fresh data replacing cached.
 	$effect(() => {
-		if (shell.state.kind === 'ready' && !choices && !loadError) void load();
+		const g = choicesView.data?.groups[untrack(() => groupIndex)];
+		if (!g) return;
+		untrack(() => {
+			fromId ??= g.pockets.find((p) => p.canSend)?.pocketId ?? null;
+		});
 	});
 
 	const money = (amount: string, currency: string) =>
@@ -155,22 +173,14 @@
 		}
 	}
 
-	let loadingMore = $state(false);
-	async function moreMoves() {
-		if (!mine?.nextCursor) return;
-		const version = movesVersion;
-		loadingMore = true;
-		const exit = await Effect.runPromiseExit(
-			getJson(
-				`${WithdrawalAppRoutes.moves}?status=open&cursor=${encodeURIComponent(mine.nextCursor)}`,
+	const loadingMore = $derived(morePages.loading);
+	const moreMoves = () =>
+		morePages.more((cursor) =>
+			loadView(
+				`${WithdrawalAppRoutes.moves}?status=open&cursor=${encodeURIComponent(cursor)}`,
 				TransferPage
 			)
 		);
-		loadingMore = false;
-		if (Exit.isSuccess(exit) && mine && version === movesVersion) {
-			mine = { ...exit.value, items: [...mine.items, ...exit.value.items] };
-		}
-	}
 
 	async function cancel(t: Transfer) {
 		if (shell.state.kind !== 'ready') return;
@@ -186,8 +196,8 @@
 		if (Exit.isSuccess(exit)) {
 			cancelKey = newKey();
 			notice = `Cancelled. ${money(t.amount, t.currency)} is back in ${t.from.name}.`;
-			choices = null;
-			void load();
+			void choicesView.reload();
+			void movesView.reload();
 			return;
 		}
 		const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
@@ -233,6 +243,11 @@
 		</ol>
 
 		{#if notice}<p class="mm-notice" role="status">{notice}</p>{/if}
+		<CacheNote
+			savedAt={choicesView.savedAt}
+			online={shell.online}
+			failed={choicesView.error !== null}
+		/>
 
 		{#if !choices && !loadError}
 			<div class="mm-skeleton" aria-hidden="true"></div>
@@ -342,7 +357,8 @@
 							<button
 								type="submit"
 								class="mm-btn primary grow-0"
-								disabled={!shell.canAct || shell.paused('transfers')}>Continue to review</button
+								disabled={!shell.canAct || shell.paused('transfers') || !choicesView.fresh}
+								>Continue to review</button
 							>
 						</div>
 					{:else if from && to && amount}

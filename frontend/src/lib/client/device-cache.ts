@@ -12,6 +12,9 @@
 // - Erased on sign-out (and whenever the sign-in page is shown).
 // - Never: bank/account numbers, evidence files, tokens, auth responses. A
 //   forbidden-field guard refuses such payloads even if a caller tries.
+//   Masked values (`…Masked`, `…Last4`) pass only when they show 4 digits or
+//   fewer (Blueprint 23).
+// - Blueprint 23: every /app page that reads data has a kind of its own.
 
 export const CACHE_KINDS = [
 	'workspace',
@@ -20,7 +23,25 @@ export const CACHE_KINDS = [
 	'offices',
 	'members',
 	'wallets',
-	'settings'
+	'settings',
+	// Blueprint 23: the rest of the app's reads.
+	'withdrawals',
+	'payout-accounts',
+	'notifications',
+	'queue',
+	'transfers',
+	'evidence',
+	'statements',
+	'reports',
+	'invitations',
+	'split',
+	'audit',
+	'billing',
+	'nin-reviews',
+	'access',
+	'account',
+	'entries',
+	'vault'
 ] as const;
 export type CacheKind = (typeof CACHE_KINDS)[number];
 
@@ -53,7 +74,16 @@ export interface KeyValueStore {
 }
 
 const FORBIDDEN_FIELD =
-	/(account_?number|accountNo|nuban|iban|bvn|nin\b|token|secret|password|^pin$|pinConfirm|evidence|receipt|authorization|cookie|session_?id)/i;
+	/(account_?number|accountNo|nuban|iban|bvn|nin\b|token|secret|password|^pin$|pinConfirm|evidence|receipt|authorization|cookie|session_?id|recipientAccount|(upload|download|signed)Url)/i;
+
+/**
+ * Blueprint 23: a masked bank or NIN value (`accountNumberMasked`,
+ * `accountLast4`, `ninLast4`) may be kept, but only while it shows 4 digits or
+ * fewer; a full number under such a name is still refused.
+ */
+const MASKED_FIELD = /(Masked|Last4)$/;
+const isMasked = (value: unknown) =>
+	typeof value === 'string' && (value.match(/[0-9]/g) ?? []).length <= 4;
 
 /** Throws if a payload carries a field that must never be cached. */
 export function assertCacheable(value: unknown, path = ''): void {
@@ -63,7 +93,15 @@ export function assertCacheable(value: unknown, path = ''): void {
 	}
 	if (value !== null && typeof value === 'object') {
 		for (const [key, inner] of Object.entries(value)) {
-			if (FORBIDDEN_FIELD.test(key)) {
+			if (MASKED_FIELD.test(key)) {
+				if (!isMasked(inner)) {
+					throw new Error(`device cache refused an unmasked value at ${path}.${key}`);
+				}
+				continue;
+			}
+			// Blueprint 23: an empty (null) forbidden field holds nothing, so a
+			// page may keep a projection with such fields set to null.
+			if (FORBIDDEN_FIELD.test(key) && inner !== null) {
 				throw new Error(`device cache refused a forbidden field at ${path}.${key}`);
 			}
 			assertCacheable(inner, `${path}.${key}`);
@@ -92,11 +130,12 @@ export interface CacheOptions {
 	readonly now?: number;
 	/** The cache guard; defaults to the `ew_who` cookie. */
 	readonly who?: string | null;
-	/** A sub-entry of a kind (e.g. `overview` under `wallets`). */
+	/** A sub-entry of a kind (e.g. `overview` under `wallets`, or a record id). */
 	readonly part?: string;
 }
 
-const PART_PATTERN = /^[a-z0-9-]{1,32}$/;
+// Blueprint 23: long enough for a record id (uuid) or a short filter key.
+const PART_PATTERN = /^[a-z0-9-]{1,64}$/;
 
 const keyFor = (scope: CacheScope, kind: CacheKind, part?: string) =>
 	`${PREFIX}${encodeURIComponent(scope.uid)}:${encodeURIComponent(scope.workspaceId)}:${kind}${
@@ -122,9 +161,41 @@ export function writeCache<T>(
 	const entry = { uid: scope.uid, workspaceId: scope.workspaceId, who, savedAt: now, data };
 	try {
 		store.setItem(keyFor(scope, kind, options.part), JSON.stringify(entry));
+		if (options.part !== undefined) trimParts(store, scope, kind, options.part);
 	} catch {
 		// Quota or privacy mode: caching is best-effort, never required.
 	}
+}
+
+/**
+ * Blueprint 23: at most this many record parts of one family (e.g. opened
+ * members, or `seg-<id>` pockets) per kind and scope.
+ */
+export const MAX_PARTS = 20;
+
+/** The family of a part: its text without a trailing record id. */
+const partFamily = (part: string) =>
+	part.replace(/[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/, '#');
+
+/** Keeps the newest MAX_PARTS parts of a family; detail pages would otherwise pile up. */
+function trimParts(store: KeyValueStore, scope: CacheScope, kind: CacheKind, part: string): void {
+	const family = partFamily(part);
+	if (family === part) return; // a fixed sub-key (e.g. `overview`), not a record
+	const prefix = `${keyFor(scope, kind)}:`;
+	const parts = store
+		.keys()
+		.filter((key) => key.startsWith(prefix) && partFamily(key.slice(prefix.length)) === family)
+		.map((key) => {
+			try {
+				const saved = (JSON.parse(store.getItem(key) ?? '') as { savedAt?: unknown }).savedAt;
+				return { key, savedAt: typeof saved === 'number' ? saved : 0 };
+			} catch {
+				return { key, savedAt: 0 };
+			}
+		});
+	if (parts.length <= MAX_PARTS) return;
+	parts.sort((a, b) => b.savedAt - a.savedAt);
+	for (const { key } of parts.slice(MAX_PARTS)) store.removeItem(key);
 }
 
 /**

@@ -328,17 +328,52 @@
 		untrack(() => void load());
 	});
 
+	// Blueprint 23: your own transaction detail opens from cache (kind 'history',
+	// part = the transaction id), then refreshes. A managed wallet's detail
+	// (leaders see visible segments only) is always read fresh.
+	const DETAIL_PART = /^[a-z0-9-]{1,64}$/;
+	let detailRead: CachedRead<TransactionDetail> | null = $state.raw(null);
+	let detailSavedAt = $state<number | null>(null);
+	let detailFailed = $state(false);
+
 	$effect(() => {
 		const id = selected;
-		detail = null;
-		detailError = null;
+		const part = id?.toLowerCase() ?? '';
+		const read =
+			id && !wallet && DETAIL_PART.test(part)
+				? new CachedRead<TransactionDetail>('history', part)
+				: null;
+		untrack(() => {
+			detailRead = read;
+			detail = null;
+			detailError = null;
+			detailSavedAt = null;
+			detailFailed = false;
+			if (read?.show() && read.data) {
+				detail = read.data;
+				detailSavedAt = read.savedAt;
+			}
+		});
 		if (!id || !shell.readable) return;
 		const current = new AbortController();
 		const path = `/api/activity/${encodeURIComponent(id)}${wallet ? `?wallet=${wallet}` : ''}`;
+		const ticket = read?.begin() ?? null;
 		void Effect.runPromiseExit(getJson(path, DetailSchema, current.signal)).then((exit) => {
 			if (current.signal.aborted) return;
-			if (Exit.isSuccess(exit)) detail = exit.value;
-			else {
+			if (Exit.isSuccess(exit)) {
+				// Another tab switched workspace while this ran: not ours to show.
+				if (read && ticket && !read.fresh(exit.value, shell.scope, ticket)) {
+					detail = null;
+					detailSavedAt = null;
+					return;
+				}
+				detail = exit.value;
+				detailSavedAt = null;
+				detailFailed = false;
+			} else if (detail && detailSavedAt !== null) {
+				// The saved copy stays on screen; the note says when it was saved.
+				detailFailed = true;
+			} else {
 				const error = failureOf(exit);
 				detailError =
 					error?._tag === 'BackendError' && error.code === 'not_found'
@@ -347,6 +382,16 @@
 			}
 		});
 		return () => current.abort();
+	});
+	$effect(() => {
+		const read = detailRead;
+		if (!shell.scope || !read) return;
+		read.confirm(shell.scope);
+		// The saved copy belonged to another person or workspace: hide it.
+		if (untrack(() => detailSavedAt) !== null && !read.data) {
+			detail = null;
+			detailSavedAt = null;
+		}
 	});
 
 	function select(id: string | null) {
@@ -461,6 +506,7 @@
 {/snippet}
 
 {#if !wide && selected}
+	<CacheNote savedAt={detailSavedAt} online={shell.online} failed={detailFailed} />
 	{#if detail}
 		<TransactionDetailView
 			{detail}
@@ -479,7 +525,11 @@
 {:else}
 	<div class="activity">
 		<h1 class="title" tabindex="-1">{heading}</h1>
-		<CacheNote savedAt={cachedAt} online={shell.online} failed={failure !== null} />
+		<CacheNote
+			savedAt={cachedAt ?? (wide ? detailSavedAt : null)}
+			online={shell.online}
+			failed={failure !== null || detailFailed}
+		/>
 		<div class="toolbar">
 			<label class="search">
 				<Search size={16} strokeWidth={2} aria-hidden="true" />

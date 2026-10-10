@@ -243,19 +243,34 @@ describe('CommandAttempt invalidation (Blueprint 20 B6)', () => {
 		['submit_adjustment', '/api/adjustments'],
 		['reverse_transaction', '/api/reversals'],
 		['request_pocket_transfer', '/api/pocket-moves']
-	])('%s clears balances, history and wallets on success', async (command, path) => {
+	])('%s clears every money kind on success (Blueprint 23 list)', async (command, path) => {
 		const { attempt, cleared } = make(command, path);
 		await attempt.send('ws-1', {});
-		expect(cleared).toEqual([['balances', 'history', 'wallets', 'offices']]);
+		expect(cleared).toEqual([
+			[
+				'balances',
+				'history',
+				'wallets',
+				'offices',
+				'withdrawals',
+				'queue',
+				'transfers',
+				'evidence',
+				'split',
+				'entries',
+				'reports',
+				'statements'
+			]
+		]);
 	});
 
 	it('falls back to the path for other commands', async () => {
 		const org = make('rename_office', '/api/org/offices/x');
 		await org.attempt.send('ws-1', {});
-		expect(org.cleared).toEqual([['offices', 'members']]);
+		expect(org.cleared).toEqual([['offices', 'members', 'access', 'invitations', 'audit']]);
 		const settings = make('save_settings', '/api/settings');
 		await settings.attempt.send('ws-1', {});
-		expect(settings.cleared).toEqual([['settings']]);
+		expect(settings.cleared).toEqual([['settings', 'vault']]);
 	});
 
 	it('clears nothing when the command is refused', async () => {

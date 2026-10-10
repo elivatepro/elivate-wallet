@@ -16,6 +16,8 @@ import {
 import { isRetryableRead, type ApiFailure } from '#lib/contract/errors.js';
 import { READ_TIMEOUT_MS, requestJson } from '#lib/contract/transport.js';
 import { sendCommand } from './api';
+import type { CacheScope } from './device-cache';
+import { CachedRead } from './page-cache.svelte';
 
 const POLL_MS = 60_000;
 
@@ -65,15 +67,70 @@ export class Bell {
 	view: NotificationView = $state('unread');
 	list: BellList = $state({ kind: 'idle' });
 	more = $state(false);
+	/** Blueprint 23: when the shown list was saved; null once fresh (or nothing cached). */
+	savedAt: number | null = $state(null);
+	/** Blueprint 23: the refresh failed while a saved list is shown. */
+	failed = $state(false);
 	#workspace: () => string | null;
+	#scope: () => CacheScope | null;
+	#confirmed: CacheScope | null = null;
 	#generation = 0;
+	#marking = false;
+	// Blueprint 23: the first page of each view, cached as kind 'notifications'
+	// with part 'unread' or 'all' (safe display params only, Blueprint 13).
+	readonly #reads: Record<NotificationView, CachedRead<NotificationPage>> = {
+		unread: new CachedRead<NotificationPage>('notifications', 'unread'),
+		all: new CachedRead<NotificationPage>('notifications', 'all')
+	};
 
-	constructor(workspace: () => string | null) {
+	/**
+	 * `scope` (optional) is the shell's confirmed user and workspace; without
+	 * it a fresh list is kept once a page calls `confirm`.
+	 */
+	constructor(workspace: () => string | null, scope: () => CacheScope | null = () => null) {
 		this.#workspace = workspace;
+		this.#scope = scope;
 	}
 
-	/** Polls the badge; returns the stop function. */
+	/** Blueprint 23: the session named the scope: keep or drop the cached lists. */
+	confirm(scope: CacheScope): void {
+		this.#confirmed = scope;
+		for (const view of ['unread', 'all'] as const) this.#reads[view].confirm(scope);
+		// The saved list shown belonged to another person or workspace: hide it.
+		if (this.savedAt !== null && this.#reads[this.view].data === null) {
+			this.savedAt = null;
+			this.list = { kind: 'loading' };
+		}
+	}
+
+	/**
+	 * Blueprint 23: shows the saved first page of `view` before the workspace
+	 * is known (the read itself waits for it). Nothing happens when a list is
+	 * already shown or nothing is saved.
+	 */
+	preview(view: NotificationView): void {
+		if (this.list.kind === 'ready') return;
+		const cache = this.#reads[view];
+		if (!cache.show() || !cache.data) return;
+		this.view = view;
+		this.#show(cache.data);
+		this.savedAt = cache.savedAt;
+	}
+
+	/** Polls the badge and follows the cached lists; returns the stop function. */
 	start(): () => void {
+		const unwatch = (['unread', 'all'] as const).map((view) =>
+			// Blueprint 23: a command cleared the cache, or the saved copy belonged
+			// to another person or workspace: read the shown view again.
+			this.#reads[view].watch(() => {
+				if (this.#marking || this.view !== view) return;
+				if (this.#reads[view].data === null && this.savedAt !== null) {
+					this.savedAt = null;
+					this.list = { kind: 'loading' };
+				}
+				void this.load(view);
+			})
+		);
 		const tick = () => {
 			if (document.visibilityState === 'visible' && navigator.onLine) void this.refreshCount();
 		};
@@ -85,6 +142,7 @@ export class Bell {
 			clearInterval(timer);
 			window.removeEventListener('focus', tick);
 			document.removeEventListener('visibilitychange', tick);
+			for (const stop of unwatch) stop();
 		};
 	}
 
@@ -96,27 +154,43 @@ export class Bell {
 	}
 
 	async load(view: NotificationView = this.view): Promise<void> {
+		const switched = view !== this.view;
 		this.view = view;
 		const workspace = this.#workspace();
 		if (!workspace) return;
 		const generation = ++this.#generation;
-		if (this.list.kind !== 'ready') this.list = { kind: 'loading' };
+		const cache = this.#reads[view];
+		this.failed = false;
+		// Blueprint 23: the saved first page of this view at once, then the fresh one.
+		if ((this.list.kind !== 'ready' || switched) && cache.show() && cache.data) {
+			this.#show(cache.data);
+			this.savedAt = cache.savedAt;
+		} else {
+			if (switched) this.savedAt = null;
+			if (this.list.kind !== 'ready') this.list = { kind: 'loading' };
+		}
+		const ticket = cache.begin();
 		const exit = await Effect.runPromiseExit(
 			read(`${BellRoutes.list}?view=${view}&limit=20`, workspace, NotificationPage)
 		);
 		if (generation !== this.#generation) return; // a newer load won
 		if (Exit.isFailure(exit)) {
-			this.list = { kind: 'error' };
+			// A saved list stays on screen; the page says when it was saved.
+			if (this.savedAt !== null && this.list.kind === 'ready') this.failed = true;
+			else this.list = { kind: 'error' };
 			return;
 		}
 		const page = exit.value;
+		if (!cache.fresh(page, this.#scopeFor(workspace), ticket)) {
+			// Another tab switched person or workspace while this ran.
+			this.savedAt = null;
+			this.list = { kind: 'loading' };
+			return;
+		}
+		this.savedAt = null;
+		this.failed = false;
 		this.unread = page.unread;
-		this.list = {
-			kind: 'ready',
-			actions: page.actions,
-			items: page.items,
-			nextCursor: page.nextCursor
-		};
+		this.#show(page);
 	}
 
 	async loadMore(): Promise<void> {
@@ -155,12 +229,30 @@ export class Bell {
 		if (await this.#mark({ all: true })) await this.load();
 	}
 
+	#show(page: NotificationPage): void {
+		this.list = {
+			kind: 'ready',
+			actions: page.actions,
+			items: page.items,
+			nextCursor: page.nextCursor
+		};
+	}
+
+	/** The confirmed scope, only when it names the workspace this read was for. */
+	#scopeFor(workspace: string): CacheScope | null {
+		const scope = this.#scope() ?? this.#confirmed;
+		return scope && scope.workspaceId === workspace ? scope : null;
+	}
+
 	async #mark(body: { ids: string[] } | { all: true }): Promise<boolean> {
 		const workspace = this.#workspace();
 		if (!workspace) return false;
+		// The command clears the cached lists (invalidation.ts); this tab updates
+		// its own list instead of reading it again.
+		this.#marking = true;
 		const exit = await Effect.runPromiseExit(
 			sendCommand(BellRoutes.read, 'POST', body, workspace, MarkedRead)
-		);
+		).finally(() => (this.#marking = false));
 		if (Exit.isFailure(exit)) return false;
 		this.unread = exit.value.unread;
 		return true;
