@@ -341,7 +341,8 @@
 					<button
 						type="submit"
 						class="en-primary danger en-mobile-only"
-						disabled={!shell.canAct || busy || !!blockerText}>Reverse transaction</button
+						disabled={!shell.canAct || shell.paused('reversals') || busy || !!blockerText}
+						>Reverse transaction</button
 					>
 				{/if}
 			</div>
@@ -374,7 +375,8 @@
 							<button
 								type="submit"
 								class="en-primary danger"
-								disabled={!shell.canAct || busy || !!blockerText}>Reverse transaction</button
+								disabled={!shell.canAct || shell.paused('reversals') || busy || !!blockerText}
+								>Reverse transaction</button
 							>
 						</div>
 					</div>

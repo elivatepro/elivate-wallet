@@ -1,0 +1,428 @@
+/*
+	Platform Admin (Blueprint 18), Paper "Admin — Screens v1" A03–A16 and the
+	approved drafts A17–A21: 260 px sidebar, 64 px top bar, 40 px content
+	padding, 18 px cards, 60 px table rows, mono column heads. Mobile (< 1024 px):
+	app bar + floating bottom tabs (Overview, Search, Networks, More).
+*/
+
+.admin-page {
+	display: flex;
+	flex-direction: column;
+	gap: 32px;
+}
+
+.admin-section {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.admin-section-head {
+	display: flex;
+	align-items: baseline;
+	gap: 12px;
+	flex-wrap: wrap;
+}
+
+.admin-section-head h2 {
+	margin: 0;
+	font-size: 18px;
+	font-weight: 600;
+	line-height: 24px;
+	color: var(--color-text);
+}
+
+.admin-section-head p {
+	margin: 0;
+	flex: 1 1 auto;
+	font-size: 13px;
+	line-height: 18px;
+	color: var(--color-muted);
+}
+
+.admin-card {
+	display: flex;
+	flex-direction: column;
+	background: var(--color-surface);
+	border: 1px solid color-mix(in oklab, var(--color-border) 70%, transparent);
+	border-radius: 18px;
+	overflow: clip;
+}
+
+.admin-card.padded {
+	gap: 16px;
+	padding: 24px;
+}
+
+.admin-card h2,
+.admin-card h3 {
+	margin: 0;
+	font-size: 16px;
+	font-weight: 600;
+	line-height: 22px;
+	color: var(--color-text);
+}
+
+.admin-table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.admin-table th {
+	height: 40px;
+	padding: 0 20px;
+	text-align: left;
+	font-family: var(--font-mono);
+	font-size: 11px;
+	font-weight: 400;
+	letter-spacing: 0.06em;
+	line-height: 14px;
+	text-transform: uppercase;
+	color: color-mix(in oklab, var(--color-muted) 80%, var(--color-canvas));
+	border-bottom: 1px solid color-mix(in oklab, var(--color-border) 40%, transparent);
+}
+
+.admin-table td {
+	height: 60px;
+	padding: 8px 20px;
+	font-size: 14px;
+	line-height: 18px;
+	color: color-mix(in oklab, var(--color-text) 88%, var(--color-muted));
+	border-bottom: 1px solid color-mix(in oklab, var(--color-border) 30%, transparent);
+	vertical-align: middle;
+}
+
+.admin-table tr:last-child td {
+	border-bottom: 0;
+}
+
+.admin-table .num {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.admin-table .mono {
+	font-family: var(--font-mono);
+	font-size: 12px;
+}
+
+.admin-table .muted {
+	color: var(--color-muted);
+}
+
+.admin-table tbody tr:hover td {
+	background: color-mix(in oklab, var(--color-raised) 45%, transparent);
+}
+
+.row-link {
+	color: inherit;
+	text-decoration: none;
+}
+
+.row-link:focus-visible {
+	outline: 2px solid var(--focus-ring);
+	outline-offset: 2px;
+	border-radius: 6px;
+}
+
+.who {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	min-width: 0;
+}
+
+.tile {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: 32px;
+	height: 32px;
+	border-radius: 9px;
+	background: var(--color-raised);
+	font-size: 11px;
+	font-weight: 600;
+	color: color-mix(in oklab, var(--color-text) 85%, var(--color-muted));
+}
+
+.who-text {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.who-name {
+	font-size: 14px;
+	font-weight: 500;
+	line-height: 18px;
+	color: var(--color-text);
+}
+
+.who-sub {
+	font-size: 12px;
+	line-height: 16px;
+	color: var(--color-muted);
+}
+
+.admin-filters {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex-wrap: wrap;
+}
+
+.admin-search {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 340px;
+	max-width: 100%;
+	height: 42px;
+	padding: 0 14px;
+	background: var(--color-surface);
+	border: 1px solid color-mix(in oklab, var(--color-border) 70%, transparent);
+	border-radius: 12px;
+}
+
+.admin-search input {
+	flex: 1 1 auto;
+	min-width: 0;
+	border: 0;
+	background: transparent;
+	font: inherit;
+	font-size: 14px;
+	color: var(--color-text);
+	outline: none;
+}
+
+.admin-search:focus-within {
+	border-color: var(--color-accent);
+}
+
+.segmented {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	padding: 4px;
+	background: var(--color-surface);
+	border: 1px solid color-mix(in oklab, var(--color-border) 70%, transparent);
+	border-radius: 12px;
+	overflow-x: auto;
+	scrollbar-width: none;
+}
+
+.segmented a {
+	flex-shrink: 0;
+	padding: 7px 12px;
+	border-radius: 8px;
+	font-size: 13px;
+	line-height: 18px;
+	color: var(--color-muted);
+	text-decoration: none;
+	white-space: nowrap;
+}
+
+.segmented a[aria-current='page'] {
+	background: var(--color-raised);
+	font-weight: 500;
+	color: var(--color-text);
+}
+
+.btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	min-height: 40px;
+	padding: 0 16px;
+	border-radius: 999px;
+	border: 1px solid var(--color-border);
+	background: transparent;
+	font: inherit;
+	font-size: 14px;
+	font-weight: 500;
+	line-height: 18px;
+	color: var(--color-text);
+	text-decoration: none;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.btn:hover {
+	background: color-mix(in oklab, var(--color-raised) 60%, transparent);
+}
+
+.btn:focus-visible {
+	outline: 2px solid var(--focus-ring);
+	outline-offset: 2px;
+}
+
+.btn.primary {
+	border-color: transparent;
+	background: var(--button-primary-bg);
+	box-shadow: var(--button-primary-glow);
+	font-weight: 600;
+	color: var(--button-primary-ink);
+}
+
+.btn.danger {
+	border-color: transparent;
+	background: color-mix(in oklab, var(--color-danger) 18%, var(--color-surface));
+	font-weight: 600;
+	color: var(--color-danger);
+}
+
+.btn.small {
+	min-height: 34px;
+	padding: 0 14px;
+	font-size: 13px;
+}
+
+.btn[disabled],
+.btn[aria-disabled='true'] {
+	opacity: var(--opacity-disabled);
+	pointer-events: none;
+}
+
+.admin-empty {
+	padding: 32px 20px;
+	text-align: center;
+	font-size: 14px;
+	color: var(--color-muted);
+}
+
+.admin-more {
+	display: flex;
+	justify-content: center;
+	padding: 12px;
+}
+
+.kv {
+	display: flex;
+	flex-direction: column;
+}
+
+.kv > div {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	min-height: 44px;
+	border-top: 1px solid color-mix(in oklab, var(--color-border) 30%, transparent);
+	font-size: 14px;
+	line-height: 18px;
+}
+
+.kv dt {
+	width: 160px;
+	flex-shrink: 0;
+	font-size: 13px;
+	color: var(--color-muted);
+}
+
+.kv dd {
+	margin: 0;
+	color: var(--color-text);
+}
+
+.stats {
+	display: flex;
+	gap: 24px;
+}
+
+.stats > div {
+	display: flex;
+	flex: 1 1 0;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.stats strong {
+	font-size: 24px;
+	font-weight: 600;
+	line-height: 28px;
+	color: var(--color-text);
+}
+
+.stats span {
+	font-size: 13px;
+	color: var(--color-muted);
+}
+
+.two-col {
+	display: grid;
+	grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+	gap: 24px;
+	align-items: start;
+}
+
+.stack {
+	display: flex;
+	flex-direction: column;
+	gap: 24px;
+}
+
+.mobile-list {
+	display: none;
+}
+
+@media (max-width: 1023px) {
+	.admin-page {
+		gap: 24px;
+	}
+
+	.two-col {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.admin-search {
+		width: 100%;
+	}
+
+	.admin-table.collapse thead {
+		display: none;
+	}
+
+	.admin-table.collapse,
+	.admin-table.collapse tbody,
+	.admin-table.collapse tr,
+	.admin-table.collapse td {
+		display: block;
+		width: 100%;
+	}
+
+	.admin-table.collapse tr {
+		padding: 14px 16px;
+		border-bottom: 1px solid color-mix(in oklab, var(--color-border) 30%, transparent);
+	}
+
+	.admin-table.collapse tr:last-child {
+		border-bottom: 0;
+	}
+
+	.admin-table.collapse td {
+		height: auto;
+		padding: 2px 0;
+		border: 0;
+		text-align: left;
+	}
+
+	.admin-table.collapse td[data-label]::before {
+		content: attr(data-label) ' ';
+		color: var(--color-muted);
+		font-size: 12px;
+	}
+
+	.admin-table.collapse td.num {
+		text-align: left;
+	}
+
+	.kv dt {
+		width: 120px;
+	}
+
+	.stats {
+		gap: 12px;
+	}
+}

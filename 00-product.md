@@ -75,7 +75,7 @@ A President-only account has no wallet. A person who also has an eligible non-Pr
 | Plan purchases | Paystack, yearly billing; never confuse this with deferred automated Wallet bank payouts. |
 | Account-name resolution | **Owner decision (2026-10-08):** Paystack Resolve Account Number and the Paystack bank list, for Nigerian NUBAN accounts only. Foreign and manual destinations are deferred (W-17). |
 | Receipt extraction | OpenAI for payout receipt extraction. Server comparison and atomic commands decide verification/completion. |
-| Domains | Public website `elivatewallet.com`; app `app.elivatewallet.com`; target backend custom domain `api.elivatewallet.com`; separate platform-admin app `admin.elivatewallet.com` (owner decision 2026-10-05; its screens are designed in a later wave). Domain targets are not a claim that provisioning is complete. |
+| Domains | Public website `elivatewallet.com`; app `app.elivatewallet.com`; target backend custom domain `api.elivatewallet.com`; separate platform-admin app `admin.elivatewallet.com` (owner decision 2026-10-05; built 2026-10-10 in Blueprint 18 as a second Worker from the same `frontend/` code, behind Cloudflare Access). Domain targets are not a claim that provisioning is complete. |
 
 The app is greenfield against a new Supabase project/database. Legacy application/schema is behavioral reference only. No legacy records are imported by default. A quoted Data Migration Extra does not authorize an import automatically.
 

@@ -26,7 +26,14 @@ import {
 	type InvitationStatus,
 	type MyInvitation
 } from '#lib/contract/invitations.js';
-import { Capabilities, Offices, OrgRoutes, Workspaces, type Workspace } from '#lib/contract/org.js';
+import {
+	Capabilities,
+	Offices,
+	OrgRoutes,
+	StoppedOperations,
+	Workspaces,
+	type Workspace
+} from '#lib/contract/org.js';
 import {
 	Pin,
 	PinResetRequested,
@@ -206,6 +213,10 @@ export interface OrgApiShape {
 	readonly capabilities: (membershipId: string) => Effect.Effect<Capabilities, EdgeFailure>;
 	/** Active offices in the workspace's subtree (first page, up to 100). */
 	readonly activeOffices: (membershipId: string) => Effect.Effect<typeof Offices.Type, EdgeFailure>;
+	/** Blueprint 18: operations stopped for this workspace's network. */
+	readonly stoppedOperations: (
+		membershipId: string
+	) => Effect.Effect<typeof StoppedOperations.Type, EdgeFailure>;
 }
 
 export class OrgApi extends Context.Service<OrgApi, OrgApiShape>()('OrgApi') {}
@@ -233,6 +244,10 @@ export const OrgApiLive = Layer.effect(
 						},
 						Offices
 					)
+					.pipe(Effect.retry(readPolicy)),
+			stoppedOperations: (membershipId) =>
+				edge
+					.call({ fn: 'org', route: OrgRoutes.operations, membershipId }, StoppedOperations)
 					.pipe(Effect.retry(readPolicy))
 		};
 	})

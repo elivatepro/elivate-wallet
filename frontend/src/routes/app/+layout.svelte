@@ -59,6 +59,7 @@
 	import QuickSearch from '#lib/ui/app/QuickSearch.svelte';
 	import { isSearchShortcut, type SearchPage } from '#lib/client/search.js';
 	import { pausedWriteRoute } from '#lib/paused.js';
+	import { OPERATION_NAMES, pausedCopy, stoppedHere } from '#lib/operations.js';
 	import RootHero from '#lib/ui/app/RootHero.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
 	import type { LayoutProps } from './$types';
@@ -333,6 +334,27 @@
 	});
 	/** PL06: a write page on a paused network shows the paused view instead. */
 	const pausedHere = $derived(tenantStatus === 'suspended' && pausedWriteRoute(path));
+
+	// Blueprint 18: a write page whose operation Elivate has stopped (kill
+	// switch) shows a paused banner above the page, which stays usable so an
+	// attempt with an unknown outcome can still be checked or cancelled. Read
+	// fresh on each write page; the database refuses the operation either way.
+	const onWritePage = $derived(stoppedHere(path, Object.keys(OPERATION_NAMES)) !== null);
+	$effect(() => {
+		// Track the path itself: moving between write pages fetches again.
+		void path;
+		if (!onWritePage || !summary) return;
+		const controller = new AbortController();
+		fetch('/api/operations', { signal: controller.signal })
+			.then((r) => (r.ok ? r.json() : null))
+			.then((body: { data?: { stopped?: unknown } } | null) => {
+				const list = body?.data?.stopped;
+				shell.stopped = Array.isArray(list) ? list.filter((x) => typeof x === 'string') : [];
+			})
+			.catch(() => undefined);
+		return () => controller.abort();
+	});
+	const operationHere = $derived(onWritePage ? stoppedHere(path, shell.stopped) : null);
 </script>
 
 <svelte:window onkeydown={onKeydown} />
@@ -803,6 +825,17 @@
 					{#if billing && !path.startsWith('/app/billing')}
 						<a class="retry-link" href="/app/billing">Review billing</a>
 					{/if}
+				</div>
+			{/if}
+
+			{#if operationHere}
+				<!-- Blueprint 18: Elivate stopped this operation (kill switch). -->
+				<div class="banner paused" role="status">
+					<CirclePause size={18} strokeWidth={2} aria-hidden="true" />
+					<div class="banner-text">
+						<h2 class="banner-title">{pausedCopy(operationHere).title}</h2>
+						<span class="banner-sub">{pausedCopy(operationHere).lead}</span>
+					</div>
 				</div>
 			{/if}
 
@@ -1314,6 +1347,7 @@
 	}
 
 	.banner-title {
+		margin: 0;
 		font-size: var(--text-14);
 		font-weight: var(--font-weight-medium);
 		line-height: 18px;

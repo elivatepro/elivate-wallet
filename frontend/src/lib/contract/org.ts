@@ -53,8 +53,13 @@ export const Offices = Schema.Struct({
 export const OrgRoutes = {
 	workspaces: { method: 'GET', path: '/workspaces' },
 	capabilities: { method: 'GET', path: '/capabilities' },
-	offices: { method: 'GET', path: '/offices' }
+	offices: { method: 'GET', path: '/offices' },
+	// Blueprint 18: operations Elivate has stopped for the workspace's network.
+	operations: { method: 'GET', path: '/operations' }
 } as const;
+
+/** GET /org/operations: kill-switch keys stopped for this network (no reasons). */
+export const StoppedOperations = Schema.Struct({ stopped: Schema.Array(Schema.String) });
 
 /**
  * A workspace can be opened when the membership is active, whatever the network

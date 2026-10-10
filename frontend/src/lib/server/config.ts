@@ -1,5 +1,6 @@
 import {
 	APP_SERVER_SECRET,
+	APP_SURFACE,
 	CHATWOOT_BASE_URL,
 	CHATWOOT_HMAC_TOKEN,
 	CHATWOOT_WEBSITE_TOKEN,
@@ -92,3 +93,24 @@ export function chatwootConfig(): {
 		hmacToken: CHATWOOT_HMAC_TOKEN
 	};
 }
+
+/** Blueprint 18: the site a request belongs to. */
+export type Surface = 'member' | 'admin';
+
+/**
+ * The Worker's surface for this path. `both` (local e2e against a loopback
+ * Supabase only) splits by path; anywhere else it falls back to `member`.
+ */
+export function surfaceFor(pathname: string): Surface {
+	const isAdminPath = pathname === '/admin' || pathname.startsWith('/admin/');
+	if (APP_SURFACE === 'admin') return 'admin';
+	if (APP_SURFACE === 'both' && SUPABASE_URL) {
+		const host = new URL(SUPABASE_URL).hostname;
+		if (host === '127.0.0.1' || host === 'localhost') return isAdminPath ? 'admin' : 'member';
+	}
+	return 'member';
+}
+
+/** Where the Wallet app is (gate pages link there to set or reset the PIN). */
+export const walletUrl = (): string =>
+	APP_SURFACE === 'both' ? '/sign-in' : 'https://app.elivatewallet.com';

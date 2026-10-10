@@ -12,7 +12,20 @@
 	import RootImage from '#lib/ui/RootImage.svelte';
 	import { provideRootStage } from '#lib/ui/root.svelte.js';
 
-	let { theme, children }: { theme: Theme; children: Snippet } = $props();
+	let {
+		theme,
+		children,
+		brandHref = '/sign-in',
+		brandName = 'Elivate Wallet',
+		platform = false
+	}: {
+		theme: Theme;
+		children: Snippet;
+		/** Blueprint 18: the admin site's gate pages say "Elivate Admin · Platform". */
+		brandHref?: string;
+		brandName?: string;
+		platform?: boolean;
+	} = $props();
 
 	const stage = provideRootStage();
 </script>
@@ -22,9 +35,10 @@
 	<div class="grain" aria-hidden="true"></div>
 	<div class="frame">
 		<header class="top">
-			<a class="brand" href="/sign-in">
+			<a class="brand" href={brandHref}>
 				<img src="/icons/mark.svg" alt="" width="28" height="28" />
-				<span>Elivate Wallet</span>
+				<span>{brandName}</span>
+				{#if platform}<span class="platform"><span class="dot"></span>Platform</span>{/if}
 			</a>
 			<ThemeSwitch {theme} />
 		</header>
@@ -278,5 +292,26 @@
 			background: #fffffff0;
 			box-shadow: #21262814 0px 40px 80px -20px;
 		}
+	}
+	.platform {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		margin-left: 4px;
+		padding: 1px 8px;
+		border: 1px solid color-mix(in oklab, var(--color-accent) 35%, transparent);
+		border-radius: 999px;
+		font-family: var(--font-mono);
+		font-size: 10px;
+		font-weight: 400;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--color-accent-text);
+	}
+	.platform .dot {
+		width: 5px;
+		height: 5px;
+		border-radius: 999px;
+		background: var(--color-accent);
 	}
 </style>

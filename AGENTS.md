@@ -56,16 +56,18 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
 - Worker secrets: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `TURNSTILE_SITE_KEY`,
   `TURNSTILE_SECRET_KEY`, `APP_SERVER_SECRET` and `EXPORTS_WORKER_SECRET` (each of the last two
   matches its Edge secret; the exports one also matches Vault), plus `CHATWOOT_WEBSITE_TOKEN`
-  and `CHATWOOT_HMAC_TOKEN` (Blueprint 17). Edge `BILLING_WORKER_SECRET`
+  and `CHATWOOT_HMAC_TOKEN` (Blueprint 17). Admin Worker `elivate-wallet-admin`
+  (`frontend/wrangler.admin.jsonc`, `APP_SURFACE=admin`, admin.elivatewallet.com behind Cloudflare
+  Access): `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `APP_SERVER_SECRET`. Edge `BILLING_WORKER_SECRET`
   matches Vault `billing_worker_secret`; Paystack is test mode (`PAYSTACK_SECRET_KEY`).
 - Still open: the signed-in dev call test (Edge `verify_jwt` with ES256 user tokens; see
-  `docs/production-readiness.md`), the first platform admin, editing the dev Auth email templates.
+  `docs/production-readiness.md`), editing the dev Auth email templates.
 
 ## How a slice ships
 
 - One slice at a time, in worktree `../elivate-wallet-worktrees/<nn-name>` from fresh
   `origin/main` (copy `backend/supabase/.temp` in). Blueprint `docs/blueprints/NN-*.md`;
-  migrations `20261009NNxxxx`, pgTAP `NN0_` (next: `18`/`180_`).
+  migrations `20261009NNxxxx`, pgTAP `NN0_` (next: `19`/`190_`).
 - Checks: `backend/scripts/verify-database.sh`, `deno task check`; frontend `pnpm check`,
   `pnpm lint`, `pnpm test:unit`, e2e via `frontend/scripts/e2e-local.sh` (fake Cloudflare into
   local Mailpit). The local stack is shared: hold the `/tmp/elivate-supabase.lock` directory
@@ -84,4 +86,5 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
 ## Status (2026-10-10)
 
 On dev: backend slices 01–06, frontend M1, member slices 1–10 and the slice 9 follow-up
-(blueprints 07–17). The member build plan is complete; the Admin app is next (owner to schedule).
+(blueprints 07–17). Slice 18 (Blueprint 18): the platform Admin app (admin.elivatewallet.com),
+kill switches and guided restore review; feature flags deferred.

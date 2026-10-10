@@ -366,8 +366,10 @@
 
 						<div class="mm-actions end">
 							<a class="mm-btn grow-0" href="/app/withdrawals">Cancel</a>
-							<button type="submit" class="mm-btn primary grow-0" disabled={!shell.canAct}
-								>Continue to review</button
+							<button
+								type="submit"
+								class="mm-btn primary grow-0"
+								disabled={!shell.canAct || shell.paused('withdrawals')}>Continue to review</button
 							>
 						</div>
 					</form>
@@ -430,7 +432,9 @@
 							<button
 								type="button"
 								class="mm-btn primary grow-0"
-								disabled={!shell.canAct || attempt.state.kind === 'sending'}
+								disabled={!shell.canAct ||
+									shell.paused('withdrawals') ||
+									attempt.state.kind === 'sending'}
 								onclick={openPin}>Submit request</button
 							>
 						</div>

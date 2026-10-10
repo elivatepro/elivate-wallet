@@ -119,7 +119,18 @@ export type RootPose =
 	| 'settings-branding'
 	| 'backup-vault'
 	| 'restore-request'
-	| 'restore-sent';
+	| 'restore-sent'
+	// Paper "Admin — Screens v1" (Blueprint 18): briefcase (A07), lever (A11),
+	// scroll (A13), boxes (A15), guard cap (A01), ticking box (A09); drafts
+	// A18 (welcome) and A15r (plus-minus card).
+	| 'admin-network'
+	| 'admin-switches'
+	| 'admin-audit'
+	| 'admin-backups'
+	| 'admin-sign-in'
+	| 'admin-account'
+	| 'admin-accounts'
+	| 'admin-restore';
 
 /** Rendered Root size on mobile gate screens (Paper: 120×160, 150×200, 180×240). */
 export type RootSize = 'sm' | 'md' | 'lg';
@@ -234,7 +245,15 @@ export const ROOT_HEIGHTS: Record<RootPose, number> = {
 	'settings-branding': 523,
 	'backup-vault': 524,
 	'restore-request': 527,
-	'restore-sent': 527
+	'restore-sent': 527,
+	'admin-network': 527,
+	'admin-switches': 527,
+	'admin-audit': 527,
+	'admin-backups': 527,
+	'admin-sign-in': 527,
+	'admin-account': 527,
+	'admin-accounts': 527,
+	'admin-restore': 527
 };
 
 export const rootSrc = (pose: RootPose) => `/root/${pose}.webp`;

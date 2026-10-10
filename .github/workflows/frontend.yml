@@ -45,6 +45,9 @@ jobs:
       # needed), so a dependency that can't run in workerd fails here.
       - name: Worker bundle (wrangler dry run)
         run: pnpm exec wrangler deploy --dry-run --outdir .wrangler-dry
+      # Blueprint 18: the same bundle deployed as the admin Worker.
+      - name: Admin Worker bundle (wrangler dry run)
+        run: pnpm exec wrangler deploy --dry-run --config wrangler.admin.jsonc --outdir .wrangler-dry-admin
 
   # Runs alongside `check` (both must pass); it doesn't need its output.
   e2e:

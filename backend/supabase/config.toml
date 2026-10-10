@@ -442,6 +442,11 @@ verify_jwt = true
 [functions.org]
 verify_jwt = true
 
+# Blueprint 18: the platform Admin app. Every route also needs the app-server
+# secret, and the database checks the platform-admin role.
+[functions.admin]
+verify_jwt = true
+
 # Blueprint 03: `preview` and `verify-email` serve people who are not signed
 # in; every other route verifies the bearer in the handler.
 [functions.invitations]

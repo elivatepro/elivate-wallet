@@ -355,7 +355,10 @@
 
 					<div class="en-actions">
 						<a class="en-ghost" href="/app/queue">Cancel</a>
-						<button type="submit" class="en-primary" disabled={!shell.canAct || busy}
+						<button
+							type="submit"
+							class="en-primary"
+							disabled={!shell.canAct || shell.paused('returned_funds') || busy}
 							>{busy ? 'Sending…' : 'Send for checking'}</button
 						>
 					</div>

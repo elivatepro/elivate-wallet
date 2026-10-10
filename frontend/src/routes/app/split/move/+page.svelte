@@ -339,8 +339,10 @@
 						</div>
 						<div class="mm-actions end">
 							<a class="mm-btn grow-0" href="/app/split">Cancel</a>
-							<button type="submit" class="mm-btn primary grow-0" disabled={!shell.canAct}
-								>Continue to review</button
+							<button
+								type="submit"
+								class="mm-btn primary grow-0"
+								disabled={!shell.canAct || shell.paused('transfers')}>Continue to review</button
 							>
 						</div>
 					{:else if from && to && amount}
@@ -354,7 +356,9 @@
 							<button
 								type="button"
 								class="mm-btn primary grow-0"
-								disabled={!shell.canAct || attempt.state.kind === 'sending'}
+								disabled={!shell.canAct ||
+									shell.paused('transfers') ||
+									attempt.state.kind === 'sending'}
 								onclick={submit}>Send request</button
 							>
 						</div>

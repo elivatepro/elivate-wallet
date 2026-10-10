@@ -21,7 +21,10 @@ export type RpcResult =
   | { readonly data: unknown; readonly error: null }
   | {
     readonly data: null;
-    readonly error: { readonly message: string; readonly details?: string | null };
+    readonly error: {
+      readonly message: string;
+      readonly details?: string | null;
+    };
   };
 
 export interface LogEntry {
@@ -64,7 +67,8 @@ function parseDetails(raw: string | null | undefined): Details {
   if (!raw) return {};
   try {
     const parsed: unknown = JSON.parse(raw);
-    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+    return typeof parsed === "object" && parsed !== null &&
+        !Array.isArray(parsed)
       ? parsed as Details
       : {};
   } catch {
@@ -93,36 +97,51 @@ function match(pattern: string, path: string): Record<string, string> | null {
 
 function workspace(request: Request): string {
   const value = request.headers.get("x-membership");
-  if (!value || !uuidPattern.test(value)) throw new ApiError("workspace_invalid");
+  if (!value || !uuidPattern.test(value)) {
+    throw new ApiError("workspace_invalid");
+  }
   return value.toLowerCase();
 }
 
 function onlyQuery(query: URLSearchParams, allowed: readonly string[]): void {
   for (const key of query.keys()) {
     if (!allowed.includes(key)) {
-      throw new ApiError("validation_error", { field: key, reason: "unknown_field" });
+      throw new ApiError("validation_error", {
+        field: key,
+        reason: "unknown_field",
+      });
     }
   }
 }
 
-function queryText(query: URLSearchParams, field: string, max: number): string | null {
+function queryText(
+  query: URLSearchParams,
+  field: string,
+  max: number,
+): string | null {
   const value = query.get(field);
   if (value === null) return null;
-  if (value.trim() === "" || value.length > max) throw new ApiError("validation_error", { field });
+  if (value.trim() === "" || value.length > max) {
+    throw new ApiError("validation_error", { field });
+  }
   return value;
 }
 
 function queryLimit(query: URLSearchParams): number | null {
   const value = query.get("limit");
   if (value === null) return null;
-  if (!/^[0-9]{1,3}$/.test(value)) throw new ApiError("validation_error", { field: "limit" });
+  if (!/^[0-9]{1,3}$/.test(value)) {
+    throw new ApiError("validation_error", { field: "limit" });
+  }
   return Number(value);
 }
 
 function queryUuid(query: URLSearchParams, field: string): string | null {
   const value = query.get(field);
   if (value === null) return null;
-  if (!uuidPattern.test(value)) throw new ApiError("validation_error", { field });
+  if (!uuidPattern.test(value)) {
+    throw new ApiError("validation_error", { field });
+  }
   return value.toLowerCase();
 }
 
@@ -161,7 +180,10 @@ function rules(body: v.Body): unknown[] {
     const r = rule as v.Body;
     for (const key of Object.keys(r)) {
       if (!ruleFields.includes(key)) {
-        throw new ApiError("validation_error", { field: `rules.${key}`, reason: "unknown_field" });
+        throw new ApiError("validation_error", {
+          field: `rules.${key}`,
+          reason: "unknown_field",
+        });
       }
     }
     v.text(r, "permission", 60);
@@ -177,15 +199,25 @@ function rules(body: v.Body): unknown[] {
     }
     for (const field of ["startsAt", "expiresAt"]) {
       const at = r[field];
-      if (at !== undefined && (typeof at !== "string" || Number.isNaN(Date.parse(at)))) {
+      if (
+        at !== undefined &&
+        (typeof at !== "string" || Number.isNaN(Date.parse(at)))
+      ) {
         throw new ApiError("validation_error", { field: `rules.${field}` });
       }
     }
-    return { ...r, ...(scopeType === "member" ? { scopeUid: v.uid(r, "scopeUid") } : {}) };
+    return {
+      ...r,
+      ...(scopeType === "member" ? { scopeUid: v.uid(r, "scopeUid") } : {}),
+    };
   });
 }
 
-function oneOf<T extends string>(value: string, field: string, allowed: readonly T[]): T {
+function oneOf<T extends string>(
+  value: string,
+  field: string,
+  allowed: readonly T[],
+): T {
   if (!(allowed as readonly string[]).includes(value)) {
     throw new ApiError("validation_error", { field });
   }
@@ -224,12 +256,17 @@ function settingsPatch(body: v.Body): Record<string, string | null> {
     throw new ApiError("validation_error", { field: "fields" });
   }
   const entries = Object.entries(value as Record<string, unknown>);
-  if (entries.length < 1) throw new ApiError("validation_error", { field: "fields" });
+  if (entries.length < 1) {
+    throw new ApiError("validation_error", { field: "fields" });
+  }
   const patch: Record<string, string | null> = {};
   for (const [key, field] of entries) {
     const max = settingsFields[key];
     if (max === undefined) {
-      throw new ApiError("validation_error", { field: key, reason: "unknown_field" });
+      throw new ApiError("validation_error", {
+        field: key,
+        reason: "unknown_field",
+      });
     }
     if (field === null) {
       patch[key] = null;
@@ -244,20 +281,40 @@ function settingsPatch(body: v.Body): Record<string, string | null> {
 
 function positiveInt(body: v.Body, field: string): number {
   const value = body[field];
-  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 1_000_000) {
+  if (
+    typeof value !== "number" || !Number.isInteger(value) || value < 1 ||
+    value > 1_000_000
+  ) {
     throw new ApiError("validation_error", { field });
   }
   return value;
 }
 
 /** W-24 steps only Elivate takes. */
-const restoreSteps = ["validating", "in_review", "restoring", "completed", "rejected", "failed"];
+const restoreSteps = [
+  "validating",
+  "in_review",
+  "restoring",
+  "completed",
+  "rejected",
+  "failed",
+];
 
 /** Roles a membership in an office can hold (never President Team). */
-const officeRoles = ["member", "team_leader", "director", "world_team_member"] as const;
+const officeRoles = [
+  "member",
+  "team_leader",
+  "director",
+  "world_team_member",
+] as const;
 
-export function createHandler(deps: Deps): (request: Request) => Promise<Response> {
-  async function call(fn: string, args: Record<string, unknown>): Promise<unknown> {
+export function createHandler(
+  deps: Deps,
+): (request: Request) => Promise<Response> {
+  async function call(
+    fn: string,
+    args: Record<string, unknown>,
+  ): Promise<unknown> {
     const { data, error } = await deps.rpc(fn, args);
     if (error) {
       if (isErrorCode(error.message)) {
@@ -276,13 +333,25 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
     p_user_id: actor.userId,
     p_session_id: actor.sessionId,
   });
-  const commandArgs = (c: Context) => ({ ...actorArgs(c), p_request_id: c.requestId });
-  const inWorkspace = (c: Context) => ({ ...actorArgs(c), p_membership_id: workspace(c.request) });
-  const commandInWorkspace = (c: Context) => ({ ...inWorkspace(c), p_request_id: c.requestId });
+  const commandArgs = (c: Context) => ({
+    ...actorArgs(c),
+    p_request_id: c.requestId,
+  });
+  const inWorkspace = (c: Context) => ({
+    ...actorArgs(c),
+    p_membership_id: workspace(c.request),
+  });
+  const commandInWorkspace = (c: Context) => ({
+    ...inWorkspace(c),
+    p_request_id: c.requestId,
+  });
 
   async function appServerOnly(c: Context): Promise<void> {
     const given = c.request.headers.get("x-app-server-secret");
-    if (!deps.appServerSecret || !given || !(await sameSecret(given, deps.appServerSecret))) {
+    if (
+      !deps.appServerSecret || !given ||
+      !(await sameSecret(given, deps.appServerSecret))
+    ) {
       throw new ApiError("authorization_denied", { reason: "app_server_only" });
     }
   }
@@ -290,7 +359,8 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
   function brandKey(data: unknown): unknown {
     const key = (data as Record<string, unknown>).objectKey;
     if (
-      typeof key !== "string" || !/^brand\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(jpg|png|webp)$/.test(key)
+      typeof key !== "string" ||
+      !/^brand\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(jpg|png|webp)$/.test(key)
     ) {
       throw new Error("brand key has an unexpected shape");
     }
@@ -314,11 +384,15 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       ]);
       // Blueprint 16: the plan and whether to use the founder's one trial.
       const planKey = body.planKey ?? "band_400";
-      if (typeof planKey !== "string" || !/^band_[0-9a-z_]{1,20}$/.test(planKey)) {
+      if (
+        typeof planKey !== "string" || !/^band_[0-9a-z_]{1,20}$/.test(planKey)
+      ) {
         throw new ApiError("validation_error", { field: "planKey" });
       }
       const trial = body.trial ?? false;
-      if (typeof trial !== "boolean") throw new ApiError("validation_error", { field: "trial" });
+      if (typeof trial !== "boolean") {
+        throw new ApiError("validation_error", { field: "trial" });
+      }
       return call("start_network", {
         ...commandArgs(c),
         p_name: v.name(body),
@@ -330,7 +404,11 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
     }),
 
     route("POST", "/admin/tenants/:id/activate", async (c) => {
-      const body = await v.readBody(c.request, ["reason", "until", "idempotencyKey"]);
+      const body = await v.readBody(c.request, [
+        "reason",
+        "until",
+        "idempotencyKey",
+      ]);
       return call("activate_tenant", {
         ...commandArgs(c),
         p_tenant_id: c.params.id,
@@ -340,6 +418,12 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
         // development exception.
         p_until: body.until === undefined || body.until === null ? null : v.date(body, "until"),
       });
+    }),
+
+    // Blueprint 18: operations Elivate has stopped for this workspace's network.
+    route("GET", "/operations", (c) => {
+      onlyQuery(c.query, []);
+      return call("stopped_operations", inWorkspace(c));
     }),
 
     route("GET", "/workspaces", (c) => {
@@ -374,7 +458,11 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       ]);
       return call("create_office", {
         ...commandInWorkspace(c),
-        p_type: oneOf(v.text(body, "type", 20), "type", ["world_team", "director", "team_leader"]),
+        p_type: oneOf(v.text(body, "type", 20), "type", [
+          "world_team",
+          "director",
+          "team_leader",
+        ]),
         p_name: v.name(body),
         p_parent_office_id: optionalUuid(body, "parentOfficeId"),
         p_leader_uids: uidList(body, "leaderUids"),
@@ -393,7 +481,11 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
     }),
 
     route("POST", "/offices/:id/place", async (c) => {
-      const body = await v.readBody(c.request, ["parentOfficeId", "reason", "idempotencyKey"]);
+      const body = await v.readBody(c.request, [
+        "parentOfficeId",
+        "reason",
+        "idempotencyKey",
+      ]);
       if (!("parentOfficeId" in body)) {
         throw new ApiError("validation_error", { field: "parentOfficeId" });
       }
@@ -408,7 +500,10 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
 
     route("GET", "/offices/:id", (c) => {
       onlyQuery(c.query, []);
-      return call("office_detail", { ...inWorkspace(c), p_office_id: c.params.id });
+      return call("office_detail", {
+        ...inWorkspace(c),
+        p_office_id: c.params.id,
+      });
     }),
 
     // Blueprint 07: President Team, reason + step-up; only an empty office closes.
@@ -423,7 +518,11 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
     }),
 
     route("POST", "/offices/:id/leaders", async (c) => {
-      const body = await v.readBody(c.request, ["leaderUid", "reason", "idempotencyKey"]);
+      const body = await v.readBody(c.request, [
+        "leaderUid",
+        "reason",
+        "idempotencyKey",
+      ]);
       return call("add_office_leader", {
         ...commandInWorkspace(c),
         p_office_id: c.params.id,
@@ -451,7 +550,14 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
     }),
 
     route("GET", "/members", (c) => {
-      onlyQuery(c.query, ["officeId", "role", "status", "q", "cursor", "limit"]);
+      onlyQuery(c.query, [
+        "officeId",
+        "role",
+        "status",
+        "q",
+        "cursor",
+        "limit",
+      ]);
       return call("list_members", {
         ...inWorkspace(c),
         p_query: queryText(c.query, "q", 100),
@@ -464,7 +570,11 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
     }),
 
     route("POST", "/memberships", async (c) => {
-      const body = await v.readBody(c.request, ["officeId", "memberUid", "idempotencyKey"]);
+      const body = await v.readBody(c.request, [
+        "officeId",
+        "memberUid",
+        "idempotencyKey",
+      ]);
       return call("add_membership", {
         ...commandInWorkspace(c),
         p_office_id: v.uuid(body, "officeId"),
@@ -475,12 +585,19 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
 
     route("GET", "/memberships/:id", (c) => {
       onlyQuery(c.query, []);
-      return call("member_detail", { ...inWorkspace(c), p_target_membership_id: c.params.id });
+      return call("member_detail", {
+        ...inWorkspace(c),
+        p_target_membership_id: c.params.id,
+      });
     }),
 
     // Blueprint 07: a role change ends the membership and creates the new one.
     route("POST", "/memberships/:id/role", async (c) => {
-      const body = await v.readBody(c.request, ["role", "reason", "idempotencyKey"]);
+      const body = await v.readBody(c.request, [
+        "role",
+        "reason",
+        "idempotencyKey",
+      ]);
       return call("change_membership_role", {
         ...commandInWorkspace(c),
         p_target_membership_id: c.params.id,
@@ -491,7 +608,11 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
     }),
 
     route("POST", "/memberships/:id/move", async (c) => {
-      const body = await v.readBody(c.request, ["toOfficeId", "reason", "idempotencyKey"]);
+      const body = await v.readBody(c.request, [
+        "toOfficeId",
+        "reason",
+        "idempotencyKey",
+      ]);
       return call("move_membership", {
         ...commandInWorkspace(c),
         p_target_membership_id: c.params.id,
@@ -501,8 +622,16 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       });
     }),
 
-    route("POST", "/memberships/:id/suspend", (c) => membershipStatus(c, "suspended")),
-    route("POST", "/memberships/:id/reactivate", (c) => membershipStatus(c, "active")),
+    route(
+      "POST",
+      "/memberships/:id/suspend",
+      (c) => membershipStatus(c, "suspended"),
+    ),
+    route(
+      "POST",
+      "/memberships/:id/reactivate",
+      (c) => membershipStatus(c, "active"),
+    ),
 
     route("POST", "/memberships/:id/end", async (c) => {
       const body = await v.readBody(c.request, ["reason", "idempotencyKey"]);
@@ -515,7 +644,11 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
     }),
 
     route("POST", "/presidents", async (c) => {
-      const body = await v.readBody(c.request, ["memberUid", "reason", "idempotencyKey"]);
+      const body = await v.readBody(c.request, [
+        "memberUid",
+        "reason",
+        "idempotencyKey",
+      ]);
       return call("add_president", {
         ...commandInWorkspace(c),
         p_member_uid: v.uid(body, "memberUid"),
@@ -570,7 +703,12 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
     }),
 
     route("POST", "/access", async (c) => {
-      const body = await v.readBody(c.request, ["subjectUid", "rules", "reason", "idempotencyKey"]);
+      const body = await v.readBody(c.request, [
+        "subjectUid",
+        "rules",
+        "reason",
+        "idempotencyKey",
+      ]);
       return call("create_access_assignment", {
         ...commandInWorkspace(c),
         p_subject_uid: v.uid(body, "subjectUid"),
@@ -596,7 +734,11 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
     }),
 
     route("POST", "/reviewers", async (c) => {
-      const body = await v.readBody(c.request, ["membershipId", "reason", "idempotencyKey"]);
+      const body = await v.readBody(c.request, [
+        "membershipId",
+        "reason",
+        "idempotencyKey",
+      ]);
       return call("assign_reviewer", {
         ...commandInWorkspace(c),
         p_target_membership_id: v.uuid(body, "membershipId"),
@@ -623,7 +765,11 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
     }),
 
     route("PATCH", "/settings", async (c) => {
-      const body = await v.readBody(c.request, ["expectedRevision", "fields", "idempotencyKey"]);
+      const body = await v.readBody(c.request, [
+        "expectedRevision",
+        "fields",
+        "idempotencyKey",
+      ]);
       return call("update_team_settings", {
         ...commandInWorkspace(c),
         p_expected_revision: positiveInt(body, "expectedRevision"),
@@ -633,7 +779,11 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
     }),
 
     route("POST", "/settings/restore", async (c) => {
-      const body = await v.readBody(c.request, ["expectedRevision", "revision", "idempotencyKey"]);
+      const body = await v.readBody(c.request, [
+        "expectedRevision",
+        "revision",
+        "idempotencyKey",
+      ]);
       return call("restore_team_settings_revision", {
         ...commandInWorkspace(c),
         p_expected_revision: positiveInt(body, "expectedRevision"),
@@ -655,7 +805,9 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       if (kind !== "logo" && kind !== "icon" && kind !== "logo-light") {
         throw new ApiError("validation_error", { field: "kind" });
       }
-      return brandKey(await call("brand_asset_key", { ...inWorkspace(c), p_kind: kind }));
+      return brandKey(
+        await call("brand_asset_key", { ...inWorkspace(c), p_kind: kind }),
+      );
     }),
 
     route("POST", "/brand/upload-key", async (c) => {
@@ -665,7 +817,9 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       if (ext !== "jpg" && ext !== "png" && ext !== "webp") {
         throw new ApiError("validation_error", { field: "ext" });
       }
-      return brandKey(await call("brand_upload_key", { ...inWorkspace(c), p_ext: ext }));
+      return brandKey(
+        await call("brand_upload_key", { ...inWorkspace(c), p_ext: ext }),
+      );
     }),
 
     route("GET", "/search", (c) => {
@@ -678,7 +832,11 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       if (limit !== null && (limit < 1 || limit > 10)) {
         throw new ApiError("validation_error", { field: "limit" });
       }
-      return call("quick_search", { ...inWorkspace(c), p_query: q, p_limit: limit });
+      return call("quick_search", {
+        ...inWorkspace(c),
+        p_query: q,
+        p_limit: limit,
+      });
     }),
 
     route("GET", "/backups", (c) => {
@@ -703,7 +861,9 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       }) as Record<string, unknown>;
       if (
         typeof target.objectKey !== "string" ||
-        !/^backups\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9]{1,3}\.zip$/.test(target.objectKey)
+        !/^backups\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9]{1,3}\.zip$/.test(
+          target.objectKey,
+        )
       ) {
         throw new Error("authorize_backup_download returned an unexpected key");
       }
@@ -711,7 +871,11 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
     }),
 
     route("POST", "/restores", async (c) => {
-      const body = await v.readBody(c.request, ["backupId", "reason", "idempotencyKey"]);
+      const body = await v.readBody(c.request, [
+        "backupId",
+        "reason",
+        "idempotencyKey",
+      ]);
       return call("request_restore", {
         ...commandInWorkspace(c),
         p_backup_id: v.uuid(body, "backupId"),
@@ -731,7 +895,11 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
 
     // Elivate operators only (W-24), until the Admin app has screens.
     route("POST", "/platform/restores/:id/advance", async (c) => {
-      const body = await v.readBody(c.request, ["status", "reason", "idempotencyKey"]);
+      const body = await v.readBody(c.request, [
+        "status",
+        "reason",
+        "idempotencyKey",
+      ]);
       const status = body.status;
       if (typeof status !== "string" || !restoreSteps.includes(status)) {
         throw new ApiError("validation_error", { field: "status" });
@@ -769,7 +937,10 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
   return async (request: Request): Promise<Response> => {
     const started = Date.now();
     const requestId = crypto.randomUUID();
-    const cors = corsHeaders(request.headers.get("origin"), deps.allowedOrigins);
+    const cors = corsHeaders(
+      request.headers.get("origin"),
+      deps.allowedOrigins,
+    );
     const url = new URL(request.url);
     const path = url.pathname.replace(/^.*?\/org(?=\/|$)/, "") || "/";
 
@@ -797,10 +968,13 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: cors });
     }
-    if (!found) return finish(failure("not_found", requestId, {}, cors), "not_found");
+    if (!found) {
+      return finish(failure("not_found", requestId, {}, cors), "not_found");
+    }
 
     try {
-      const token = request.headers.get("authorization")?.match(/^Bearer (.+)$/)?.[1];
+      const token = request.headers.get("authorization")?.match(/^Bearer (.+)$/)
+        ?.[1];
       const actor = token ? await deps.verifyToken(token) : null;
       if (!actor) throw new ApiError("authentication_required");
       const data = await found.route.handler({
@@ -813,9 +987,15 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       return finish(success(data, requestId, cors));
     } catch (error) {
       if (error instanceof ApiError) {
-        return finish(failure(error.code, requestId, error.details, cors), error.code);
+        return finish(
+          failure(error.code, requestId, error.details, cors),
+          error.code,
+        );
       }
-      return finish(failure("internal_error", requestId, {}, cors), "internal_error");
+      return finish(
+        failure("internal_error", requestId, {}, cors),
+        "internal_error",
+      );
     }
   };
 }

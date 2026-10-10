@@ -14,9 +14,19 @@ export interface SealedNumber {
 
 export interface AccountCrypto {
   /** Encrypts a 10-digit number for one owner and fingerprints it for one bank. */
-  seal(ownerUserId: string, bankCode: string, accountNumber: string): Promise<SealedNumber>;
+  seal(
+    ownerUserId: string,
+    bankCode: string,
+    accountNumber: string,
+  ): Promise<SealedNumber>;
   /** Decrypts a stored number; fails unless owner and key version match. */
-  open(ownerUserId: string, ciphertext: string, keyVersion: number): Promise<string>;
+  open(
+    ownerUserId: string,
+    ciphertext: string,
+    keyVersion: number,
+  ): Promise<string>;
+  /** The stored fingerprint of a 10-digit number at one bank (admin search, W-23). */
+  fingerprint(bankCode: string, accountNumber: string): Promise<string>;
 }
 
 export interface AccountKeys {
@@ -35,7 +45,9 @@ function hexKey(value: string, name: string) {
     throw new Error(`${name} must be 32 bytes as 64 hex characters`);
   }
   const raw = new Uint8Array(32);
-  for (let i = 0; i < 32; i++) raw[i] = parseInt(value.slice(i * 2, i * 2 + 2), 16);
+  for (let i = 0; i < 32; i++) {
+    raw[i] = parseInt(value.slice(i * 2, i * 2 + 2), 16);
+  }
   return raw;
 }
 
@@ -53,10 +65,14 @@ function fromBase64(value: string) {
 }
 
 function aad(ownerUserId: string, keyVersion: number) {
-  return encoder.encode(`payout-account:v${keyVersion}:${ownerUserId.toLowerCase()}`);
+  return encoder.encode(
+    `payout-account:v${keyVersion}:${ownerUserId.toLowerCase()}`,
+  );
 }
 
-export async function createAccountCrypto(keys: AccountKeys): Promise<AccountCrypto> {
+export async function createAccountCrypto(
+  keys: AccountKeys,
+): Promise<AccountCrypto> {
   if (keys.encryption.size === 0 || !keys.encryption.has(keys.currentVersion)) {
     throw new Error("PAYOUT_ACCOUNT_ENC_KEY is missing");
   }
@@ -68,7 +84,9 @@ export async function createAccountCrypto(keys: AccountKeys): Promise<AccountCry
     }
     const raw = hexKey(value, "PAYOUT_ACCOUNT_ENC_KEY");
     if (raw.every((byte, i) => byte === fingerprintRaw[i])) {
-      throw new Error("PAYOUT_ACCOUNT_ENC_KEY and PAYOUT_ACCOUNT_HMAC_KEY must differ");
+      throw new Error(
+        "PAYOUT_ACCOUNT_ENC_KEY and PAYOUT_ACCOUNT_HMAC_KEY must differ",
+      );
     }
     encryptionKeys.set(
       version,
@@ -86,9 +104,34 @@ export async function createAccountCrypto(keys: AccountKeys): Promise<AccountCry
     ["sign"],
   );
 
+  async function fingerprintOf(
+    bankCode: string,
+    accountNumber: string,
+  ): Promise<string> {
+    const signature = new Uint8Array(
+      await crypto.subtle.sign(
+        "HMAC",
+        fingerprintKey,
+        encoder.encode(`${bankCode}:${accountNumber}`),
+      ),
+    );
+    return Array.from(signature, (b) => b.toString(16).padStart(2, "0")).join(
+      "",
+    );
+  }
+
   return {
+    async fingerprint(bankCode, accountNumber) {
+      if (!accountNumberPattern.test(accountNumber)) {
+        throw new Error("invalid account number");
+      }
+      return await fingerprintOf(bankCode, accountNumber);
+    },
+
     async seal(ownerUserId, bankCode, accountNumber) {
-      if (!accountNumberPattern.test(accountNumber)) throw new Error("invalid account number");
+      if (!accountNumberPattern.test(accountNumber)) {
+        throw new Error("invalid account number");
+      }
       const keyVersion = keys.currentVersion;
       const key = encryptionKeys.get(keyVersion);
       if (!key) throw new Error("encryption key unavailable");
@@ -103,17 +146,10 @@ export async function createAccountCrypto(keys: AccountKeys): Promise<AccountCry
       const packed = new Uint8Array(iv.length + sealed.length);
       packed.set(iv);
       packed.set(sealed, iv.length);
-      const signature = new Uint8Array(
-        await crypto.subtle.sign(
-          "HMAC",
-          fingerprintKey,
-          encoder.encode(`${bankCode}:${accountNumber}`),
-        ),
-      );
       return {
         ciphertext: toBase64(packed),
         keyVersion,
-        fingerprint: Array.from(signature, (b) => b.toString(16).padStart(2, "0")).join(""),
+        fingerprint: await fingerprintOf(bankCode, accountNumber),
         last4: accountNumber.slice(-4),
       };
     },
@@ -124,12 +160,18 @@ export async function createAccountCrypto(keys: AccountKeys): Promise<AccountCry
       const packed = fromBase64(ciphertext);
       if (packed.length < 12 + 16 + 1) throw new Error("ciphertext too short");
       const plain = await crypto.subtle.decrypt(
-        { name: "AES-GCM", iv: packed.slice(0, 12), additionalData: aad(ownerUserId, keyVersion) },
+        {
+          name: "AES-GCM",
+          iv: packed.slice(0, 12),
+          additionalData: aad(ownerUserId, keyVersion),
+        },
         key,
         packed.slice(12),
       );
       const accountNumber = decoder.decode(plain);
-      if (!accountNumberPattern.test(accountNumber)) throw new Error("unexpected plaintext");
+      if (!accountNumberPattern.test(accountNumber)) {
+        throw new Error("unexpected plaintext");
+      }
       return accountNumber;
     },
   };

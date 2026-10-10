@@ -7,7 +7,7 @@ import type { BackendError, ContractViolation, TransportError } from '#lib/contr
 import { COMMAND_TIMEOUT_MS, READ_TIMEOUT_MS, requestJson } from '#lib/contract/transport.js';
 
 export type EdgeFunction =
-	'security' | 'org' | 'invitations' | 'identity' | 'payout' | 'ledger' | 'billing';
+	'security' | 'org' | 'invitations' | 'identity' | 'payout' | 'ledger' | 'billing' | 'admin';
 
 export interface EdgeRoute {
 	readonly method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';

@@ -87,6 +87,19 @@ export const variables = defineEnvVars({
 			return url.origin;
 		}
 	},
+	// Blueprint 18: one codebase, two Workers. `member` (default) serves the
+	// Wallet app; `admin` serves only /admin/* (admin.elivatewallet.com).
+	// `both` is for local e2e only and is refused unless SUPABASE_URL is a
+	// loopback address (config.ts).
+	APP_SURFACE: {
+		description:
+			'Which site this Worker serves: member (default), admin, or both (local e2e only).',
+		schema: (value: string | undefined) => {
+			if (value === undefined || value === '') return 'member' as const;
+			if (value === 'member' || value === 'admin' || value === 'both') return value;
+			throw new Error('APP_SURFACE must be member, admin or both');
+		}
+	},
 	TURNSTILE_SECRET_KEY: {
 		description: 'Turnstile secret key for server-side siteverify. Never sent to the browser.',
 		schema: (value: string | undefined) => (value === '' ? undefined : value)

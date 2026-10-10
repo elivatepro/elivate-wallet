@@ -48,7 +48,7 @@
 			{name}
 			type="password"
 			inputmode="numeric"
-			pattern="[0-9]{4}"
+			pattern={'[0-9]{4}'}
 			minlength="4"
 			maxlength="4"
 			required

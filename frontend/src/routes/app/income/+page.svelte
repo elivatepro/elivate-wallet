@@ -954,8 +954,10 @@
 					</ul>
 				</div>
 
-				<button type="submit" class="post post-mobile" disabled={!shell.canAct}
-					>Review and post</button
+				<button
+					type="submit"
+					class="post post-mobile"
+					disabled={!shell.canAct || shell.paused('income')}>Review and post</button
 				>
 			</div>
 
@@ -985,7 +987,9 @@
 					{/each}
 				</div>
 				<div class="preview-foot">
-					<button type="submit" class="post" disabled={!shell.canAct}>Review and post</button>
+					<button type="submit" class="post" disabled={!shell.canAct || shell.paused('income')}
+						>Review and post</button
+					>
 				</div>
 				<div class="stage" aria-hidden="true">
 					<div class="shade"></div>

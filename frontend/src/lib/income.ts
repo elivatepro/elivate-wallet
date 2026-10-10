@@ -3,6 +3,7 @@
 // checks and the copy for backend outcomes. No floats touch money here.
 
 import type { ApiFailure } from '#lib/contract/errors.js';
+import { pausedMessage } from '#lib/operations.js';
 import { isUnknownOutcome } from './recovery';
 import type { Currency } from '#lib/contract/ledger.js';
 import {
@@ -207,6 +208,8 @@ export const isDefinitive = (failure: ApiFailure | undefined): boolean =>
 /** One short line for a refused income command. */
 export function incomeMessage(failure: ApiFailure | undefined): string {
 	if (failure?._tag !== 'BackendError') return 'We couldn’t reach Wallet. Try again.';
+	const paused = pausedMessage(failure);
+	if (paused) return paused;
 	switch (failure.code) {
 		case 'target_not_eligible':
 			return 'This member can’t receive income right now.';
