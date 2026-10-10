@@ -28,6 +28,7 @@ set search_path = ''
 as $$
 declare
   wallet_membership uuid;
+  restricted boolean;
   setup_level text;
   next_step text;
   profile identity.profiles;
@@ -52,12 +53,15 @@ begin
   end if;
 
   select * into profile from identity.profiles p where p.user_id = p_user_id;
+  restricted := exists (select 1 from identity.accounts a where a.user_id = p_user_id and a.status = 'restricted');
   if setup_level = 'wallet' then
     if not exists (select 1 from identity.nin_records n where n.user_id = p_user_id) then
       next_step := 'identity';
     elsif profile.photo_key is null or profile.phone is null or profile.rank is null then
       next_step := 'profile';
-    elsif not exists (
+    -- A restricted account cannot add a bank account (no writes), so it is
+    -- not asked for one; it cannot move money either (D-02).
+    elsif not restricted and not exists (
       select 1 from payout.accounts a where a.owner_user_id = p_user_id and a.status = 'active'
     ) then
       next_step := 'bank';

@@ -58,7 +58,8 @@ wallet-less navigation). Migrations `2026100922xxxx`; pgTAP `220_`–`229_`.
 | `light` | Any other active membership (President Team, exempted director, a membership in a paused network), or an approved founder (`founders.approved`) | `profile` (first and last name, photo, rank) |
 | `none` | Nobody to set up for (no active membership, not a founder; platform admins) | — |
 
-- `next` is the first missing step, or `null`. The PIN comes first through the existing PIN gate.
+- `next` is the first missing step, or `null`. A **restricted** account is not asked for the bank
+  step: it cannot add one (no writes) and cannot move money (D-02). The PIN comes first through the existing PIN gate.
 - `walletMembershipId` is the membership the bank step uses (primary first). It is null below the
   `wallet` level.
 - The photo is always required. Local e2e runs get a disk-backed photo store (like exports) so the
@@ -124,8 +125,9 @@ wallet-less navigation). Migrations `2026100922xxxx`; pgTAP `220_`–`229_`.
    hold the `director` role and not be ended (`conflict{reason: not_a_director}`), and not belong
    to the actor (`self_target_forbidden`). Reason 3–500 characters.
 3. Replay (`identity.replay`, after the checks above) returns the stored result.
-4. Exclusive lock `org.funds:<membership>` (the ledger's posting check takes it shared, so the
-   check and any posting or hold are serialized).
+4. Exclusive lock `org.funds:<network>:<person>` (postings, holds and pending entries on any of
+   the person's memberships in the network take it shared, so the check and any of them are
+   serialized).
 5. Already in the asked state → returns `{ changed: false }`, no audit.
 6. Setting: refused with `conflict{reason: wallet_not_empty}` if any wallet segment from this
    network holds `posted <> 0` or `reserved <> 0`, or a withdrawal (`requested`/`approved`), pocket
@@ -147,7 +149,8 @@ Route: `POST /org/memberships/:id/funds` `{ notManaged, reason, idempotencyKey }
   income member search leaves it out.
 - **Ledger backstop:** a trigger on `ledger.postings` and `ledger.reservations` (member-value
   accounts) takes the shared lock and refuses the row with `conflict{reason: funds_not_managed}`.
-  This also covers returned funds and anything added later.
+  This also covers returned funds and anything added later. Entries waiting for review
+  (`finance.entries`) get the same trigger, since they post only later.
 - **Reads:** `member_detail` gains `fundsNotManaged`, `actions.funds` (President Team viewing a
   non-ended director that isn't themselves) and `fundsBlocked` (`wallet_not_empty` when setting
   would be refused). `workspaces_json` gains `fundsNotManaged`.

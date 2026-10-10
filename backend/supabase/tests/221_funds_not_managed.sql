@@ -5,7 +5,7 @@
 -- refuse the membership, the setup turns light, and clearing restores it.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(37);
+select plan(38);
 
 create function pg_temp.u(n int) returns uuid language sql immutable as
   $$ select ('10000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
@@ -212,6 +212,13 @@ select is(pg_temp.err(format($q$
     1, 'withdrawal', 'test', gen_random_uuid(), %L)
   $q$, pg_temp.u(7), pg_temp.id('d7'), pg_temp.id('tenant'), pg_temp.u(1))),
   'conflict {"reason": "funds_not_managed"}', 'and a hold');
+select is(pg_temp.err(format($q$
+  insert into finance.entries (id, reference, kind, tenant_id, office_id, membership_id, wallet_id, owner_user_id,
+    currency, amount, direction, reason, submitted_by, idempotency_key)
+  values (gen_random_uuid(), refs.issue('ADJ'), 'adjustment', %L, %L, %L, ledger.wallet_for(%L), %L, 'NGN', 5,
+    'credit', 'Late bonus', %L, %L)
+  $q$, pg_temp.id('tenant'), pg_temp.id('D'), pg_temp.id('d7'), pg_temp.u(7), pg_temp.u(7), pg_temp.u(1), pg_temp.k())),
+  'conflict {"reason": "funds_not_managed"}', 'and an entry waiting for review');
 select is((api.member_detail(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.id('d7'))
   - array['person', 'emailMasked', 'office', 'officeLeaders', 'memberships', 'history', 'startedAt', 'walletId',
           'membershipId', 'role', 'status', 'isPrimary', 'endedAt', 'isSelf'])

@@ -37,13 +37,16 @@ as $$
       where e.tenant_id = p_tenant_id and e.owner_user_id = p_user_id and e.status = 'needs_review');
 $$;
 
-create function org.funds_lock_key(p_membership_id uuid)
+-- One key per person per network: the switch checks money from every one of
+-- their memberships in the network, so postings, holds and pending entries
+-- on any of them take it too.
+create function org.funds_lock_key(p_tenant_id uuid, p_user_id uuid)
 returns bigint
 language sql
 immutable
 set search_path = ''
 as $$
-  select hashtextextended('org.funds:' || p_membership_id::text, 0);
+  select hashtextextended('org.funds:' || p_tenant_id::text || ':' || p_user_id::text, 0);
 $$;
 
 -- ── Ledger backstop ───────────────────────────────────────────────────────
@@ -56,14 +59,14 @@ language plpgsql
 set search_path = ''
 as $$
 declare
-  v_membership_id uuid;
+  account ledger.accounts;
 begin
-  select a.membership_id into v_membership_id
+  select * into account
   from ledger.accounts a
   where a.id = new.account_id and a.class = 'member_value';
-  if v_membership_id is not null then
-    perform pg_advisory_xact_lock_shared(org.funds_lock_key(v_membership_id));
-    if org.funds_not_managed(v_membership_id) then
+  if account.id is not null then
+    perform pg_advisory_xact_lock_shared(org.funds_lock_key(account.tenant_id, account.owner_user_id));
+    if org.funds_not_managed(account.membership_id) then
       perform identity.fail('conflict', jsonb_build_object('reason', 'funds_not_managed'));
     end if;
   end if;
@@ -78,6 +81,27 @@ for each row execute function ledger.refuse_unmanaged_funds();
 create trigger reservations_funds_managed
 before insert on ledger.reservations
 for each row execute function ledger.refuse_unmanaged_funds();
+
+-- An entry waiting for review (adjustment, conversion, returned funds) holds
+-- no money yet but would post later: it is refused for an exempted
+-- membership, and the switch sees it (same lock) while it is open.
+create function finance.refuse_unmanaged_entry()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  perform pg_advisory_xact_lock_shared(org.funds_lock_key(new.tenant_id, new.owner_user_id));
+  if org.funds_not_managed(new.membership_id) then
+    perform identity.fail('conflict', jsonb_build_object('reason', 'funds_not_managed'));
+  end if;
+  return new;
+end;
+$$;
+
+create trigger entries_funds_managed
+before insert on finance.entries
+for each row execute function finance.refuse_unmanaged_entry();
 
 -- ── Money targets ─────────────────────────────────────────────────────────
 
@@ -281,8 +305,9 @@ begin
     return replayed;
   end if;
 
-  -- Postings and holds on this membership take the same key shared.
-  perform pg_advisory_xact_lock(org.funds_lock_key(target.id));
+  -- Postings, holds and pending entries for this person in this network take
+  -- the same key shared.
+  perform pg_advisory_xact_lock(org.funds_lock_key(workspace.tenant_id, target.user_id));
   currently := org.funds_not_managed(target.id);
   if currently = p_not_managed then
     return identity.store_result(p_user_id, p_idempotency_key, 'set_funds_managed', request,
@@ -440,7 +465,8 @@ $$;
 -- ── Privileges ────────────────────────────────────────────────────────────
 
 revoke all on function org.funds_held(uuid, uuid) from public, anon, authenticated;
-revoke all on function org.funds_lock_key(uuid) from public, anon, authenticated;
+revoke all on function org.funds_lock_key(uuid, uuid) from public, anon, authenticated;
+revoke all on function finance.refuse_unmanaged_entry() from public, anon, authenticated;
 revoke all on function ledger.refuse_unmanaged_funds() from public, anon, authenticated;
 revoke all on function finance.target_eligible(org.memberships) from public, anon, authenticated;
 revoke all on function authz.decide(uuid, text, uuid, uuid, uuid, uuid) from public, anon, authenticated;

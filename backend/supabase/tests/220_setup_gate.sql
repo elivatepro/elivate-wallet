@@ -4,7 +4,7 @@
 -- paused network, and the light setup's name rules.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(50);
+select plan(52);
 
 create function pg_temp.u(n int) returns uuid language sql immutable as
   $$ select ('10000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
@@ -226,6 +226,15 @@ select is(pg_temp.level_next(11), 'wallet:identity', 'a member of an active netw
 update org.tenants set status = 'suspended' where id = pg_temp.id('other');
 select is(pg_temp.level_next(11), 'light:profile', 'paused: the bank step could not run, so light');
 select is(pg_temp.level_next(10), 'light:profile', 'its founder too');
+
+-- ── A restricted account cannot add a bank account, so is not asked (2) ──
+insert into identity.nin_records (user_id, nin_fingerprint, nin_last4, given_name, surname, phone, method, verified_at)
+values (pg_temp.u(2), repeat('e', 64), '2222', 'Tunde', 'Bello', '+2348030000002', 'provider', now());
+update identity.profiles set rank = 'Manager', phone = '+2348030000002', phone_source = 'nin', photo_key = 'photos/' || user_id || '/' || gen_random_uuid() || '.png',
+  photo_updated_at = now() where user_id = pg_temp.u(2);
+select is(pg_temp.level_next(2), 'wallet:bank', 'an active account owes the bank step');
+update identity.accounts set status = 'restricted' where user_id = pg_temp.u(2);
+select is(pg_temp.level_next(2), 'wallet:-', 'a restricted one does not');
 
 select * from finish();
 rollback;
