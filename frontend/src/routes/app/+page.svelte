@@ -11,6 +11,8 @@
 	import ArrowDown from '@lucide/svelte/icons/arrow-down';
 	import ArrowUp from '@lucide/svelte/icons/arrow-up';
 	import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
+	import LayoutGrid from '@lucide/svelte/icons/layout-grid';
+	import MailPlus from '@lucide/svelte/icons/mail-plus';
 	import Landmark from '@lucide/svelte/icons/landmark';
 	import Upload from '@lucide/svelte/icons/upload';
 	import PieChart from '@lucide/svelte/icons/chart-pie';
@@ -122,6 +124,17 @@
 		(shell.state.view.capabilities?.permissions ?? []).includes(key);
 	const canWithdraw = $derived(permitted('initiate_own_withdrawal'));
 	const canMove = $derived(permitted('transfer_between_own_pockets'));
+	const canPayout = $derived(permitted('manage_own_payout_accounts'));
+	const canActivity = $derived(permitted('view_own_financials'));
+	/** Slice 21: the President Team holds no wallet (A-03 gives it no own-wallet permission). */
+	const teamView = $derived(
+		permitted('view_managed_wallets') || permitted('view_scoped_financial_reports')
+	);
+	const walletless = $derived(
+		shell.state.kind === 'ready' &&
+			!permitted('view_own_wallet') &&
+			!permitted('view_own_financials')
+	);
 	const setCurrency = (c: Currency) => (chosen = c);
 </script>
 
@@ -133,6 +146,30 @@
 	<p class="visually-hidden" role="status">Loading your wallet</p>
 {:else if failed && !home}
 	<RootHero pose="load-error" title="Couldn’t load your wallet" lead={failed} compact />
+{:else if walletless && (!network || !balance || !currency)}
+	<RootHero
+		pose="home-empty"
+		title="No wallet in this workspace"
+		lead="The President Team runs the network. Members’ money is in Team overview and Member wallets."
+		compact
+	/>
+	{#if teamView}
+		<nav class="actions" aria-label="Team actions">
+			<a class="action" href="/app/team"
+				><LayoutGrid size={18} strokeWidth={1.6} aria-hidden="true" />Team overview</a
+			>
+			{#if permitted('invite_members')}
+				<a class="action" href="/app/invitations"
+					><MailPlus size={18} strokeWidth={1.6} aria-hidden="true" />Invite a member</a
+				>
+			{/if}
+			{#if canSplit}
+				<a class="action" href="/app/split"
+					><PieChart size={18} strokeWidth={1.6} aria-hidden="true" />Pockets &amp; split</a
+				>
+			{/if}
+		</nav>
+	{/if}
 {:else if !network || !balance || !currency}
 	<RootHero
 		pose="home-empty"
@@ -176,9 +213,11 @@
 				><ArrowLeftRight size={18} strokeWidth={1.6} aria-hidden="true" />Move money</a
 			>
 		{/if}
-		<a class="action" href="/app/payout-accounts"
-			><Landmark size={18} strokeWidth={1.6} aria-hidden="true" />Payout accounts</a
-		>
+		{#if canPayout}
+			<a class="action" href="/app/payout-accounts"
+				><Landmark size={18} strokeWidth={1.6} aria-hidden="true" />Payout accounts</a
+			>
+		{/if}
 		{#if canSplit}
 			<a class="action" href="/app/split"
 				><PieChart size={18} strokeWidth={1.6} aria-hidden="true" />Pockets &amp; split</a
@@ -210,7 +249,7 @@
 		<section aria-labelledby="activity-label">
 			<div class="section-head">
 				<h2 class="section-label" id="activity-label">Recent activity</h2>
-				<a class="see-all" href="/app/activity">See all</a>
+				{#if canActivity}<a class="see-all" href="/app/activity">See all</a>{/if}
 			</div>
 			{#if activity.length === 0}
 				<p class="empty">No activity in {currency} yet.</p>
@@ -368,10 +407,13 @@
 
 	.pocket-sub,
 	.tx-sub {
+		overflow: hidden;
 		color: var(--color-muted);
 		font-size: 13px;
 		line-height: 18px;
-		overflow-wrap: anywhere;
+		/* Slice 21: one line; a reference is never split mid-code. */
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.pocket-amount,

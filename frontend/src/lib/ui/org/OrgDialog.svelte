@@ -275,14 +275,13 @@
 
 	@media (min-width: 1024px) {
 		:global(.org-dialog) {
-			left: 50%;
-			right: auto;
-			top: 50%;
-			bottom: auto;
+			/* Slice 21: centred with auto margins, not translate(-50%) (blurry text). */
+			inset: 0;
 			width: 520px;
+			height: fit-content;
 			max-height: calc(100dvh - 80px);
+			margin: auto;
 			overflow: clip;
-			transform: translate(-50%, -50%);
 			border: 1px solid var(--color-border);
 			border-radius: 24px;
 			box-shadow: #00000080 0px 30px 80px;

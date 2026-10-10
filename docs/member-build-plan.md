@@ -192,7 +192,24 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
   trusted by the server. Capabilities are not cached. The new reads `api.app_bootstrap` and
   `api.home_view` replace the call chains behind `/api/session` and `/api/home`. Session
   last-activity is written at most every 30 s. The Worker uses Smart Placement. Root images
-  stay exactly as they are. Set-based authorization moves to slice 21.
+  stay exactly as they are. Set-based authorization moves to a later slice (after 25; see the
+  feedback round below).
+- **Owner feedback round (2026-10-10, Blueprint 21):** ranks are shown **number first**
+  everywhere ("4 Ruby Director", "1 Ruby Director"); display only, stored values keep their
+  form ("Ruby Director 4", founder key `ruby_director_4`). The **President Team must not see
+  modules it can't use** (it holds no wallet: Payout accounts, Withdrawals, Activity,
+  Statements, Move money). Slice plan from here (the set-based authorization reads move last):
+  - **21** quick fixes (Blueprint 21).
+  - **22** setup by role, a backend profile gate, and a per-director **"funds not managed"**
+    switch: only the President Team flips it; it is blocked while that director's wallet holds
+    money; an exempted director still records income and runs their team.
+  - **23** speed II: the SWR device cache on every page, instant tap feedback, precache every
+    `/app` chunk, view transitions (the owner accepted all the trade-offs).
+  - **24** a haptic wheel for every member-app dropdown, with a search field for long lists
+    (banks included; this replaces the native bank select deviation).
+  - **25** navigation redesign: the mobile Roudio "Fresh Direction" pill bar, a sectioned
+    desktop sidebar and role dashboards (Paper drawings approved first).
+  - Then **set-based authorization reads** (`visible_segments`, `my_capabilities`).
 - **Sequencing:** one slice at a time, each new slice in its own thread. Order: 4 → 5 → 8 →
   slice 9 follow-up (IP storage, signed-in password change, PIN-change email, sign-out
   choice after reset) → 6 → 7 → 10.

@@ -20,9 +20,10 @@
 	import { Revoked } from '#lib/contract/security.js';
 	import { sendAccountCommand } from '#lib/client/api.js';
 	import { failureOf, followGate, loadAccount, uploadPhoto } from '#lib/client/account.js';
+	import { profilePhotoSrc, shrinkPhoto } from '#lib/client/photo.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { initials, maskPhone } from '#lib/devices.js';
-	import { ROLE_LABELS } from '#lib/labels.js';
+	import { rankLabel, ROLE_LABELS } from '#lib/labels.js';
 	import AccountHero from '#lib/ui/account/AccountHero.svelte';
 	import PageBar from '#lib/ui/account/PageBar.svelte';
 	import SessionList from '#lib/ui/account/SessionList.svelte';
@@ -42,6 +43,7 @@
 		shell.state.kind === 'ready' || shell.state.kind === 'offline' ? shell.state.summary : null
 	);
 	const name = $derived(view ? shownName(view.profile) : null);
+	const photoSrc = $derived(profilePhotoSrc(view?.profile));
 	/** Paper B09: "Changed 12 Jul 2026". */
 	const passwordHint = $derived.by(() => {
 		const at = view?.security.passwordChangedAt;
@@ -126,7 +128,7 @@
 
 		editBusy = true;
 		if (photo instanceof File && photo.size > 0) {
-			const sent = await uploadPhoto(photo);
+			const sent = await uploadPhoto(await shrinkPhoto(photo));
 			if (Exit.isFailure(sent)) {
 				editBusy = false;
 				const failure = failureOf(sent);
@@ -177,6 +179,8 @@
 		if (photoPreview) URL.revokeObjectURL(photoPreview);
 		photoPreview = null;
 		await load();
+		// The sidebar and menus read the photo's version from the shell.
+		void shell.load();
 	}
 
 	async function revoke(target: { sessionId: string } | { allOthers: true }) {
@@ -221,17 +225,14 @@
 		desktop={{ width: 150, height: 202, right: 64, bottom: -14 }}
 	>
 		<span class="avatar" aria-hidden="true">
-			{#if view?.profile.hasPhoto}<img src="/api/profile/photo" alt="" />{:else}{initials(name) ??
-					''}{/if}
+			{#if photoSrc}<img src={photoSrc} alt="" />{:else}{initials(name) ?? ''}{/if}
 		</span>
 		<span class="identity">
 			<h1 class="name" tabindex="-1">{name ?? 'Your profile'}</h1>
 			<span class="sub">
 				<span class="desk">{view?.email ? `${view.email} · ` : ''}</span>UID {view?.profile.uid ??
-					'—'}{#if roleLine}<span class="mob"> · {ROLE_LABELS[summary!.role]}</span><span
-						class="desk"
-					>
-						· {roleLine}</span
+					'—'}{#if roleLine}<span class="mob">&nbsp;· {ROLE_LABELS[summary!.role]}</span><span
+						class="desk">&nbsp;· {roleLine}</span
 					>{/if}
 			</span>
 		</span>
@@ -262,7 +263,7 @@
 				{@render row('Display name', view?.profile.displayName ?? null, true)}
 				{@render row('Legal name', legalName ?? (view ? 'Not verified yet' : null))}
 				{@render row('Phone', maskPhone(view?.profile.phone ?? null), true)}
-				{@render row('Rank', view?.profile.rank ?? null, true)}
+				{@render row('Rank', view?.profile.rank ? rankLabel(view.profile.rank) : null, true)}
 				{@render row('Email', view?.email ?? null)}
 			</div>
 		</section>
@@ -331,8 +332,8 @@
 		{#snippet fields()}
 			<div class="photo-row">
 				<span class="edit-avatar" aria-hidden="true">
-					{#if photoPreview}<img src={photoPreview} alt="" />{:else if profile.hasPhoto}<img
-							src="/api/profile/photo"
+					{#if photoPreview}<img src={photoPreview} alt="" />{:else if photoSrc}<img
+							src={photoSrc}
 							alt=""
 						/>{:else}{initials(name) ?? ''}{/if}
 				</span>
@@ -407,7 +408,7 @@
 					<span class="edit-select">
 						<select id="edit-rank" name="rank" value={profile.rank ?? ''}>
 							{#if !profile.rank}<option value="" disabled>Choose your rank</option>{/if}
-							{#each RANKS as rank (rank)}<option value={rank}>{rank}</option>{/each}
+							{#each RANKS as rank (rank)}<option value={rank}>{rankLabel(rank)}</option>{/each}
 						</select>
 						<ChevronDown size={16} strokeWidth={2} aria-hidden="true" />
 					</span>
@@ -422,7 +423,8 @@
 		display: flex;
 		flex-direction: column;
 		gap: 24px;
-		padding: 8px 0 40px;
+		/* Slice 21: side margins on phones (cards touched the screen edges). */
+		padding: 8px 16px 40px;
 	}
 
 	.avatar {
@@ -539,12 +541,14 @@
 
 	.label,
 	.label-strong {
-		flex: 1;
+		/* Slice 21: the label keeps its width; a long value ends in an ellipsis. */
+		flex: 1 0 auto;
 		font-size: 15px;
 		line-height: 18px;
 	}
 
 	.value {
+		min-width: 0;
 		overflow: hidden;
 		color: var(--color-muted);
 		font-size: var(--text-14);
@@ -780,12 +784,17 @@
 		}
 
 		.identity {
-			flex: 1;
+			/* Slice 21: keep the text on the dark side of the felt, readable. */
+			flex: 0 1 auto;
 			gap: 6px;
 			width: auto;
+			max-width: min(560px, 50%);
+			align-items: flex-start;
+			text-align: left;
 		}
 
 		.name {
+			text-align: left;
 			font-size: 28px;
 			letter-spacing: -0.02em;
 			line-height: 34px;

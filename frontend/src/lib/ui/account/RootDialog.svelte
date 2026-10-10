@@ -440,14 +440,13 @@
 	/* Desktop: 520 px modal with the felt header. */
 	@media (min-width: 1024px) {
 		:global(.rd-panel) {
-			top: 50%;
-			left: 50%;
-			right: auto;
-			bottom: auto;
+			/* Slice 21: centred with auto margins, not translate(-50%) (blurry text). */
+			inset: 0;
 			width: 520px;
+			height: fit-content;
 			max-height: calc(100dvh - 64px);
+			margin: auto;
 			overflow: clip;
-			transform: translate(-50%, -50%);
 			border: 1px solid #343a3c;
 			border-radius: var(--radius-24);
 			box-shadow: #00000080 0px 30px 80px;

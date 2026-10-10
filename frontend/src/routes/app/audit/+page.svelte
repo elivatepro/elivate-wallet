@@ -179,6 +179,7 @@
 		background: #ffffff1f;
 		color: #f2f4f4;
 		font-size: 13px;
+		white-space: nowrap;
 	}
 
 	.split {

@@ -14,7 +14,7 @@ export function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
-/** Root poses shipped in frontend/static/email/ as root-<name>.png (333×448). */
+/** Root poses shipped in frontend/static/email/ as root-<name>.png (312×420: 2× the 156×210 shown). */
 export type RootPose =
   | "verify"
   | "invitation"

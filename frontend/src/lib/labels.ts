@@ -25,3 +25,20 @@ export function maskEmail(email: string): string {
 	if (at < 1) return '•••••';
 	return `${email[0]}•••••${email.slice(at)}`;
 }
+
+/**
+ * A rank as shown everywhere (owner decision 2026-10-10): the level number
+ * first, "4 Ruby Director". Display only: stored values keep their own form,
+ * the profile's "Ruby Director 4" and the founder key "ruby_director_4".
+ */
+export function rankLabel(rank: string): string {
+	const words = rank.includes('_')
+		? rank
+				.split('_')
+				.filter(Boolean)
+				.map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+				.join(' ')
+		: rank.trim();
+	const numbered = /^(.*\S)\s+(\d+)$/.exec(words);
+	return numbered ? `${numbered[2]} ${numbered[1]}` : words;
+}

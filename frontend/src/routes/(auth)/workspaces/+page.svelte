@@ -60,6 +60,7 @@
 				<li>
 					<form method="POST" action="?/select">
 						<input type="hidden" name="membershipId" value={workspace.membershipId} />
+						{#if data.next}<input type="hidden" name="next" value={data.next} />{/if}
 						<button type="submit" class="row" disabled={!workspace.selectable}>
 							<span class="text">
 								<span class="name">{workspace.tenantName}</span>

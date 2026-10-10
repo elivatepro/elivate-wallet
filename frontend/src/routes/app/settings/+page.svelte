@@ -92,9 +92,17 @@
 	const brandName = $derived(view?.settings.name ?? '');
 	const initial = $derived(brandName.trim().charAt(0).toUpperCase() || 'E');
 
+	/** The last confirmed network: kept offline so cached logo URLs still match (slice 21). */
+	let assetTenant = $state('');
+	$effect(() => {
+		if (shell.state.kind === 'ready') assetTenant = shell.state.view.workspace.tenantId;
+	});
 	const assetUrl = (kind: 'logo' | 'icon' | 'logo-light') =>
 		previews[kind] ??
-		(view && hasAsset(kind) ? `/api/brand/${kind}?v=${view.settings.revision}` : null);
+		(view && hasAsset(kind)
+			? // The network too: revisions count per network (slice 21).
+				`/api/brand/${kind}?t=${assetTenant}&v=${view.settings.revision}`
+			: null);
 	const hasAsset = (kind: 'logo' | 'icon' | 'logo-light') =>
 		!!view &&
 		(kind === 'logo'

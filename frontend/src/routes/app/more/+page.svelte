@@ -35,6 +35,7 @@
 	import UserRound from '@lucide/svelte/icons/user-round';
 	import UserCog from '@lucide/svelte/icons/user-cog';
 	import { THEME_LABELS, type Appearance } from '#lib/client/appearance.svelte.js';
+	import { profilePhotoSrc } from '#lib/client/photo.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { ROLE_LABELS } from '#lib/labels.js';
 	import { THEMES } from '#lib/theme.js';
@@ -57,8 +58,12 @@
 			(shell.state.kind === 'ready' && shell.state.view.capabilities?.billingOwner === true)
 	);
 	const person = $derived(shell.state.kind === 'ready' ? shell.state.view.profile : null);
+	const photoSrc = $derived(profilePhotoSrc(person));
 	/** Org management entries (Blueprint 07); navigation hints only. */
 	const president = $derived(summary?.role === 'president_team_member');
+	/** Slice 21: own-money rows only for a workspace that holds a wallet (see the shell). */
+	const ownMoney = (permission: string) =>
+		shell.state.kind === 'ready' ? can(permission) : !!summary && !president;
 	const leads = $derived(president || can('manage_members') || can('view_managed_wallets'));
 
 	function nextTheme() {
@@ -78,10 +83,7 @@
 
 <div class="profile">
 	<span class="profile-avatar" aria-hidden="true">
-		{#if person?.hasPhoto}<img src="/api/profile/photo" alt="" />{:else}<UserRound
-				size={24}
-				strokeWidth={1.6}
-			/>{/if}
+		{#if photoSrc}<img src={photoSrc} alt="" />{:else}<UserRound size={24} strokeWidth={1.6} />{/if}
 	</span>
 	<span class="profile-text">
 		{#if person?.name}<span class="profile-name">{person.name}</span>{/if}
@@ -93,7 +95,9 @@
 </div>
 
 <a class="workspace" href="/workspaces?switch">
-	<span class="brand-tile" aria-hidden="true"><img src="/icons/mark.svg" alt="" /></span>
+	<span class="brand-tile" aria-hidden="true"
+		><img src="/icons/mark.svg" alt="" width="18" height="18" /></span
+	>
 	<span class="ws-text">
 		<span class="ws-name">{summary?.officeName ?? summary?.tenantName ?? ''}</span>
 		{#if summary}<span class="ws-chip">{ROLE_LABELS[summary.role]}</span>{/if}
@@ -103,18 +107,22 @@
 </a>
 
 <section class="group" aria-labelledby="wallet-label">
-	<h2 class="eyebrow" id="wallet-label">Wallet</h2>
+	<h2 class="eyebrow" id="wallet-label">{president ? 'Money' : 'Wallet'}</h2>
 	<div class="card">
-		<a class="row" href="/app/payout-accounts">
-			<Landmark size={20} strokeWidth={1.8} aria-hidden="true" />
-			<span class="label">Payout accounts</span>
-			<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
-		</a>
-		<a class="row" href="/app/statements">
-			<FileIcon size={20} strokeWidth={1.8} aria-hidden="true" />
-			<span class="label">Statements</span>
-			<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
-		</a>
+		{#if ownMoney('manage_own_payout_accounts')}
+			<a class="row" href="/app/payout-accounts">
+				<Landmark size={20} strokeWidth={1.8} aria-hidden="true" />
+				<span class="label">Payout accounts</span>
+				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
+			</a>
+		{/if}
+		{#if ownMoney('export_own_statement')}
+			<a class="row" href="/app/statements">
+				<FileIcon size={20} strokeWidth={1.8} aria-hidden="true" />
+				<span class="label">Statements</span>
+				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
+			</a>
+		{/if}
 		{#if can('view_scoped_financial_reports') || can('export_scoped_reports')}
 			<a class="row" href="/app/reports">
 				<ChartColumn size={20} strokeWidth={1.8} aria-hidden="true" />
@@ -405,7 +413,7 @@
 		border-radius: var(--radius-pill);
 		background: var(--color-raised);
 		color: #d5dadb;
-		font-size: 10px;
+		font-size: 11px; /* slice 21: nothing below 11 px */
 		font-weight: var(--font-weight-medium);
 		line-height: 14px;
 	}

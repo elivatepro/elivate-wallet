@@ -203,11 +203,12 @@
 
 	.hero :global(.hero-root) {
 		position: absolute;
-		left: 50%;
+		left: 0;
+		right: 0;
+		margin-inline: auto;
 		bottom: -8px;
 		width: 150px;
 		height: 200px;
-		transform: translateX(-50%);
 	}
 
 	.headline {

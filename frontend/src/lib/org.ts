@@ -140,6 +140,9 @@ export const PERMISSION_LABELS: Record<string, string> = {
 	transfer_presidency: 'Transfer presidency',
 	deactivate_tenant: 'Deactivate workspace',
 	manage_allocation: 'Pockets & split',
+	// Blueprint 17 keys (slice 21: they showed as raw keys).
+	manage_team_settings: 'Team settings & branding',
+	request_restore: 'Request a restore',
 	review_financial_evidence: 'Review financial evidence'
 };
 

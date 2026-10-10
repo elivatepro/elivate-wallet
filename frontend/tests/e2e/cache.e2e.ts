@@ -118,7 +118,8 @@ test('sign out, then another person signs in: no flash of the first person’s d
 		await expect(page.getByTestId('cache-note')).toHaveCount(0);
 		await page.waitForTimeout(200);
 	}
-	await expect(page.getByRole('heading', { name: 'No money in yet' })).toBeVisible({
+	// Slice 21: the founder's President Team workspace holds no wallet.
+	await expect(page.getByRole('heading', { name: 'No wallet in this workspace' })).toBeVisible({
 		timeout: 10_000
 	});
 });

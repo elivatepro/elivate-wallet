@@ -254,12 +254,12 @@
 
 	@media (min-width: 1024px) {
 		:global(.pv-dialog) {
-			inset: auto;
-			left: 50%;
-			top: 50%;
+			/* Slice 21: centred with auto margins, not translate(-50%) (blurry text). */
+			inset: 0;
 			width: 600px;
+			height: fit-content;
 			max-height: calc(100dvh - 96px);
-			transform: translate(-50%, -50%);
+			margin: auto;
 			overflow: clip;
 			border: 1px solid color-mix(in oklab, var(--color-text) 10%, transparent);
 			border-radius: 24px;

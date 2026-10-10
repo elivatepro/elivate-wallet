@@ -116,11 +116,13 @@
 
 	:global(.confirm-dialog) {
 		position: fixed;
-		left: 50%;
+		/* Slice 21: centred with auto margins, not translate(-50%) (blurry text). */
+		left: 0;
+		right: 0;
 		bottom: 0;
 		z-index: 51;
 		width: min(520px, 100%);
-		transform: translateX(-50%);
+		margin-inline: auto;
 		border-radius: 24px 24px 0 0;
 		border: 1px solid color-mix(in oklab, var(--color-text) 10%, transparent);
 		background: var(--color-surface);

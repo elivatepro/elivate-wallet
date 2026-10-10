@@ -68,7 +68,9 @@
 	<aside class="sidebar" aria-label="Admin">
 		<div class="brand">
 			<div class="brand-card">
-				<span class="brand-tile" aria-hidden="true"><img src="/icons/mark.svg" alt="" /></span>
+				<span class="brand-tile" aria-hidden="true"
+					><img src="/icons/mark.svg" alt="" width="20" height="20" /></span
+				>
 				<span class="brand-text">
 					<strong>Elivate Admin</strong>
 					<span class="chip"><span class="dot"></span>Platform</span>
@@ -207,7 +209,7 @@
 		border: 1px solid color-mix(in oklab, var(--color-accent) 30%, transparent);
 		border-radius: 999px;
 		font-family: var(--font-mono);
-		font-size: 10px;
+		font-size: 11px; /* slice 21: nothing below 11 px */
 		letter-spacing: 0.08em;
 		line-height: 15px;
 		text-transform: uppercase;

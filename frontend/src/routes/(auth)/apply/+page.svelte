@@ -6,7 +6,8 @@
 <script lang="ts">
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import { enhance } from '$app/forms';
-	import { FOUNDER_RANK_LABELS, FOUNDER_RANKS } from '#lib/contract/founders.js';
+	import { FOUNDER_RANKS } from '#lib/contract/founders.js';
+	import { rankLabel } from '#lib/labels.js';
 	import AltLink from '#lib/ui/auth/AltLink.svelte';
 	import AuthHeading from '#lib/ui/auth/AuthHeading.svelte';
 	import Field from '#lib/ui/auth/Field.svelte';
@@ -32,7 +33,7 @@
 <AuthHeading
 	eyebrow="Apply first"
 	title="Start your network"
-	lead="For Ruby Director 4 and above. Elivate reviews every application and emails you an invitation once it is approved."
+	lead="For 4 Ruby Director and above. Elivate reviews every application and emails you an invitation once it is approved."
 />
 
 <form
@@ -102,16 +103,14 @@
 					aria-invalid={errors?.rank ? 'true' : undefined}
 					aria-describedby={errors?.rank ? 'rank-hint rank-error' : 'rank-hint'}
 				>
-					<option value="" disabled selected={!values?.rank}>Choose your rank</option>
+					<option value="" disabled selected={!values?.rank}>Choose one</option>
 					{#each FOUNDER_RANKS as rank (rank)}
-						<option value={rank} selected={values?.rank === rank}
-							>{FOUNDER_RANK_LABELS[rank]}</option
-						>
+						<option value={rank} selected={values?.rank === rank}>{rankLabel(rank)}</option>
 					{/each}
 				</select>
 				<ChevronDown size={18} strokeWidth={1.6} aria-hidden="true" />
 			</div>
-			<p class="hint" id="rank-hint">Ruby Director 4 or above only</p>
+			<p class="hint" id="rank-hint">4 Ruby Director or above only</p>
 			{#if errors?.rank}<p class="error" id="rank-error">{errors.rank}</p>{/if}
 		</div>
 	</div>

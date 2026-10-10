@@ -6,7 +6,7 @@
 import { fail, redirect, type RequestEvent } from '@sveltejs/kit';
 import { Effect, Exit } from 'effect';
 import { IDEMPOTENCY_KEY_PATTERN, UUID_PATTERN } from '#lib/contract/common.js';
-import { pathForGateCode } from '#lib/gate.js';
+import { pathForGateCode, safeAppNext } from '#lib/gate.js';
 import { isSelectable } from '#lib/contract/org.js';
 import { InvitationsApi } from '#lib/server/apis.js';
 import type { VerifiedSession } from '#lib/server/auth.js';
@@ -58,22 +58,26 @@ export const load: PageServerLoad = async (event) => {
 		redirect(303, '/onboarding');
 	}
 	const switching = event.url.searchParams.has('switch');
+	// Slice 21: the app page a gate interrupted, opened once a workspace is set.
+	const next = safeAppNext(event.url.searchParams.get('next'));
+	const open = next ?? APP_PATH;
 
 	// Pending invitations keep the picker open so the person sees them.
 	if (!switching && invitations.length === 0) {
 		// A still-valid earlier choice skips the picker (plan §7.2 step 3).
 		const current = readWorkspace(event.cookies);
 		const remembered = selectable.find((w) => w.membershipId === current);
-		if (remembered && (await selectWorkspace(event, session, remembered))) redirect(303, APP_PATH);
+		if (remembered && (await selectWorkspace(event, session, remembered))) redirect(303, open);
 		// Exactly one workspace is opened automatically (decision 48).
 		const only = selectable.length === 1 ? selectable[0] : undefined;
 		if (only && (await selectWorkspace(event, session, only))) {
-			redirect(303, APP_PATH);
+			redirect(303, open);
 		}
 	}
 
 	return {
 		uid: state.uid,
+		next,
 		workspaces: workspaces.map((w) => ({
 			membershipId: w.membershipId,
 			tenantName: w.tenantName,
@@ -102,7 +106,7 @@ export const actions: Actions = {
 		if (!chosen || !(await selectWorkspace(event, session, chosen))) {
 			return fail(409, { message: 'That workspace can’t be opened. Choose another.' });
 		}
-		redirect(303, APP_PATH);
+		redirect(303, safeAppNext(String(form.get('next') ?? '')) ?? APP_PATH);
 	},
 
 	accept: async (event) => {

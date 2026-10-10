@@ -39,7 +39,8 @@ export const GET: RequestHandler = async (event) => {
 			const profile = Option.getOrNull(
 				Option.map(decodeProfile(boot.profile), (p) => ({
 					name: shownName(p),
-					hasPhoto: p.hasPhoto
+					hasPhoto: p.hasPhoto,
+					photoUpdatedAt: p.photoUpdatedAt
 				}))
 			);
 			const view: SessionView = { ...base, profile };

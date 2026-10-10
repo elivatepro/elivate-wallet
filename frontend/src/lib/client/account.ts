@@ -6,7 +6,7 @@ import { AccountRoutes, AccountView } from '#lib/contract/account.js';
 import { decodeResponse } from '#lib/contract/envelope.js';
 import { TransportError, type ApiFailure } from '#lib/contract/errors.js';
 import { COMMAND_TIMEOUT_MS } from '#lib/contract/transport.js';
-import { pathForGateCode } from '#lib/gate.js';
+import { pathForGateCode, withNext } from '#lib/gate.js';
 import { getJson } from './api';
 
 export const failureOf = <A>(exit: Exit.Exit<A, ApiFailure>): ApiFailure | undefined =>
@@ -15,13 +15,13 @@ export const failureOf = <A>(exit: Exit.Exit<A, ApiFailure>): ApiFailure | undef
 /** Leaves the page for a gate failure; true when it did. */
 export function followGate(failure: ApiFailure | undefined, next: string): boolean {
 	if (failure?._tag === 'TransportError' && failure.status === 401) {
-		window.location.assign('/sign-in');
+		window.location.assign(withNext('/sign-in', next));
 		return true;
 	}
 	if (failure?._tag !== 'BackendError') return false;
 	const path = pathForGateCode(failure.code);
 	if (!path) return false;
-	window.location.assign(path === '/pin' ? `/pin?next=${encodeURIComponent(next)}` : path);
+	window.location.assign(withNext(path, next));
 	return true;
 }
 

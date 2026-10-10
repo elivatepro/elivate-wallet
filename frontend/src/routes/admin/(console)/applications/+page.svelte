@@ -8,7 +8,7 @@
 	import AdminDialog from '#lib/ui/admin/AdminDialog.svelte';
 	import Badge from '#lib/ui/admin/Badge.svelte';
 	import RootHero from '#lib/ui/app/RootHero.svelte';
-	import { FOUNDER_RANK_LABELS } from '#lib/contract/founders.js';
+	import { rankLabel } from '#lib/labels.js';
 	import type { FounderApplication } from '#lib/contract/admin.js';
 	import { day, initials, when, withQuery } from '#lib/admin.js';
 	import { formatPhone } from '#lib/founders.js';
@@ -64,7 +64,7 @@
 		title={waiting === 0
 			? 'No founder applications waiting'
 			: `${plural(waiting, 'founder application')} waiting`}
-		lead="Approve Ruby Director 4 and above. Approval emails a founder invitation."
+		lead="Approve 4 Ruby Director and above. Approval emails a founder invitation."
 	/>
 
 	<nav class="segmented chips" aria-label="Filter by status">
@@ -118,7 +118,7 @@
 								</span>
 							</td>
 							<td data-label="Team">{a.teamName}</td>
-							<td data-label="Rank">{FOUNDER_RANK_LABELS[a.rank]}</td>
+							<td data-label="Rank">{rankLabel(a.rank)}</td>
 							{#if data.status === 'waiting'}
 								<td class="mono" data-label="Phone">{formatPhone(a.phone)}</td>
 								<td class="num" data-label="Applied">{when(a.createdAt)}</td>
@@ -181,7 +181,7 @@
 		<dl class="facts">
 			<div>
 				<dt>Rank</dt>
-				<dd>{FOUNDER_RANK_LABELS[reviewing.rank]}</dd>
+				<dd>{rankLabel(reviewing.rank)}</dd>
 			</div>
 			<div>
 				<dt>Email</dt>

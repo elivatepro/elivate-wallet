@@ -19,6 +19,7 @@ export const load: PageServerLoad = async (event) => {
 	const profile = wizard.profile!;
 	return {
 		hasPhoto: profile.hasPhoto,
+		photoUpdatedAt: profile.photoUpdatedAt,
 		photoRequired: wizard.photoRequired,
 		phone: profile.phone,
 		phoneLocked: profile.phoneSource === 'nin',

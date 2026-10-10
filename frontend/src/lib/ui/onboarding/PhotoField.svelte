@@ -1,34 +1,51 @@
 <!--
 	Profile photo (Paper 09): dashed coral circle with a camera, preview after a
 	choice. A real file input (works without JS); JPEG, PNG or WebP up to 5 MB,
-	checked again on the server.
+	checked again on the server. With JavaScript, the chosen photo is shrunk to
+	512 px and re-encoded before the form posts it (slice 21).
 -->
 <script lang="ts">
 	import Camera from '@lucide/svelte/icons/camera';
+	import { shrinkInputPhoto } from '#lib/client/photo.js';
 
 	let {
 		hasPhoto = false,
 		photoSrc = null,
 		required = true,
+		converting = $bindable(false),
 		error
 	}: {
 		hasPhoto?: boolean;
 		photoSrc?: string | null;
 		required?: boolean;
+		/** True while a chosen photo is being shrunk; the form waits for it. */
+		converting?: boolean;
 		error?: string | null;
 	} = $props();
 
 	let preview = $state<string | null>(null);
-	const onChange = (event: Event) => {
-		const file = (event.currentTarget as HTMLInputElement).files?.[0];
+	const onChange = async (event: Event) => {
+		const input = event.currentTarget as HTMLInputElement;
+		const chosen = input.files?.[0] ?? null;
 		if (preview) URL.revokeObjectURL(preview);
+		preview = null;
+		converting = !!chosen;
+		const file = await shrinkInputPhoto(input);
+		// Only the latest choice updates the preview (a newer one may be converting).
+		if (input.files?.[0] !== chosen && input.files?.[0] !== file) return;
+		converting = false;
 		preview = file ? URL.createObjectURL(file) : null;
 	};
 	const shown = $derived(preview ?? (hasPhoto ? photoSrc : null));
 </script>
 
 <div class="photo">
-	<label class="circle" class:filled={!!shown} class:invalid={!!error}>
+	<label
+		class="circle"
+		class:filled={!!shown}
+		class:invalid={!!error}
+		aria-busy={converting ? 'true' : undefined}
+	>
 		{#if shown}
 			<img src={shown} alt="" />
 		{:else}
