@@ -17,19 +17,33 @@ export interface AuthConfig {
 	 * Devices & sessions (Blueprint 10). No IP is forwarded.
 	 */
 	readonly userAgent?: string | null;
+	/**
+	 * Blueprint 18: the admin site keeps its own session in `ew-admin-auth`
+	 * (SameSite=Strict, host-only), never shared with the Wallet app's `ew-auth`.
+	 */
+	readonly surface?: 'member' | 'admin';
 }
 
+/** The auth cookie name (and chunk prefix) of each site. */
+export const AUTH_COOKIE = { member: 'ew-auth', admin: 'ew-admin-auth' } as const;
+
 export function createAuthClient(cookies: Cookies, config: AuthConfig): SupabaseClient {
+	const surface = config.surface ?? 'member';
 	const cookieDefaults = {
 		path: '/',
 		httpOnly: true,
 		secure: config.secureCookies,
-		sameSite: 'lax' as const
+		sameSite: surface === 'admin' ? ('strict' as const) : ('lax' as const)
 	};
+	const name = AUTH_COOKIE[surface];
 	return createServerClient(config.supabaseUrl, config.publishableKey, {
-		cookieOptions: { ...cookieDefaults, name: 'ew-auth' },
+		cookieOptions: { ...cookieDefaults, name },
 		cookies: {
-			getAll: () => cookies.getAll(),
+			// Each site reads only its own session cookies.
+			getAll: () =>
+				cookies
+					.getAll()
+					.filter((c) => (surface === 'admin') === c.name.startsWith(AUTH_COOKIE.admin)),
 			setAll: (toSet) => {
 				for (const { name, value, options } of toSet) {
 					// Never let a library default weaken the cookie: HttpOnly always.

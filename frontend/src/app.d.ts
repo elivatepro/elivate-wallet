@@ -11,6 +11,8 @@ declare global {
 			session: () => Promise<VerifiedSession | null>;
 			theme: Theme;
 			secureCookies: boolean;
+			/** Blueprint 18: which site this request belongs to. */
+			surface: 'member' | 'admin';
 		}
 	}
 }
