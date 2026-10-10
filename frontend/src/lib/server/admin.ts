@@ -157,7 +157,8 @@ const CONFLICT_MESSAGES: Readonly<Record<string, string>> = {
 	already_decided: 'Another admin already decided this application. Reload the list.',
 	already_accepted: 'The founder already accepted this invitation.',
 	not_approved: 'Only an approved application can get a new invitation.',
-	resend_limit: 'This invitation was resent too many times. Ask the founder to apply again.'
+	resend_limit:
+		'This invitation has been sent 6 times, the limit. Once the last link expires, the founder can apply again.'
 };
 
 /** A safe sentence for a command failure shown in its dialog. */

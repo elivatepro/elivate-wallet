@@ -5,7 +5,7 @@
 -- same reply and no email; a rejection may reapply after 30 days.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(71);
+select plan(74);
 
 create function pg_temp.u(n int) returns uuid language sql immutable as
   $$ select ('19000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
@@ -89,6 +89,8 @@ select 'Filler ' || n, 'filler' || n || '@fill.test', '08000000000', 'Fill', 'ru
 from generate_series(1, 198) n;
 select is(pg_temp.fails($$ select pg_temp.apply('person6@example.test') $$), 'rate_limited:',
   '200 new applications an hour is the platform cap');
+select is(pg_temp.fails($$ select pg_temp.apply('person1@example.test') $$), 'rate_limited:',
+  '... and a known email gets the same capped reply');
 -- Fixture time travel (the guard trigger forbids it in the app).
 set session_replication_role = replica;
 update founders.applications
@@ -199,6 +201,19 @@ select is((select count(*)::int from outbox.events e where e.template = 'founder
            and outbox.is_relevant(e)), 1, 'only the current link''s email is still worth sending');
 select is((select count(*)::int from audit.security_events where action = 'founder_application.invitation_resent'), 1,
   'the resend is audited');
+
+-- ── Resend limit (2) ──
+create temp table limited as select pg_temp.apply('person7@example.test');
+select pg_temp.decide(pg_temp.app('person7@example.test'), 'approve', 'tok-7');
+update founders.invitations set issue_count = 6 where application_id = pg_temp.app('person7@example.test');
+select is(pg_temp.fails(format($$ select api.admin_resend_founder_invitation(pg_temp.u(9), pg_temp.s(9), %L, 'Again',
+  pg_temp.tid('tok-8'), pg_temp.dg('tok-8'), pg_temp.k()) $$, pg_temp.app('person7@example.test'))),
+  'conflict:resend_limit', 'at most 5 resends');
+update founders.invitations set expires_at = now() - interval '1 minute'
+where application_id = pg_temp.app('person7@example.test');
+select pg_temp.apply('person7@example.test');
+select is((select count(*)::int from founders.applications where email = 'person7@example.test' and status = 'waiting'), 1,
+  'once the last link expires the founder may apply again');
 
 -- ── Accepting (9) ──
 select is(pg_temp.fails($$ select api.accept_founder_invitation(pg_temp.u(1), pg_temp.s(1), pg_temp.dg('tok-1'), pg_temp.k()) $$),

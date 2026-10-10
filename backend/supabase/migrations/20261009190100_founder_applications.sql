@@ -374,19 +374,25 @@ begin
     perform identity.fail('validation_error', jsonb_build_object('field', 'rank'));
   end if;
 
-  perform pg_advisory_xact_lock(hashtextextended('founders.apply:' || clean_email, 0));
-  if exists (select 1 from founders.applications a where a.email = clean_email
-             and (a.status in ('waiting', 'approved')
-                  or (a.status = 'rejected' and a.decided_at > now() - founders.reapply_after())))
-     or exists (select 1 from founders.approved f join auth.users u on u.id = f.user_id
-                where lower(btrim(u.email)) = clean_email) then
-    return jsonb_build_object('received', true);
-  end if;
-
+  -- The cap comes first and applies to every email, so a capped reply never
+  -- tells a known email from a new one.
   perform pg_advisory_xact_lock(hashtextextended('founders.apply', 0));
   if (select count(*) from founders.applications where created_at > now() - interval '1 hour')
      >= founders.hourly_cap() then
     perform identity.fail('rate_limited', jsonb_build_object('retryAfterSeconds', 600));
+  end if;
+
+  -- An approval whose link was resent to the limit and then expired unused
+  -- no longer blocks: the founder may apply again.
+  if exists (select 1 from founders.applications a where a.email = clean_email
+             and (a.status = 'waiting'
+                  or (a.status = 'approved' and not exists (
+                        select 1 from founders.invitations i where i.application_id = a.id
+                          and i.status = 'pending' and i.issue_count >= 6 and i.expires_at <= now()))
+                  or (a.status = 'rejected' and a.decided_at > now() - founders.reapply_after())))
+     or exists (select 1 from founders.approved f join auth.users u on u.id = f.user_id
+                where lower(btrim(u.email)) = clean_email) then
+    return jsonb_build_object('received', true);
   end if;
 
   insert into founders.applications (full_name, email, phone, team_name, rank)

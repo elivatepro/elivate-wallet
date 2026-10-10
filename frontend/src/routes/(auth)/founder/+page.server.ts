@@ -39,7 +39,7 @@ async function acceptingState(event: RequestEvent, session: VerifiedSession) {
 	return { session, state };
 }
 
-/** POST /founder/preview without a session. `null` means unavailable (cookie cleared). */
+/** POST /founder/preview without a session. `null` means unavailable (the caller clears the cookie). */
 async function preview(
 	event: RequestEvent,
 	token: string
@@ -57,10 +57,30 @@ async function preview(
 		isBackendError(failure, 'invitation_unavailable') ||
 		isBackendError(failure, 'validation_error')
 	) {
-		clearFounder(event.cookies);
 		return null;
 	}
 	redirectForFailure(failure);
+}
+
+/**
+ * The link is no longer pending, but this account may be the one that
+ * accepted it and lost the reply: the accept replays for that account only
+ * (api.accept_founder_invitation), so continue to setup instead of "unavailable".
+ */
+async function recoverAccepted(event: RequestEvent, token: string): Promise<void> {
+	const session = await event.locals.session();
+	if (!session) return;
+	const { state } = await acceptingState(event, session);
+	const exit = await runApi(
+		event,
+		session,
+		Effect.gen(function* () {
+			return yield* (yield* FoundersApi).accept({ token, idempotencyKey: newIdempotencyKey() });
+		})
+	);
+	if (Exit.isFailure(exit)) return;
+	clearFounder(event.cookies);
+	redirect(303, state.gate === 'pin_setup_required' ? '/pin/setup?next=/setup' : '/setup');
 }
 
 export const load: PageServerLoad = async (event) => {
@@ -68,7 +88,11 @@ export const load: PageServerLoad = async (event) => {
 	if (!token) return { mode: 'claim' as const };
 
 	const found = await preview(event, token);
-	if (found === null) return { mode: 'unavailable' as const };
+	if (found === null) {
+		await recoverAccepted(event, token);
+		clearFounder(event.cookies);
+		return { mode: 'unavailable' as const };
+	}
 
 	const session = await event.locals.session();
 	if (!session) {
@@ -99,7 +123,10 @@ export const actions: Actions = {
 			clearFounder(event.cookies);
 			return fail(410, { unavailable: true });
 		}
-		if ((await preview(event, token)) === null) return fail(410, { unavailable: true });
+		if ((await preview(event, token)) === null) {
+			clearFounder(event.cookies);
+			return fail(410, { unavailable: true });
+		}
 		writeFounderToken(event.cookies, token, event.locals.secureCookies);
 		redirect(303, FOUNDER_PATH);
 	},
