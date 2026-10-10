@@ -65,7 +65,7 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
 
 - One slice at a time, in worktree `../elivate-wallet-worktrees/<nn-name>` from fresh
   `origin/main` (copy `backend/supabase/.temp` in). Blueprint `docs/blueprints/NN-*.md`;
-  migrations `20261009NNxxxx`, pgTAP `NN0_` (next: `17`/`170_`).
+  migrations `20261009NNxxxx`, pgTAP `NN0_` (next: `18`/`180_`).
 - Checks: `backend/scripts/verify-database.sh`, `deno task check`; frontend `pnpm check`,
   `pnpm lint`, `pnpm test:unit`, e2e via `frontend/scripts/e2e-local.sh` (fake Cloudflare into
   local Mailpit). The local stack is shared: hold the `/tmp/elivate-supabase.lock` directory
@@ -81,7 +81,7 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
   - Other sessions may deploy too: confirm a new route is live; redeploy from fresh main if not.
 - Report what ran and what didn't. Never reset, force-push or discard others' work.
 
-## Status (2026-10-09)
+## Status (2026-10-10)
 
-On dev: backend slices 01–06, frontend M1, member slices 1–9 and the slice 9 follow-up
-(blueprints 07–16). Next: 10 (workspace settings).
+On dev: backend slices 01–06, frontend M1, member slices 1–10 and the slice 9 follow-up
+(blueprints 07–17). The member build plan is complete; the Admin app is next (owner to schedule).
