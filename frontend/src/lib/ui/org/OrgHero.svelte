@@ -172,6 +172,7 @@
 		font: inherit;
 		font-size: 15px;
 		font-weight: var(--font-weight-semibold);
+		text-decoration: none;
 		cursor: pointer;
 	}
 

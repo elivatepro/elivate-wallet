@@ -176,6 +176,8 @@
 		display: flex;
 		flex-direction: column;
 		gap: 20px;
+		/* Slice 21: a pushed page has no shell padding on phones (cards touched the edges). */
+		padding: 8px 20px 40px;
 	}
 
 	/* ── Hero (E12 mobile 150 px, E11 desktop 220 px); brand surface in both themes ── */
@@ -434,6 +436,7 @@
 	@media (min-width: 1024px) {
 		.support {
 			gap: 32px;
+			padding: 0;
 		}
 
 		.hero {

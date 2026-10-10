@@ -214,7 +214,7 @@ a.o-row:focus-visible {
 .o-avatar.sm {
 	width: 24px;
 	height: 24px;
-	font-size: 10px;
+	font-size: 11px; /* slice 21: nothing below 11 px */
 	line-height: 12px;
 }
 

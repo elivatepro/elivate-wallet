@@ -50,11 +50,14 @@
 	import CircleHelp from '@lucide/svelte/icons/circle-help';
 	import { Appearance, THEME_LABELS } from '#lib/client/appearance.svelte.js';
 	import { purgeAllDeviceData, staleLabel } from '#lib/client/device-cache.js';
+	import { profilePhotoSrc } from '#lib/client/photo.js';
+	import { ownWalletBlocked, type OwnWalletPermission } from '#lib/own-wallet.js';
 	import { Shell } from '#lib/client/shell.svelte.js';
 	import { Bell as BellState } from '#lib/client/bell.svelte.js';
 	import NotificationList from '#lib/ui/app/NotificationList.svelte';
 	import { ROLE_LABELS } from '#lib/labels.js';
 	import InstallHint from '#lib/ui/app/InstallHint.svelte';
+	import NoAccess from '#lib/ui/app/NoAccess.svelte';
 	import PausedView from '#lib/ui/app/PausedView.svelte';
 	import QuickSearch from '#lib/ui/app/QuickSearch.svelte';
 	import { isSearchShortcut, type SearchPage } from '#lib/client/search.js';
@@ -106,6 +109,7 @@
 	);
 	const uid = $derived(shell.state.kind === 'ready' ? shell.state.view.state.uid : null);
 	const person = $derived(shell.state.kind === 'ready' ? shell.state.view.profile : null);
+	const photoSrc = $derived(profilePhotoSrc(person));
 	const path = $derived(page.url.pathname);
 	/** Navigation hint only; every command is still authorized by the backend. */
 	const TITLES: Record<string, string> = {
@@ -161,6 +165,21 @@
 	const can = (permission: string) =>
 		shell.state.kind === 'ready' &&
 		(shell.state.view.capabilities?.permissions ?? []).includes(permission);
+	/**
+	 * Slice 21: own-money entries follow the own-wallet permissions, which the
+	 * President Team never holds (A-03). Before they load (or offline) the
+	 * role stands in, so a member's Activity stays reachable offline.
+	 */
+	const ownMoney = (permission: OwnWalletPermission) =>
+		shell.state.kind === 'ready'
+			? can(permission)
+			: !!summary && summary.role !== 'president_team_member';
+	const ownBlocked = $derived(
+		ownWalletBlocked(
+			path,
+			shell.state.kind === 'ready' ? (shell.state.view.capabilities?.permissions ?? []) : null
+		)
+	);
 	/** Org management entries (Blueprint 07); navigation hints only. */
 	const president = $derived(summary?.role === 'president_team_member');
 	const leads = $derived(president || can('manage_members') || can('view_managed_wallets'));
@@ -247,7 +266,7 @@
 	const searchPages = $derived.by((): SearchPage[] => {
 		const pages: (SearchPage | false)[] = [
 			{ label: 'Home', href: '/app', icon: House },
-			{
+			ownMoney('view_own_financials') && {
 				label: 'Activity',
 				href: '/app/activity',
 				keywords: 'transactions history',
@@ -285,8 +304,17 @@
 				keywords: 'csv pdf',
 				icon: ChartColumn
 			},
-			{ label: 'Payout accounts', href: '/app/payout-accounts', keywords: 'bank', icon: Landmark },
-			{ label: 'Statements', href: '/app/statements', icon: FileIcon },
+			ownMoney('manage_own_payout_accounts') && {
+				label: 'Payout accounts',
+				href: '/app/payout-accounts',
+				keywords: 'bank',
+				icon: Landmark
+			},
+			ownMoney('export_own_statement') && {
+				label: 'Statements',
+				href: '/app/statements',
+				icon: FileIcon
+			},
 			can('record_income') && { label: 'Record income', href: '/app/income', icon: Download },
 			can('perform_currency_conversion') && {
 				label: 'Record conversion',
@@ -379,7 +407,9 @@
 	{:else if tileInitial}
 		<span class="brand-tile initial" aria-hidden="true">{tileInitial}</span>
 	{:else}
-		<span class="brand-tile" aria-hidden="true"><img src="/icons/mark.svg" alt="" /></span>
+		<span class="brand-tile" aria-hidden="true"
+			><img src="/icons/mark.svg" alt="" width="20" height="20" /></span
+		>
 	{/if}
 {/snippet}
 
@@ -418,13 +448,15 @@
 			<a class="side-item" href="/app" aria-current={path === '/app' ? 'page' : undefined}>
 				<House size={18} strokeWidth={1.5} aria-hidden="true" /><span>Home</span>
 			</a>
-			<a
-				class="side-item"
-				href="/app/activity"
-				aria-current={path.startsWith('/app/activity') ? 'page' : undefined}
-			>
-				<Activity size={18} strokeWidth={1.5} aria-hidden="true" /><span>Activity</span>
-			</a>
+			{#if ownMoney('view_own_financials')}
+				<a
+					class="side-item"
+					href="/app/activity"
+					aria-current={path.startsWith('/app/activity') ? 'page' : undefined}
+				>
+					<Activity size={18} strokeWidth={1.5} aria-hidden="true" /><span>Activity</span>
+				</a>
+			{/if}
 			{#if can('initiate_own_withdrawal')}
 				<a
 					class="side-item"
@@ -495,20 +527,24 @@
 					<ChartColumn size={18} strokeWidth={1.5} aria-hidden="true" /><span>Reports</span>
 				</a>
 			{/if}
-			<a
-				class="side-item"
-				href="/app/payout-accounts"
-				aria-current={path.startsWith('/app/payout-accounts') ? 'page' : undefined}
-			>
-				<Landmark size={18} strokeWidth={1.5} aria-hidden="true" /><span>Payout accounts</span>
-			</a>
-			<a
-				class="side-item"
-				href="/app/statements"
-				aria-current={path.startsWith('/app/statements') ? 'page' : undefined}
-			>
-				<FileIcon size={18} strokeWidth={1.5} aria-hidden="true" /><span>Statements</span>
-			</a>
+			{#if ownMoney('manage_own_payout_accounts')}
+				<a
+					class="side-item"
+					href="/app/payout-accounts"
+					aria-current={path.startsWith('/app/payout-accounts') ? 'page' : undefined}
+				>
+					<Landmark size={18} strokeWidth={1.5} aria-hidden="true" /><span>Payout accounts</span>
+				</a>
+			{/if}
+			{#if ownMoney('export_own_statement')}
+				<a
+					class="side-item"
+					href="/app/statements"
+					aria-current={path.startsWith('/app/statements') ? 'page' : undefined}
+				>
+					<FileIcon size={18} strokeWidth={1.5} aria-hidden="true" /><span>Statements</span>
+				</a>
+			{/if}
 			{#if can('record_income')}
 				<a
 					class="side-item"
@@ -688,7 +724,7 @@
 					<DropdownMenu.Content class="popover account" sideOffset={10} align="end">
 						<div class="identity">
 							<span class="identity-avatar" aria-hidden="true">
-								{#if person?.hasPhoto}<img src="/api/profile/photo" alt="" />{:else}<UserRound
+								{#if photoSrc}<img src={photoSrc} alt="" />{:else}<UserRound
 										size={20}
 										strokeWidth={1.6}
 									/>{/if}
@@ -864,6 +900,14 @@
 				</div>
 			{:else if pausedHere && summary}
 				<PausedView network={summary.tenantName} canPay={billing} />
+			{:else if ownBlocked}
+				<!-- Slice 21: an own-money page in a workspace that holds no wallet. -->
+				<NoAccess
+					title="Not available for your role"
+					lead="This page is for your own wallet. {summary
+						? ROLE_LABELS[summary.role]
+						: 'This role'} doesn’t hold one in this workspace."
+				/>
 			{:else}
 				{@render children()}
 			{/if}
@@ -876,17 +920,19 @@
 						>Home</span
 					>
 				</a>
-				<a
-					class="tab"
-					href="/app/activity"
-					aria-current={path.startsWith('/app/activity') ? 'page' : undefined}
-				>
-					<Activity
-						size={20}
-						strokeWidth={path.startsWith('/app/activity') ? 2 : 1.8}
-						aria-hidden="true"
-					/><span>Activity</span>
-				</a>
+				{#if ownMoney('view_own_financials')}
+					<a
+						class="tab"
+						href="/app/activity"
+						aria-current={path.startsWith('/app/activity') ? 'page' : undefined}
+					>
+						<Activity
+							size={20}
+							strokeWidth={path.startsWith('/app/activity') ? 2 : 1.8}
+							aria-hidden="true"
+						/><span>Activity</span>
+					</a>
+				{/if}
 				{#if leader}
 					<a
 						class="tab"
@@ -921,6 +967,12 @@
 
 <style>
 	.shell {
+		/*
+		 * Slice 21: one height for the desktop top bar and the sidebar's workspace
+		 * switcher block (both border-box, bottom border included), so their
+		 * dividers sit on the same pixel row at every width.
+		 */
+		--shell-header: 64px;
 		--shell-line: #1f2324;
 		--shell-sidebar: #0d0f10;
 		--shell-field: #141718;
@@ -968,8 +1020,15 @@
 
 	.switcher-block {
 		display: flex;
-		padding: 12px 12px 10px;
+		flex-shrink: 0;
+		/* 6 + 52 + 5 + 1 px border = the header; whole pixels, no centring offsets. */
+		height: var(--shell-header);
+		padding: 6px 12px 5px;
 		border-bottom: 1px solid var(--shell-line);
+	}
+
+	.switcher-block .switcher {
+		height: 100%;
 	}
 
 	.switcher {
@@ -1242,7 +1301,7 @@
 
 	.switcher.pill .ws-chip {
 		padding: 0 6px;
-		font-size: 10px;
+		font-size: 11px; /* slice 21: nothing below 11 px */
 		line-height: 14px;
 	}
 
@@ -1824,7 +1883,7 @@
 			align-items: center;
 			gap: 8px;
 			flex-shrink: 0;
-			height: 64px;
+			height: var(--shell-header);
 			padding: 0 28px 0 40px;
 			border-bottom: 1px solid var(--shell-line);
 		}

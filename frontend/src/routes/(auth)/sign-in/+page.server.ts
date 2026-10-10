@@ -5,7 +5,7 @@ import { authFailureFrom } from '#lib/server/auth.js';
 import { clearWorkspace, readJoinToken } from '#lib/server/cookies.js';
 import { failureOf, redirectForFailure } from '#lib/server/flow.js';
 import { runApi } from '#lib/server/request.js';
-import { GATE_PATHS } from '#lib/gate.js';
+import { GATE_PATHS, withNext } from '#lib/gate.js';
 import { humanCheck, turnstileSiteKey } from '#lib/server/human-check.js';
 import { recordSignIn } from '#lib/server/sign-ins.js';
 import { turnstileMessage } from '#lib/server/turnstile.js';
@@ -31,7 +31,7 @@ export const load: PageServerLoad = async (event) => {
 			failure !== null &&
 			((failure._tag === 'BackendError' && failure.code === 'authentication_required') ||
 				(failure._tag === 'TransportError' && failure.status === 401));
-		if (!signedOut) redirect(303, '/workspaces');
+		if (!signedOut) redirect(303, withNext('/workspaces', event.url.searchParams.get('next')));
 		await event.locals
 			.supabase()
 			.auth.signOut({ scope: 'local' })
@@ -87,6 +87,12 @@ export const actions: Actions = {
 		if (Exit.isFailure(exit)) redirectForFailure(failureOf(exit));
 		// An invitation link opened in this browser continues after sign-in (W-02 step 5).
 		if (readJoinToken(event.cookies)) redirect(303, '/join');
-		redirect(303, GATE_PATHS[exit.value.gate]);
+		// Slice 21: back to the app page that needed a sign-in, once through the gates.
+		const gate = exit.value.gate;
+		const back = gate === 'pin_required' || gate === 'ready';
+		redirect(
+			303,
+			back ? withNext(GATE_PATHS[gate], event.url.searchParams.get('next')) : GATE_PATHS[gate]
+		);
 	}
 };

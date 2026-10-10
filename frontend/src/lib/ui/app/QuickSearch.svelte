@@ -828,10 +828,11 @@
 	/* K01: centered palette over the dimmed page. */
 	@media (min-width: 1024px) {
 		:global(.qs-dialog) {
-			inset: 96px auto auto 50%;
+			/* Slice 21: centred with auto margins, not translate(-50%) (blurry text). */
+			inset: 96px 0 auto;
 			width: min(640px, calc(100vw - 32px));
 			max-height: calc(100dvh - 192px);
-			transform: translateX(-50%);
+			margin-inline: auto;
 			padding-top: 0;
 			overflow: clip;
 			border: 1px solid var(--qs-edge);
@@ -1006,7 +1007,7 @@
 	@keyframes -global-qs-rise {
 		from {
 			opacity: 0;
-			transform: translate(-50%, -6px);
+			transform: translateY(-6px);
 		}
 	}
 </style>

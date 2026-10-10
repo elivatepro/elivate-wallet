@@ -43,3 +43,22 @@ export function safeNext(value: string | null | undefined): string | null {
 	if (value.length > 400) return null;
 	return value;
 }
+
+/**
+ * A `next` that may only return to a page of the signed-in app (/app or
+ * /app/…): the gate pages (PIN, workspace picker, sign-in) send the person
+ * back there once they are through (slice 21).
+ */
+export function safeAppNext(value: string | null | undefined): string | null {
+	const next = safeNext(value);
+	if (!next || [...next].some((c) => c.charCodeAt(0) < 0x20)) return null;
+	const path = next.split(/[?#]/)[0] ?? '';
+	return path === '/app' || path.startsWith('/app/') ? next : null;
+}
+
+/** `path` with `?next=` (or `&next=`) for a safe app page; `path` alone otherwise. */
+export function withNext(path: string, next: string | null | undefined): string {
+	const safe = safeAppNext(next);
+	if (!safe) return path;
+	return `${path}${path.includes('?') ? '&' : '?'}next=${encodeURIComponent(safe)}`;
+}

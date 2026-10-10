@@ -391,6 +391,25 @@ end $$`);
 	await api.close();
 }
 
+/**
+ * Slice 21: makes an existing confirmed account a President Team member of the
+ * founder's network (no office, so no wallet: D-01) through api.add_president.
+ */
+export async function addPresident(
+	founder: { email: string; password: string; pin: string },
+	presidentEmail: string
+) {
+	const api = await apiSession(founder.email, founder.password, founder.pin);
+	const workspaces = await api.call<Array<{ membershipId: string; role: string }>>(
+		'org',
+		'/workspaces'
+	);
+	const president = workspaces.find((w) => w.role === 'president_team_member')!.membershipId;
+	localSql(`select api.add_president('${api.userId}', '${api.sessionId}', '${president}',
+	  '${uidOf(presidentEmail)}', 'e2e president', '${key()}')`);
+	await api.close();
+}
+
 /** Saves a full-page screenshot when E2E_SHOTS names a folder (Paper comparison). */
 export async function shot(page: Page, name: string) {
 	const dir = process.env.E2E_SHOTS;

@@ -371,7 +371,7 @@
 		height: 24px;
 		border-radius: 999px;
 		background: var(--color-raised);
-		font-size: 10px;
+		font-size: 11px; /* slice 21: nothing below 11 px */
 		font-weight: 600;
 		line-height: 12px;
 		color: color-mix(in oklab, var(--color-text) 85%, var(--color-muted));

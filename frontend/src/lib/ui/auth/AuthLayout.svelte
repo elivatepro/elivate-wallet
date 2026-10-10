@@ -302,7 +302,7 @@
 		border: 1px solid color-mix(in oklab, var(--color-accent) 35%, transparent);
 		border-radius: 999px;
 		font-family: var(--font-mono);
-		font-size: 10px;
+		font-size: 11px; /* slice 21: nothing below 11 px */
 		font-weight: 400;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;

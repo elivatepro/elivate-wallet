@@ -186,7 +186,8 @@
 	}
 
 	.page {
-		padding: 8px 0 40px;
+		/* Slice 21: side margins on phones (cards touched the screen edges). */
+		padding: 8px 16px 40px;
 	}
 
 	.text {

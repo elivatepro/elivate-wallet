@@ -6,6 +6,12 @@
 	box-sizing: border-box;
 }
 
+/* Slice 21: app lists are rows, never bulleted (some showed stray dots); zero
+   specificity, so each list's own styles still apply. */
+:where(ul, ol) {
+	list-style: none;
+}
+
 html {
 	-webkit-text-size-adjust: 100%;
 	text-size-adjust: 100%;

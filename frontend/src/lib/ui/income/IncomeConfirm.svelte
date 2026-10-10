@@ -89,12 +89,14 @@
 
 	:global(.income-confirm) {
 		position: fixed;
-		left: 50%;
+		/* Slice 21: centred with auto margins, not translate(-50%) (blurry text). */
+		left: 0;
+		right: 0;
 		bottom: 0;
 		z-index: 51;
 		width: min(520px, 100%);
+		margin-inline: auto;
 		overflow: clip;
-		transform: translateX(-50%);
 		border: 1px solid var(--color-border);
 		border-bottom: 0;
 		border-radius: 24px 24px 0 0;

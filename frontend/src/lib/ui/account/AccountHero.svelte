@@ -126,6 +126,11 @@
 		gap: 10px;
 	}
 
+	/* Slice 21: on phones the centred name and UID stay clear of Root. */
+	.identity .body {
+		margin-right: calc(var(--m-w) - 16px);
+	}
+
 	@media (min-width: 1024px) {
 		.hero {
 			height: 220px;
@@ -167,6 +172,7 @@
 		}
 
 		.identity .body {
+			margin-right: 0;
 			flex-direction: row;
 			align-items: center;
 			gap: 20px;

@@ -451,7 +451,9 @@
 		border-color: var(--color-accent);
 	}
 
-	.desktop-only {
+	/* .thead too: its own display rule comes later (slice 21: it showed on phones). */
+	.desktop-only,
+	.thead.desktop-only {
 		display: none;
 	}
 
@@ -577,6 +579,12 @@
 		border: 1px solid #ffffff14;
 		border-radius: 18px;
 		background: var(--color-surface);
+	}
+
+	/* Slice 21: no indent (an empty gap showed before each row). */
+	.table ul {
+		margin: 0;
+		padding: 0;
 	}
 
 	.table li + li .row {

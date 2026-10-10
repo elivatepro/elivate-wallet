@@ -119,3 +119,11 @@ describe('describeOrgFailure', () => {
 		expect(keepsKey(backend('conflict'))).toBe(false);
 	});
 });
+
+describe('permission labels (slice 21)', () => {
+	it('labels every catalogued permission, the Blueprint 17 keys included', async () => {
+		const { permissionLabel } = await import('./org.js');
+		expect(permissionLabel('manage_team_settings')).toBe('Team settings & branding');
+		expect(permissionLabel('request_restore')).toBe('Request a restore');
+	});
+});

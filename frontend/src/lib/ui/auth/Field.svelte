@@ -1,7 +1,10 @@
 <!--
 	Labelled text/email/password field (Authentication v2: 52 px, 12 px radius).
 	The password visibility toggle appears only after hydration; before that the
-	field is a plain password input.
+	field is a plain password input. The typed text lives in local state bound to
+	the input, so re-renders (the show/hide toggle, an error appearing) never write
+	the `value` prop back over what the person typed; a new `value` from the parent
+	(a form echo) still replaces it.
 -->
 <script lang="ts">
 	import type { Snippet } from 'svelte';
@@ -43,6 +46,9 @@
 	let revealed = $state(false);
 	onMount(() => (mounted = true));
 
+	// Typing overrides it; it follows the prop only when the prop itself changes.
+	let current = $derived(value);
+
 	const inputType = $derived(type === 'password' && revealed ? 'text' : type);
 	const describedBy = $derived(
 		[error ? `${id}-error` : null, hint ? `${id}-hint` : null].filter(Boolean).join(' ') ||
@@ -60,7 +66,7 @@
 			{id}
 			{name}
 			type={inputType}
-			{value}
+			bind:value={current}
 			{placeholder}
 			{autocomplete}
 			{required}

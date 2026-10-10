@@ -30,6 +30,7 @@
 		type Invitation,
 		type InvitationStatus
 	} from '#lib/contract/invitations.js';
+	import { followGate } from '#lib/client/account.js';
 	import { getJson, newKey, sendCommand } from '#lib/client/api.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import {
@@ -93,6 +94,8 @@
 			return;
 		}
 		const failure = failureOf(exit);
+		// Slice 21: a lapsed PIN or session goes to its gate and comes back here.
+		if (followGate(failure, '/app/invitations')) return;
 		const text =
 			failure?._tag === 'BackendError' ? failure.message : 'We couldn’t load the invitations.';
 		if (more) notice = { ok: false, text };

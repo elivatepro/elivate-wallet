@@ -242,7 +242,7 @@
 	border-radius: 10px;
 	background: var(--color-raised);
 	font-family: var(--font-mono);
-	font-size: 10px;
+	font-size: 11px; /* slice 21: nothing below 11 px */
 	font-weight: var(--font-weight-semibold);
 	line-height: 12px;
 }

@@ -7,7 +7,7 @@ import type { SessionView } from '#lib/contract/app.js';
 import type { Workspace } from '#lib/contract/org.js';
 import type { Theme } from '#lib/contract/settings.js';
 import type { ApiFailure } from '#lib/contract/errors.js';
-import { GATE_PATHS, pathForGateCode, SIGN_IN_PATH } from '#lib/gate.js';
+import { GATE_PATHS, pathForGateCode, SIGN_IN_PATH, withNext } from '#lib/gate.js';
 import { sweepAttempts } from '#lib/recovery.js';
 import { loadSession } from './api';
 import {
@@ -142,8 +142,8 @@ export class Shell {
 	}
 
 	#onView(view: SessionView): void {
-		if (view.state.gate !== 'ready') return go(GATE_PATHS[view.state.gate]);
-		if (!view.workspace) return go('/workspaces');
+		if (view.state.gate !== 'ready') return goBack(GATE_PATHS[view.state.gate]);
+		if (!view.workspace) return goBack('/workspaces');
 		const workspace = view.workspace;
 		const summary: WorkspaceSummary = {
 			tenantName: workspace.tenantName,
@@ -163,15 +163,15 @@ export class Shell {
 
 	#onFailure(failure: ApiFailure): void {
 		if (failure._tag === 'TransportError' && failure.reason === 'aborted') return;
-		if (failure._tag === 'TransportError' && failure.status === 401) return go(SIGN_IN_PATH);
+		if (failure._tag === 'TransportError' && failure.status === 401) return goBack(SIGN_IN_PATH);
 		if (failure._tag === 'TransportError' && (failure.reason === 'network' || !navigator.onLine)) {
 			this.online = false;
 			return this.#showOffline();
 		}
 		if (failure._tag === 'BackendError') {
 			const path = pathForGateCode(failure.code);
-			if (path) return go(path);
-			if (failure.code === 'workspace_invalid') return go('/workspaces?switch');
+			if (path) return goBack(path);
+			if (failure.code === 'workspace_invalid') return goBack('/workspaces?switch');
 			this.state = { kind: 'error', message: failure.message, reference: failure.requestId };
 			return;
 		}
@@ -197,4 +197,12 @@ export class Shell {
 
 function go(path: string): void {
 	window.location.assign(path);
+}
+
+/**
+ * Slice 21: a gate page (PIN, workspace picker, sign-in) that brings the
+ * person back to this page afterwards, not to Home.
+ */
+function goBack(path: string): void {
+	go(withNext(path, window.location.pathname + window.location.search));
 }
