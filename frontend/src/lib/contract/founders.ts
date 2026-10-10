@@ -10,12 +10,6 @@ export const FOUNDER_RANKS = ['ruby_director_4', 'ruby_director_5', 'diamond_dir
 export const FounderRank = Schema.Literals(FOUNDER_RANKS);
 export type FounderRank = typeof FounderRank.Type;
 
-export const FOUNDER_RANK_LABELS: Record<FounderRank, string> = {
-	ruby_director_4: 'Ruby Director 4',
-	ruby_director_5: 'Ruby Director 5',
-	diamond_director: 'Diamond Director'
-};
-
 /** Same rule as the database: digits with an optional +, 7–15 long, once spaces are gone. */
 export const FOUNDER_PHONE_PATTERN = /^\+?[0-9]{7,15}$/;
 export const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;

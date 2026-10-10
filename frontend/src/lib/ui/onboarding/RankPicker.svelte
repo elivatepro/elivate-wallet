@@ -11,6 +11,7 @@
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import Vibrate from '@lucide/svelte/icons/vibrate';
 	import { RANKS } from '#lib/contract/identity.js';
+	import { rankLabel } from '#lib/labels.js';
 
 	let { value = null, error }: { value?: string | null; error?: string | null } = $props();
 
@@ -81,7 +82,7 @@
 		aria-invalid={error ? 'true' : undefined}
 	>
 		<option value={null} disabled selected={chosen === null}>Select your rank</option>
-		{#each RANKS as rank (rank)}<option value={rank}>{rank}</option>{/each}
+		{#each RANKS as rank (rank)}<option value={rank}>{rankLabel(rank)}</option>{/each}
 	</select>
 	{#if enhanced}
 		<button
@@ -93,7 +94,9 @@
 			aria-labelledby="rank-label rank-value"
 			onclick={show}
 		>
-			<span id="rank-value" class:placeholder={!chosen}>{chosen ?? 'Select your rank'}</span>
+			<span id="rank-value" class:placeholder={!chosen}
+				>{chosen ? rankLabel(chosen) : 'Select your rank'}</span
+			>
 			<ChevronDown size={18} strokeWidth={1.8} aria-hidden="true" />
 		</button>
 	{/if}
@@ -136,7 +139,7 @@
 						aria-selected={i === centre}
 						data-distance={Math.min(2, Math.abs(i - centre))}
 					>
-						{rank}
+						{rankLabel(rank)}
 					</div>
 				{/each}
 				<div class="pad" aria-hidden="true"></div>

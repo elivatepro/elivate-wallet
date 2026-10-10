@@ -114,7 +114,7 @@ test('apply → admin approves → founder invitation → account → PIN → tr
 	await adminPage.getByRole('link', { name: 'Founder applications' }).first().click();
 	await expect(adminPage).toHaveURL(/\/admin\/applications$/);
 	await expect(adminPage.getByRole('row').filter({ hasText: founder.email })).toContainText(
-		'Ruby Director 4'
+		'4 Ruby Director'
 	);
 	await expectAccessible(adminPage);
 	await shot(adminPage, 'A22d-applications-desktop');
