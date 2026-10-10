@@ -17,6 +17,7 @@ const officeId = "00000000-0000-0000-0000-0000000000c1";
 const invitationId = "00000000-0000-0000-0000-0000000000d1";
 const key = "key-0000000000000001";
 const token = "A".repeat(43);
+const serverSecret = "app-server-secret-value";
 const issued = { tokenId: "00000000-0000-0000-0000-0000000000e1", digest: "f".repeat(64) };
 
 function setup(rpcResult: RpcResult = { data: { ok: true }, error: null }) {
@@ -30,12 +31,13 @@ function setup(rpcResult: RpcResult = { data: { ok: true }, error: null }) {
       return Promise.resolve(rpcResult);
     },
     issueToken: () => Promise.resolve(issued),
-    sendSignInLink: (email) => {
-      signIns.push(email);
+    sendSignInLink: (email, page) => {
+      signIns.push(page === "join" ? email : `${page}:${email}`);
       return Promise.resolve();
     },
     log: (entry) => logs.push(entry),
     allowedOrigins: ["https://app.elivatewallet.com"],
+    appServerSecret: serverSecret,
   };
   return { handler: createHandler(deps), calls, logs, signIns };
 }
@@ -215,4 +217,90 @@ Deno.test("logs carry no token, digest or email", async () => {
   assert(!text.includes(await tokenDigest(token)));
   assert(!text.includes("new@example.test"));
   assertEquals(logs[0]?.route, "POST /verify-email");
+});
+
+// ── Founder entry (Blueprint 19) ──
+
+const application = {
+  fullName: "Adaeze Okafor",
+  email: " Adaeze@Example.test ",
+  phone: "0803 555 0142",
+  teamName: "Harmony Builders",
+  rank: "ruby_director_4",
+};
+
+Deno.test("founder application: only the Wallet server may send it", async () => {
+  for (const headers of [{}, { "x-app-server-secret": "wrong" }]) {
+    const { handler, calls } = setup();
+    const response = await handler(request("POST", "/founder-applications", application, headers));
+    assertEquals(response.status, 403);
+    assertEquals(calls.length, 0);
+  }
+});
+
+Deno.test("founder application: no session, cleaned email, always the same reply", async () => {
+  const { handler, calls } = setup({ data: { received: true }, error: null });
+  const response = await handler(
+    request("POST", "/founder-applications", application, { "x-app-server-secret": serverSecret }),
+  );
+  assertEquals(response.status, 200);
+  assertEquals((await response.json()).data, { received: true });
+  assertEquals(calls[0]?.fn, "submit_founder_application");
+  assertEquals(calls[0]?.args, {
+    p_full_name: "Adaeze Okafor",
+    p_email: "adaeze@example.test",
+    p_phone: "0803 555 0142",
+    p_team_name: "Harmony Builders",
+    p_rank: "ruby_director_4",
+  });
+});
+
+Deno.test("founder application: unknown rank or field is refused before the database", async () => {
+  for (
+    const body of [
+      { ...application, rank: "ruby_director_3" },
+      { ...application, proof: "x" },
+      { ...application, phone: "1" },
+    ]
+  ) {
+    const { handler, calls } = setup();
+    const response = await handler(
+      request("POST", "/founder-applications", body, { "x-app-server-secret": serverSecret }),
+    );
+    assertEquals(response.status, 400);
+    assertEquals(calls.length, 0);
+  }
+});
+
+Deno.test("founder link: preview and verify are public; the email lands on /founder", async () => {
+  const preview = setup({ data: { email: "a@example.test", teamName: "Harmony" }, error: null });
+  const shown = await preview.handler(request("POST", "/founder/preview", { token }, {}));
+  assertEquals(shown.status, 200);
+  assertEquals((await shown.json()).data, { email: "a@example.test", teamName: "Harmony" });
+  assertEquals(preview.calls[0]?.args, { p_token_digest: await tokenDigest(token) });
+
+  const verify = setup({ data: { email: "a@example.test" }, error: null });
+  const sent = await verify.handler(request("POST", "/founder/verify-email", { token }, {}));
+  assertEquals(sent.status, 200);
+  assertEquals(verify.calls[0]?.fn, "request_founder_verification");
+  assertEquals(verify.signIns, ["founder:a@example.test"]);
+});
+
+Deno.test("founder link: accepting needs a session and sends only the digest", async () => {
+  const anonymous = setup();
+  const refused = await anonymous.handler(
+    request("POST", "/founder/accept", { token, idempotencyKey: key }, {}),
+  );
+  assertEquals(refused.status, 401);
+  assertEquals(anonymous.calls.length, 0);
+
+  const { handler, calls } = setup();
+  const response = await handler(
+    request("POST", "/founder/accept", { token, idempotencyKey: key }),
+  );
+  assertEquals(response.status, 200);
+  assertEquals(calls[0]?.fn, "accept_founder_invitation");
+  assertEquals(calls[0]?.args.p_token_digest, await tokenDigest(token));
+  assertEquals(calls[0]?.args.p_user_id, actor.userId);
+  assert(!JSON.stringify(calls[0]?.args).includes(token));
 });

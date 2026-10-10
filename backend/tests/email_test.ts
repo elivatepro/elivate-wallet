@@ -260,3 +260,55 @@ Deno.test("error codes never carry addresses or tokens", async () => {
   assert(!text.includes("new@example.test"));
   assert(!text.includes("cf-token-secret"));
 });
+
+// ── Founder applications (Blueprint 19: A17–A19) ──
+
+const founderLink = `https://app.elivatewallet.com/founder#t=${"F".repeat(43)}`;
+
+Deno.test("A19 received: Elivate-branded, team escaped, links to the marketing site", () => {
+  const email = renderEmail("founder.application_received", 1, { team: "Harmony <b>" }, { appUrl });
+  assertEquals(email.subject, "We have your Elivate Wallet application");
+  assert(email.html.includes("Harmony &lt;b&gt;"));
+  assert(email.html.includes("We have your application."));
+  assert(email.html.includes(`${appUrl}/email/root-founder-received.png`));
+  assert(email.html.includes('href="https://elivatewallet.com"'));
+  assert(email.text.includes("Visit Elivate: https://elivatewallet.com"));
+});
+
+Deno.test("A17 approved: needs the /founder link and shows the expiry", () => {
+  const email = renderEmail(
+    "founder.application_approved",
+    1,
+    { team: "Harmony Builders", expiresAt: "2026-10-24T09:00:00Z" },
+    { appUrl, joinUrl: founderLink },
+  );
+  assert(email.html.includes("You’re approved to start your network."));
+  assert(email.html.includes(`href="${founderLink}"`));
+  assert(email.html.includes("24 October 2026"));
+  assert(email.html.includes(`${appUrl}/email/root-founder-approved.png`));
+  assert(email.text.includes(`Create your account: ${founderLink}`));
+  const params = { team: "Harmony Builders", expiresAt: "2026-10-24T09:00:00Z" };
+  assertThrows(
+    () => renderEmail("founder.application_approved", 1, params, { appUrl }),
+    TemplateError,
+  );
+  assertThrows(
+    () => renderEmail("founder.application_approved", 1, params, { appUrl, joinUrl }),
+    TemplateError,
+    undefined,
+    "a network join link is not a founder link",
+  );
+});
+
+Deno.test("A18 not approved: no reason param, support button", () => {
+  const email = renderEmail("founder.application_rejected", 1, { team: "Golden Circle" }, {
+    appUrl,
+  });
+  assert(email.html.includes("We can’t approve your application."));
+  assert(email.html.includes("You can apply again after 30 days."));
+  assert(email.html.includes('href="mailto:support@elivatewallet.com"'));
+  assertThrows(
+    () => renderEmail("founder.application_rejected", 1, { team: "G", reason: "Rank" }, { appUrl }),
+    TemplateError,
+  );
+});

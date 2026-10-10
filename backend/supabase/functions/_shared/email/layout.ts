@@ -63,7 +63,11 @@ export type RootPose =
   | "backup-ready"
   | "backup-failed"
   | "restore-update"
-  | "branding-changed";
+  | "branding-changed"
+  // Blueprint 19: A17–A19.
+  | "founder-received"
+  | "founder-approved"
+  | "founder-rejected";
 
 export type StatusTone = "success" | "warning" | "danger" | "muted";
 

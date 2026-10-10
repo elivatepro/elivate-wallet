@@ -17,6 +17,8 @@ const tenantId = "00000000-0000-0000-0000-0000000000c1";
 const restoreId = "00000000-0000-0000-0000-0000000000d1";
 const key = "key-0000000000000001";
 const secret = "app-server-secret-value";
+const applicationId = "00000000-0000-0000-0000-0000000000e1";
+const issued = { tokenId: "00000000-0000-0000-0000-0000000000f1", digest: "f".repeat(64) };
 
 function setup(
   rpc: (fn: string) => RpcResult = () => ({ data: { ok: true }, error: null }),
@@ -34,6 +36,7 @@ function setup(
       fingerprinted.push(`${bankCode}:${accountNumber}`);
       return Promise.resolve(bankCode.padEnd(64, "a"));
     },
+    issueToken: () => Promise.resolve(issued),
     log: (entry) => logs.push(entry),
     allowedOrigins: ["https://admin.elivatewallet.com"],
     appServerSecret: secret,
@@ -87,6 +90,7 @@ Deno.test("no secret configured refuses everything (fail closed)", async () => {
     verifyToken: () => Promise.resolve(actor),
     rpc: () => Promise.resolve({ data: {}, error: null }),
     bankFingerprint: () => Promise.resolve(""),
+    issueToken: () => Promise.resolve(issued),
     log: () => {},
     allowedOrigins: [],
     appServerSecret: null,
@@ -339,4 +343,48 @@ Deno.test("logs carry the route pattern, never ids or search text", async () => 
   assertEquals(logs[0]?.route, "GET /accounts/:uid");
   assertEquals(JSON.stringify(logs).includes("Okafor"), false);
   assertEquals(JSON.stringify(logs).includes("48213"), false);
+});
+
+// ── Founder applications (Blueprint 19) ──
+
+Deno.test("founder applications: list by status, detail by id", async () => {
+  const { handler, calls } = setup();
+  assertEquals(
+    (await handler(request("GET", "/founder-applications?status=approved"))).status,
+    200,
+  );
+  assertEquals(calls[0]?.fn, "admin_founder_applications");
+  assertEquals(calls[0]?.args.p_status, "approved");
+  assertEquals((await handler(request("GET", "/founder-applications?status=maybe"))).status, 400);
+  assertEquals(
+    (await handler(request("GET", `/founder-applications/${applicationId}`))).status,
+    200,
+  );
+  assertEquals(calls[1]?.args.p_application_id, applicationId);
+});
+
+Deno.test("founder applications: approval draws a link, rejection does not", async () => {
+  const { handler, calls } = setup();
+  const body = { decision: "approve", reason: "Rank confirmed", idempotencyKey: key };
+  const path = `/founder-applications/${applicationId}/decide`;
+  assertEquals((await handler(request("POST", path, body))).status, 200);
+  assertEquals(calls[0]?.fn, "admin_decide_founder_application");
+  assertEquals(calls[0]?.args.p_token_id, issued.tokenId);
+  assertEquals(calls[0]?.args.p_token_digest, issued.digest);
+  assertEquals((await handler(request("POST", path, { ...body, decision: "reject" }))).status, 200);
+  assertEquals(calls[1]?.args.p_token_id, null);
+  assertEquals((await handler(request("POST", path, { ...body, decision: "maybe" }))).status, 400);
+  assertEquals(calls.length, 2);
+});
+
+Deno.test("founder applications: resend draws a new link and needs a reason", async () => {
+  const { handler, calls } = setup();
+  const path = `/founder-applications/${applicationId}/resend`;
+  assertEquals((await handler(request("POST", path, { idempotencyKey: key }))).status, 400);
+  assertEquals(
+    (await handler(request("POST", path, { reason: "Lost it", idempotencyKey: key }))).status,
+    200,
+  );
+  assertEquals(calls[0]?.fn, "admin_resend_founder_invitation");
+  assertEquals(calls[0]?.args.p_token_id, issued.tokenId);
 });
