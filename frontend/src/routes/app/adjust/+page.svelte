@@ -408,7 +408,10 @@
 								</div>
 							{/each}
 						</div>
-						<button type="submit" class="en-primary en-mobile-only" disabled={!shell.canAct || busy}
+						<button
+							type="submit"
+							class="en-primary en-mobile-only"
+							disabled={!shell.canAct || shell.paused('adjustments') || busy}
 							>Submit adjustment</button
 						>
 					{/if}
@@ -434,7 +437,10 @@
 							{/each}
 						</div>
 						<div class="en-sum-block">
-							<button type="submit" class="en-primary" disabled={!shell.canAct || busy}
+							<button
+								type="submit"
+								class="en-primary"
+								disabled={!shell.canAct || shell.paused('adjustments') || busy}
 								>Submit adjustment</button
 							>
 						</div>

@@ -51,10 +51,17 @@ export class Shell {
 	state: ShellState = $state({ kind: 'loading' });
 	online = $state(true);
 	hideAmounts = $state(false);
+	/** Blueprint 18: operations Elivate has stopped (kill switches), read on write pages. */
+	stopped = $state<readonly string[]>([]);
 	#controller: AbortController | null = null;
 
 	get canAct(): boolean {
 		return this.online && this.state.kind === 'ready';
+	}
+
+	/** A stopped operation: new submissions are off; recovery of open attempts is not. */
+	paused(operation: string): boolean {
+		return this.stopped.includes(operation);
 	}
 
 	start(): () => void {

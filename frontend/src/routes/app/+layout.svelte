@@ -339,7 +339,6 @@
 	// switch) shows a paused banner above the page, which stays usable so an
 	// attempt with an unknown outcome can still be checked or cancelled. Read
 	// fresh on each write page; the database refuses the operation either way.
-	let stoppedOps = $state<string[]>([]);
 	const onWritePage = $derived(stoppedHere(path, Object.keys(OPERATION_NAMES)) !== null);
 	$effect(() => {
 		// Track the path itself: moving between write pages fetches again.
@@ -350,12 +349,12 @@
 			.then((r) => (r.ok ? r.json() : null))
 			.then((body: { data?: { stopped?: unknown } } | null) => {
 				const list = body?.data?.stopped;
-				stoppedOps = Array.isArray(list) ? list.filter((x) => typeof x === 'string') : [];
+				shell.stopped = Array.isArray(list) ? list.filter((x) => typeof x === 'string') : [];
 			})
 			.catch(() => undefined);
 		return () => controller.abort();
 	});
-	const operationHere = $derived(onWritePage ? stoppedHere(path, stoppedOps) : null);
+	const operationHere = $derived(onWritePage ? stoppedHere(path, shell.stopped) : null);
 </script>
 
 <svelte:window onkeydown={onKeydown} />

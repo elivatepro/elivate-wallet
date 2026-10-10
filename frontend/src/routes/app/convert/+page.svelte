@@ -508,7 +508,10 @@
 								{/if}
 							</div>
 						{/if}
-						<button type="submit" class="en-primary en-mobile-only" disabled={!shell.canAct || busy}
+						<button
+							type="submit"
+							class="en-primary en-mobile-only"
+							disabled={!shell.canAct || shell.paused('conversion') || busy}
 							>{busy ? 'Sending…' : 'Submit for review'}</button
 						>
 					{/if}
@@ -560,7 +563,10 @@
 							{/if}
 						</div>
 						<div class="en-sum-block">
-							<button type="submit" class="en-primary" disabled={!shell.canAct || busy}
+							<button
+								type="submit"
+								class="en-primary"
+								disabled={!shell.canAct || shell.paused('conversion') || busy}
 								>{busy ? 'Sending…' : 'Submit for review'}</button
 							>
 						</div>

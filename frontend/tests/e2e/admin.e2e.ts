@@ -176,6 +176,8 @@ test('stopping withdrawals pauses new requests for members; starting them again 
 		await expect(
 			memberPage.getByRole('heading', { name: 'Withdrawals are paused for now' })
 		).toBeVisible();
+		// The page stays below the banner, so open attempts can still be recovered.
+		await expect(memberPage.getByRole('heading', { name: 'Withdraw to your bank' })).toBeVisible();
 		await shot(memberPage, 'X-withdrawals-paused');
 		await memberPage.context().close();
 	} finally {
