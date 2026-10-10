@@ -210,6 +210,25 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
   - **25** navigation redesign: the mobile Roudio "Fresh Direction" pill bar, a sectioned
     desktop sidebar and role dashboards (Paper drawings approved first).
   - Then **set-based authorization reads** (`visible_segments`, `my_capabilities`).
+- **Setup by role, profile gate, funds not managed (2026-10-10, Blueprint 22):**
+  - Setup differs by role. The **light setup** (President Team, and directors whose funds are
+    not managed) is the PIN, then name, photo and rank: no NIN, phone or bank account. The
+    **wallet setup** (member, team leader, director, World Team) is the PIN, the NIN with the
+    details confirmation, the profile (photo, phone, rank) and a bank account.
+  - A per-membership **"funds not managed"** switch for directors: only the President Team sets
+    or clears it, with a reason and the PIN (audited, idempotent, inside the network). Setting it
+    is refused while the director's wallet holds money (any posted or reserved amount, any
+    currency or pocket) or has an open withdrawal, pocket move or entry
+    (`conflict{reason: wallet_not_empty}`). An exempted director keeps every director authority
+    but holds no money: the light setup, no own-wallet permissions or pages, and the ledger
+    refuses postings and holds for them. Clearing it restores the wallet, and the gate then asks
+    for the NIN, phone and bank account.
+  - The **backend enforces the setup on every call** (session gate `profile_required` with the
+    next step); the wizard's own calls, joining, account security and sign-out keep working. The
+    app sends the person to the right step and keeps `?next=`. Founders do their light setup
+    right after the PIN, before naming the network and paying. It fails closed, and the `ew_ws`
+    cookie no longer skips it. People on dev without a finished setup are gated on their next
+    visit (intended). NIN review authority is unchanged.
 - **Sequencing:** one slice at a time, each new slice in its own thread. Order: 4 → 5 → 8 →
   slice 9 follow-up (IP storage, signed-in password change, PIN-change email, sign-out
   choice after reset) → 6 → 7 → 10.
