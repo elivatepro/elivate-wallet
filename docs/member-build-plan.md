@@ -233,6 +233,18 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
   - Owner answers on PR #59 (2026-10-10): founders' light setup right after the PIN, returned
     funds refused and statement export off for a marked director, and a wallet member waiting
     for a NIN review staying in setup are all kept as built.
+- **Speed II (2026-10-11, Blueprint 23, amends 36a again):** after a tap there was still a lag
+  before anything changed. The owner accepted all of these trade-offs:
+  - **Every page opens from its saved copy** (stale-while-revalidate): every `/app` list and
+    detail page shows its last copy from memory or the device cache at once, then refreshes.
+    The Blueprint 20 rules hold (per user and workspace, `ew_who`, the forbidden-field guard,
+    invalidation after commands, "Updating…", sign-out purge). Money actions always check the
+    server; data may be seconds old until the refresh lands.
+  - **Instant tap feedback:** press states, and the tab bar and sidebar follow the tap at once
+    (`navigating.to`); a light page frame shows while a page is on its way. Nav styling is left
+    to slice 25.
+  - **All screens' code downloaded upfront** once the shell is idle (about 1.8 MB once).
+  - **A short page swap** (≤ 200 ms view transition; off with reduced motion; never delays).
 - **Sequencing:** one slice at a time, each new slice in its own thread. Order: 4 → 5 → 8 →
   slice 9 follow-up (IP storage, signed-in password change, PIN-change email, sign-out
   choice after reset) → 6 → 7 → 10.

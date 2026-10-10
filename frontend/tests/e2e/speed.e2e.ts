@@ -9,7 +9,7 @@
 // throttling (150 ms RTT, 1.6 Mbps down, CPU ×4, +300 ms per /api read for the
 // trip to Supabase), reloads Home and stays idle 12 s, then taps each route
 // from the More page twice: "cold" (first visit) and "warm" (revisit). Times are taken
-// in the page: `nav` until the URL changed, `paint` until the route's data
+// in the page: `nav` until the URL changed and the old page is gone, `paint` until the route's data
 // marker is on screen, `feedback` until the tapped tab shows as current.
 
 import { writeFileSync } from 'node:fs';
@@ -33,7 +33,7 @@ const member = uniqueEmail('speed-m');
 /** Route, and a pattern that only matches once its data is on screen. */
 const ROUTES: readonly (readonly [string, string])[] = [
 	['/app/team', '₦1,000\\.00'],
-	['/app/members', 'Ada Obi'],
+	['/app/members', '\\d+ members?\\b'],
 	['/app/offices', '₦1,000\\.00'],
 	['/app/audit', '\\d+\\+? events?'],
 	['/app/invitations', member.replace(/[.+]/g, '\\$&')]
@@ -53,6 +53,8 @@ async function tap(page: Page, href: string, marker: string): Promise<Tap> {
 				(a) => a.offsetParent !== null
 			);
 			if (!link) throw new Error(`no visible link to ${href}`);
+			// The page on screen before the tap (More): "nav" waits until it is gone.
+			const before = document.querySelector('main')?.innerText ?? '';
 			const t0 = performance.now();
 			link.click();
 			let nav = -1;
@@ -60,8 +62,8 @@ async function tap(page: Page, href: string, marker: string): Promise<Tap> {
 				const stop = setTimeout(() => reject(new Error(`timeout on ${href}`)), 30_000);
 				const tick = () => {
 					const now = performance.now() - t0;
-					if (nav < 0 && location.pathname === href) nav = now;
 					const main = document.querySelector('main');
+					if (nav < 0 && location.pathname === href && main && main.innerText !== before) nav = now;
 					if (nav >= 0 && main && new RegExp(marker).test(main.innerText)) {
 						clearTimeout(stop);
 						resolve({ nav, paint: now });

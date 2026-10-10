@@ -83,7 +83,7 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
   - Other sessions may deploy too: confirm a new route is live; redeploy from fresh main if not.
 - Report what ran and what didn't. Never reset, force-push or discard others' work.
 
-## Status (2026-10-10)
+## Status (2026-10-11)
 
 On dev: backend slices 01–06, frontend M1, member slices 1–10 and the slice 9 follow-up
 (blueprints 07–17). Slice 18 (Blueprint 18): the platform Admin app (admin.elivatewallet.com),
@@ -92,6 +92,7 @@ founder applications (apply first at `/apply`, admin review, `/founder` invitati
 founders start networks). Slice 20 (Blueprint 20): speed and caching (Smart Placement,
 bootstrap/home reads, device-cache-first pages, 30 s session touch, indexes). Slice 21
 (Blueprint 21): owner feedback fixes. Slice 22 (Blueprint 22, PR #59, not yet on dev): setup by
-role (light vs wallet), a backend `profile_required` gate, "funds not managed" directors. Next, in
-order: 23 speed II, 24 haptic wheel pickers, 25 navigation redesign, then set-based authorization
-reads.
+role (light vs wallet), a backend `profile_required` gate, "funds not managed" directors. Slice 23
+(Blueprint 23, frontend only): every page opens from its saved copy, instant tap feedback, idle
+code preload of every screen, page swap. Next, in order: 24 haptic wheel pickers, 25 navigation
+redesign, then set-based authorization reads.
