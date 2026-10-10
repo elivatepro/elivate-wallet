@@ -24,6 +24,8 @@ $$;
 -- 1 founder · 2 World Team · 3 Director · 4,5 Team Leaders · 6,7,8,9 people · 10 admin · 11 other founder
 insert into auth.users (id, email, aud, role)
 select pg_temp.u(n), 'u' || n || '@example.test', 'authenticated', 'authenticated' from generate_series(1, 11) n;
+-- Blueprint 19: only approved founders start networks.
+insert into founders.approved (user_id, source) select user_id, 'existing' from identity.accounts on conflict do nothing;
 insert into auth.sessions (id, user_id, created_at, updated_at)
 select pg_temp.s(n), pg_temp.u(n), now(), now() from generate_series(1, 11) n;
 do $$ begin perform api.set_pin(pg_temp.u(n), pg_temp.s(n), repeat('a', 64)) from generate_series(1, 11) n; end $$;
