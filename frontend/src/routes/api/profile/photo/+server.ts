@@ -15,7 +15,11 @@ export const GET: RequestHandler = async (event) => {
 	return new Response(photo.body, {
 		headers: {
 			'content-type': photo.httpMetadata?.contentType ?? 'application/octet-stream',
-			'cache-control': 'private, no-store',
+			// The app asks for `?v=<photoUpdatedAt>` (profilePhotoSrc), so a new
+			// photo is a new URL: the browser may keep this one privately.
+			'cache-control': event.url.searchParams.has('v')
+				? 'private, max-age=86400'
+				: 'private, no-cache',
 			'content-disposition': 'inline',
 			'x-content-type-options': 'nosniff'
 		}

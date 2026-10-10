@@ -28,6 +28,8 @@ const OFFLINE = '/offline.html';
 const SHELL_POSES = ['offline-empty', 'load-error'];
 const neededOffline = (path: string) =>
 	!path.startsWith('/auth-bg/desktop') &&
+	// Slice 21: the sign-in pages' AVIF/WebP variants; the app's heroes use the JPEG.
+	!/^\/auth-bg\/mobile-[a-z]+\.(avif|webp)$/.test(path) &&
 	!path.startsWith('/email/') &&
 	(!path.startsWith('/root/') || SHELL_POSES.some((pose) => path.startsWith(`/root/${pose}`)));
 // Blueprint 20 B8: the shell's chunks only (scripts/precache-plugin.ts); all of

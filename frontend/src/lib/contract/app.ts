@@ -13,7 +13,7 @@ import {
 	WalletNetwork
 } from './ledger';
 import { IdempotencyKey, InvitationPage, InvitationStatus } from './invitations';
-import { OfficeType, Person, PIN_PATTERN, Role, Uuid } from './common';
+import { IsoDateTime, OfficeType, Person, PIN_PATTERN, Role, Uuid } from './common';
 import { Brand } from './settings';
 import { ACCOUNT_NUMBER_PATTERN, Bank, PayoutAccount } from './payout';
 import { Capabilities, Workspace } from './org';
@@ -24,9 +24,16 @@ export const SessionView = Schema.Struct({
 	state: SecurityState,
 	workspace: Schema.NullOr(Workspace),
 	capabilities: Schema.NullOr(Capabilities),
-	/** Own name and photo flag (Blueprint 06); null when unavailable. Never cached on device. */
+	/**
+	 * Own name and photo flag (Blueprint 06); null when unavailable. Never cached
+	 * on device. `photoUpdatedAt` versions the photo URL (slice 21).
+	 */
 	profile: Schema.NullOr(
-		Schema.Struct({ name: Schema.NullOr(Schema.String), hasPhoto: Schema.Boolean })
+		Schema.Struct({
+			name: Schema.NullOr(Schema.String),
+			hasPhoto: Schema.Boolean,
+			photoUpdatedAt: Schema.optional(Schema.NullOr(IsoDateTime))
+		})
 	),
 	/** The selected network's brand (Blueprint 17); null when unavailable. */
 	brand: Schema.optional(Schema.NullOr(Brand))

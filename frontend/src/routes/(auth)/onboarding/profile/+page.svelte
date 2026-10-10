@@ -1,6 +1,7 @@
 <!-- Wizard step 3 · profile. Paper "Onboarding — Invited member" 09 + 10 (rank wheel). -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { profilePhotoSrc } from '#lib/client/photo.js';
 	import AuthHeading from '#lib/ui/auth/AuthHeading.svelte';
 	import PrimaryButton from '#lib/ui/auth/PrimaryButton.svelte';
 	import PhoneField from '#lib/ui/onboarding/PhoneField.svelte';
@@ -38,7 +39,7 @@
 >
 	{#if data.photoRequired}
 		<!-- Shown only once photo storage (R2) is bound; then it is required. -->
-		<PhotoField hasPhoto={data.hasPhoto} photoSrc="/api/profile/photo" error={errors.photo} />
+		<PhotoField hasPhoto={data.hasPhoto} photoSrc={profilePhotoSrc(data)} error={errors.photo} />
 	{/if}
 	<PhoneField value={data.phone ?? ''} locked={data.phoneLocked} error={errors.phone} />
 	<RankPicker value={form?.rank ?? data.rank} error={errors.rank} />

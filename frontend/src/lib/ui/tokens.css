@@ -115,19 +115,6 @@
 	--focus-ring: #ff7f4f;
 }
 
-/* Blueprint 20 B8: AVIF, then WebP, then the original JPEG, where image-set()
-   with type() is understood; older browsers keep the JPEG above. */
-@supports (background-image: image-set(url('/auth-bg/desktop-dark.avif') type('image/avif'))) {
-	:root,
-	[data-theme='dark'] {
-		--auth-bg-desktop: image-set(
-			url('/auth-bg/desktop-dark.avif') type('image/avif'),
-			url('/auth-bg/desktop-dark.webp') type('image/webp'),
-			url('/auth-bg/desktop-dark.jpg') type('image/jpeg')
-		);
-	}
-}
-
 [data-theme='light'] {
 	color-scheme: light;
 	--color-canvas: #f7f6f3;
@@ -151,7 +138,7 @@
 	--auth-placeholder: #6b7477;
 	--auth-field-bg: #ffffff;
 	--auth-field-border: #d8ddde;
-	--auth-chip-bg: #ffffff99;
+	--auth-chip-bg: #ffffffcc;
 	--auth-chip-border: #21262824;
 	--auth-fade: oklab(97.3% -0.0001 0.004);
 	--auth-grain-blend: multiply;
@@ -186,7 +173,7 @@
 		--auth-placeholder: #6b7477;
 		--auth-field-bg: #ffffff;
 		--auth-field-border: #d8ddde;
-		--auth-chip-bg: #ffffff99;
+		--auth-chip-bg: #ffffffcc;
 		--auth-chip-border: #21262824;
 		--auth-fade: oklab(97.3% -0.0001 0.004);
 		--auth-grain-blend: multiply;
@@ -196,6 +183,45 @@
 		--auth-bg-mobile: url('/auth-bg/mobile-light.jpg');
 		--auth-bg-desktop: url('/auth-bg/mobile-light.jpg');
 		--focus-ring: #b74725;
+	}
+}
+
+/* Blueprint 20 B8, slice 21: AVIF, then WebP, then the original JPEG, where
+   image-set() with type() is understood; older browsers keep the JPEGs above.
+   After the theme blocks, in the same order, so light still wins over dark. */
+@supports (background-image: image-set(url('/auth-bg/desktop-dark.avif') type('image/avif'))) {
+	:root,
+	[data-theme='dark'] {
+		--auth-bg-mobile: image-set(
+			url('/auth-bg/mobile-dark.avif') type('image/avif'),
+			url('/auth-bg/mobile-dark.webp') type('image/webp'),
+			url('/auth-bg/mobile-dark.jpg') type('image/jpeg')
+		);
+		--auth-bg-desktop: image-set(
+			url('/auth-bg/desktop-dark.avif') type('image/avif'),
+			url('/auth-bg/desktop-dark.webp') type('image/webp'),
+			url('/auth-bg/desktop-dark.jpg') type('image/jpeg')
+		);
+	}
+
+	[data-theme='light'] {
+		--auth-bg-mobile: image-set(
+			url('/auth-bg/mobile-light.avif') type('image/avif'),
+			url('/auth-bg/mobile-light.webp') type('image/webp'),
+			url('/auth-bg/mobile-light.jpg') type('image/jpeg')
+		);
+		--auth-bg-desktop: var(--auth-bg-mobile);
+	}
+
+	@media (prefers-color-scheme: light) {
+		[data-theme='system'] {
+			--auth-bg-mobile: image-set(
+				url('/auth-bg/mobile-light.avif') type('image/avif'),
+				url('/auth-bg/mobile-light.webp') type('image/webp'),
+				url('/auth-bg/mobile-light.jpg') type('image/jpeg')
+			);
+			--auth-bg-desktop: var(--auth-bg-mobile);
+		}
 	}
 }
 

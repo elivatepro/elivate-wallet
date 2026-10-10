@@ -55,7 +55,9 @@
 		<div class="inner">
 			<span class="grabber" aria-hidden="true"></span>
 			<div class="head">
-				<span class="app-tile" aria-hidden="true"><img src="/icons/mark.svg" alt="" /></span>
+				<span class="app-tile" aria-hidden="true"
+					><img src="/icons/mark.svg" alt="" width="30" height="30" /></span
+				>
 				<div class="head-text">
 					<h2 id="install-title">Add to Home Screen</h2>
 					<p>Open Elivate Wallet like an app.</p>

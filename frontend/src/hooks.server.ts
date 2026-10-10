@@ -56,8 +56,10 @@ export const handle: Handle = async ({ event, resolve }) => {
 	// Plan §5.9: nothing the server renders or relays may be cached or leak a
 	// referrer off-site. `same-origin`, not `no-referrer`: with `no-referrer`
 	// browsers send `Origin: null` on form POSTs and Kit's CSRF check refuses them.
+	// A route that chose its own cache policy keeps it (the brand logo and the
+	// own profile photo: private, versioned URLs); everything else is no-store.
 	if (!building) {
-		response.headers.set('cache-control', 'no-store');
+		if (!response.headers.has('cache-control')) response.headers.set('cache-control', 'no-store');
 		response.headers.set('referrer-policy', 'same-origin');
 		response.headers.set('x-content-type-options', 'nosniff');
 		response.headers.set('permissions-policy', 'camera=(), microphone=(), geolocation=()');

@@ -1,10 +1,12 @@
 <!--
 	Profile photo (Paper 09): dashed coral circle with a camera, preview after a
 	choice. A real file input (works without JS); JPEG, PNG or WebP up to 5 MB,
-	checked again on the server.
+	checked again on the server. With JavaScript, the chosen photo is shrunk to
+	512 px and re-encoded before the form posts it (slice 21).
 -->
 <script lang="ts">
 	import Camera from '@lucide/svelte/icons/camera';
+	import { shrinkInputPhoto } from '#lib/client/photo.js';
 
 	let {
 		hasPhoto = false,
@@ -19,9 +21,11 @@
 	} = $props();
 
 	let preview = $state<string | null>(null);
-	const onChange = (event: Event) => {
-		const file = (event.currentTarget as HTMLInputElement).files?.[0];
+	const onChange = async (event: Event) => {
+		const input = event.currentTarget as HTMLInputElement;
 		if (preview) URL.revokeObjectURL(preview);
+		preview = null;
+		const file = await shrinkInputPhoto(input);
 		preview = file ? URL.createObjectURL(file) : null;
 	};
 	const shown = $derived(preview ?? (hasPhoto ? photoSrc : null));
