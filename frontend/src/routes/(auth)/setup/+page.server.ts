@@ -23,6 +23,8 @@ export const load: PageServerLoad = async (event) => {
 			return yield* (yield* BillingApi).setup;
 		})
 	);
+	// Founders apply first (Blueprint 19); the application form says how.
+	if (!setup.founderApproved) redirect(303, '/apply');
 	return { setup, idempotencyKey: newIdempotencyKey() };
 };
 
@@ -73,6 +75,13 @@ export const actions: Actions = {
 		);
 		if (Exit.isFailure(exit)) {
 			const failure = failureOf(exit);
+			if (
+				failure._tag === 'BackendError' &&
+				failure.code === 'authorization_denied' &&
+				failure.details.reason === 'founder_not_approved'
+			) {
+				redirect(303, '/apply');
+			}
 			const message = describeFailure(failure);
 			if (message) return fail(409, { name, step: 'plan', message, idempotencyKey });
 			redirectForFailure(failure);

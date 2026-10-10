@@ -55,7 +55,7 @@
 		failed = $bindable(false)
 	}: {
 		siteKey: string | null;
-		action: 'sign-in' | 'sign-up' | 'forgot-password';
+		action: 'sign-in' | 'sign-up' | 'forgot-password' | 'apply';
 		theme?: 'dark' | 'light' | 'auto';
 		/** Z02: "Run the security check again to {retryLabel}." */
 		retryLabel: string;

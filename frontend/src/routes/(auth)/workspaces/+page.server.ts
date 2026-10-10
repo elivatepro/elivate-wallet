@@ -10,7 +10,7 @@ import { pathForGateCode } from '#lib/gate.js';
 import { isSelectable } from '#lib/contract/org.js';
 import { InvitationsApi } from '#lib/server/apis.js';
 import type { VerifiedSession } from '#lib/server/auth.js';
-import { readJoinToken, readWorkspace } from '#lib/server/cookies.js';
+import { readFounderToken, readJoinToken, readWorkspace } from '#lib/server/cookies.js';
 import { expectGate, failureOf, isBackendError, redirectForFailure } from '#lib/server/flow.js';
 import { onboardingIncomplete, writeOnboardingMembership } from '#lib/server/onboarding.js';
 import { runApi } from '#lib/server/request.js';
@@ -45,6 +45,8 @@ async function listInvitations(event: RequestEvent, session: VerifiedSession) {
 export const load: PageServerLoad = async (event) => {
 	// An emailed invitation link opened in this browser takes priority (W-02).
 	if (readJoinToken(event.cookies)) redirect(303, '/join');
+	// ... and so does a founder invitation link (Blueprint 19).
+	if (readFounderToken(event.cookies)) redirect(303, '/founder');
 	const { session, state } = await expectGate(event, 'ready');
 	const [workspaces, invitations] = await Promise.all([
 		listWorkspaces(event, session),

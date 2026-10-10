@@ -72,7 +72,7 @@
 	</div>
 	<div class="actions">
 		<PrimaryButton label="Sign in" {busy} disabled={checkFailed} />
-		<AltLink prompt="New to Elivate?" label="Start your network" href="/sign-up" />
+		<AltLink prompt="New to Elivate?" label="Start your network" href="/apply" />
 	</div>
 </form>
 

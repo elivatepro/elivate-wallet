@@ -11,7 +11,7 @@ export const SITEVERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/si
 /** Turnstile tokens are at most 2048 characters. */
 const MAX_TOKEN = 2048;
 
-export type TurnstileAction = 'sign-in' | 'sign-up' | 'forgot-password';
+export type TurnstileAction = 'sign-in' | 'sign-up' | 'forgot-password' | 'apply';
 
 const SiteverifyResponse = Schema.Struct({
 	success: Schema.Boolean,

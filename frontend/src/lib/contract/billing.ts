@@ -88,6 +88,8 @@ export const BillingOverview = Schema.Struct({
 export type BillingOverview = typeof BillingOverview.Type;
 
 export const BillingSetup = Schema.Struct({
+	/** Blueprint 19: only an approved founder may start a network. */
+	founderApproved: Schema.Boolean,
 	trialAvailable: Schema.Boolean,
 	trialDays: Schema.Int,
 	plans: Schema.Array(Plan),

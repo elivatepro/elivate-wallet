@@ -6,8 +6,10 @@
 import { redirect } from '@sveltejs/kit';
 import {
 	clearWorkspace,
+	markFounderPasswordNeeded,
 	markJoinPasswordNeeded,
 	markRecovery,
+	readFounderToken,
 	readJoinToken
 } from '#lib/server/cookies.js';
 import { recordSignIn } from '#lib/server/sign-ins.js';
@@ -37,7 +39,7 @@ export const load: PageServerLoad = ({ url, cookies }) => {
 	if (!link) redirect(303, '/auth/link-expired');
 	// Same rule as the action: with an invitation open here, any link continues
 	// the join, so a Magic Link is not a PIN reset.
-	return { tokenHash: link.tokenHash, type: link.type, joining: !!readJoinToken(cookies) };
+	return { tokenHash: link.tokenHash, type: link.type, joining: !!readJoinToken(cookies) || !!readFounderToken(cookies) };
 };
 
 export const actions: Actions = {
@@ -68,6 +70,11 @@ export const actions: Actions = {
 		if (readJoinToken(cookies)) {
 			if (link.type === 'signup') markJoinPasswordNeeded(cookies, locals.secureCookies);
 			redirect(303, '/join');
+		}
+		// The same for a founder invitation (Blueprint 19).
+		if (readFounderToken(cookies)) {
+			if (link.type === 'signup') markFounderPasswordNeeded(cookies, locals.secureCookies);
+			redirect(303, '/founder');
 		}
 		// PIN reset links (Magic Link template) continue to the new-PIN form;
 		// sign-up confirmations continue through the gate (normally PIN setup).
