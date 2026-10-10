@@ -17,6 +17,7 @@ import {
   TemplateError,
 } from "./params.ts";
 import { notificationRenderers } from "./notifications.ts";
+import { founderRenderers } from "./founders.ts";
 
 export { escapeHtml, TemplateError };
 export type { RenderContext, RenderedEmail };
@@ -218,7 +219,9 @@ const registry: Readonly<Record<string, Readonly<Record<number, Renderer>>>> = {
   "payout_account.alert": { 1: payoutAccountAlert },
   "identity.nin_review_decided": { 1: ninReviewDecided },
   ...Object.fromEntries(
-    Object.entries(notificationRenderers).map(([key, renderer]) => [key, { 1: renderer }]),
+    Object.entries({ ...notificationRenderers, ...founderRenderers }).map((
+      [key, renderer],
+    ) => [key, { 1: renderer }]),
   ),
 };
 

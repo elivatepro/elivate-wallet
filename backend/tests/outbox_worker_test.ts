@@ -202,3 +202,21 @@ Deno.test("no new batch is claimed once the time budget is spent", async () => {
   assertEquals(body.data.claimed, 0);
   assertEquals(calls.map((c) => c.fn), ["outbox_run_maintenance"]);
 });
+
+Deno.test("a founder approval links to /founder (Blueprint 19)", async () => {
+  const { handler, sent } = setup({
+    claims: [[
+      item(1, {
+        template: "founder.application_approved",
+        params: { team: "Harmony Builders", expiresAt: "2026-10-24T09:00:00Z" },
+      }),
+    ]],
+  });
+  const body = await (await handler(run())).json();
+  assertEquals(body.data.results, { sent: 1 });
+  assert(
+    sent[0]?.text.includes(
+      `https://app.elivatewallet.com/founder#t=${tokenFor("20000000-0000-0000-0000-000000000001")}`,
+    ),
+  );
+});

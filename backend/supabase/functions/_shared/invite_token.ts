@@ -58,7 +58,15 @@ export async function createInviteTokens(secretHex: string): Promise<InviteToken
   };
 }
 
-/** Join link. The token travels in the fragment, so it never reaches servers or logs. */
-export function joinLink(appOrigin: string, token: string): string {
-  return `${appOrigin.replace(/\/+$/, "")}/join#t=${token}`;
+/**
+ * Invitation link: `/join` for a network, `/founder` for a founder invitation
+ * (Blueprint 19). The token travels in the fragment, so it never reaches
+ * servers or logs.
+ */
+export function joinLink(
+  appOrigin: string,
+  token: string,
+  page: "join" | "founder" = "join",
+): string {
+  return `${appOrigin.replace(/\/+$/, "")}/${page}#t=${token}`;
 }

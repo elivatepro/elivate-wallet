@@ -10,6 +10,7 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 import {
+	approveFounder,
 	apiSession,
 	createConfirmedAccount,
 	expectAccessible,
@@ -62,6 +63,7 @@ test('a founder starts the trial, upgrades through Paystack and manages renewal'
 	const email = uniqueEmail('founder');
 	const network = `Cedar ${tag()}`;
 	await createConfirmedAccount(email, PASSWORD, PIN);
+	approveFounder(email);
 	await signInAs(page, email);
 	await page.setViewportSize(DESKTOP);
 	await expect(page).toHaveURL(/\/workspaces/);
@@ -152,6 +154,7 @@ test('a founder starts the trial, upgrades through Paystack and manages renewal'
 test('a second network pays first; a cancelled checkout charges nothing', async ({ page }) => {
 	const email = uniqueEmail('founder2');
 	await createConfirmedAccount(email, PASSWORD, PIN);
+	approveFounder(email);
 	// The founder's one trial is already used on their first network.
 	const api = await apiSession(email, PASSWORD, PIN);
 	await api.call('org', '/networks', {

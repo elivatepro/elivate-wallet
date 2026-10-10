@@ -43,6 +43,8 @@ create function pg_temp.cur(p jsonb, p_currency text) returns jsonb language sql
 -- 1 President · 2 World Team · 3 Director · 4 TL (T) · 5 TL (T2) · 6 member (T) · 7 member (T2) · 10 admin
 insert into auth.users (id, email, aud, role)
 select pg_temp.u(n), 'u' || n || '@example.test', 'authenticated', 'authenticated' from unnest(array[1, 2, 3, 4, 5, 6, 7, 10]) n;
+-- Blueprint 19: only approved founders start networks.
+insert into founders.approved (user_id, source) select user_id, 'existing' from identity.accounts on conflict do nothing;
 insert into auth.sessions (id, user_id, created_at, updated_at)
 select pg_temp.s(n), pg_temp.u(n), now(), now() from unnest(array[1, 2, 3, 4, 5, 6, 7, 10]) n;
 do $$ begin perform api.set_pin(pg_temp.u(n), pg_temp.s(n), repeat('a', 64)) from unnest(array[1, 2, 3, 4, 5, 6, 7, 10]) n; end $$;

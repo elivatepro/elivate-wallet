@@ -128,6 +128,14 @@
 				<div class="card-head"><h2 id="attention">Needs attention</h2></div>
 				<ul class="list">
 					<li>
+						<a href="/admin/applications">
+							<span class="who-name">Founder applications</span>
+							<Badge tone={o.founderApplications > 0 ? 'warning' : 'neutral'}
+								>{o.founderApplications}</Badge
+							>
+						</a>
+					</li>
+					<li>
 						<a href="/admin/emails">
 							<span class="who-name">Failed emails</span>
 							<Badge tone={o.failedEmails > 0 ? 'danger' : 'neutral'}>{o.failedEmails}</Badge>

@@ -120,6 +120,8 @@ end $$;
 -- 1 President · 3 TL (T) · 4 member (T) · 8 other founder · 9 admin
 insert into auth.users (id, email, aud, role)
 select pg_temp.u(n), 'k' || n || '@example.test', 'authenticated', 'authenticated' from unnest(array[1, 3, 4, 8, 9]) n;
+-- Blueprint 19: only approved founders start networks.
+insert into founders.approved (user_id, source) select user_id, 'existing' from identity.accounts on conflict do nothing;
 insert into auth.sessions (id, user_id, created_at, updated_at)
 select pg_temp.s(n), pg_temp.u(n), now(), now() from unnest(array[1, 3, 4, 8, 9]) n;
 do $$ begin perform api.set_pin(pg_temp.u(n), pg_temp.s(n), repeat('a', 64)) from unnest(array[1, 3, 4, 8, 9]) n; end $$;

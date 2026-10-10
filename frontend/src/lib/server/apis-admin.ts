@@ -16,6 +16,9 @@ import {
 	AdminRoutes,
 	Admins,
 	AdvanceRestoreRequest,
+	ApplicationDecisionRequest,
+	ApplicationPage,
+	FounderApplication,
 	AuditPage,
 	CommandResult,
 	DeadLetters,
@@ -32,6 +35,7 @@ import {
 	SetSwitchRequest,
 	SwitchChanged,
 	Switches,
+	type ApplicationStatus,
 	type AuditGroup,
 	type NetworkState
 } from '#lib/contract/admin.js';
@@ -153,6 +157,20 @@ export interface AdminApiShape {
 		id: string,
 		input: typeof NinDecisionRequest.Type
 	) => Effect.Effect<typeof CommandResult.Type, EdgeFailure>;
+	/** Blueprint 19: founder applications by status (waiting oldest first). */
+	readonly applications: (query: {
+		status?: ApplicationStatus;
+		cursor?: string | null;
+	}) => Effect.Effect<ApplicationPage, EdgeFailure>;
+	readonly application: (id: string) => Effect.Effect<FounderApplication, EdgeFailure>;
+	readonly decideApplication: (
+		id: string,
+		input: typeof ApplicationDecisionRequest.Type
+	) => Effect.Effect<typeof CommandResult.Type, EdgeFailure>;
+	readonly resendApplication: (
+		id: string,
+		input: typeof ReasonRequest.Type
+	) => Effect.Effect<typeof CommandResult.Type, EdgeFailure>;
 }
 
 export class AdminApi extends Context.Service<AdminApi, AdminApiShape>()('AdminApi') {}
@@ -243,6 +261,16 @@ export const AdminApiLive = Layer.effect(
 			decideNin: (id, input) =>
 				checked(NinDecisionRequest, input, 'reason').pipe(
 					Effect.flatMap((body) => command(AdminRoutes.decideNin(id), body, CommandResult))
+				),
+			applications: (query) => read(AdminRoutes.applications, ApplicationPage, query),
+			application: (id) => read(AdminRoutes.application(id), FounderApplication),
+			decideApplication: (id, input) =>
+				checked(ApplicationDecisionRequest, input, 'reason').pipe(
+					Effect.flatMap((body) => command(AdminRoutes.decideApplication(id), body, CommandResult))
+				),
+			resendApplication: (id, input) =>
+				checked(ReasonRequest, input, 'reason').pipe(
+					Effect.flatMap((body) => command(AdminRoutes.resendApplication(id), body, CommandResult))
 				)
 		} satisfies AdminApiShape;
 	})

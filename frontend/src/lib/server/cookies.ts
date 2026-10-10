@@ -112,3 +112,37 @@ export function recoverySaved(cookies: Cookies): boolean {
 export function clearRecovery(cookies: Cookies): void {
 	cookies.delete(RECOVERY_COOKIE, { path: '/' });
 }
+
+// Founder invitation link (Blueprint 19): the same pattern as the join flow,
+// in its own cookies so a network invitation and a founder invitation never
+// overwrite each other. Not authentication either.
+export const FOUNDER_COOKIE = 'ew_founder';
+export const FOUNDER_PASSWORD_COOKIE = 'ew_founder_pw';
+
+const FOUNDER_MAX_AGE = 60 * 60 * 24 * 14; // the founder link's own lifetime
+
+export function readFounderToken(cookies: Cookies): string | null {
+	const value = cookies.get(FOUNDER_COOKIE);
+	return value && INVITATION_TOKEN_PATTERN.test(value) ? value : null;
+}
+
+export function writeFounderToken(cookies: Cookies, token: string, secure: boolean): void {
+	cookies.set(FOUNDER_COOKIE, token, { ...base(secure), httpOnly: true, maxAge: FOUNDER_MAX_AGE });
+}
+
+export function clearFounder(cookies: Cookies): void {
+	cookies.delete(FOUNDER_COOKIE, { path: '/' });
+	cookies.delete(FOUNDER_PASSWORD_COOKIE, { path: '/' });
+}
+
+export function markFounderPasswordNeeded(cookies: Cookies, secure: boolean): void {
+	cookies.set(FOUNDER_PASSWORD_COOKIE, '1', { ...base(secure), httpOnly: true, maxAge: 60 * 60 });
+}
+
+export function founderPasswordNeeded(cookies: Cookies): boolean {
+	return cookies.get(FOUNDER_PASSWORD_COOKIE) === '1';
+}
+
+export function clearFounderPasswordNeeded(cookies: Cookies): void {
+	cookies.delete(FOUNDER_PASSWORD_COOKIE, { path: '/' });
+}

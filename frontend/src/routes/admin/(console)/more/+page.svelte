@@ -4,6 +4,7 @@
 	import LogOut from '@lucide/svelte/icons/log-out';
 
 	const sections = [
+		{ href: '/admin/applications', label: 'Founder applications' },
 		{ href: '/admin/accounts', label: 'Accounts' },
 		{ href: '/admin/nin', label: 'NIN reviews' },
 		{ href: '/admin/switches', label: 'Kill switches' },

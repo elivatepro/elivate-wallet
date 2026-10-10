@@ -13,8 +13,8 @@ const options = { auth: { persistSession: false, autoRefreshToken: false } };
 const service = createClient(url, env("SUPABASE_SERVICE_ROLE_KEY"), options);
 const publicClient = createClient(url, env("SUPABASE_ANON_KEY"), options);
 const tokens = await createInviteTokens(env("INVITATION_TOKEN_SECRET"));
-// Auth's sign-in email lands on the join page; it carries no invitation token.
-const joinRedirect = `${env("APP_ORIGIN").replace(/\/+$/, "")}/join`;
+// Auth's sign-in email lands on the invitation page; it carries no token.
+const appOrigin = env("APP_ORIGIN").replace(/\/+$/, "");
 
 const handler = createHandler({
   async verifyToken(token): Promise<Actor | null> {
@@ -34,10 +34,10 @@ const handler = createHandler({
       : { data, error: null };
   },
   issueToken: () => tokens.issue(),
-  async sendSignInLink(email) {
+  async sendSignInLink(email, page) {
     const sent = await publicClient.auth.signInWithOtp({
       email,
-      options: { shouldCreateUser: true, emailRedirectTo: joinRedirect },
+      options: { shouldCreateUser: true, emailRedirectTo: `${appOrigin}/${page}` },
     });
     if (sent.error) throw new Error("sign-in email not sent");
   },
@@ -45,6 +45,7 @@ const handler = createHandler({
   allowedOrigins: (Deno.env.get("CORS_ORIGINS") ?? "").split(",").map((o) => o.trim()).filter(
     Boolean,
   ),
+  appServerSecret: Deno.env.get("APP_SERVER_SECRET") || null,
 });
 
 Deno.serve(handler);

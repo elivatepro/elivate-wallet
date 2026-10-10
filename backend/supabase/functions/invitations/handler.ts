@@ -3,6 +3,10 @@
 // `verify-email` serve people who are not signed in; every other route
 // verifies the bearer here, exactly like `org`. Dependencies are injected so
 // tests can exercise routing, validation and error mapping.
+//
+// Blueprint 19 adds the founder entry: the public application (only the
+// Wallet server may send it, after Turnstile) and the founder invitation link
+// (`/founder#t=`), which mirrors the network invitation link.
 
 import {
   ApiError,
@@ -14,6 +18,7 @@ import {
 } from "../_shared/http.ts";
 import * as v from "../_shared/validate.ts";
 import { tokenDigest, tokenPattern } from "../_shared/invite_token.ts";
+import { sameSecret } from "../_shared/secret.ts";
 
 export interface Actor {
   readonly userId: string;
@@ -41,10 +46,15 @@ export interface Deps {
   rpc(fn: string, args: Record<string, unknown>): Promise<RpcResult>;
   /** Draws a fresh link: a token id and the digest of its token. */
   issueToken(): Promise<{ readonly tokenId: string; readonly digest: string }>;
-  /** Asks Auth to email a sign-in link to the invitation's email (W-02 step 3). */
-  sendSignInLink(email: string): Promise<void>;
+  /**
+   * Asks Auth to email a sign-in link to the invitation's email (W-02 step 3);
+   * it lands on the network (`join`) or founder (`founder`) invitation page.
+   */
+  sendSignInLink(email: string, page: "join" | "founder"): Promise<void>;
   log(entry: LogEntry): void;
   readonly allowedOrigins: readonly string[];
+  /** Shared with the Wallet server only; required for the public application. */
+  readonly appServerSecret: string | null;
 }
 
 interface Context {
@@ -62,6 +72,8 @@ interface Route {
   readonly pattern: string;
   /** Public routes take no session. */
   readonly public: boolean;
+  /** Only the Wallet server (x-app-server-secret) may call it. */
+  readonly serverOnly?: boolean;
   readonly handler: Handler;
 }
 
@@ -75,6 +87,7 @@ const roles = [
   "president_team_member",
 ] as const;
 const statuses = ["pending", "accepted", "expired", "revoked"] as const;
+const founderRanks = ["ruby_director_4", "ruby_director_5", "diamond_director"] as const;
 
 function parseDetails(raw: string | null | undefined): Details {
   if (!raw) return {};
@@ -200,12 +213,13 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
     p_request_id: c.requestId,
   });
 
-  const route = (method: string, pattern: string, handler: Handler, isPublic = false): Route => ({
-    method,
-    pattern,
-    public: isPublic,
-    handler,
-  });
+  const route = (
+    method: string,
+    pattern: string,
+    handler: Handler,
+    isPublic = false,
+    serverOnly = false,
+  ): Route => ({ method, pattern, public: isPublic, serverOnly, handler });
 
   const routes: Route[] = [
     route("GET", "/", (c) => {
@@ -290,9 +304,69 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       if (typeof result.email !== "string") {
         throw new Error("verification returned an unexpected result");
       }
-      await deps.sendSignInLink(result.email);
+      await deps.sendSignInLink(result.email, "join");
       return { sent: true };
     }, true),
+
+    // ── Founder entry (Blueprint 19) ──
+
+    route(
+      "POST",
+      "/founder-applications",
+      async (c) => {
+        const body = await v.readBody(c.request, [
+          "fullName",
+          "email",
+          "phone",
+          "teamName",
+          "rank",
+        ]);
+        await call("submit_founder_application", {
+          p_full_name: v.text(body, "fullName", 100, 2),
+          p_email: email(body),
+          p_phone: v.text(body, "phone", 24, 7),
+          p_team_name: v.text(body, "teamName", 100, 2),
+          p_rank: oneOf(v.text(body, "rank", 30), "rank", founderRanks),
+        });
+        // The same reply whether or not a new application was stored (W-01).
+        return { received: true };
+      },
+      true,
+      true,
+    ),
+
+    route("POST", "/founder/preview", async (c) => {
+      const token = linkToken(await v.readBody(c.request, ["token"]));
+      const result = await call("founder_invitation_preview", {
+        p_token_digest: await tokenDigest(token),
+      }) as { email?: unknown; teamName?: unknown };
+      if (typeof result.email !== "string" || typeof result.teamName !== "string") {
+        throw new Error("preview returned an unexpected result");
+      }
+      return { email: result.email, teamName: result.teamName };
+    }, true),
+
+    route("POST", "/founder/verify-email", async (c) => {
+      const token = linkToken(await v.readBody(c.request, ["token"]));
+      const result = await call("request_founder_verification", {
+        p_token_digest: await tokenDigest(token),
+      }) as { email?: unknown };
+      if (typeof result.email !== "string") {
+        throw new Error("verification returned an unexpected result");
+      }
+      await deps.sendSignInLink(result.email, "founder");
+      return { sent: true };
+    }, true),
+
+    route("POST", "/founder/accept", async (c) => {
+      const body = await v.readBody(c.request, ["token", "idempotencyKey"]);
+      return call("accept_founder_invitation", {
+        ...actorArgs(c),
+        p_token_digest: await tokenDigest(linkToken(body)),
+        p_idempotency_key: v.idempotencyKey(body),
+        p_request_id: c.requestId,
+      });
+    }),
 
     route("GET", "/mine", (c) => {
       onlyQuery(c.query, []);
@@ -352,6 +426,12 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
     if (!found) return finish(failure("not_found", requestId, {}, cors), "not_found");
 
     try {
+      if (found.route.serverOnly) {
+        const given = request.headers.get("x-app-server-secret");
+        if (!deps.appServerSecret || !given || !(await sameSecret(given, deps.appServerSecret))) {
+          throw new ApiError("authorization_denied", { reason: "app_server_only" });
+        }
+      }
       let actor: Actor | null = null;
       if (!found.route.public) {
         const token = request.headers.get("authorization")?.match(/^Bearer (.+)$/)?.[1];

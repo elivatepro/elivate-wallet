@@ -130,7 +130,13 @@ export type RootPose =
 	| 'admin-sign-in'
 	| 'admin-account'
 	| 'admin-accounts'
-	| 'admin-restore';
+	| 'admin-restore'
+	// Blueprint 19: Authentication v2 13 (clipboard and pen), 14 (posting a
+	// letter); Admin A22 (sorting folders with glasses), A22b (rubber stamp).
+	| 'apply'
+	| 'apply-sent'
+	| 'admin-applications'
+	| 'admin-application-review';
 
 /** Rendered Root size on mobile gate screens (Paper: 120×160, 150×200, 180×240). */
 export type RootSize = 'sm' | 'md' | 'lg';
@@ -253,7 +259,11 @@ export const ROOT_HEIGHTS: Record<RootPose, number> = {
 	'admin-sign-in': 527,
 	'admin-account': 527,
 	'admin-accounts': 527,
-	'admin-restore': 527
+	'admin-restore': 527,
+	apply: 516,
+	'apply-sent': 516,
+	'admin-applications': 507,
+	'admin-application-review': 512
 };
 
 export const rootSrc = (pose: RootPose) => `/root/${pose}.webp`;

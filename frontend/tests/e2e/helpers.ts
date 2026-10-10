@@ -55,6 +55,15 @@ export function localSql(sql: string): string {
 
 const key = () => crypto.randomUUID();
 
+/**
+ * Blueprint 19: only an approved founder starts a network. Setup-only tests
+ * record the grant directly (the application flow itself is founders.e2e.ts).
+ */
+export function approveFounder(email: string) {
+	localSql(`insert into founders.approved (user_id, source)
+	  select id, 'existing' from auth.users where email = '${email}' on conflict do nothing`);
+}
+
 /** A signed-in API session for setup steps, with the PIN already verified. */
 export async function apiSession(email: string, password: string, pin: string) {
 	const supabase = createClient(SUPABASE_URL, PUBLISHABLE_KEY, {
@@ -104,6 +113,7 @@ export async function apiSession(email: string, password: string, pin: string) {
  * once, in a separate Auth session of their own.
  */
 export async function createNetworkFor(email: string, password: string, pin: string, name: string) {
+	approveFounder(email);
 	const api = await apiSession(email, password, pin);
 	await api.call('org', '/networks', {
 		name,
@@ -127,6 +137,7 @@ export async function inviteMember(
 	network: string,
 	inviteeEmail: string
 ): Promise<{ joinPath: string }> {
+	approveFounder(founder.email);
 	const api = await apiSession(founder.email, founder.password, founder.pin);
 	localSql(
 		`insert into identity.platform_admins (user_id, grant_reason) values ('${api.userId}', 'e2e local stack')`
@@ -189,6 +200,19 @@ export async function expectNoHorizontalScroll(page: Page) {
 		() => document.documentElement.scrollWidth - document.documentElement.clientWidth
 	);
 	expect(overflow).toBeLessThanOrEqual(0);
+}
+
+/**
+ * An unconfirmed account through the real Auth API; the confirmation email
+ * lands in Mailpit. Open sign-up is withdrawn (Blueprint 19): people reach
+ * this state through an invitation or a founder invitation.
+ */
+export async function signUpOnly(email: string, password: string) {
+	const supabase = createClient(SUPABASE_URL, PUBLISHABLE_KEY, {
+		auth: { persistSession: false, autoRefreshToken: false }
+	});
+	const { error } = await supabase.auth.signUp({ email, password });
+	if (error) throw new Error('test sign-up failed');
 }
 
 /**

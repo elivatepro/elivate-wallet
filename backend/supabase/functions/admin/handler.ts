@@ -45,6 +45,8 @@ export interface Deps {
   rpc(fn: string, args: Record<string, unknown>): Promise<RpcResult>;
   /** HMAC fingerprint of one bank code + 10-digit account number (never stored or logged). */
   bankFingerprint(bankCode: string, accountNumber: string): Promise<string>;
+  /** Draws a founder invitation link: a token id and the digest of its token (Blueprint 19). */
+  issueToken(): Promise<{ readonly tokenId: string; readonly digest: string }>;
   log(entry: LogEntry): void;
   readonly allowedOrigins: readonly string[];
   /** APP_SERVER_SECRET; null refuses every request (fail closed). */
@@ -102,6 +104,7 @@ const accountStatuses: readonly string[] = [
   "suspended",
   "deactivated",
 ];
+const applicationStatuses: readonly string[] = ["waiting", "approved", "rejected"];
 const auditGroups: readonly string[] = [
   "controls",
   "accounts",
@@ -628,6 +631,61 @@ export function createHandler(
         p_decision: decision,
         p_reason: v.reason(body),
         p_idempotency_key: v.idempotencyKey(body),
+      });
+    }),
+
+    // ── Founder applications (Blueprint 19) ──
+    route("GET", "/founder-applications", (c) => {
+      onlyQuery(c.query, ["status", "cursor", "limit"]);
+      return call("admin_founder_applications", {
+        ...actorArgs(c),
+        p_status: queryChoice(c.query, "status", applicationStatuses),
+        p_cursor: queryCursor(c.query),
+        p_limit: queryLimit(c.query),
+      });
+    }),
+
+    route("GET", "/founder-applications/:id", (c) => {
+      onlyQuery(c.query, []);
+      return call("admin_founder_application", { ...actorArgs(c), p_application_id: c.params.id });
+    }),
+
+    route("POST", "/founder-applications/:id/decide", async (c) => {
+      const body = await v.readBody(c.request, ["decision", "reason", "idempotencyKey"]);
+      const decision = body.decision;
+      if (decision !== "approve" && decision !== "reject") {
+        throw new ApiError("validation_error", { field: "decision" });
+      }
+      const args = {
+        ...commandArgs(c),
+        p_application_id: c.params.id,
+        p_decision: decision,
+        p_reason: v.reason(body),
+        p_idempotency_key: v.idempotencyKey(body),
+      };
+      // Approval sends a founder invitation: a fresh link per attempt (a
+      // replay keeps the first one).
+      const link = decision === "approve" ? await deps.issueToken() : null;
+      return call("admin_decide_founder_application", {
+        ...args,
+        p_token_id: link?.tokenId ?? null,
+        p_token_digest: link?.digest ?? null,
+      });
+    }),
+
+    route("POST", "/founder-applications/:id/resend", async (c) => {
+      const body = await v.readBody(c.request, ["reason", "idempotencyKey"]);
+      const args = {
+        ...commandArgs(c),
+        p_application_id: c.params.id,
+        p_reason: v.reason(body),
+        p_idempotency_key: v.idempotencyKey(body),
+      };
+      const link = await deps.issueToken();
+      return call("admin_resend_founder_invitation", {
+        ...args,
+        p_token_id: link.tokenId,
+        p_token_digest: link.digest,
       });
     }),
   ];

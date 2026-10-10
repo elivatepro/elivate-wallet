@@ -119,6 +119,8 @@ create function pg_temp.items(p_kind text) returns int language sql stable as
 -- 1 President (founder, trial) · 2 Director (D) · 3 TL (T) · 4 member (T) · 7 reviewer (T) · 8 invitee
 insert into auth.users (id, email, aud, role)
 select pg_temp.u(n), 'u' || n || '@example.test', 'authenticated', 'authenticated' from generate_series(1, 8) n;
+-- Blueprint 19: only approved founders start networks.
+insert into founders.approved (user_id, source) select user_id, 'existing' from identity.accounts on conflict do nothing;
 update auth.users set email_confirmed_at = now() where id = pg_temp.u(8);
 insert into auth.sessions (id, user_id, created_at, updated_at)
 select pg_temp.s(n), pg_temp.u(n), now(), now() from generate_series(1, 8) n;

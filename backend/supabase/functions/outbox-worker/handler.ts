@@ -115,9 +115,11 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
     const started = Date.now();
     let outcome: SendOutcome;
     try {
-      const joinUrl = item.tokenId === null
-        ? undefined
-        : joinLink(email.appOrigin, await email.token(item.tokenId));
+      const joinUrl = item.tokenId === null ? undefined : joinLink(
+        email.appOrigin,
+        await email.token(item.tokenId),
+        item.template.startsWith("founder.") ? "founder" : "join",
+      );
       const rendered = renderEmail(item.template, item.version, item.params, {
         appUrl: email.appOrigin,
         ...(joinUrl ? { joinUrl } : {}),

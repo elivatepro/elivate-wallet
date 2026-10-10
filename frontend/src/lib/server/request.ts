@@ -21,6 +21,7 @@ import { OrgAdminApi, OrgAdminApiLive } from './apis-org';
 import { MoneyMovesApi, MoneyMovesApiLive } from './apis-withdrawals';
 import { SettingsApi, SettingsApiLive } from './apis-settings';
 import { AdminApi, AdminApiLive } from './apis-admin';
+import { FoundersApi, FoundersApiLive } from './apis-founders';
 import type { VerifiedSession } from './auth';
 import { EdgeTransportLive, type EdgeFailure } from './edge';
 import { requireConfig } from './config';
@@ -38,7 +39,8 @@ export type ApiServices =
 	| ExportsApi
 	| BillingApi
 	| SettingsApi
-	| AdminApi;
+	| AdminApi
+	| FoundersApi;
 
 /**
  * `session` null runs without a bearer token: only the public invitation
@@ -69,6 +71,7 @@ export function runApi<A>(
 		BillingApiLive,
 		SettingsApiLive,
 		AdminApiLive,
+		FoundersApiLive,
 		IncomeApiLive({
 			supabaseUrl: config.supabaseUrl,
 			publishableKey: config.publishableKey,

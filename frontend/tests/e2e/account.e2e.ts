@@ -37,7 +37,7 @@ async function signIn(page: Page, email: string, password: string, pin: string) 
 }
 
 test('auth forms carry the Turnstile widget and refuse a missing token', async ({ page }) => {
-	for (const path of ['/sign-in', '/sign-up', '/forgot-password']) {
+	for (const path of ['/sign-in', '/apply', '/forgot-password']) {
 		await page.goto(path);
 		await humanReady(page);
 	}

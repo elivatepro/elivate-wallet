@@ -43,6 +43,8 @@ end $$;
 -- 1 President Cedar (Ifeoma Okaforqz) · 2 member Cedar (Chidi Okaforqz) · 3 President Pine · 9 admin
 insert into auth.users (id, email, aud, role)
 select pg_temp.u(n), 'person' || n || '@example.test', 'authenticated', 'authenticated' from unnest(array[1, 2, 3, 9]) n;
+-- Blueprint 19: only approved founders start networks.
+insert into founders.approved (user_id, source) select user_id, 'existing' from identity.accounts on conflict do nothing;
 insert into auth.sessions (id, user_id, created_at, updated_at)
 select pg_temp.s(n), pg_temp.u(n), now(), now() from unnest(array[1, 2, 3, 9]) n;
 do $$ begin perform api.set_pin(pg_temp.u(n), pg_temp.s(n), repeat('a', 64)) from unnest(array[1, 2, 3, 9]) n; end $$;
