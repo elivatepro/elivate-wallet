@@ -17,8 +17,17 @@ export interface ChatwootSettings {
 	readonly darkMode: 'auto' | 'light';
 }
 
-interface ChatwootApi {
-	setUser(identifier: string, user: { identifier_hash: string }): void;
+/**
+ * Chatwoot's setUser throws unless the user object has one of `avatar_url`,
+ * `email` or `name`, so the contact is named by the UID (never a real name).
+ */
+export interface ChatwootUser {
+	readonly name: string;
+	readonly identifier_hash: string;
+}
+
+export interface ChatwootApi {
+	setUser(identifier: string, user: ChatwootUser): void;
 	setCustomAttributes(attributes: Record<string, string>): void;
 	toggle(state?: 'open' | 'close'): void;
 }
@@ -131,9 +140,26 @@ export async function openSupportChat(screen: string): Promise<boolean> {
 	const ready = await loadWidget(chat);
 	const api = window.$chatwoot;
 	if (!ready || !api) return false;
+	return startChat(api, chat, screen);
+}
+
+/**
+ * Identifies the person (UID only, HMAC-signed) and opens the panel. An
+ * identity call that Chatwoot refuses must not stop the panel opening: the
+ * person can still write to support, just unidentified.
+ */
+export function startChat(
+	api: ChatwootApi,
+	chat: { identifier: string; identifierHash: string; network: string },
+	screen: string
+): boolean {
 	try {
-		api.setUser(chat.identifier, { identifier_hash: chat.identifierHash });
+		api.setUser(chat.identifier, { name: chat.identifier, identifier_hash: chat.identifierHash });
 		api.setCustomAttributes({ uid: chat.identifier, network: chat.network, screen });
+	} catch {
+		// keep going: open the chat without the identity
+	}
+	try {
 		api.toggle('open');
 		return true;
 	} catch {

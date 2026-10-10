@@ -1,5 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { CHATWOOT_SETTINGS, chatScreen, sdkUrl } from './chat.js';
+import { CHATWOOT_SETTINGS, chatScreen, sdkUrl, startChat, type ChatwootApi } from './chat.js';
+
+/** Mirrors Chatwoot's SDK checks (sdk.js setUser / setCustomAttributes). */
+function fakeChatwoot() {
+	const calls: string[] = [];
+	const api: ChatwootApi = {
+		setUser(identifier, user) {
+			if (typeof identifier !== 'string') throw new Error('Identifier should be a string');
+			const record = user as unknown as Record<string, unknown>;
+			if (!['avatar_url', 'email', 'name'].some((key) => !!record[key])) {
+				throw new Error('User object should have one of the keys [avatar_url, email, name]');
+			}
+			calls.push(`user:${identifier}:${Object.keys(user).sort().join(',')}`);
+		},
+		setCustomAttributes(attributes) {
+			calls.push(`attrs:${Object.keys(attributes).sort().join(',')}`);
+		},
+		toggle(state) {
+			calls.push(`toggle:${state}`);
+		}
+	};
+	return { api, calls };
+}
 
 describe('support chat (W-21)', () => {
 	it('shares only the route pattern as the screen', () => {
@@ -32,5 +54,26 @@ describe('support chat (W-21)', () => {
 		expect(sdkUrl('javascript:alert(1)')).toBeNull();
 		expect(sdkUrl('not a url')).toBeNull();
 		expect(sdkUrl('http://127.0.0.1:3000')).toBe('http://127.0.0.1:3000/packs/js/sdk.js');
+	});
+
+	it('names the Chatwoot contact by UID only, which the SDK requires, then opens', () => {
+		const { api, calls } = fakeChatwoot();
+		const chat = { identifier: 'EW-7Q2K9', identifierHash: 'ab'.repeat(32), network: 'Ruby Net' };
+		expect(startChat(api, chat, '/app/support')).toBe(true);
+		expect(calls).toEqual([
+			'user:EW-7Q2K9:identifier_hash,name',
+			'attrs:network,screen,uid',
+			'toggle:open'
+		]);
+	});
+
+	it('still opens the chat when Chatwoot refuses the identity', () => {
+		const { api, calls } = fakeChatwoot();
+		api.setUser = () => {
+			throw new Error('refused');
+		};
+		const chat = { identifier: 'EW-7Q2K9', identifierHash: 'x', network: 'Ruby Net' };
+		expect(startChat(api, chat, '/app/support')).toBe(true);
+		expect(calls).toEqual(['toggle:open']);
 	});
 });
