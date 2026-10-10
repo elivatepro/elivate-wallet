@@ -1,6 +1,8 @@
 -- Blueprint 20 — B4 202: the hot-path foreign keys have indexes, and every
 -- foreign key in the list is covered by an index that starts with its columns.
 begin;
+-- Slice 22: these fixtures predate setup by role (pgTAP 220 tests the gate).
+set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
 select plan(15);
 

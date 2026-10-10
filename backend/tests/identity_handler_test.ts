@@ -192,3 +192,49 @@ Deno.test("photo key must be well formed", async () => {
   const bad = await request("POST", "/profile/photo", { photoKey: "../etc/passwd" });
   assertEquals((await json(bad)).error?.code, "validation_error");
 });
+
+// Blueprint 22: the light setup names the person.
+Deno.test("profile: first and last name pass through, checked for length", async () => {
+  const { request, calls } = setup();
+  const saved = await request("PATCH", "/profile", {
+    firstName: "Bola",
+    lastName: "Ige",
+    rank: "Diamond Director",
+    idempotencyKey: "key-0000000000000001",
+  });
+  assertEquals(saved.status, 200);
+  assertEquals(calls[0]?.fn, "update_profile");
+  assertEquals(calls[0]?.args.p_changes, {
+    firstName: "Bola",
+    lastName: "Ige",
+    rank: "Diamond Director",
+  });
+  const tooLong = await request("PATCH", "/profile", {
+    firstName: "x".repeat(81),
+    idempotencyKey: "key-0000000000000002",
+  });
+  assertEquals(tooLong.status, 400);
+  assertEquals((await json(tooLong)).error?.details, { field: "firstName" });
+  assertEquals(calls.length, 1);
+});
+
+Deno.test("profile: a locked name and the setup gate map to the envelope", async () => {
+  const locked = setup((fn) =>
+    fn === "update_profile" ? fail("conflict", { reason: "name_locked" }) : ok({})
+  );
+  const refused = await locked.request("PATCH", "/profile", {
+    lastName: "Other",
+    idempotencyKey: "key-0000000000000003",
+  });
+  assertEquals(refused.status, 409);
+  assertEquals((await json(refused)).error?.details, { reason: "name_locked" });
+
+  const gated = setup((fn) =>
+    fn === "nin_reviews" ? fail("profile_required", { step: "profile", level: "light" }) : ok({})
+  );
+  const blocked = await gated.request("GET", "/nin/reviews", undefined, {
+    "x-membership": membershipId,
+  });
+  assertEquals(blocked.status, 403);
+  assertEquals((await json(blocked)).error?.code, "profile_required");
+});

@@ -2,6 +2,8 @@
 -- reason and step-up for leader roles, explicit grants and denies, restricted
 -- accounts, and replays re-checking authority.
 begin;
+-- Slice 22: these fixtures predate setup by role (pgTAP 220 tests the gate).
+set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
 select plan(25);
 

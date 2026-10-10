@@ -1,6 +1,8 @@
 -- Blueprint 12 — B6 122: returned funds (W-16): same pocket, never more than
 -- what left (sent + fee) minus returns, pending returns count, review, posting.
 begin;
+-- Slice 22: these fixtures predate setup by role (pgTAP 220 tests the gate).
+set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
 select plan(22);
 

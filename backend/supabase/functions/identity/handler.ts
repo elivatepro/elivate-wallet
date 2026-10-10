@@ -214,11 +214,21 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
     }),
 
     route("PATCH", "/profile", async (c) => {
-      const body = await v.readBody(c.request, ["displayName", "phone", "rank", "idempotencyKey"]);
+      const body = await v.readBody(c.request, [
+        "displayName",
+        "firstName",
+        "lastName",
+        "phone",
+        "rank",
+        "idempotencyKey",
+      ]);
       const changes: Record<string, unknown> = {};
       if ("displayName" in body) {
         changes.displayName = body.displayName === null ? null : v.text(body, "displayName", 80);
       }
+      // Blueprint 22: the light setup names the person (refused once a NIN locked it).
+      if ("firstName" in body) changes.firstName = v.text(body, "firstName", 80);
+      if ("lastName" in body) changes.lastName = v.text(body, "lastName", 80);
       if ("phone" in body) changes.phone = v.text(body, "phone", 20, 7);
       if ("rank" in body) changes.rank = v.text(body, "rank", 40);
       if (Object.keys(changes).length === 0) {

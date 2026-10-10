@@ -49,6 +49,7 @@ export const errorStatus = {
   nin_not_verified: 422,
   nin_in_use: 409,
   nin_review_required: 409,
+  profile_required: 403,
 } as const;
 
 export type ErrorCode = keyof typeof errorStatus;
@@ -102,6 +103,7 @@ const messages: Record<ErrorCode, string> = {
   nin_not_verified: "This NIN didn't match a national ID record.",
   nin_in_use: "This NIN can't be used on this account. Contact support.",
   nin_review_required: "Ask a leader to review your NIN.",
+  profile_required: "Finish setting up your account to continue.",
 };
 
 const retryableCodes: ReadonlySet<ErrorCode> = new Set<ErrorCode>([

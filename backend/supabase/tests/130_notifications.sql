@@ -3,6 +3,8 @@
 -- the people who can act and clear when the work is done; reads are scoped
 -- to the selected network; replays never duplicate; retention is 90 days.
 begin;
+-- Slice 22: these fixtures predate setup by role (pgTAP 220 tests the gate).
+set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
 select plan(111);
 

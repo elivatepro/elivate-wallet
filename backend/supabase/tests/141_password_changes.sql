@@ -1,6 +1,8 @@
 -- Blueprint 14 — signed-in password change (PIN only), reset record, A06 and
 -- A08 with their bell items, the overview (B1, B2, B4).
 begin;
+-- Slice 22: these fixtures predate setup by role (pgTAP 220 tests the gate).
+set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
 select plan(33);
 

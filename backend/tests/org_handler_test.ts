@@ -288,3 +288,68 @@ Deno.test("member search passes q through and rejects blanks", async () => {
   assertEquals((await handler(request("GET", "/members?q=%20"))).status, 400);
   assertEquals(calls.length, 1);
 });
+
+// Blueprint 22: the "funds not managed" switch.
+Deno.test("the funds switch sends a boolean, a reason and a key", async () => {
+  const { handler, calls } = setup();
+  const response = await handler(
+    request("POST", `/memberships/${membershipId}/funds`, {
+      notManaged: true,
+      reason: "Holds no money",
+      idempotencyKey: key,
+    }),
+  );
+  assertEquals(response.status, 200);
+  assertEquals(calls[0]?.fn, "set_funds_managed");
+  assertEquals(calls[0]?.args, {
+    p_user_id: actor.userId,
+    p_session_id: actor.sessionId,
+    p_membership_id: membershipId,
+    p_request_id: calls[0]?.args.p_request_id,
+    p_target_membership_id: membershipId,
+    p_not_managed: true,
+    p_reason: "Holds no money",
+    p_idempotency_key: key,
+  });
+});
+
+Deno.test("the funds switch refuses a missing or non-boolean flag", async () => {
+  const { handler, calls } = setup();
+  for (const notManaged of [undefined, "true", 1, null]) {
+    const response = await handler(
+      request("POST", `/memberships/${membershipId}/funds`, {
+        ...(notManaged === undefined ? {} : { notManaged }),
+        reason: "Holds no money",
+        idempotencyKey: key,
+      }),
+    );
+    assertEquals(response.status, 400);
+    assertEquals((await response.json()).error.details.field, "notManaged");
+  }
+  assertEquals(calls.length, 0);
+});
+
+Deno.test("a blocked switch and the setup gate map to the envelope", async () => {
+  for (
+    const [code, details, status] of [
+      ["conflict", { reason: "wallet_not_empty" }, 409],
+      ["profile_required", { step: "identity", level: "wallet" }, 403],
+    ] as const
+  ) {
+    const { handler } = setup({
+      data: null,
+      error: { message: code, details: JSON.stringify(details) },
+    });
+    const response = await handler(
+      request("POST", `/memberships/${membershipId}/funds`, {
+        notManaged: true,
+        reason: "Holds no money",
+        idempotencyKey: key,
+      }),
+    );
+    assertEquals(response.status, status);
+    const json = await response.json();
+    assertEquals(json.error.code, code);
+    assertEquals(json.error.details, details);
+  }
+});

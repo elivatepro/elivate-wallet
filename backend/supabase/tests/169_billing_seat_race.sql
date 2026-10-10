@@ -4,6 +4,8 @@
 -- files; the local stack is reset before every full run. Runs last. The
 -- connection uses the local stack's default credentials (never a hosted DB).
 begin;
+-- Slice 22: these fixtures predate setup by role (pgTAP 220 tests the gate).
+set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
 create extension if not exists dblink with schema extensions;
 select plan(5);

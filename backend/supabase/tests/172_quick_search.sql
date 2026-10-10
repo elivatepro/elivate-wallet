@@ -3,6 +3,8 @@
 -- see them; email and phone are masked; references match by prefix; other
 -- networks never appear.
 begin;
+-- Slice 22: these fixtures predate setup by role (pgTAP 220 tests the gate).
+set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
 select plan(22);
 

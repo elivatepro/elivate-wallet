@@ -4,6 +4,8 @@
 -- network before the rule) may start a network. Repeat applications get the
 -- same reply and no email; a rejection may reapply after 30 days.
 begin;
+-- Slice 22: these fixtures predate setup by role (pgTAP 220 tests the gate).
+set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
 select plan(74);
 

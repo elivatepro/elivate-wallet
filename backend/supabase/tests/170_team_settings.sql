@@ -3,6 +3,8 @@
 -- manage_team_settings with a fresh PIN saves; validation; stale revisions;
 -- immutable history and restore; audit and T05; paused networks; safe reads.
 begin;
+-- Slice 22: these fixtures predate setup by role (pgTAP 220 tests the gate).
+set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
 select plan(46);
 

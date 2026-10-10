@@ -1,6 +1,8 @@
 -- Blueprint 11 — B7 111: pocket moves (W-13): request and hold, approve
 -- and post, reject, cancel, Debt limits, lists and activity.
 begin;
+-- Slice 22: these fixtures predate setup by role (pgTAP 220 tests the gate).
+set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
 select plan(29);
 

@@ -1,6 +1,8 @@
 -- Blueprint 03 — B6 tests 1, 4–8, 10, 13: create, preview, verify, accept,
 -- reissue, revoke, expiry and the in-app list.
 begin;
+-- Slice 22: these fixtures predate setup by role (pgTAP 220 tests the gate).
+set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
 select plan(69);
 
