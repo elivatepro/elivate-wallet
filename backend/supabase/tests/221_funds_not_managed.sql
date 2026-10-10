@@ -1,11 +1,12 @@
 -- Blueprint 22 — B5 221: the "funds not managed" switch. Only the President
--- Team, with the PIN and a reason; directors only, never yourself; refused
--- while the wallet holds money in this network; audited, idempotent, inside
+-- Team (their own director membership included), with the PIN and a reason;
+-- directors only; refused while the director membership holds money (money on
+-- the person's other memberships doesn't count); audited, idempotent, inside
 -- the network. Then: own-wallet permissions go, money targets and the ledger
 -- refuse the membership, the setup turns light, and clearing restores it.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(38);
+select plan(40);
 
 create function pg_temp.u(n int) returns uuid language sql immutable as
   $$ select ('10000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
@@ -65,6 +66,7 @@ create function pg_temp.caps(n int, w uuid) returns jsonb language sql stable as
 
 -- 1 founder, President · 2 Team Leader · 3 member · 4 Director with money
 -- 5 World Team · 6 second President, also a Director · 7 Director, no money
+-- as a director but money as a member of Team A
 -- 8 admin · 10 President of another network
 insert into auth.users (id, email, aud, role)
 select pg_temp.u(n), 'u' || n || '@example.test', 'authenticated', 'authenticated' from generate_series(1, 10) n;
@@ -95,6 +97,7 @@ select 'T', (api.create_office(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), 'team_l
   array[pg_temp.uid(2)], pg_temp.k())->>'officeId')::uuid;
 do $$ begin
   perform api.add_membership(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.id('T'), pg_temp.uid(3), pg_temp.k());
+  perform api.add_membership(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.id('T'), pg_temp.uid(7), pg_temp.k());
   perform api.add_president(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.uid(6), 'Co-president', pg_temp.k());
   perform api.add_office_leader(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.id('D'), pg_temp.uid(6),
     'Also a director', pg_temp.k());
@@ -104,6 +107,7 @@ insert into ids select 'd6', pg_temp.m(6, pg_temp.id('D'));
 insert into ids select 'd7', pg_temp.m(7, pg_temp.id('D'));
 insert into ids select 'p6', pg_temp.m(6);
 select pg_temp.income(pg_temp.id('d4'), '2500.00');
+select pg_temp.income(pg_temp.m(7, pg_temp.id('T')), '900.00');
 
 -- Everyone finishes their setup, so the switch alone is under test.
 insert into identity.nin_records (user_id, nin_fingerprint, nin_last4, given_name, surname, phone, method, verified_at)
@@ -143,8 +147,8 @@ select is(pg_temp.switch_err(2, pg_temp.m(2, pg_temp.id('T')), pg_temp.id('d7'),
   'a Team Leader may not');
 select is(pg_temp.switch_err(10, pg_temp.m(10), pg_temp.id('d7'), true), 'not_found',
   'another network''s President finds nothing');
-select is(pg_temp.switch_err(6, pg_temp.id('p6'), pg_temp.id('d6'), true), 'self_target_forbidden',
-  'a President cannot switch their own director membership');
+select is(pg_temp.switch(6, pg_temp.id('p6'), pg_temp.id('d6'), true, pg_temp.k(), 'My own director seat')
+  ->'changed', 'true'::jsonb, 'a President may switch their own director membership');
 update identity.session_pin_proofs set verified_at = now() - interval '10 minutes' where session_id = pg_temp.s(1);
 select is(pg_temp.switch_err(1, pg_temp.m(1), pg_temp.id('d7'), true), 'step_up_required', 'the PIN is required');
 update identity.session_pin_proofs set verified_at = now() where session_id = pg_temp.s(1);
@@ -157,9 +161,10 @@ select is(pg_temp.switch_err(1, pg_temp.m(1), pg_temp.m(3, pg_temp.id('T')), tru
 select is(pg_temp.switch_err(1, pg_temp.m(1), pg_temp.m(5, pg_temp.id('W')), true),
   'conflict {"reason": "not_a_director"}', 'nor is World Team');
 select is(pg_temp.switch_err(1, pg_temp.m(1), pg_temp.id('d4'), true), 'conflict {"reason": "wallet_not_empty"}',
-  'refused while the wallet holds money');
+  'refused while the director membership holds money');
 
 -- ── Setting it (8) ──
+-- Director 7 has money as a member of Team A, not as a director: allowed.
 create temp table first_call as
 select pg_temp.switch(1, pg_temp.m(1), pg_temp.id('d7'), true, 'switch-key-0000001') as res;
 select is((select res from first_call),
@@ -172,8 +177,11 @@ select is((select count(*)::int from audit.tenant_events
              and tenant_id = pg_temp.id('tenant')), 1, 'audited with the reason');
 select is(pg_temp.switch(1, pg_temp.m(1), pg_temp.id('d7'), true, 'switch-key-0000001'),
   (select res || '{"replayed": true}' from first_call), 'the same key replays the result');
-select is((select count(*)::int from audit.tenant_events where action = 'membership.funds_not_managed'), 1,
+select is((select count(*)::int from audit.tenant_events
+           where action = 'membership.funds_not_managed' and target_id = pg_temp.id('d7')::text), 1,
   'without a second audit row');
+select ok(pg_temp.caps(7, pg_temp.m(7, pg_temp.id('T'))) ? 'initiate_own_withdrawal',
+  'the member membership (with money) keeps its wallet');
 select is(pg_temp.err($$ select pg_temp.switch(1, pg_temp.m(1), pg_temp.id('d7'), false, 'switch-key-0000001') $$),
   'idempotency_conflict', 'the same key with another request is refused');
 select is(pg_temp.switch(1, pg_temp.m(1), pg_temp.id('d7'), true, pg_temp.k())->'changed', 'false'::jsonb,
@@ -190,7 +198,10 @@ select ok(pg_temp.caps(7, pg_temp.id('d7')) ?& array['record_income', 'approve_w
 select ok(pg_temp.caps(4, pg_temp.id('d4')) ? 'initiate_own_withdrawal', 'another director keeps theirs');
 select is(pg_temp.err(format('select pg_temp.income(%L, %L, 7, %L)', pg_temp.m(3, pg_temp.id('T')), '75.00',
   pg_temp.id('d7'))), 'no error', 'and still records income for their team');
-select is(identity.setup_state(pg_temp.u(7))->>'level', 'light', 'the setup turns light');
+select is(identity.setup_state(pg_temp.u(6))->>'level', 'light',
+  'President + exempted director: the setup turns light');
+select is(identity.setup_state(pg_temp.u(7))->>'walletMembershipId', pg_temp.m(7, pg_temp.id('T'))::text,
+  'a member membership elsewhere still owes the wallet setup, never through the director seat');
 select is(pg_temp.err($$ select pg_temp.income(pg_temp.id('d7'), '10.00') $$), 'target_not_eligible',
   'income is refused');
 select ok(not exists (

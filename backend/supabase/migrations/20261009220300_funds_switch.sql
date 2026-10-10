@@ -1,23 +1,25 @@
 -- Blueprint 22 — B3: the "funds not managed" switch and what it changes.
 --
---   * api.set_funds_managed: President Team only, reason + PIN step-up,
---     idempotent, inside the workspace's network. Setting it is refused while
---     the director's wallet holds money from this network or has an open
---     operation (conflict / wallet_not_empty).
+--   * api.set_funds_managed: President Team only (their own director
+--     membership included), reason + PIN step-up, idempotent, inside the
+--     workspace's network. Setting it is refused while the director
+--     membership holds money or has an open operation (conflict /
+--     wallet_not_empty).
 --   * The wallet is kept (wallets are account-wide and immutable). The ledger
---     refuses every posting and hold on a segment of an exempted membership
+--     refuses every posting, hold and pending entry on an exempted membership
 --     (conflict / funds_not_managed), under a per-membership advisory lock the
 --     switch takes exclusively, so a check and a posting never interleave.
 --   * Money targets (income, adjustments, withdrawals, pocket moves) skip it,
 --     and the own-wallet permissions never come from it (authz.decide).
 --   * Reads: member_detail and the workspace list show the switch.
 
--- ── Money held in a network ───────────────────────────────────────────────
+-- ── Money held by a membership ────────────────────────────────────────────
 
--- Any posted or reserved amount on the person's wallet segments from this
--- network, in any currency or pocket, or an open withdrawal, pocket move or
--- entry there. Never reads another network.
-create function org.funds_held(p_tenant_id uuid, p_user_id uuid)
+-- Owner decision (2026-10-10): only the director membership itself counts.
+-- Any posted or reserved amount on its wallet segments, in any currency or
+-- pocket, or an open withdrawal, pocket move or entry on it. Money from the
+-- person's other memberships never blocks the switch.
+create function org.funds_held(p_membership_id uuid)
 returns boolean
 language sql
 stable
@@ -25,28 +27,28 @@ set search_path = ''
 as $$
   select exists (
       select 1 from ledger.balances b
-      where b.tenant_id = p_tenant_id and b.owner_user_id = p_user_id and (b.posted <> 0 or b.reserved <> 0))
+      where b.membership_id = p_membership_id and (b.posted <> 0 or b.reserved <> 0))
     or exists (
       select 1 from finance.withdrawals w
-      where w.tenant_id = p_tenant_id and w.owner_user_id = p_user_id and w.status in ('requested', 'approved'))
+      where w.membership_id = p_membership_id and w.status in ('requested', 'approved'))
     or exists (
       select 1 from finance.pocket_transfers t
-      where t.tenant_id = p_tenant_id and t.owner_user_id = p_user_id and t.status = 'requested')
+      where t.membership_id = p_membership_id and t.status = 'requested')
     or exists (
       select 1 from finance.entries e
-      where e.tenant_id = p_tenant_id and e.owner_user_id = p_user_id and e.status = 'needs_review');
+      where e.membership_id = p_membership_id and e.status = 'needs_review');
 $$;
 
--- One key per person per network: the switch checks money from every one of
--- their memberships in the network, so postings, holds and pending entries
--- on any of them take it too.
-create function org.funds_lock_key(p_tenant_id uuid, p_user_id uuid)
+-- One key per membership: postings, holds and pending entries on it take it
+-- shared, the switch exclusively, so the check and any of them never
+-- interleave.
+create function org.funds_lock_key(p_membership_id uuid)
 returns bigint
 language sql
 immutable
 set search_path = ''
 as $$
-  select hashtextextended('org.funds:' || p_tenant_id::text || ':' || p_user_id::text, 0);
+  select hashtextextended('org.funds:' || p_membership_id::text, 0);
 $$;
 
 -- ── Ledger backstop ───────────────────────────────────────────────────────
@@ -65,7 +67,7 @@ begin
   from ledger.accounts a
   where a.id = new.account_id and a.class = 'member_value';
   if account.id is not null then
-    perform pg_advisory_xact_lock_shared(org.funds_lock_key(account.tenant_id, account.owner_user_id));
+    perform pg_advisory_xact_lock_shared(org.funds_lock_key(account.membership_id));
     if org.funds_not_managed(account.membership_id) then
       perform identity.fail('conflict', jsonb_build_object('reason', 'funds_not_managed'));
     end if;
@@ -91,7 +93,7 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  perform pg_advisory_xact_lock_shared(org.funds_lock_key(new.tenant_id, new.owner_user_id));
+  perform pg_advisory_xact_lock_shared(org.funds_lock_key(new.membership_id));
   if org.funds_not_managed(new.membership_id) then
     perform identity.fail('conflict', jsonb_build_object('reason', 'funds_not_managed'));
   end if;
@@ -290,9 +292,8 @@ begin
     perform identity.fail('validation_error', jsonb_build_object('field', 'notManaged'));
   end if;
   target := org.membership_in_tenant(workspace.tenant_id, p_target_membership_id);
-  if target.user_id = p_user_id then
-    perform identity.fail('self_target_forbidden');
-  end if;
+  -- Owner decision (2026-10-10): a President Team member may switch their own
+  -- director membership (still reason + PIN, audited).
   if target.role <> 'director' or target.status = 'ended' then
     perform identity.fail('conflict', jsonb_build_object('reason', 'not_a_director'));
   end if;
@@ -305,9 +306,9 @@ begin
     return replayed;
   end if;
 
-  -- Postings, holds and pending entries for this person in this network take
-  -- the same key shared.
-  perform pg_advisory_xact_lock(org.funds_lock_key(workspace.tenant_id, target.user_id));
+  -- Postings, holds and pending entries on this membership take the same key
+  -- shared.
+  perform pg_advisory_xact_lock(org.funds_lock_key(target.id));
   currently := org.funds_not_managed(target.id);
   if currently = p_not_managed then
     return identity.store_result(p_user_id, p_idempotency_key, 'set_funds_managed', request,
@@ -315,7 +316,7 @@ begin
   end if;
 
   if p_not_managed then
-    if org.funds_held(workspace.tenant_id, target.user_id) then
+    if org.funds_held(target.id) then
       perform identity.fail('conflict', jsonb_build_object('reason', 'wallet_not_empty'));
     end if;
     insert into org.funds_exemptions (tenant_id, membership_id, user_id, set_by, set_reason)
@@ -418,7 +419,7 @@ begin
     'fundsNotManaged', org.funds_not_managed(target.id),
     'fundsBlocked', case
       when workspace.role = 'president_team_member' and target.role = 'director' and target.status <> 'ended'
-        and not org.funds_not_managed(target.id) and org.funds_held(workspace.tenant_id, target.user_id)
+        and not org.funds_not_managed(target.id) and org.funds_held(target.id)
         then 'wallet_not_empty' end,
     'walletId', (select w.id from ledger.wallets w where w.owner_user_id = target.user_id),
     'memberships', coalesce((
@@ -439,7 +440,7 @@ begin
       from (select * from org.membership_events where membership_id = target.id order by at desc, id desc limit 20) e
     ), '[]'::jsonb),
     'actions', jsonb_build_object(
-      'funds', target.role = 'director' and target.status <> 'ended' and target.user_id <> p_user_id
+      'funds', target.role = 'director' and target.status <> 'ended'
         and workspace.role = 'president_team_member'
         and exists (select 1 from org.tenants t where t.id = workspace.tenant_id and t.status = 'active'),
       'suspend', target.status <> 'ended' and target.user_id <> p_user_id and (
@@ -464,8 +465,8 @@ $$;
 
 -- ── Privileges ────────────────────────────────────────────────────────────
 
-revoke all on function org.funds_held(uuid, uuid) from public, anon, authenticated;
-revoke all on function org.funds_lock_key(uuid, uuid) from public, anon, authenticated;
+revoke all on function org.funds_held(uuid) from public, anon, authenticated;
+revoke all on function org.funds_lock_key(uuid) from public, anon, authenticated;
 revoke all on function finance.refuse_unmanaged_entry() from public, anon, authenticated;
 revoke all on function ledger.refuse_unmanaged_funds() from public, anon, authenticated;
 revoke all on function finance.target_eligible(org.memberships) from public, anon, authenticated;

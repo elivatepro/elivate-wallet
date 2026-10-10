@@ -18,8 +18,10 @@ wallet-less navigation). Migrations `2026100922xxxx`; pgTAP `220_`–`229_`.
 2. **"Funds not managed" for directors.** A per-membership switch:
    - Only President Team members set or clear it, with a reason and the PIN. It is audited,
      idempotent and stays inside the network.
-   - Setting it is **refused while the director's wallet holds money** (any posted or reserved
-     amount, any currency or pocket) or has a withdrawal, pocket move or entry still open.
+   - Setting it is **refused while the director membership holds money** (any posted or
+     reserved amount on its wallet segments, any currency or pocket) or has a withdrawal, pocket
+     move or entry still open. Money on the person's other memberships doesn't block it (owner
+     decision 2026-10-10, below).
    - An exempted director keeps every director authority (records income, runs the team,
      approves). They hold no money: light setup, no own-wallet pages, and the ledger refuses to
      post to them.
@@ -32,7 +34,19 @@ wallet-less navigation). Migrations `2026100922xxxx`; pgTAP `220_`–`229_`.
    finished setup are gated on their next visit (intended).
 4. **NIN review authority is unchanged** (Blueprint 06).
 
-### Decisions taken while building (conservative; see "Open for owner")
+### Owner answers on PR #59 (2026-10-10)
+- **Kept as built:** founders do the light setup right after the PIN; returned funds are refused
+  for a marked director; statement export is off for a marked director; a wallet member waiting
+  for a NIN review stays in setup.
+- **Block scope: the director membership only.** Only that membership's own segments (posted or
+  reserved) and its own open withdrawals, pocket moves and pending entries block the switch. The
+  lock is per membership, so nothing can post to, hold on or create a pending entry for the
+  director membership between the check and the switch. Refusals for a marked director stay on
+  that membership.
+- **Self-switch allowed:** a President Team member who also holds a director membership in the
+  network may set or clear their own switch, still with a reason and the PIN, audited.
+
+### Decisions taken while building (answered above where the owner decided)
 - **Where the founder's light setup goes:** right after the PIN, **before** naming the network and
   paying. An approved founder needs the light setup even before they own a network. The payment
   hand-off (Paystack and back to `/app/billing/payments/[id]`) is never interrupted, and the
@@ -43,8 +57,8 @@ wallet-less navigation). Migrations `2026100922xxxx`; pgTAP `220_`–`229_`.
   exempted membership is refused in the database. History, provenance and same-key recovery (F-03)
   are unaffected: nothing is rewritten or removed, and a replay of an earlier command returns its
   stored result without posting.
-- **"Holds money" means this network:** every segment of the person's wallet that came from any
-  of their memberships **in this network**. Other networks are never read (tenant isolation).
+- **"Holds money" means the director membership** (owner decision 2026-10-10): its own segments
+  and open operations only. Other memberships and other networks are never read.
 
 ---
 
@@ -122,16 +136,15 @@ wallet-less navigation). Migrations `2026100922xxxx`; pgTAP `220_`–`229_`.
 1. `org.require_writer` with **step-up**; the workspace is the actor's **President Team**
    membership in an active network (`authz.require_president`), else `authorization_denied`.
 2. The target must be in the workspace's network (else `not_found`, never another network's),
-   hold the `director` role and not be ended (`conflict{reason: not_a_director}`), and not belong
-   to the actor (`self_target_forbidden`). Reason 3–500 characters.
+   hold the `director` role and not be ended (`conflict{reason: not_a_director}`). It may be the
+   actor's own director membership (owner decision 2026-10-10). Reason 3–500 characters.
 3. Replay (`identity.replay`, after the checks above) returns the stored result.
-4. Exclusive lock `org.funds:<network>:<person>` (postings, holds and pending entries on any of
-   the person's memberships in the network take it shared, so the check and any of them are
-   serialized).
+4. Exclusive lock `org.funds:<membership>` (postings, holds and pending entries on that
+   membership take it shared, so the check and any of them are serialized).
 5. Already in the asked state → returns `{ changed: false }`, no audit.
-6. Setting: refused with `conflict{reason: wallet_not_empty}` if any wallet segment from this
-   network holds `posted <> 0` or `reserved <> 0`, or a withdrawal (`requested`/`approved`), pocket
-   move (`requested`) or entry (`needs_review`) is open for the person in this network.
+6. Setting: refused with `conflict{reason: wallet_not_empty}` if a wallet segment of the director
+   membership holds `posted <> 0` or `reserved <> 0`, or a withdrawal (`requested`/`approved`),
+   pocket move (`requested`) or entry (`needs_review`) is open on it (`org.funds_held`).
 7. Writes the row (or clears it), bumps `authz_version`, audits `membership.funds_not_managed` /
    `membership.funds_managed` (target `membership`, reason).
 8. Returns `{ membershipId, fundsNotManaged, changed }`.
@@ -184,8 +197,8 @@ Route: `POST /org/memberships/:id/funds` `{ notManaged, reason, idempotencyKey }
   is exact; `app_bootstrap` at `profile_required`; join still works; paused network → light; the
   name rules in `update_profile`.
 - **pgTAP `221_funds_not_managed.sql`:** only President Team (director, World Team, other network
-  refused); step-up and reason; not a director, self; blocked with posted money, with a hold, with
-  an open withdrawal; audit row; idempotent replay and different-payload conflict; no-op; tenant
+  refused); step-up and reason; not a director; self-switch allowed; blocked with the director
+  membership's money, not with money on another membership; audit row; idempotent replay and different-payload conflict; no-op; tenant
   isolation; capabilities lose own-wallet rows; income refused (`target_not_eligible`) and the
   ledger trigger refuses a direct posting (`funds_not_managed`); clearing restores the wallet
   level.
@@ -204,14 +217,4 @@ Route: `POST /org/memberships/:id/funds` `{ notManaged, reason, idempotencyKey }
 4. Expect existing dev users without a finished setup to land in the wizard on their next visit.
 
 ## Open for owner
-1. **Founder light setup before network naming** (B0). The alternative (after payment) would
-   interrupt the Paystack return; say if you want it moved.
-2. **What blocks the switch:** money or open operations from any of the person's memberships in
-   this network, not just the director membership. Narrower is possible.
-3. **Returned funds** for an exempted director are refused until the switch is cleared.
-4. **Statements:** an exempted director's earlier history is still in their Personal view, but
-   statement export is off in that workspace with the other own-wallet pages.
-5. **Waiting for a NIN review** keeps a wallet member in the wizard (W-02 as written). Leaders
-   who are waiting can't work until a reviewer decides.
-6. **Self-switch:** a President Team member can't switch their own director membership; another
-   President Team member must.
+None. The owner answered every item on PR #59 (2026-10-10, above).

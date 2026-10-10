@@ -217,9 +217,10 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
     details confirmation, the profile (photo, phone, rank) and a bank account.
   - A per-membership **"funds not managed"** switch for directors: only the President Team sets
     or clears it, with a reason and the PIN (audited, idempotent, inside the network). Setting it
-    is refused while the director's wallet holds money (any posted or reserved amount, any
-    currency or pocket) or has an open withdrawal, pocket move or entry
-    (`conflict{reason: wallet_not_empty}`). An exempted director keeps every director authority
+    is refused while the director membership itself holds money (any posted or reserved amount
+    on its segments, any currency or pocket) or has an open withdrawal, pocket move or entry
+    (`conflict{reason: wallet_not_empty}`); money on the person's other memberships doesn't
+    block it. A President Team member may switch their own director membership (reason + PIN). An exempted director keeps every director authority
     but holds no money: the light setup, no own-wallet permissions or pages, and the ledger
     refuses postings and holds for them. Clearing it restores the wallet, and the gate then asks
     for the NIN, phone and bank account.
@@ -229,6 +230,9 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
     right after the PIN, before naming the network and paying. It fails closed, and the `ew_ws`
     cookie no longer skips it. People on dev without a finished setup are gated on their next
     visit (intended). NIN review authority is unchanged.
+  - Owner answers on PR #59 (2026-10-10): founders' light setup right after the PIN, returned
+    funds refused and statement export off for a marked director, and a wallet member waiting
+    for a NIN review staying in setup are all kept as built.
 - **Sequencing:** one slice at a time, each new slice in its own thread. Order: 4 → 5 → 8 →
   slice 9 follow-up (IP storage, signed-in password change, PIN-change email, sign-out
   choice after reset) → 6 → 7 → 10.
