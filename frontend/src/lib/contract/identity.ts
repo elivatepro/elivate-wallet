@@ -62,7 +62,17 @@ export const Profile = Schema.Struct({
 	rank: Schema.NullOr(Rank),
 	hasPhoto: Schema.Boolean,
 	photoUpdatedAt: Schema.NullOr(IsoDateTime),
-	identity: IdentityState
+	identity: IdentityState,
+	/** What the person already told us (a founder application) while the profile lacks it. */
+	suggested: Schema.optionalKey(
+		Schema.NullOr(
+			Schema.Struct({
+				firstName: Schema.optionalKey(Schema.String),
+				lastName: Schema.optionalKey(Schema.String),
+				rank: Schema.optionalKey(Rank)
+			})
+		)
+	)
 });
 export type Profile = typeof Profile.Type;
 
