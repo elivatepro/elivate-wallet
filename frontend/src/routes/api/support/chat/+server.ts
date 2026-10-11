@@ -70,7 +70,12 @@ export const GET: RequestHandler = (event) =>
 				caps && (caps.billingOwner || caps.permissions.includes('manage_subscription'))
 					? yield* (yield* BillingApi).overview(membershipId).pipe(
 							Effect.map((o) => `${o.plan.name} · ${o.status}`),
-							Effect.orElseSucceed(() => null)
+							// Unreadable just now: say so, so support can tell it from "no access".
+							Effect.catch((failure) =>
+								Effect.succeed(
+									`unavailable (${failure._tag === 'BackendError' ? failure.code : failure._tag})`
+								)
+							)
 						)
 					: null;
 			const identifierHash = yield* Effect.promise(() => sign(config.hmacToken, boot.state.uid));

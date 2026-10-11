@@ -33,7 +33,9 @@ Supersedes the "UID, network name and screen only" part of Blueprint 17 / W-21.
 - **Browser:** `screen` is the screen the person was on before Support (route pattern, never ids
   or queries); device ("Phone · Android 14 · Chrome 141", from the user agent), installed app
   (home-screen mode), app build, language, timezone; and the **last error** the app showed in
-  this tab: its code, request ID (for the logs), screen and time. A PIN owed is not an error.
+  this tab: its code, request ID (for the logs), screen and time. A PIN owed is not an error, and
+  neither is a background poll the person never sees fail (the bell). A plan that can't be read
+  just then shows as "unavailable (<code>)", unlike no plan line for people without billing access.
 - Still never: money, balances, bank details, evidence, PINs or tokens.
 
 ## How

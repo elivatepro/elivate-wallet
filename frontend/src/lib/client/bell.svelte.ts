@@ -39,7 +39,8 @@ function read<S extends Schema.ConstraintDecoder<unknown>>(
 			method: 'GET',
 			route: `GET ${path.split('?')[0]}`,
 			headers: { 'x-ew-workspace': workspace },
-			timeoutMs: READ_TIMEOUT_MS
+			timeoutMs: READ_TIMEOUT_MS,
+			background: true
 		},
 		schema
 	).pipe(

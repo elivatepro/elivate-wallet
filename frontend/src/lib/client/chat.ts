@@ -164,14 +164,15 @@ const NOT_ERRORS = new Set(['pin_required']);
  * `routeId` reads the current route pattern; returns the stop function.
  */
 export function watchErrors(routeId: () => string | null | undefined): () => void {
-	const note = (code: string, requestId: string | null) => {
-		if (NOT_ERRORS.has(code)) return;
+	const note = (code: string, requestId: string | null, background: boolean) => {
+		// A background poll (the bell) failing is not what the person saw.
+		if (background || NOT_ERRORS.has(code)) return;
 		lastError = { code, requestId, screen: chatScreen(routeId()), at: new Date().toISOString() };
 	};
 	return observeReplies({
 		replied: () => {},
 		refused: note,
-		failed: (reason) => note(reason, null)
+		failed: (reason, background) => note(reason, null, background)
 	});
 }
 
