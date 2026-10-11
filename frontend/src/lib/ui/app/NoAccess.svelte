@@ -25,10 +25,10 @@
 	const can = (permission: string) =>
 		shell?.state.kind === 'ready' &&
 		(shell.state.view.capabilities?.permissions ?? []).includes(permission);
-	/** Same leadership hint as the shell's Team overview entry. */
+	/** Same leadership hint as the shell's Team overview (Home since Slice 28). */
 	const team = $derived(
 		(can('view_managed_wallets') || can('view_scoped_financial_reports')) &&
-			!page.url.pathname.startsWith('/app/team')
+			page.url.pathname !== '/app'
 	);
 
 	const switchWorkspace = () => window.location.assign('/workspaces?switch');
@@ -37,7 +37,7 @@
 <StateScreen pose="no-access" eyebrow="No access" {title} {lead} {headingLevel} wide>
 	{#snippet actions()}
 		{#if team}
-			<a class="state-primary" href="/app/team"
+			<a class="state-primary" href="/app"
 				><span class="desktop-only">Back to Team overview</span><span class="mobile-only"
 					>Back to Overview</span
 				></a

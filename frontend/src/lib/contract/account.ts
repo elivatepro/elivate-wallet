@@ -5,7 +5,7 @@
 import { Schema } from 'effect';
 import { IdempotencyKey } from './invitations';
 import { Profile, Rank } from './identity';
-import { Pin, SecurityOverview, Sessions } from './security';
+import { Gate, Pin, SecurityOverview, Sessions } from './security';
 import { Uuid } from './common';
 
 /** GET /api/account: own profile, sign-in email and signed-in devices. */
@@ -24,6 +24,17 @@ export const RevokeSessionsCommand = Schema.Union([
 	Schema.Struct({ allOthers: Schema.Literal(true) })
 ]);
 export type RevokeSessionsCommand = typeof RevokeSessionsCommand.Type;
+
+/**
+ * POST /api/account/unlock (Slice 28, Paper PU01–PU03): the PIN the session
+ * owes, entered over the locked page. Never retried; each try counts (B4).
+ */
+export const UnlockCommand = Schema.Struct({ pin: Pin });
+export type UnlockCommand = typeof UnlockCommand.Type;
+
+/** The gate after the PIN: `ready`, or the setup step still owed. */
+export const UnlockResult = Schema.Struct({ gate: Gate });
+export type UnlockResult = typeof UnlockResult.Type;
 
 /** POST /api/account/pin (S05/S06): current PIN, then the new PIN twice. */
 export const ChangePinCommand = Schema.Struct({ currentPin: Pin, pin: Pin, pinConfirm: Pin });
@@ -50,5 +61,6 @@ export const AccountRoutes = {
 	revokeSessions: { method: 'POST', path: '/api/account/sessions/revoke' },
 	changePin: { method: 'POST', path: '/api/account/pin' },
 	changePassword: { method: 'POST', path: '/api/account/password' },
-	editProfile: { method: 'PATCH', path: '/api/account/profile' }
+	editProfile: { method: 'PATCH', path: '/api/account/profile' },
+	unlock: { method: 'POST', path: '/api/account/unlock' }
 } as const;

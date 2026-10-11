@@ -101,4 +101,8 @@ wheel picker, with search for long lists and banks, for every member-app dropdow
 (`api.leadership_offices`). Slice 26 (owner fix, no blueprint): the setup profile step starts from the
 founder application's name and rank (`suggested` on the profile read). Slice 27 (Blueprint 27): one
 person picker (name, email or UID) on every person field, leaders invited by email (offices wait
-for their leader; replacements happen on accept). Next: set-based authorization reads.
+for their leader; replacements happen on accept). Slice 28 (Blueprint 28): every leader's Home is
+their overview (own wallet under My wallet), Offices for the President Team and World Team only,
+no self in Members/Invitations, invite opens directly, a PIN owed locks in place (no data left
+behind). Next: slices 29–31 (owner list 2026-10-11: forms, visual fixes, email Root), then
+set-based authorization reads.

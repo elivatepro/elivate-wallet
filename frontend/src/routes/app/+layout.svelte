@@ -56,6 +56,8 @@
 	import { currentTab, isCurrent, navModel, type NavModel } from '#lib/nav.js';
 	import NavIcon from '#lib/ui/app/NavIcon.svelte';
 	import { Shell } from '#lib/client/shell.svelte.js';
+	import { pinLock } from '#lib/client/pin-lock.svelte.js';
+	import PinUnlock from '#lib/ui/app/PinUnlock.svelte';
 	import { Bell as BellState } from '#lib/client/bell.svelte.js';
 	import NotificationList from '#lib/ui/app/NotificationList.svelte';
 	import { ROLE_LABELS } from '#lib/labels.js';
@@ -74,6 +76,8 @@
 
 	let { children }: LayoutProps = $props();
 
+	// Slice 28: decided before any page mounts, so a stale session never shows a saved copy.
+	pinLock.prime();
 	const shell = new Shell();
 	const appearance = new Appearance();
 	/** Blueprint 13: the bell follows the selected workspace. */
@@ -108,7 +112,13 @@
 
 	onMount(() => {
 		appearance.start();
-		return shell.start();
+		// Slice 28: a PIN owed locks in place; the idle check asks the server.
+		const stopLock = pinLock.start(() => void shell.load());
+		const stopShell = shell.start();
+		return () => {
+			stopLock();
+			stopShell();
+		};
 	});
 
 	const summary = $derived(
@@ -178,6 +188,7 @@
 		'/app/evidence': 'Evidence review',
 		'/app/split/move': 'Pockets & split  /  Move money',
 		'/app/team': 'Team overview',
+		'/app/wallet': 'My wallet',
 		'/app/wallets': 'Member wallets',
 		'/app/payout-accounts': 'Payout accounts',
 		'/app/statements': 'Statements',
@@ -268,7 +279,7 @@
 		}
 	});
 	/** Only Home needs workspace data; More and Notifications keep their controls. */
-	const needsData = $derived(path === '/app');
+	const needsData = $derived(path === '/app' || path === '/app/wallet');
 
 	async function reloadForUpdate() {
 		const registration = await navigator.serviceWorker?.getRegistration();
@@ -398,7 +409,14 @@
 				keywords: 'evidence receipts',
 				icon: Gavel
 			},
-			leader && { label: 'Team overview', href: '/app/team', icon: LayoutGrid },
+			leader && { label: 'Team overview', href: '/app', keywords: 'home', icon: LayoutGrid },
+			leader &&
+				ownMoney('view_own_wallet') && {
+					label: 'My wallet',
+					href: '/app/wallet',
+					keywords: 'balance pockets',
+					icon: WalletIcon
+				},
 			leader && { label: 'Member wallets', href: '/app/wallets', icon: WalletIcon },
 			reports && {
 				label: 'Reports & exports',
@@ -538,355 +556,367 @@
 	{:else}<UserRound size={18} strokeWidth={1.6} aria-hidden="true" />{/if}
 {/snippet}
 
-<div class="shell" class:pushed>
-	<aside class="sidebar" aria-label="Main">
-		<div class="switcher-block">
-			<button
-				type="button"
-				class="switcher"
-				onclick={switchWorkspace}
-				aria-label={summary ? `${summary.tenantName}: switch workspace` : 'Switch workspace'}
-			>
-				{@render brandTile()}
-				{@render workspaceLabel(
-					summary
-						? `${ROLE_LABELS[summary.role]}${summary.officeName ? ` · ${summary.officeName}` : ''}`
-						: ''
-				)}
-				<ChevronsUpDown size={16} strokeWidth={2} aria-hidden="true" />
-			</button>
-		</div>
-		<div class="side-search-wrap">
-			<button
-				type="button"
-				class="side-search"
-				onclick={() => (searchOpen = true)}
-				aria-haspopup="dialog"
-				aria-keyshortcuts="Meta+K Control+K"
-			>
-				<Search size={15} strokeWidth={2} aria-hidden="true" />
-				<span class="side-search-label">Quick search…</span>
-				<kbd class="side-kbd" aria-hidden="true">⌘K</kbd>
-			</button>
-		</div>
-		<nav class="side-nav">
-			{#each nav.sections as section (section.id)}
-				<div
-					class="side-section"
-					role="group"
-					aria-labelledby={section.label ? `nav-${section.id}` : undefined}
-					aria-label={section.label ? undefined : 'Start'}
-				>
-					{#if section.label}<span class="side-label" id="nav-{section.id}">{section.label}</span
-						>{/if}
-					{#each section.items as item (item.id)}
-						<a
-							class="side-item"
-							class:top={section.id === 'top'}
-							href={item.href}
-							aria-current={isCurrent(item, navPath) ? 'page' : undefined}
-						>
-							<span class="side-icon"><NavIcon name={item.icon} /></span>
-							<span class="side-text">{item.label}</span>
-							{#if item.count}<span class="side-count" class:accent={item.accent}
-									><span aria-hidden="true">{item.count}</span><span class="visually-hidden"
-										>, {item.count} waiting</span
-									></span
-								>{/if}
-						</a>
-					{/each}
-				</div>
-			{/each}
-		</nav>
-	</aside>
-
-	<div class="main">
-		<header class="topbar">
-			<span class="breadcrumb">{pageTitle}</span>
-			<a
-				class="support-link"
-				href="/app/support"
-				aria-current={path.startsWith('/app/support') ? 'page' : undefined}
-			>
-				<CircleHelp size={18} strokeWidth={1.6} aria-hidden="true" /><span>Support</span>
-			</a>
-			<Popover.Root bind:open={bellOpen}>
-				<Popover.Trigger class="bell" aria-label={bellLabel}>
-					<Bell size={19} strokeWidth={1.5} aria-hidden="true" />
-					{#if bell.unread > 0}<span class="bell-dot" aria-hidden="true"></span>{/if}
-				</Popover.Trigger>
-				<Popover.Portal>
-					<Popover.Content class="popover notifications" sideOffset={10} align="end">
-						<div class="pop-head">
-							<p class="pop-title">Notifications</p>
-							{#if bell.unread > 0}
-								<button type="button" class="pop-link" onclick={() => bell.markAll()}
-									>Mark all as read</button
-								>
-							{/if}
-						</div>
-						<div class="pop-tabs" role="group" aria-label="Show">
-							<button
-								type="button"
-								class="pop-tab"
-								aria-pressed={bell.view === 'unread'}
-								onclick={() => bell.load('unread')}
-								>Unread{bell.unread > 0 ? ` · ${bell.unread}` : ''}</button
-							>
-							<button
-								type="button"
-								class="pop-tab"
-								aria-pressed={bell.view === 'all'}
-								onclick={() => bell.load('all')}>All</button
-							>
-						</div>
-						<div class="pop-scroll" tabindex="-1">
-							{#if bell.list.kind === 'ready' && (bell.list.actions.length > 0 || bell.list.items.length > 0)}
-								<NotificationList
-									{bell}
-									variant="popover"
-									hide={shell.hideAmounts}
-									onfollow={() => (bellOpen = false)}
-								/>
-							{:else if bell.list.kind === 'error'}
-								<p class="pop-note" role="alert">Couldn’t load notifications. Try again.</p>
-							{:else if bell.list.kind === 'ready'}
-								<div class="pop-empty">
-									<RootImage pose="notifications" class="pop-root" sizes="150px" />
-									{#if bell.view === 'unread'}
-										<p class="empty-title">You’re all caught up.</p>
-									{:else}
-										<p class="empty-title">No notifications yet</p>
-										<p class="empty-lead">Updates about your money show up here.</p>
-									{/if}
-								</div>
-							{:else}
-								<p class="pop-note">Loading…</p>
-							{/if}
-						</div>
-						<a class="pop-all" href="/app/notifications" onclick={() => (bellOpen = false)}
-							>See all notifications</a
-						>
-					</Popover.Content>
-				</Popover.Portal>
-			</Popover.Root>
-			<DropdownMenu.Root>
-				<DropdownMenu.Trigger class="avatar" aria-label="Account">
-					{@render avatar()}
-				</DropdownMenu.Trigger>
-				<DropdownMenu.Portal>
-					<DropdownMenu.Content class="popover account" sideOffset={10} align="end">
-						<div class="identity">
-							<span class="identity-avatar" aria-hidden="true">
-								{#if photoSrc}<img src={photoSrc} alt="" />{:else}<UserRound
-										size={20}
-										strokeWidth={1.6}
-									/>{/if}
-							</span>
-							<span class="identity-text">
-								{#if person?.name}<span class="identity-name">{person.name}</span>
-								{:else if summary}<span class="identity-name">{summary.tenantName}</span>{/if}
-								{#if uid}<span class="identity-uid">{uid}</span>{/if}
-							</span>
-						</div>
-						<div class="pop-divider"></div>
-						<div class="menu-group">
-							<DropdownMenu.Item class="menu-row" onSelect={switchWorkspace}>
-								<ArrowLeftRight size={16} strokeWidth={1.8} aria-hidden="true" />
-								<span class="menu-label">Switch workspace</span>
-							</DropdownMenu.Item>
-							<DropdownMenu.CheckboxItem
-								class="menu-row"
-								checked={shell.hideAmounts}
-								onCheckedChange={(value) => shell.setHideAmounts(value)}
-								closeOnSelect={false}
-							>
-								{#snippet children({ checked })}
-									<EyeOff size={16} strokeWidth={1.8} aria-hidden="true" />
-									<span class="menu-label">Hide amounts</span>
-									<span class="toggle" class:on={checked} aria-hidden="true"
-										><span class="knob"></span></span
-									>
-								{/snippet}
-							</DropdownMenu.CheckboxItem>
-							<!-- Paper "App — Screens v3" account menu: Profile & security (Blueprint 10). -->
-							<DropdownMenu.Item class="menu-row" onSelect={() => goto('/app/account')}>
-								<UserCog size={16} strokeWidth={1.8} aria-hidden="true" />
-								<span class="menu-label">Profile & security</span>
-							</DropdownMenu.Item>
-						</div>
-						<div class="pop-divider"></div>
-						<div class="appearance">
-							<span class="appearance-label" id="appearance-label">Appearance</span>
-							<DropdownMenu.RadioGroup
-								class="segmented"
-								value={appearance.theme}
-								onValueChange={(value) => appearance.set(value)}
-								aria-labelledby="appearance-label"
-							>
-								{#each ['light', 'dark', 'system'] as const as option (option)}
-									<DropdownMenu.RadioItem class="segment" value={option} closeOnSelect={false}>
-										{THEME_LABELS[option]}
-									</DropdownMenu.RadioItem>
-								{/each}
-							</DropdownMenu.RadioGroup>
-						</div>
-						<div class="pop-divider"></div>
-						<div class="menu-group">
-							<DropdownMenu.Item class="menu-row" disabled={!shell.online} onSelect={signOut}>
-								<LogOut size={16} strokeWidth={1.8} aria-hidden="true" />
-								<span class="menu-label">Sign out</span>
-							</DropdownMenu.Item>
-						</div>
-					</DropdownMenu.Content>
-				</DropdownMenu.Portal>
-			</DropdownMenu.Root>
-		</header>
-
-		{#if !pushed && !tabMore}
-			<header class="appbar">
+{#if pinLock.locked}
+	<!-- Slice 28: the page and its data are unmounted while the PIN is owed. -->
+	<PinUnlock
+		firstName={person?.name?.split(' ')[0] ?? null}
+		onUnlocked={() => {
+			pinLock.unlocked();
+			void shell.load();
+		}}
+		onSignOut={signOut}
+	/>
+{:else}
+	<div class="shell" class:pushed>
+		<aside class="sidebar" aria-label="Main">
+			<div class="switcher-block">
 				<button
 					type="button"
-					class="ws-button"
+					class="switcher"
 					onclick={switchWorkspace}
 					aria-label={summary ? `${summary.tenantName}: switch workspace` : 'Switch workspace'}
 				>
 					{@render brandTile()}
-					{@render workspaceLabel(roleLine)}
+					{@render workspaceLabel(
+						summary
+							? `${ROLE_LABELS[summary.role]}${summary.officeName ? ` · ${summary.officeName}` : ''}`
+							: ''
+					)}
+					<ChevronsUpDown size={16} strokeWidth={2} aria-hidden="true" />
 				</button>
-				<div class="appbar-actions">
-					<a class="bell" href="/app/notifications" aria-label={bellLabel}>
-						<Bell size={19} strokeWidth={1.5} aria-hidden="true" />
-						{#if bell.unread > 0}<span class="bell-dot" aria-hidden="true"></span>{/if}
-					</a>
-					<a class="avatar" href="/app/more" aria-label="Account">{@render avatar()}</a>
-				</div>
-			</header>
-		{/if}
-
-		<main class="content" id="main">
-			{#if updated.current}
-				<div class="banner update" role="status">
-					<RotateCw size={20} strokeWidth={2} aria-hidden="true" />
-					<span class="banner-copy"
-						><span class="wide">A new version of Elivate Wallet is ready</span><span class="narrow"
-							>A new version is ready</span
-						></span
+			</div>
+			<div class="side-search-wrap">
+				<button
+					type="button"
+					class="side-search"
+					onclick={() => (searchOpen = true)}
+					aria-haspopup="dialog"
+					aria-keyshortcuts="Meta+K Control+K"
+				>
+					<Search size={15} strokeWidth={2} aria-hidden="true" />
+					<span class="side-search-label">Quick search…</span>
+					<kbd class="side-kbd" aria-hidden="true">⌘K</kbd>
+				</button>
+			</div>
+			<nav class="side-nav">
+				{#each nav.sections as section (section.id)}
+					<div
+						class="side-section"
+						role="group"
+						aria-labelledby={section.label ? `nav-${section.id}` : undefined}
+						aria-label={section.label ? undefined : 'Start'}
 					>
-					<button type="button" class="reload" onclick={reloadForUpdate}>Reload</button>
-				</div>
-			{/if}
-
-			{#if shell.state.kind === 'offline' && shell.state.summary}
-				<div class="banner offline" role="status">
-					<WifiOff size={18} strokeWidth={2} aria-hidden="true" />
-					<span class="banner-text">
-						<span class="banner-title"
-							>{shell.state.savedAt
-								? staleLabel(shell.state.savedAt, true)
-								: 'You’re offline'}</span
-						>
-						<span class="banner-sub">Actions are unavailable until you reconnect.</span>
-					</span>
-					<button type="button" class="retry-link" onclick={() => shell.load()}>Retry</button>
-				</div>
-			{/if}
-
-			{#if tenantStatus === 'suspended' && summary}
-				<!-- Paper PL06: the network is paused (Blueprint 16); money stays readable. -->
-				<div class="banner paused" role="status">
-					<CirclePause size={18} strokeWidth={2} aria-hidden="true" />
-					<span class="banner-text">
-						<span class="banner-title">{summary.tenantName} is paused</span>
-						<span class="banner-sub"
-							>Your money is safe to view. Withdrawals and moves are off until it’s renewed.</span
-						>
-					</span>
-					{#if billing && !path.startsWith('/app/billing')}
-						<a class="retry-link" href="/app/billing">Review billing</a>
-					{/if}
-				</div>
-			{/if}
-
-			{#if operationHere}
-				<!-- Blueprint 18: Elivate stopped this operation (kill switch). -->
-				<div class="banner paused" role="status">
-					<CirclePause size={18} strokeWidth={2} aria-hidden="true" />
-					<div class="banner-text">
-						<h2 class="banner-title">{pausedCopy(operationHere).title}</h2>
-						<span class="banner-sub">{pausedCopy(operationHere).lead}</span>
+						{#if section.label}<span class="side-label" id="nav-{section.id}">{section.label}</span
+							>{/if}
+						{#each section.items as item (item.id)}
+							<a
+								class="side-item"
+								class:top={section.id === 'top'}
+								href={item.href}
+								aria-current={isCurrent(item, navPath) ? 'page' : undefined}
+							>
+								<span class="side-icon"><NavIcon name={item.icon} /></span>
+								<span class="side-text">{item.label}</span>
+								{#if item.count}<span class="side-count" class:accent={item.accent}
+										><span aria-hidden="true">{item.count}</span><span class="visually-hidden"
+											>, {item.count} waiting</span
+										></span
+									>{/if}
+							</a>
+						{/each}
 					</div>
-				</div>
-			{/if}
-
-			{#if needsData && shell.state.kind === 'error'}
-				<RootHero
-					pose="load-error"
-					title="We couldn’t load your workspace"
-					lead="Something went wrong on our side."
-				/>
-				<div class="hero-actions">
-					<button type="button" class="primary" onclick={() => shell.load()}>Try again</button>
-					{#if shell.state.reference}
-						<p class="reference">
-							<span>Reference</span><span class="ref-code">{shell.state.reference}</span>
-						</p>
-					{/if}
-				</div>
-			{:else if needsData && shell.state.kind === 'offline' && !shell.state.summary}
-				<RootHero
-					pose="offline-empty"
-					title="You’re offline"
-					lead="Wallet data needs a connection the first time."
-				/>
-				<div class="hero-actions">
-					<button type="button" class="primary" onclick={() => shell.load()}>Try again</button>
-				</div>
-			{:else if pausedHere && summary}
-				<PausedView network={summary.tenantName} canPay={billing} />
-			{:else if ownBlocked}
-				<!-- Slice 21: an own-money page in a workspace that holds no wallet. -->
-				<NoAccess
-					title="Not available for your role"
-					lead="This page is for your own wallet. {summary
-						? ROLE_LABELS[summary.role]
-						: 'This role'} doesn’t hold one in this workspace."
-				/>
-			{:else if slowNav}
-				<PageFrame title={pageTitle} />
-			{:else}
-				{@render children()}
-			{/if}
-		</main>
-
-		{#if !pushed}
-			<!-- Blueprint 25: the floating pill bar (Roudio "Fresh Direction"): icons only;
-			     the current tab grows into a filled pill with its name. -->
-			<nav class="tabbar" aria-label="Main" data-tabs={nav.tabs.length}>
-				{#each nav.tabs as tab (tab.id)}
-					{@const current = tabNow === tab.id}
-					<a
-						class="tab"
-						href={tab.href}
-						data-tab={tab.id}
-						aria-current={current ? 'page' : undefined}
-					>
-						<span class="tab-icon">
-							<NavIcon name={tab.icon} size={22} strokeWidth={current ? 2 : 1.8} />
-							{#if tab.dot && !current}<span class="tab-dot" aria-hidden="true"></span>{/if}
-						</span>
-						<span class="tab-label">{tab.label}</span>
-						{#if tab.dot}<span class="visually-hidden">, something is waiting</span>{/if}
-					</a>
 				{/each}
 			</nav>
-		{/if}
+		</aside>
+
+		<div class="main">
+			<header class="topbar">
+				<span class="breadcrumb">{pageTitle}</span>
+				<a
+					class="support-link"
+					href="/app/support"
+					aria-current={path.startsWith('/app/support') ? 'page' : undefined}
+				>
+					<CircleHelp size={18} strokeWidth={1.6} aria-hidden="true" /><span>Support</span>
+				</a>
+				<Popover.Root bind:open={bellOpen}>
+					<Popover.Trigger class="bell" aria-label={bellLabel}>
+						<Bell size={19} strokeWidth={1.5} aria-hidden="true" />
+						{#if bell.unread > 0}<span class="bell-dot" aria-hidden="true"></span>{/if}
+					</Popover.Trigger>
+					<Popover.Portal>
+						<Popover.Content class="popover notifications" sideOffset={10} align="end">
+							<div class="pop-head">
+								<p class="pop-title">Notifications</p>
+								{#if bell.unread > 0}
+									<button type="button" class="pop-link" onclick={() => bell.markAll()}
+										>Mark all as read</button
+									>
+								{/if}
+							</div>
+							<div class="pop-tabs" role="group" aria-label="Show">
+								<button
+									type="button"
+									class="pop-tab"
+									aria-pressed={bell.view === 'unread'}
+									onclick={() => bell.load('unread')}
+									>Unread{bell.unread > 0 ? ` · ${bell.unread}` : ''}</button
+								>
+								<button
+									type="button"
+									class="pop-tab"
+									aria-pressed={bell.view === 'all'}
+									onclick={() => bell.load('all')}>All</button
+								>
+							</div>
+							<div class="pop-scroll" tabindex="-1">
+								{#if bell.list.kind === 'ready' && (bell.list.actions.length > 0 || bell.list.items.length > 0)}
+									<NotificationList
+										{bell}
+										variant="popover"
+										hide={shell.hideAmounts}
+										onfollow={() => (bellOpen = false)}
+									/>
+								{:else if bell.list.kind === 'error'}
+									<p class="pop-note" role="alert">Couldn’t load notifications. Try again.</p>
+								{:else if bell.list.kind === 'ready'}
+									<div class="pop-empty">
+										<RootImage pose="notifications" class="pop-root" sizes="150px" />
+										{#if bell.view === 'unread'}
+											<p class="empty-title">You’re all caught up.</p>
+										{:else}
+											<p class="empty-title">No notifications yet</p>
+											<p class="empty-lead">Updates about your money show up here.</p>
+										{/if}
+									</div>
+								{:else}
+									<p class="pop-note">Loading…</p>
+								{/if}
+							</div>
+							<a class="pop-all" href="/app/notifications" onclick={() => (bellOpen = false)}
+								>See all notifications</a
+							>
+						</Popover.Content>
+					</Popover.Portal>
+				</Popover.Root>
+				<DropdownMenu.Root>
+					<DropdownMenu.Trigger class="avatar" aria-label="Account">
+						{@render avatar()}
+					</DropdownMenu.Trigger>
+					<DropdownMenu.Portal>
+						<DropdownMenu.Content class="popover account" sideOffset={10} align="end">
+							<div class="identity">
+								<span class="identity-avatar" aria-hidden="true">
+									{#if photoSrc}<img src={photoSrc} alt="" />{:else}<UserRound
+											size={20}
+											strokeWidth={1.6}
+										/>{/if}
+								</span>
+								<span class="identity-text">
+									{#if person?.name}<span class="identity-name">{person.name}</span>
+									{:else if summary}<span class="identity-name">{summary.tenantName}</span>{/if}
+									{#if uid}<span class="identity-uid">{uid}</span>{/if}
+								</span>
+							</div>
+							<div class="pop-divider"></div>
+							<div class="menu-group">
+								<DropdownMenu.Item class="menu-row" onSelect={switchWorkspace}>
+									<ArrowLeftRight size={16} strokeWidth={1.8} aria-hidden="true" />
+									<span class="menu-label">Switch workspace</span>
+								</DropdownMenu.Item>
+								<DropdownMenu.CheckboxItem
+									class="menu-row"
+									checked={shell.hideAmounts}
+									onCheckedChange={(value) => shell.setHideAmounts(value)}
+									closeOnSelect={false}
+								>
+									{#snippet children({ checked })}
+										<EyeOff size={16} strokeWidth={1.8} aria-hidden="true" />
+										<span class="menu-label">Hide amounts</span>
+										<span class="toggle" class:on={checked} aria-hidden="true"
+											><span class="knob"></span></span
+										>
+									{/snippet}
+								</DropdownMenu.CheckboxItem>
+								<!-- Paper "App — Screens v3" account menu: Profile & security (Blueprint 10). -->
+								<DropdownMenu.Item class="menu-row" onSelect={() => goto('/app/account')}>
+									<UserCog size={16} strokeWidth={1.8} aria-hidden="true" />
+									<span class="menu-label">Profile & security</span>
+								</DropdownMenu.Item>
+							</div>
+							<div class="pop-divider"></div>
+							<div class="appearance">
+								<span class="appearance-label" id="appearance-label">Appearance</span>
+								<DropdownMenu.RadioGroup
+									class="segmented"
+									value={appearance.theme}
+									onValueChange={(value) => appearance.set(value)}
+									aria-labelledby="appearance-label"
+								>
+									{#each ['light', 'dark', 'system'] as const as option (option)}
+										<DropdownMenu.RadioItem class="segment" value={option} closeOnSelect={false}>
+											{THEME_LABELS[option]}
+										</DropdownMenu.RadioItem>
+									{/each}
+								</DropdownMenu.RadioGroup>
+							</div>
+							<div class="pop-divider"></div>
+							<div class="menu-group">
+								<DropdownMenu.Item class="menu-row" disabled={!shell.online} onSelect={signOut}>
+									<LogOut size={16} strokeWidth={1.8} aria-hidden="true" />
+									<span class="menu-label">Sign out</span>
+								</DropdownMenu.Item>
+							</div>
+						</DropdownMenu.Content>
+					</DropdownMenu.Portal>
+				</DropdownMenu.Root>
+			</header>
+
+			{#if !pushed && !tabMore}
+				<header class="appbar">
+					<button
+						type="button"
+						class="ws-button"
+						onclick={switchWorkspace}
+						aria-label={summary ? `${summary.tenantName}: switch workspace` : 'Switch workspace'}
+					>
+						{@render brandTile()}
+						{@render workspaceLabel(roleLine)}
+					</button>
+					<div class="appbar-actions">
+						<a class="bell" href="/app/notifications" aria-label={bellLabel}>
+							<Bell size={19} strokeWidth={1.5} aria-hidden="true" />
+							{#if bell.unread > 0}<span class="bell-dot" aria-hidden="true"></span>{/if}
+						</a>
+						<a class="avatar" href="/app/more" aria-label="Account">{@render avatar()}</a>
+					</div>
+				</header>
+			{/if}
+
+			<main class="content" id="main">
+				{#if updated.current}
+					<div class="banner update" role="status">
+						<RotateCw size={20} strokeWidth={2} aria-hidden="true" />
+						<span class="banner-copy"
+							><span class="wide">A new version of Elivate Wallet is ready</span><span
+								class="narrow">A new version is ready</span
+							></span
+						>
+						<button type="button" class="reload" onclick={reloadForUpdate}>Reload</button>
+					</div>
+				{/if}
+
+				{#if shell.state.kind === 'offline' && shell.state.summary}
+					<div class="banner offline" role="status">
+						<WifiOff size={18} strokeWidth={2} aria-hidden="true" />
+						<span class="banner-text">
+							<span class="banner-title"
+								>{shell.state.savedAt
+									? staleLabel(shell.state.savedAt, true)
+									: 'You’re offline'}</span
+							>
+							<span class="banner-sub">Actions are unavailable until you reconnect.</span>
+						</span>
+						<button type="button" class="retry-link" onclick={() => shell.load()}>Retry</button>
+					</div>
+				{/if}
+
+				{#if tenantStatus === 'suspended' && summary}
+					<!-- Paper PL06: the network is paused (Blueprint 16); money stays readable. -->
+					<div class="banner paused" role="status">
+						<CirclePause size={18} strokeWidth={2} aria-hidden="true" />
+						<span class="banner-text">
+							<span class="banner-title">{summary.tenantName} is paused</span>
+							<span class="banner-sub"
+								>Your money is safe to view. Withdrawals and moves are off until it’s renewed.</span
+							>
+						</span>
+						{#if billing && !path.startsWith('/app/billing')}
+							<a class="retry-link" href="/app/billing">Review billing</a>
+						{/if}
+					</div>
+				{/if}
+
+				{#if operationHere}
+					<!-- Blueprint 18: Elivate stopped this operation (kill switch). -->
+					<div class="banner paused" role="status">
+						<CirclePause size={18} strokeWidth={2} aria-hidden="true" />
+						<div class="banner-text">
+							<h2 class="banner-title">{pausedCopy(operationHere).title}</h2>
+							<span class="banner-sub">{pausedCopy(operationHere).lead}</span>
+						</div>
+					</div>
+				{/if}
+
+				{#if needsData && shell.state.kind === 'error'}
+					<RootHero
+						pose="load-error"
+						title="We couldn’t load your workspace"
+						lead="Something went wrong on our side."
+					/>
+					<div class="hero-actions">
+						<button type="button" class="primary" onclick={() => shell.load()}>Try again</button>
+						{#if shell.state.reference}
+							<p class="reference">
+								<span>Reference</span><span class="ref-code">{shell.state.reference}</span>
+							</p>
+						{/if}
+					</div>
+				{:else if needsData && shell.state.kind === 'offline' && !shell.state.summary}
+					<RootHero
+						pose="offline-empty"
+						title="You’re offline"
+						lead="Wallet data needs a connection the first time."
+					/>
+					<div class="hero-actions">
+						<button type="button" class="primary" onclick={() => shell.load()}>Try again</button>
+					</div>
+				{:else if pausedHere && summary}
+					<PausedView network={summary.tenantName} canPay={billing} />
+				{:else if ownBlocked}
+					<!-- Slice 21: an own-money page in a workspace that holds no wallet. -->
+					<NoAccess
+						title="Not available for your role"
+						lead="This page is for your own wallet. {summary
+							? ROLE_LABELS[summary.role]
+							: 'This role'} doesn’t hold one in this workspace."
+					/>
+				{:else if slowNav}
+					<PageFrame title={pageTitle} />
+				{:else}
+					{@render children()}
+				{/if}
+			</main>
+
+			{#if !pushed}
+				<!-- Blueprint 25: the floating pill bar (Roudio "Fresh Direction"): icons only;
+			     the current tab grows into a filled pill with its name. -->
+				<nav class="tabbar" aria-label="Main" data-tabs={nav.tabs.length}>
+					{#each nav.tabs as tab (tab.id)}
+						{@const current = tabNow === tab.id}
+						<a
+							class="tab"
+							href={tab.href}
+							data-tab={tab.id}
+							aria-current={current ? 'page' : undefined}
+						>
+							<span class="tab-icon">
+								<NavIcon name={tab.icon} size={22} strokeWidth={current ? 2 : 1.8} />
+								{#if tab.dot && !current}<span class="tab-dot" aria-hidden="true"></span>{/if}
+							</span>
+							<span class="tab-label">{tab.label}</span>
+							{#if tab.dot}<span class="visually-hidden">, something is waiting</span>{/if}
+						</a>
+					{/each}
+				</nav>
+			{/if}
+		</div>
 	</div>
-</div>
+{/if}
 
 <InstallHint />
 
-{#if shell.state.kind === 'ready'}
+{#if shell.state.kind === 'ready' && !pinLock.locked}
 	<QuickSearch
 		bind:open={searchOpen}
 		pages={searchPages}

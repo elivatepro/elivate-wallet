@@ -34,7 +34,7 @@ const member = uniqueEmail('speed-m');
 
 /** Route, and a pattern that only matches once its data is on screen. */
 const ROUTES: readonly (readonly [string, string])[] = [
-	['/app/team', '₦1,000\\.00'],
+	['/app', '₦1,000\\.00'],
 	['/app/members', '\\d+ members?\\b'],
 	['/app/offices', '₦1,000\\.00'],
 	['/app/audit', '\\d+\\+? events?'],

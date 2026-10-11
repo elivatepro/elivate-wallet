@@ -54,6 +54,8 @@ export type RootPose =
 	| 'account-security'
 	| 'account-devices'
 	| 'account-pin-change'
+	// Paper "PIN unlock v7" PU01–PU03 (Root · Quiet nod, Slice 28).
+	| 'pin-unlock'
 	| 'dialog-replace'
 	| 'dialog-remove'
 	| 'dialog-sign-out'
@@ -197,6 +199,7 @@ export const ROOT_HEIGHTS: Record<RootPose, number> = {
 	'account-security': 525,
 	'account-devices': 525,
 	'account-pin-change': 525,
+	'pin-unlock': 525,
 	// Paper "App — Screens v4" Z04–Z07 dialogs (reused poses, flagged on the layers):
 	// relay baton (B01), coin back in slot (W03), sleep mask (X05), name badge (R05).
 	'dialog-replace': 525,

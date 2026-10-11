@@ -216,13 +216,30 @@ describe('sidebar sections (owner decision 2)', () => {
 		expect(m.networkHome).toBe(false);
 	});
 
-	it('team leader: Team overview on top, My wallet last', () => {
+	it('team leader (Slice 28): Home is the team overview, own wallet under My wallet, no Offices', () => {
 		const m = model({ permissions: TEAM_LEADER, role: 'team_leader' });
-		expect(section(m, 'top')).toEqual(['Home', 'Team overview', 'Activity']);
+		expect(m.networkHome).toBe(true);
+		expect(section(m, 'top')).toEqual(['Team overview', 'Activity']);
+		expect(m.tabs[0]?.label).toBe('Home');
 		expect(section(m, 'approvals')).toEqual(['Withdrawal queue', 'Pocket moves']);
-		expect(section(m, 'people')).toEqual(['Members', 'Offices', 'Invitations']);
+		expect(section(m, 'people')).toEqual(['Members', 'Invitations']);
 		expect(section(m, 'workspace')).toBeNull();
 		expect(m.sections.at(-1)?.id).toBe('wallet');
+		expect(section(m, 'wallet')?.[0]).toBe('My wallet');
+		expect(hrefs(m)).toContain('/app/wallet');
+	});
+
+	it('Slice 28: Offices only for the President Team and World Team', () => {
+		const offices = (permissions: string[], role: NavInput['role']) =>
+			hrefs(model({ permissions, role })).includes('/app/offices');
+		expect(offices(PRESIDENT, 'president_team_member')).toBe(true);
+		expect(offices(WORLD_TEAM, 'world_team_member')).toBe(true);
+		expect(offices(DIRECTOR, 'director')).toBe(false);
+		expect(offices(TEAM_LEADER, 'team_leader')).toBe(false);
+	});
+
+	it('Slice 28: no My wallet for a member (their Home is the wallet)', () => {
+		expect(hrefs(model({ permissions: MEMBER, role: 'member' }))).not.toContain('/app/wallet');
 	});
 
 	it('World Team: the vault under Settings and identity reviews', () => {

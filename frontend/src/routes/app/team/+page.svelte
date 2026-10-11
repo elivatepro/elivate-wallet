@@ -1,14 +1,12 @@
 <!--
-	Team overview (W-07 Leadership). Blueprint 25: the same network overview as
-	a wallet-less leader's Home (Paper "Navigation v5" NV01/NV03), named after
-	the workspace's scope and with what is reserved and available. It replaces
-	the T01/T04 composition; one aggregate read for the scope, excluded scope
-	said out loud, one currency at a time, never a cross-currency total.
+	Team overview moved to Home (Slice 28: every leader's Home is the overview
+	of what they lead). Old links and bookmarks land on Home.
 -->
 <script lang="ts">
-	import NetworkOverview from '#lib/ui/app/NetworkOverview.svelte';
+	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+
+	onMount(() => void goto('/app', { replaceState: true }));
 </script>
 
-<svelte:head><title>Team overview · Elivate Wallet</title></svelte:head>
-
-<NetworkOverview greeting={false} heldFigures />
+<svelte:head><title>Home · Elivate Wallet</title></svelte:head>

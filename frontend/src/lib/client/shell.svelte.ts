@@ -11,6 +11,7 @@ import type { ApiFailure } from '#lib/contract/errors.js';
 import { GATE_PATHS, pathForGateCode, SIGN_IN_PATH, withNext } from '#lib/gate.js';
 import { sweepAttempts } from '#lib/recovery.js';
 import { loadSession } from './api';
+import { pinLock } from './pin-lock.svelte';
 import {
 	browserStore,
 	lastScope,
@@ -145,7 +146,10 @@ export class Shell {
 	}
 
 	#onView(view: SessionView): void {
+		// Slice 28: inside the app a PIN owed locks in place (pin-lock.svelte.ts).
+		if (view.state.gate === 'pin_required' && pinLock.active) return pinLock.owe();
 		if (view.state.gate !== 'ready') return goBack(GATE_PATHS[view.state.gate]);
+		pinLock.unlocked();
 		if (!view.workspace) return goBack('/workspaces');
 		const workspace = view.workspace;
 		const summary: WorkspaceSummary = {
@@ -178,6 +182,7 @@ export class Shell {
 			return this.#showOffline();
 		}
 		if (failure._tag === 'BackendError') {
+			if (failure.code === 'pin_required' && pinLock.active) return pinLock.owe();
 			const path = pathForGateCode(failure.code);
 			if (path) return goBack(path);
 			if (failure.code === 'workspace_invalid') return goBack('/workspaces?switch');

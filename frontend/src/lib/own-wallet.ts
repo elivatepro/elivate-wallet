@@ -10,7 +10,9 @@ export const OWN_WALLET_ROUTES = [
 	['/app/withdrawals', 'initiate_own_withdrawal'],
 	['/app/statements', 'export_own_statement'],
 	['/app/activity', 'view_own_financials'],
-	['/app/split/move', 'transfer_between_own_pockets']
+	['/app/split/move', 'transfer_between_own_pockets'],
+	// Slice 28: a leader's own wallet, off Home.
+	['/app/wallet', 'view_own_wallet']
 ] as const;
 
 export type OwnWalletPermission = (typeof OWN_WALLET_ROUTES)[number][1];

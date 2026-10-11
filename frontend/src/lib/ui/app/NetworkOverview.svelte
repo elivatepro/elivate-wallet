@@ -1,8 +1,8 @@
 <!--
 	Blueprint 25: the network overview (Paper "Navigation v5" NV01 mobile, NV03
-	desktop). Home of a leadership workspace that holds no money (President
-	Team, a director whose funds are not managed) and the Team overview page of
-	every other leader (W-07 Leadership).
+	desktop). Slice 28: the Home of every leader (W-07 Leadership); their own
+	wallet is under My wallet. Offices show only where there is more than one
+	office to compare, or for the President Team and World Team, who run them.
 
 	Two reads, each shown from its saved copy first (Blueprint 23):
 	- /api/overview (api.leadership_overview): income recorded this month and
@@ -203,6 +203,8 @@
 	});
 	const excluded = $derived(Math.max(view?.excluded.members ?? 0, rows?.excluded.members ?? 0));
 	const hasOffices = $derived(nav.sections.some((s) => s.items.some((i) => i.id === 'offices')));
+	/** Slice 28: a single office (a Team Leader's own) has nothing to compare. */
+	const showOffices = $derived(hasOffices || (activeOffices ?? 0) > 1);
 	const memberWord = (n: number) => `${n} member${n === 1 ? '' : 's'}`;
 </script>
 
@@ -240,7 +242,7 @@
 					<a class="pill outline" href="/app/reports">Export report</a>
 				{/if}
 				{#if permitted('invite_members')}
-					<a class="pill solid" href="/app/invitations"
+					<a class="pill solid" href="/app/invitations?invite"
 						><Plus size={16} strokeWidth={2} aria-hidden="true" />Invite a member</a
 					>
 				{/if}
@@ -267,8 +269,6 @@
 						<p class="hero-amount" data-testid="network-income">{money(figures.incomeThisMonth)}</p>
 						{#if change}
 							<p class="hero-change" class:down={!change.up}>{change.text}</p>
-						{:else}
-							<p class="hero-change quiet">Nothing recorded in {previousMonth}</p>
 						{/if}
 						{#if heldFigures}
 							<p class="hero-change quiet">
@@ -299,10 +299,12 @@
 						<span class="stat-value">{view.members.active}</span>
 						<span class="stat-label">Members</span>
 					</li>
-					<li class="stat">
-						<span class="stat-value">{activeOffices ?? '–'}</span>
-						<span class="stat-label">Offices</span>
-					</li>
+					{#if showOffices}
+						<li class="stat">
+							<span class="stat-value">{activeOffices ?? '–'}</span>
+							<span class="stat-label">Offices</span>
+						</li>
+					{/if}
 					{#if invites !== null}
 						<li class="stat">
 							<span class="stat-value">{invites}</span>
@@ -340,57 +342,59 @@
 			</div>
 		</div>
 
-		<section class="offices" aria-labelledby="offices-label">
-			<div class="offices-head">
-				<h2 id="offices-label">Offices this month</h2>
-				{#if hasOffices}
-					<a class="all" href="/app/offices"
-						>All offices <ArrowRight size={14} strokeWidth={2} aria-hidden="true" /></a
-					>
-				{/if}
-			</div>
-			{#if !rows && !offices.error}
-				<div class="card table-skeleton" aria-hidden="true"></div>
-			{:else if !rows}
-				<p class="card note" role="alert">{offices.error}</p>
-			{:else if officeRows.length === 0}
-				<p class="card note">No offices yet.</p>
-			{:else}
-				<table class="card table">
-					<caption class="visually-hidden">
-						Members and income recorded this month per office, {currency} only
-					</caption>
-					<thead>
-						<tr>
-							<th scope="col">Office</th>
-							<th scope="col" class="num-members">Members</th>
-							<th scope="col" class="num">Income recorded</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each officeRows as office (office.officeId)}
+		{#if showOffices || !rows}
+			<section class="offices" aria-labelledby="offices-label">
+				<div class="offices-head">
+					<h2 id="offices-label">Offices this month</h2>
+					{#if hasOffices}
+						<a class="all" href="/app/offices"
+							>All offices <ArrowRight size={14} strokeWidth={2} aria-hidden="true" /></a
+						>
+					{/if}
+				</div>
+				{#if !rows && !offices.error}
+					<div class="card table-skeleton" aria-hidden="true"></div>
+				{:else if !rows}
+					<p class="card note" role="alert">{offices.error}</p>
+				{:else if officeRows.length === 0}
+					<p class="card note">No offices yet.</p>
+				{:else}
+					<table class="card table">
+						<caption class="visually-hidden">
+							Members and income recorded this month per office, {currency} only
+						</caption>
+						<thead>
 							<tr>
-								<th scope="row">
-									<span class="office-name">{office.name}</span>
-									<span class="office-sub">{memberWord(office.members)}</span>
-								</th>
-								<td class="num-members">{office.members}</td>
-								<td class="num">{money(office.amount)}</td>
+								<th scope="col">Office</th>
+								<th scope="col" class="num-members">Members</th>
+								<th scope="col" class="num">Income recorded</th>
 							</tr>
-						{/each}
-					</tbody>
-				</table>
-			{/if}
-			{#if rows && offices.error !== null}
-				<!-- A saved copy whose refresh failed: say how old it is. -->
-				<CacheNote savedAt={offices.savedAt} online={shell.online} failed />
-			{/if}
-			{#if excluded > 0}
-				<p class="excluded">
-					Figures leave out {memberWord(excluded)} you can’t view.
-				</p>
-			{/if}
-		</section>
+						</thead>
+						<tbody>
+							{#each officeRows as office (office.officeId)}
+								<tr>
+									<th scope="row">
+										<span class="office-name">{office.name}</span>
+										<span class="office-sub">{memberWord(office.members)}</span>
+									</th>
+									<td class="num-members">{office.members}</td>
+									<td class="num">{money(office.amount)}</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				{/if}
+				{#if rows && offices.error !== null}
+					<!-- A saved copy whose refresh failed: say how old it is. -->
+					<CacheNote savedAt={offices.savedAt} online={shell.online} failed />
+				{/if}
+			</section>
+		{/if}
+		{#if excluded > 0}
+			<p class="excluded">
+				Figures leave out {memberWord(excluded)} you can’t view.
+			</p>
+		{/if}
 	</div>
 {/if}
 
