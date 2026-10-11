@@ -109,8 +109,7 @@
 	<div class="heading">
 		<h1 id="unlock-title">Enter your PIN</h1>
 		<p>
-			{firstName ? `Welcome back, ${firstName}.` : 'Welcome back.'} Your wallet locked while you were
-			away.
+			{firstName ? `Welcome back, ${firstName}.` : 'Welcome back.'} Your wallet is locked.
 		</p>
 	</div>
 
