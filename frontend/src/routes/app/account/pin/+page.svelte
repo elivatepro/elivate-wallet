@@ -136,6 +136,7 @@
 						name="pinConfirm"
 						label="Confirm new PIN"
 						error={errors.pinConfirm}
+						submitsOnEnter
 					/>
 				</div>
 			{/key}

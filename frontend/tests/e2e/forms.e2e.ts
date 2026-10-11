@@ -107,3 +107,19 @@ test('Withdraw on desktop: Enter after the amount closes the keyboard, no errors
 	await expect(amount).not.toBeFocused();
 	await expect(page.getByRole('heading', { name: 'Review your withdrawal' })).toHaveCount(0);
 });
+
+test('Change PIN: Enter moves through the PINs and the last one saves', async ({ page }) => {
+	await signInAs(page, member);
+	await page.goto('/app/account/pin');
+	const current = page.getByLabel('Current PIN');
+	await current.fill('0000');
+	await current.press('Enter');
+	await expect(page.getByLabel('New PIN', { exact: true })).toBeFocused();
+	await page.getByLabel('New PIN', { exact: true }).fill('2468');
+	await page.getByLabel('New PIN', { exact: true }).press('Enter');
+	await expect(page.getByLabel('Confirm new PIN')).toBeFocused();
+	await page.getByLabel('Confirm new PIN').fill('2468');
+	// The last PIN submits on Enter (the wrong current PIN is refused; nothing changes).
+	await page.getByLabel('Confirm new PIN').press('Enter');
+	await expect(page.getByText(/That PIN is incorrect\. \d tries? left\./)).toBeVisible();
+});

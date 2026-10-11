@@ -161,7 +161,7 @@
 						error={errors.password}
 						autofocus
 					/>
-					<PinRow id="pin" name="pin" label="Your PIN" error={errors.pin} />
+					<PinRow id="pin" name="pin" label="Your PIN" error={errors.pin} submitsOnEnter />
 				</div>
 			{/key}
 			<div class="actions">

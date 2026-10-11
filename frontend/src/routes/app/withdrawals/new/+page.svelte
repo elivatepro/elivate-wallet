@@ -220,6 +220,7 @@
 	/** A hardware keyboard works on the keypad too. */
 	function keypadKey(event: KeyboardEvent) {
 		if (wide.current || step !== 'amount' || pinOpen) return;
+		if (event.ctrlKey || event.metaKey || event.altKey) return;
 		if ((event.target as HTMLElement).closest('input, textarea, [data-wheel-picker]')) return;
 		const key = event.key === 'Backspace' ? 'back' : event.key === ',' ? '.' : event.key;
 		if ((KEYS as readonly string[]).includes(key)) {

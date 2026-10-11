@@ -13,13 +13,16 @@
 		name,
 		label,
 		error = null,
-		autofocus = false
+		autofocus = false,
+		submitsOnEnter = false
 	}: {
 		id: string;
 		name: string;
 		label: string;
 		error?: string | null;
 		autofocus?: boolean;
+		/** Slice 29: the form's last field; Enter saves (#lib/ui/enter-moves-on). */
+		submitsOnEnter?: boolean;
 	} = $props();
 
 	let value = $state('');
@@ -47,6 +50,7 @@
 			{id}
 			{name}
 			type="password"
+			data-enter-submits={submitsOnEnter ? '' : undefined}
 			inputmode="numeric"
 			pattern={'[0-9]{4}'}
 			minlength="4"
