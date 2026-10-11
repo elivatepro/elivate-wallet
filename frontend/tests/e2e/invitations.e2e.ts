@@ -107,7 +107,10 @@ test('new person: join link → verify email → password → accept → PIN →
 	await expect(page.getByText('Doesn’t match Ada Nkem Obi')).toBeVisible();
 	await page.getByRole('link', { name: 'Use a different account' }).click();
 	// Blueprint 24: the bank wheel's search filters as you type, says when
-	// nothing matches, and Enter chooses the top match.
+	// nothing matches, and Enter chooses the top match. The wheel is the phone's
+	// picker (desktop has the anchored list since Slice 30, see pickers.e2e).
+	const viewport = page.viewportSize();
+	await page.setViewportSize({ width: 390, height: 844 });
 	const bank = page.getByRole('combobox', { name: 'Bank', exact: true });
 	await bank.click();
 	const sheet = page.getByRole('dialog', { name: 'Your bank' });
@@ -128,6 +131,7 @@ test('new person: join link → verify email → password → accept → PIN →
 	await search.press('Enter');
 	await expect(sheet).toHaveCount(0);
 	await expect(bank).toBeFocused();
+	if (viewport) await page.setViewportSize(viewport);
 	await expect(bank).toHaveText('Test Bank');
 	await page.getByLabel('Account number').fill('0123456789');
 	await page.getByRole('button', { name: 'Check account' }).click();

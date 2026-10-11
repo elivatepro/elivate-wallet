@@ -38,7 +38,8 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
 - Design: Paper file `Elivate Wallet`. Build drawn screens directly; draft undrawn ones in Paper
   and get approval first. Extend existing routes in `frontend/src/routes`. Accepted deviations:
   single-screen PIN entry, wizard progress bar in the panel. Member-app dropdowns are the
-  `WheelPicker` (Blueprint 24; banks included); the admin console keeps native selects.
+  `WheelPicker` (Blueprint 24; banks included): a wheel on phones, a list anchored under the
+  field on desktop (Blueprint 30); the admin console keeps native selects.
 
 ## Backend rules
 
@@ -105,5 +106,7 @@ for their leader; replacements happen on accept). Slice 28 (Blueprint 28): every
 their overview (own wallet under My wallet), Offices for the President Team and World Team only,
 no self in Members/Invitations, invite opens directly, a PIN owed locks in place (no data left
 behind). Slice 29 (Blueprint 29, frontend only): no form submits early (typed Bits buttons,
-`enterMovesOn`), Withdraw on phones per Paper M09/M10, Invite per C13/C14. Next: slices 30–31
-(owner list 2026-10-11: visual fixes, email Root), then set-based authorization reads.
+`enterMovesOn`), Withdraw on phones per Paper M09/M10, Invite per C13/C14. Slice 30 (Blueprint 30,
+frontend only): name-only header with a quiet tile, desktop dropdowns anchored under the field,
+Activity chips and Profile banner fixed (leaked global styles). Next: slice 31 (email Root), then
+set-based authorization reads.

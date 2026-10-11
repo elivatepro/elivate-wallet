@@ -18,9 +18,10 @@ const INVITATION_TOKEN_SECRET = process.env.INVITATION_TOKEN_SECRET ?? '';
 const OUTBOX_WORKER_SECRET = process.env.OUTBOX_WORKER_SECRET ?? '';
 
 /**
- * Blueprint 24: chooses an option in a wheel picker field (the member app's
- * dropdowns). Opens the sheet from the field, turns the wheel to the row named
- * `option` and confirms. With `search`, types it into the sheet's search first.
+ * Blueprint 24 / Slice 30: chooses an option in a picker field (the member
+ * app's dropdowns). On phones and touch screens it is the wheel sheet: turn to
+ * the row and confirm. On a desktop with a mouse it is the list anchored under
+ * the field: click the row. With `search`, types it into the search first.
  */
 export async function pick(
 	field: Locator,
@@ -30,13 +31,18 @@ export async function pick(
 	const page = field.page();
 	await field.click();
 	const sheet = page.locator('dialog[data-wheel-picker][open]');
-	await expect(sheet).toBeVisible();
-	if (search !== undefined) await sheet.getByRole('combobox').fill(search);
-	const row = sheet.getByRole('option', { name: option, exact: typeof option === 'string' });
+	const list = page.locator('.wp-pop[data-wheel-picker]');
+	await expect(sheet.or(list)).toBeVisible();
+	const anchored = (await list.count()) > 0;
+	const box = anchored ? list : sheet;
+	if (search !== undefined) await box.getByRole('combobox').fill(search);
+	const row = box.getByRole('option', { name: option, exact: typeof option === 'string' });
 	await row.click();
-	await expect(row).toHaveAttribute('aria-selected', 'true');
-	await sheet.locator('[data-wheel-confirm]').click();
-	await expect(sheet).toHaveCount(0);
+	if (!anchored) {
+		await expect(row).toHaveAttribute('aria-selected', 'true');
+		await sheet.locator('[data-wheel-confirm]').click();
+	}
+	await expect(box).toHaveCount(0);
 }
 
 export const uniqueEmail = (label: string) =>
@@ -397,11 +403,22 @@ export async function completeIdentityAndProfile(page: Page) {
 		await photo.setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: TINY_PNG });
 	}
 	await page.getByLabel('Phone number').fill('803 214 5678');
-	await page.getByRole('combobox', { name: 'Your rank', exact: true }).click();
-	await expect(page.getByRole('dialog', { name: 'Your rank' })).toBeVisible();
-	await page.getByRole('listbox', { name: 'Rank' }).press('ArrowDown');
-	await page.getByRole('button', { name: 'Set rank' }).click();
+	await chooseNextRank(page);
 	await page.getByRole('button', { name: 'Continue' }).click();
+}
+
+/**
+ * The rank picker's next row, by keyboard: the same keys work on the wheel
+ * sheet (phones) and the anchored list (desktop, Slice 30).
+ */
+async function chooseNextRank(page: Page) {
+	const field = page.getByRole('combobox', { name: 'Your rank', exact: true });
+	await field.click();
+	await expect(page.getByRole('listbox', { name: 'Rank' })).toBeVisible();
+	await page.keyboard.press('ArrowDown');
+	await page.keyboard.press('Enter');
+	await expect(field).toHaveAttribute('aria-expanded', 'false');
+	await expect(field).not.toHaveText('Choose one');
 }
 
 /**
@@ -417,9 +434,7 @@ export async function lightSetupWizard(page: Page) {
 	await page
 		.getByLabel('Profile photo')
 		.setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: TINY_PNG });
-	await page.getByRole('combobox', { name: 'Your rank', exact: true }).click();
-	await page.getByRole('listbox', { name: 'Rank' }).press('ArrowDown');
-	await page.getByRole('button', { name: 'Set rank' }).click();
+	await chooseNextRank(page);
 	await page.getByRole('button', { name: 'Continue' }).click();
 	await expect(page.getByRole('heading', { name: /You’re all set/ })).toBeVisible();
 }

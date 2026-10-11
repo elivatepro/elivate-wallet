@@ -73,8 +73,14 @@
 		isolation: isolate;
 	}
 
+	/* Slice 30 (Paper B10): the avatar sits inside the card, never cut off. */
 	.hero.identity {
-		height: 164px;
+		/* The shell's global .identity (account menu) must not centre or pad this. */
+		align-items: stretch;
+		gap: 0;
+		height: auto;
+		min-height: 164px;
+		padding: 20px;
 		border-radius: 20px;
 	}
 
@@ -128,7 +134,9 @@
 
 	/* Slice 21: on phones the centred name and UID stay clear of Root. */
 	.identity .body {
-		margin-right: calc(var(--m-w) - 16px);
+		align-items: flex-start;
+		margin-right: calc(var(--m-w) - 8px);
+		text-align: left;
 	}
 
 	@media (min-width: 1024px) {
@@ -143,6 +151,7 @@
 			align-items: center;
 			justify-content: flex-start;
 			height: 180px;
+			padding: 32px;
 			border-radius: var(--radius-24);
 		}
 

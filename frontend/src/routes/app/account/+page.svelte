@@ -72,6 +72,8 @@
 	);
 	const name = $derived(view ? shownName(view.profile) : null);
 	const photoSrc = $derived(profilePhotoSrc(view?.profile));
+	/** Slice 30: a photo that fails to load shows the initials, never a broken image. */
+	let brokenPhoto = $state<string | null>(null);
 	/** Paper B09: "Changed 12 Jul 2026". */
 	const passwordHint = $derived.by(() => {
 		const at = view?.security.passwordChangedAt;
@@ -243,7 +245,11 @@
 		desktop={{ width: 150, height: 202, right: 64, bottom: -14 }}
 	>
 		<span class="avatar" aria-hidden="true">
-			{#if photoSrc}<img src={photoSrc} alt="" />{:else}{initials(name) ?? ''}{/if}
+			{#if photoSrc && photoSrc !== brokenPhoto}<img
+					src={photoSrc}
+					alt=""
+					onerror={() => (brokenPhoto = photoSrc)}
+				/>{:else}{initials(name) ?? ''}{/if}
 		</span>
 		<span class="identity">
 			<h1 class="name" tabindex="-1">{name ?? 'Your profile'}</h1>
@@ -457,8 +463,8 @@
 		align-items: center;
 		justify-content: center;
 		flex-shrink: 0;
-		width: 56px;
-		height: 56px;
+		width: 54px;
+		height: 54px;
 		overflow: clip;
 		border: 1px solid var(--color-accent-edge);
 		border-radius: var(--radius-pill);
@@ -478,12 +484,16 @@
 	.identity {
 		display: flex;
 		flex-direction: column;
+		align-items: flex-start;
 		gap: 3px;
-		width: 200px;
 		min-width: 0;
+		/* Not the shell's global .identity padding (account menu). */
+		padding: 0;
+		text-align: left;
 	}
 
 	.name {
+		text-align: left;
 		color: #f2f4f4;
 		font-size: 20px;
 		font-weight: var(--font-weight-semibold);

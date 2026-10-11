@@ -25,10 +25,7 @@ test.describe('without JavaScript', () => {
 	});
 });
 
-for (const [size, viewport] of [
-	['phone', { width: 390, height: 844 }],
-	['desktop', { width: 1440, height: 900 }]
-] as const) {
+for (const [size, viewport] of [['phone', { width: 390, height: 844 }]] as const) {
 	test.describe(size, () => {
 		test.use({ viewport });
 
@@ -88,6 +85,53 @@ for (const [size, viewport] of [
 		});
 	});
 }
+
+test.describe('desktop', () => {
+	test.use({ viewport: { width: 1440, height: 900 } });
+
+	test('a list anchored under the field: keyboard, Escape, click and the posted value', async ({
+		page
+	}) => {
+		await page.goto('/apply');
+		const field = page.getByRole('combobox', { name: 'Your rank', exact: true });
+		const posted = page.locator('input[type="hidden"][name="rank"]');
+		await field.click();
+		const list = page.getByRole('listbox', { name: 'Rank' });
+		await expect(list).toBeVisible();
+		await expect(page.locator('dialog[data-wheel-picker][open]')).toHaveCount(0);
+		await expect(field).toHaveAttribute('aria-expanded', 'true');
+		await expect(list).toBeFocused();
+		const f = (await field.boundingBox())!;
+		const l = (await page.locator('.wp-pop').boundingBox())!;
+		expect(Math.abs(l.x - f.x)).toBeLessThan(2);
+		// The field's width, never narrower than 220 px.
+		expect(l.width).toBeGreaterThanOrEqual(Math.max(f.width, 220) - 1);
+		await expectAccessible(page);
+		await shot(page, 'P30-rank-list-desktop');
+
+		// Escape closes without choosing, and focus returns to the field.
+		await list.press('ArrowDown');
+		await page.keyboard.press('Escape');
+		await expect(list).toHaveCount(0);
+		await expect(field).toBeFocused();
+		await expect(posted).toHaveValue('');
+
+		// End, then Enter chooses the last row.
+		await field.press('Enter');
+		await expect(list).toBeFocused();
+		await list.press('End');
+		await list.press('Enter');
+		await expect(list).toHaveCount(0);
+		await expect(field).toHaveText('Diamond Director');
+		await expect(posted).toHaveValue('diamond_director');
+
+		// One click on a row chooses it.
+		await field.click();
+		await page.getByRole('option', { name: '4 Ruby Director' }).click();
+		await expect(posted).toHaveValue('ruby_director_4');
+		await expect(field).toHaveText('4 Ruby Director');
+	});
+});
 
 test.describe('a phone on its side', () => {
 	test.use({ viewport: { width: 844, height: 390 } });
