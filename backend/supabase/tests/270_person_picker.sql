@@ -4,7 +4,7 @@
 begin;
 set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
-select plan(27);
+select plan(30);
 
 create function pg_temp.u(n int) returns uuid language sql immutable as
   $$ select ('10000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
@@ -82,6 +82,11 @@ select throws_ok($$ select pg_temp.find(5, pg_temp.m(5, pg_temp.id('T')), 'fem')
   'plain members cannot search');
 select throws_ok($$ select pg_temp.find(1, pg_temp.m(1), 'f') $$, 'P0001', 'validation_error', 'at least 2 characters');
 
+-- Review fix: open leader invitations are hidden, not "none", from others.
+select is(pg_temp.detail(pg_temp.id('T'))->'pendingLeaders', '[]', 'the President Team sees no open leader invitations');
+select is(api.office_detail(pg_temp.u(5), pg_temp.s(5), pg_temp.m(5, pg_temp.id('T')), pg_temp.id('T'))->'pendingLeaders',
+  'null', 'someone who cannot invite there is not told "none"');
+
 -- ── New office, leader invited by email ──
 insert into ids select 'TC', (api.create_office_inviting_leader(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), 'team_leader',
   'Team C', pg_temp.id('D'), ' New7@Example.test ', pg_temp.tid('t7'), pg_temp.dg('t7'), pg_temp.k())->>'officeId')::uuid;
@@ -119,10 +124,19 @@ select is(pg_temp.detail(pg_temp.id('T'))->'pendingLeaders'->0->'replaces'->>'ui
   'the office shows who the invitation replaces');
 select isnt(pg_temp.m(4, pg_temp.id('T')), null, 'the current leader stays until it is accepted');
 
+-- The invitee joins Team A as a member first (review fix: replacing ends it).
 insert into auth.users (id, email, aud, role, email_confirmed_at)
 values (pg_temp.u(8), 'new8@example.test', 'authenticated', 'authenticated', now());
 insert into auth.sessions (id, user_id, created_at, updated_at) values (pg_temp.s(8), pg_temp.u(8), now(), now());
-do $$ begin perform api.accept_invitation(pg_temp.u(8), pg_temp.s(8), pg_temp.dg('t8'), null, pg_temp.k()); end $$;
+do $$ begin
+  perform api.create_invitation(pg_temp.u(4), pg_temp.s(4), pg_temp.m(4, pg_temp.id('T')), pg_temp.id('T'), 'member',
+    'new8@example.test', pg_temp.tid('t8m'), pg_temp.dg('t8m'), null, pg_temp.k());
+  perform api.accept_invitation(pg_temp.u(8), pg_temp.s(8), pg_temp.dg('t8m'), null, pg_temp.k());
+  perform api.accept_invitation(pg_temp.u(8), pg_temp.s(8), pg_temp.dg('t8'), null, pg_temp.k());
+end $$;
+select is((select string_agg(role::text || ':' || status::text, ',' order by started_at) from org.memberships
+  where user_id = pg_temp.u(8) and office_id = pg_temp.id('T')), 'member:ended,team_leader:active',
+  'the incoming leader''s member role in the office ends; one role remains');
 select is(pg_temp.m(4, pg_temp.id('T')), null, 'accepting ends the outgoing leader''s membership');
 select is((select m.replaced_by_id from org.memberships m where m.user_id = pg_temp.u(4) and m.office_id = pg_temp.id('T')),
   pg_temp.m(8, pg_temp.id('T')), 'as a replacement by the new leader');

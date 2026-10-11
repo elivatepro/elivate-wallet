@@ -29,7 +29,7 @@ PP02 (New office, inviting by email), PP03 (office waiting for its leader). Migr
 
 ## B1. Backend (`20261009270100_person_picker.sql`)
 - `api.find_people(user, session, workspace, q)` (GET `/org/people?q=`): leadership workspaces
-  only (`authorization_denied` for members). UID → that account; full email → that account or
+  and members who hold `manage_access_rules` (`authorization_denied` for other members). UID → that account; full email → that account or
   `noAccount: true`; otherwise 2–100 characters of a name among active/suspended memberships the
   workspace can see (`org.office_visible`; President Team memberships only for the President
   Team). At most 8, by name. Items `{ uid, name, inNetwork, role, officeName }`.
@@ -40,10 +40,12 @@ PP02 (New office, inviting by email), PP03 (office waiting for its leader). Migr
   (POST `/invitations` `replacesMembershipId`): only a current, non-ended leader of the office
   with the invited role; `manage_members` over them. `api.accept_invitation` ends that membership
   as `replaced` (actor: the inviter, reason: the invitation's) and audits
-  `office.leader_replaced`, if they still hold it.
+  `office.leader_replaced`, if they still hold it. As with a direct replacement, the incoming
+  person's other memberships in the office end first; both people are locked before the office.
 - `org.assert_leader_remains`: fails only when the office has had a leader (decision 7).
 - `api.office_detail.pendingLeaders`: open leader invitations `{ invitationId, email, expiresAt,
-  replaces }`, only for those who may invite into the office.
+  replaces }`, only for those who may invite into the office (`null` for others, so the page
+  never claims there is none).
 
 ## B2. Frontend
 - `PersonPicker` (`#lib/ui/org/`): search box (250 ms debounce, aborts the older read), results

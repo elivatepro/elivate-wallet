@@ -168,6 +168,8 @@
 	const resend = new OrgCommand();
 	let resendOpen = $state(false);
 	const waiting = $derived(office?.pendingLeaders ?? []);
+	/** Null: the viewer can't see the invitations, so nothing is said about them. */
+	const seesInvitations = $derived(Array.isArray(office?.pendingLeaders));
 
 	function openResend() {
 		resend.reset(waiting[0]?.invitationId ?? null);
@@ -439,10 +441,12 @@
 										<span class="o-sub">{waiting[0].email} · {daysLeft(waiting[0].expiresAt)}</span>
 									</span>
 								</div>
-							{:else}
+							{:else if seesInvitations}
 								<p class="o-sub">
 									Waiting for its leader. The invitation ended; invite someone from Invitations.
 								</p>
+							{:else}
+								<p class="o-sub">Waiting for its leader.</p>
 							{/if}
 						{/each}
 						{#each waiting.filter((p) => p.replaces) as pending (pending.invitationId)}

@@ -6,6 +6,7 @@
 	(leader forms only); otherwise the person must have an account first.
 -->
 <script lang="ts">
+	import { tick } from 'svelte';
 	import { Effect, Exit } from 'effect';
 	import Mail from '@lucide/svelte/icons/mail';
 	import Search from '@lucide/svelte/icons/search';
@@ -35,6 +36,8 @@
 	let searching = $state(false);
 	let failed = $state(false);
 	let active = $state(0);
+	let input = $state<HTMLInputElement | null>(null);
+	let clearButton = $state<HTMLButtonElement | null>(null);
 
 	const kind = $derived(pickerQuery(query));
 	const listId = $derived(`${id}-results`);
@@ -71,12 +74,21 @@
 		};
 	});
 
-	function choose(index: number) {
+	// Focus follows the swap (chip ↔ search) so keyboard users keep their place.
+	async function choose(index: number) {
 		const person = items[index];
 		if (person) value = { kind: 'person', uid: person.uid, name: person.name };
 		else if (inviteRow) value = { kind: 'invite', email: query.trim().toLowerCase() };
 		else return;
 		query = '';
+		await tick();
+		clearButton?.focus();
+	}
+
+	async function clear() {
+		value = null;
+		await tick();
+		input?.focus();
 	}
 
 	function keydown(event: KeyboardEvent) {
@@ -118,7 +130,8 @@
 			type="button"
 			class="clear"
 			aria-label="Choose someone else"
-			onclick={() => (value = null)}
+			bind:this={clearButton}
+			onclick={clear}
 		>
 			<X size={16} strokeWidth={1.8} aria-hidden="true" />
 		</button>
@@ -141,6 +154,7 @@
 			spellcheck="false"
 			maxlength="254"
 			bind:value={query}
+			bind:this={input}
 			onkeydown={keydown}
 		/>
 	</div>

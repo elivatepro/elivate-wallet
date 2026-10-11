@@ -42,7 +42,7 @@ $$;
 
 -- ── Find people (GET /org/people?q=) ──────────────────────────────────────
 --
--- For leadership workspaces (not plain members). `q` is one of:
+-- For leadership workspaces and members who manage access rules. `q` is one of:
 -- - a UID: that account, wherever it is;
 -- - a full email address: that account, or `noAccount` when there is none;
 -- - otherwise 2–100 characters of a name, matched only among the people the
@@ -69,7 +69,10 @@ begin
   perform identity.require_session(p_user_id, p_session_id);
   workspace := authz.require_workspace(p_user_id, p_membership_id);
   perform org.require_readable_tenant(workspace.tenant_id);
-  if workspace.role = 'member' then
+  -- Leadership workspaces, and members granted access-rule management (the
+  -- Access page names people too); names still stay within what they see.
+  if workspace.role = 'member' and not coalesce((authz.decide(p_user_id, 'manage_access_rules',
+      workspace.tenant_id, workspace.office_id, null, workspace.id)->>'allowed')::boolean, false) then
     perform identity.fail('authorization_denied');
   end if;
   if length(q) < 2 or length(q) > 254 then
@@ -283,6 +286,7 @@ declare
   replayed jsonb;
   created org.memberships;
   outgoing org.memberships;
+  existing record;
 begin
   if (p_token_digest is null) = (p_invitation_id is null) then
     perform identity.fail('validation_error', jsonb_build_object('field', 'token'));
@@ -314,7 +318,12 @@ begin
     return replayed;
   end if;
 
-  perform org.lock_person(invitation.tenant_id, p_user_id);
+  if invitation.replaces_membership_id is not null then
+    perform org.lock_people(invitation.tenant_id, array[p_user_id,
+      (select m.user_id from org.memberships m where m.id = invitation.replaces_membership_id)]);
+  else
+    perform org.lock_person(invitation.tenant_id, p_user_id);
+  end if;
   perform 1 from org.offices where id = invitation.office_id for no key update;
   select * into invitation from org.invitations where id = invitation.id for update;
 
@@ -335,18 +344,26 @@ begin
     perform identity.fail('invitation_unavailable');
   end if;
 
+  if invitation.replaces_membership_id is not null then
+    for existing in
+      select id from org.memberships
+      where office_id = invitation.office_id and user_id = p_user_id and status <> 'ended'
+    loop
+      perform org.end_membership(existing.id, invitation.reason, invitation.invited_by);
+    end loop;
+  end if;
+
   created := org.create_membership(invitation.tenant_id, invitation.office_id, p_user_id, invitation.role, p_user_id);
 
   -- Blueprint 27: the incoming leader replaces the outgoing one, if that
   -- leader still holds the office; otherwise they simply join as a leader.
   if invitation.replaces_membership_id is not null then
-    select * into outgoing from org.memberships where id = invitation.replaces_membership_id;
-    perform org.lock_person(invitation.tenant_id, outgoing.user_id);
-    select * into outgoing from org.memberships where id = outgoing.id for update;
+    select * into outgoing from org.memberships where id = invitation.replaces_membership_id for update;
     if outgoing.status <> 'ended' and outgoing.office_id = invitation.office_id and outgoing.role = invitation.role
        and outgoing.user_id <> p_user_id then
       perform org.end_membership(outgoing.id, invitation.reason, invitation.invited_by, 'replaced', created.id);
       perform org.ensure_primary(invitation.tenant_id, outgoing.user_id);
+      perform org.ensure_primary(invitation.tenant_id, p_user_id);
       perform audit.record_tenant(invitation.tenant_id, invitation.invited_by, 'office.leader_replaced', 'office',
         invitation.office_id::text, invitation.reason, jsonb_build_object('membershipId', outgoing.id),
         jsonb_build_object('membershipId', created.id), p_request_id);
@@ -395,7 +412,7 @@ begin
     'leaders', org.office_leaders(office.id),
     -- Blueprint 27: leader invitations still open (the office waits for its
     -- leader, or a replacement waits to be accepted). Emails only for those
-    -- who may invite into the office.
+    -- who may invite into the office (null for others: not shown, not "none").
     'pendingLeaders', case when (authz.decide(p_user_id, 'invite_members', workspace.tenant_id, office.id, null,
         workspace.id)->>'allowed')::boolean then coalesce((
       select jsonb_agg(jsonb_build_object(
@@ -406,7 +423,7 @@ begin
       from org.invitations i
       where i.office_id = office.id and i.role = org.leader_role(office.office_type)
         and i.status = 'pending' and i.expires_at > now()
-    ), '[]'::jsonb) else '[]'::jsonb end,
+    ), '[]'::jsonb) end,
     -- Root first, the office itself last.
     'path', coalesce((
       select jsonb_agg(jsonb_build_object('id', a.id, 'name', a.name, 'type', a.office_type) order by c.depth desc)

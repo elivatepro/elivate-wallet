@@ -79,8 +79,11 @@ export const OfficeDetail = Schema.Struct({
 	memberCount: Schema.Int,
 	ownMemberCount: Schema.Int,
 	pendingInvitations: Schema.Int,
-	/** Blueprint 27 (optional: copies saved before it have none). */
-	pendingLeaders: Schema.optional(Schema.Array(PendingLeader)),
+	/**
+	 * Blueprint 27: open leader invitations; null when the viewer may not invite
+	 * there (not shown, not "none"). Optional: copies saved before it have none.
+	 */
+	pendingLeaders: Schema.optional(Schema.NullOr(Schema.Array(PendingLeader))),
 	/** Set once the office is closed (from the network audit log). */
 	closure: Schema.NullOr(
 		Schema.Struct({ at: IsoDateTime, reason: Schema.NullOr(Schema.String), by: Person })
