@@ -178,3 +178,76 @@ test('recording income clears the cached wallets and shows the new balance', asy
 	await expect(page.getByRole('link', { name: /₦1,500\.00/ })).toBeVisible({ timeout: 1500 });
 	await expect(page.getByTestId('cache-note')).toHaveText('Updating…');
 });
+
+// ── Blueprint 23: every page, instant taps, idle code preload ─────────────
+
+test('every page opens from its saved copy before its read answers', async ({ page }) => {
+	await asPresident(page, founder.email, NETWORK);
+	await expect(page).toHaveURL(/\/app$/);
+	const events = page.getByRole('heading', { name: /^\d+\+? events?$/ });
+	const invited = page.getByText(member, { exact: true }).first();
+	await page.goto('/app/audit');
+	await expect(events).toBeVisible();
+	await page.goto('/app/invitations');
+	await expect(invited).toBeVisible();
+
+	// Reload (device cache): the audit log shows before /api/org/audit answers.
+	await delay(page, '/api/org/audit', 4000);
+	await delay(page, '/api/invitations', 4000);
+	await page.goto('/app/audit');
+	await expect(events).toBeVisible({ timeout: 2500 });
+	await expect(page.getByTestId('cache-note')).toHaveText('Updating…');
+	await expect(page.getByTestId('cache-note')).toHaveCount(0, { timeout: 10_000 });
+
+	// In the app (memory): Invitations shows at once, then refreshes.
+	await page.getByRole('link', { name: 'Invitations' }).first().click();
+	await expect(page).toHaveURL(/\/app\/invitations$/);
+	await expect(invited).toBeVisible({ timeout: 1500 });
+	await expect(page.getByTestId('cache-note')).toHaveText('Updating…');
+	await expect(page.getByTestId('cache-note')).toHaveCount(0, { timeout: 10_000 });
+});
+
+test('the shell fetches every screen’s code once it is idle', async ({ page }) => {
+	const nodes = new Set<string>();
+	page.on('request', (request) => {
+		const path = new URL(request.url()).pathname;
+		if (path.startsWith('/_app/immutable/nodes/')) nodes.add(path);
+	});
+	await asPresident(page, founder.email, NETWORK);
+	await expect(page).toHaveURL(/\/app$/);
+	// About 45 route nodes; the shell itself needs only a few.
+	await expect.poll(() => nodes.size, { timeout: 20_000 }).toBeGreaterThan(40);
+});
+
+test.describe('a tap answers at once (mobile)', () => {
+	// No service worker: page.route never sees requests it answers.
+	test.use({
+		viewport: { width: 390, height: 844 },
+		isMobile: true,
+		hasTouch: true,
+		serviceWorkers: 'block'
+	});
+
+	test('the tab and a page frame show before the page’s code arrives', async ({ page }) => {
+		// Save-Data: no idle preload, so the tapped page's code is still to come.
+		await page.addInitScript(() =>
+			Object.defineProperty(navigator, 'connection', { value: { saveData: true } })
+		);
+		await asPresident(page, founder.email, NETWORK);
+		await expect(page).toHaveURL(/\/app$/);
+		await page.route('**/_app/immutable/nodes/**', async (route) => {
+			await new Promise((resolve) => setTimeout(resolve, 2500));
+			await route.continue();
+		});
+		const team = page.locator('.tabbar a[href="/app/team"]');
+		await team.click();
+		await expect(team).toHaveAttribute('aria-current', 'page', { timeout: 500 });
+		await expect(page.locator('.tabbar a[href="/app"]')).not.toHaveAttribute(
+			'aria-current',
+			'page'
+		);
+		await expect(page.getByTestId('page-frame')).toBeVisible({ timeout: 1000 });
+		await expect(page).toHaveURL(/\/app\/team$/, { timeout: 10_000 });
+		await expect(page.getByTestId('page-frame')).toHaveCount(0);
+	});
+});

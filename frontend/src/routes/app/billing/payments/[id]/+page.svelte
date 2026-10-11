@@ -6,12 +6,14 @@
 -->
 <script lang="ts">
 	import '#lib/ui/org/org.css';
-	import { getContext, onDestroy } from 'svelte';
+	import { getContext } from 'svelte';
 	import { page } from '$app/state';
 	import { PaymentView, type Payment } from '#lib/contract/billing.js';
 	import { dayLabel, lastDayLabel, naira } from '#lib/billing.js';
 	import { loadView } from '#lib/client/org.svelte.js';
+	import { cachedPage } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
 	import type { RootPose } from '#lib/ui/root.svelte.js';
 
@@ -20,49 +22,53 @@
 	// Paystack appends ?trxref=&reference= when it sends the payer back.
 	const returned = page.url.searchParams.has('reference') || page.url.searchParams.has('trxref');
 
-	let payment = $state<Payment | null>(null);
-	let loadError = $state<string | null>(null);
 	let checking = $state(false);
 	let polls = 0;
-	let timer: ReturnType<typeof setTimeout> | undefined;
 
-	async function check(forId: string) {
-		checking = true;
-		const result = await loadView(
-			`/api/billing/payments/${forId}${returned ? '?returned=1' : ''}`,
-			PaymentView
-		);
-		checking = false;
-		// Another receipt was opened meanwhile: this answer is stale.
-		if (forId !== id) return;
-		if (!result.ok) {
-			loadError = result.text;
-			return;
-		}
-		payment = result.value.payment;
-		loadError = null;
-		clearTimeout(timer);
-		// Webhooks usually land within seconds: poll for about a minute.
-		if (payment.status === 'open' && polls < 20) {
-			polls++;
-			timer = setTimeout(() => check(forId), 3000);
-		}
-	}
+	/** Blueprint 23: the Paystack checkout link is left out of the kept copy. */
+	const withoutCheckout = (view: PaymentView): PaymentView => {
+		const payment: Partial<Payment> = { ...view.payment };
+		Reflect.deleteProperty(payment, 'authorizationUrl');
+		return { ...view, payment: payment as Payment };
+	};
 
-	// One load per payment id: the page is reused when [id] changes (the bell).
-	let loadedFor = '';
-	$effect(() => {
-		if (shell.state.kind !== 'ready') return;
-		const current = id;
-		if (current === loadedFor) return;
-		loadedFor = current;
-		clearTimeout(timer);
-		payment = null;
-		loadError = null;
-		polls = 0;
-		void check(current);
+	// Blueprint 23: a receipt opens from cache (kind 'billing', part
+	// 'pay-<id>'), then the server checks it again. Coming back from Paystack
+	// the copy from before paying would only mislead, so none is shown then.
+	const read = cachedPage(shell, {
+		kind: 'billing',
+		part: () => `pay-${id.toLowerCase()}`,
+		cacheable: () => !returned,
+		keep: withoutCheckout,
+		load: async () => {
+			checking = true;
+			const result = await loadView(
+				`/api/billing/payments/${id}${returned ? '?returned=1' : ''}`,
+				PaymentView
+			);
+			checking = false;
+			return result;
+		}
 	});
-	onDestroy(() => clearTimeout(timer));
+	const payment = $derived<Payment | null>(read.data?.payment ?? null);
+	const loadError = $derived(read.error);
+	const check = () => read.reload();
+
+	// One poll budget per payment id: the page is reused when [id] changes (the bell).
+	$effect(() => {
+		void id;
+		polls = 0;
+	});
+
+	// Webhooks usually land within seconds: poll for about a minute.
+	$effect(() => {
+		const shown = payment;
+		if (!shown || read.savedAt !== null || shown.status !== 'open') return;
+		if (polls >= 20) return;
+		polls++;
+		const timer = setTimeout(() => void check(), 3000);
+		return () => clearTimeout(timer);
+	});
 
 	const phase = $derived(
 		payment === null
@@ -90,10 +96,11 @@
 <svelte:head><title>Payment · Elivate Wallet</title></svelte:head>
 
 <div class="result">
+	<CacheNote savedAt={read.savedAt} online={shell.online} failed={read.error !== null} />
 	{#if loadError && !payment}
 		<div class="o-error" role="alert">
 			<p>{loadError}</p>
-			<button type="button" class="o-ghost" onclick={() => check(id)}>Try again</button>
+			<button type="button" class="o-ghost" onclick={() => check()}>Try again</button>
 		</div>
 	{:else if !payment}
 		<div class="o-skeleton" aria-hidden="true"></div>
@@ -156,7 +163,7 @@
 					aria-busy={checking}
 					onclick={() => {
 						polls = 0;
-						void check(id);
+						void check();
 					}}>Check again</button
 				>
 			{:else}

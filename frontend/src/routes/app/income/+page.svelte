@@ -32,6 +32,8 @@
 	} from '#lib/contract/income.js';
 	import { CommandOutcome, type Currency } from '#lib/contract/ledger.js';
 	import { getJson, newKey, sendCommand } from '#lib/client/api.js';
+	import { loadView } from '#lib/client/org.svelte.js';
+	import { cachedPage, MorePages, type PageLoaded } from '#lib/client/page-cache.svelte.js';
 	import { uploadReceipt } from '#lib/client/income-api.js';
 	import {
 		browserAttemptStore,
@@ -83,11 +85,29 @@
 	}
 
 	// ── Loaded data ──
-	let data = $state<IncomeTargets | null>(null);
-	let targets = $state<IncomeTarget[]>([]);
-	let nextCursor = $state<string | null>(null);
-	let loadError = $state<string | null>(null);
-	let loadingMore = $state(false);
+	// Blueprint 23: the default (unsearched) member list, split and currencies
+	// open from cache, then refresh. Searches are never cached. Posting waits
+	// for the fresh read (`view.fresh`) and the server allocates on its own.
+	async function load(): Promise<PageLoaded<IncomeTargets>> {
+		const exit = await Effect.runPromiseExit(getJson(IncomeAppRoutes.targets, IncomeTargets));
+		if (Exit.isSuccess(exit)) return { ok: true, value: exit.value };
+		const failure = failureOf(exit);
+		return failure?._tag === 'BackendError'
+			? { ok: false, text: incomeMessage(failure), status: failure.status }
+			: { ok: false, text: 'We couldn’t load your members.', status: null };
+	}
+	const view = cachedPage(shell, { kind: 'entries', part: () => 'income-targets', load });
+	const pages = new MorePages<IncomeTarget>(() => view.data);
+	const data = $derived(view.data);
+	const targets = $derived.by(() => {
+		// Local to one derivation; not reactive state.
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
+		const seen = new Set<string>();
+		return pages.items.filter((t) => !seen.has(t.membershipId) && !!seen.add(t.membershipId));
+	});
+	const nextCursor = $derived(pages.nextCursor);
+	const loadError = $derived(view.data ? null : view.error);
+	const loadingMore = $derived(pages.loading);
 
 	// ── Draft ──
 	let target = $state<IncomeTarget | null>(null);
@@ -169,36 +189,18 @@
 		Exit.isFailure(exit) ? Option.getOrUndefined(Cause.findErrorOption(exit.cause)) : undefined;
 
 	// ── Loading ──
-	async function load() {
-		const exit = await Effect.runPromiseExit(getJson(IncomeAppRoutes.targets, IncomeTargets));
-		if (Exit.isSuccess(exit)) {
-			data = exit.value;
-			targets = [...exit.value.items];
-			nextCursor = exit.value.nextCursor;
-			loadError = null;
-			if (!currencies.some((c) => c.code === currency) && currencies[0]) {
-				currency = currencies[0].code;
-			}
-			return;
-		}
-		const failure = failureOf(exit);
-		loadError =
-			failure?._tag === 'BackendError' ? incomeMessage(failure) : 'We couldn’t load your members.';
-	}
+	// A currency the network no longer offers falls back to the first one.
+	$effect(() => {
+		const offered = currencies;
+		untrack(() => {
+			if (!offered.some((c) => c.code === currency) && offered[0]) currency = offered[0].code;
+		});
+	});
 
-	async function loadMore() {
-		if (!nextCursor || loadingMore) return;
-		loadingMore = true;
-		const exit = await Effect.runPromiseExit(
-			getJson(`${IncomeAppRoutes.targets}?cursor=${encodeURIComponent(nextCursor)}`, IncomeTargets)
+	const loadMore = () =>
+		pages.more((cursor) =>
+			loadView(`${IncomeAppRoutes.targets}?cursor=${encodeURIComponent(cursor)}`, IncomeTargets)
 		);
-		loadingMore = false;
-		if (Exit.isSuccess(exit)) {
-			const seen = new Set(targets.map((t) => t.membershipId));
-			targets = [...targets, ...exit.value.items.filter((t) => !seen.has(t.membershipId))];
-			nextCursor = exit.value.nextCursor;
-		}
-	}
 
 	/** Network-wide member search for the picker (owner decision 2026-10-08). */
 	async function searchTargets(q: string, cursor: string | null): Promise<IncomeTargets | null> {
@@ -218,7 +220,6 @@
 				window.location.reload();
 				return;
 			}
-			if (!data && !loadError) void load();
 			// A stored attempt means an earlier dispatch never got an answer.
 			const store = browserAttemptStore();
 			if (store && scope && phase === 'form' && !attempt) {
@@ -732,14 +733,7 @@
 		<h2 class="panel-title">We couldn’t load your members</h2>
 		<p class="panel-lead">{loadError}</p>
 		<div class="panel-actions">
-			<button
-				type="button"
-				class="primary"
-				onclick={() => {
-					loadError = null;
-					void load();
-				}}>Try again</button
-			>
+			<button type="button" class="primary" onclick={() => view.reload()}>Try again</button>
 		</div>
 	</section>
 {:else if !allowed && targets.length === 0}
@@ -957,7 +951,7 @@
 				<button
 					type="submit"
 					class="post post-mobile"
-					disabled={!shell.canAct || shell.paused('income')}>Review and post</button
+					disabled={!shell.canAct || shell.paused('income') || !view.fresh}>Review and post</button
 				>
 			</div>
 
@@ -987,7 +981,10 @@
 					{/each}
 				</div>
 				<div class="preview-foot">
-					<button type="submit" class="post" disabled={!shell.canAct || shell.paused('income')}
+					<button
+						type="submit"
+						class="post"
+						disabled={!shell.canAct || shell.paused('income') || !view.fresh}
 						>Review and post</button
 					>
 				</div>

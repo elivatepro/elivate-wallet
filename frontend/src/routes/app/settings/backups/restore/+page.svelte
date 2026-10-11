@@ -7,14 +7,16 @@
 -->
 <script lang="ts">
 	import '#lib/ui/settings/settings.css';
-	import { getContext } from 'svelte';
+	import { getContext, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { RestoreResult, VaultView, type Restore } from '#lib/contract/settings.js';
 	import { loadView, OrgCommand } from '#lib/client/org.svelte.js';
+	import { cachedPage } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { personName } from '#lib/org.js';
 	import { RESTORE_STATUS, formatBytes, shortChecksum, watDateTime } from '#lib/settings.js';
 	import { Schema } from 'effect';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
 
 	const shell = getContext<Shell>('shell');
@@ -22,30 +24,29 @@
 		shell.state.kind === 'ready' ? shell.state.view.workspace.membershipId : null
 	);
 
-	let view = $state<VaultView | null>(null);
-	let loadError = $state<string | null>(null);
+	// Blueprint 23: the vault list opens from cache (kind 'vault', shared with
+	// the backup vault page), then refreshes. Sending waits for the fresh list.
+	const vault = cachedPage(shell, {
+		kind: 'vault',
+		load: () => loadView('/api/backups', VaultView)
+	});
+	const view = $derived(vault.data);
+	const loadError = $derived(view ? null : vault.error);
 	let picked = $state<string | null>(null);
 	let reason = $state('');
 	let reasonError = $state<string | null>(null);
 	let sent = $state<Restore | null>(null);
-	let started = false;
 
-	async function load() {
-		const result = await loadView('/api/backups', VaultView);
-		if (result.ok) {
-			view = result.value;
-			const wanted = page.url.searchParams.get('backup');
-			const ready = result.value.backups.filter((b) => b.status === 'ready');
-			picked = ready.find((b) => b.backupId === wanted)?.backupId ?? ready[0]?.backupId ?? null;
-			loadError = null;
-		} else loadError = result.text;
-	}
-
+	// The pick is kept by id across refreshes; it falls back to the backup in
+	// the link, else the newest ready one.
 	$effect(() => {
-		if (shell.state.kind === 'ready' && !started) {
-			started = true;
-			void load();
-		}
+		const shown = view;
+		untrack(() => {
+			const ready = shown?.backups.filter((b) => b.status === 'ready') ?? [];
+			if (ready.some((b) => b.backupId === picked)) return;
+			const wanted = page.url.searchParams.get('backup');
+			picked = ready.find((b) => b.backupId === wanted)?.backupId ?? ready[0]?.backupId ?? null;
+		});
 	});
 
 	const ready = $derived(view?.backups.filter((b) => b.status === 'ready') ?? []);
@@ -65,7 +66,7 @@
 			return;
 		}
 		reasonError = null;
-		if (!picked || !workspaceId) return;
+		if (!picked || !workspaceId || vault.savedAt !== null) return;
 		const result = await send.send(
 			'/api/restores',
 			'POST',
@@ -76,7 +77,7 @@
 		try {
 			sent = Schema.decodeUnknownSync(RestoreResult)(result).restore;
 		} catch {
-			await load();
+			await vault.reload();
 		}
 	}
 </script>
@@ -101,6 +102,10 @@
 			</p>
 		</div>
 	</section>
+
+	{#if !sent}
+		<CacheNote savedAt={vault.savedAt} online={shell.online} failed={vault.error !== null} />
+	{/if}
 
 	{#if loadError}
 		<p class="s-notice bad" role="alert">{loadError}</p>
@@ -199,7 +204,10 @@
 			</div>
 			{#if send.error}<p class="s-notice bad" role="alert">{send.error}</p>{/if}
 			<div class="s-actions start">
-				<button type="submit" class="s-primary" disabled={send.busy || !picked || !shell.canAct}
+				<button
+					type="submit"
+					class="s-primary"
+					disabled={send.busy || !picked || !shell.canAct || vault.savedAt !== null}
 					>Send request</button
 				>
 				<a class="s-ghost" href="/app/settings/backups">Cancel</a>

@@ -10,8 +10,8 @@
 -->
 <script lang="ts">
 	import { onMount, setContext, untrack } from 'svelte';
-	import { goto } from '$app/navigation';
-	import { page, updated } from '$app/state';
+	import { goto, onNavigate, preloadCode } from '$app/navigation';
+	import { navigating, page, updated } from '$app/state';
 	import { DropdownMenu, Popover } from 'bits-ui';
 	import Activity from '@lucide/svelte/icons/activity';
 	import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
@@ -65,6 +65,8 @@
 	import { OPERATION_NAMES, pausedCopy, stoppedHere } from '#lib/operations.js';
 	import RootHero from '#lib/ui/app/RootHero.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
+	import PageFrame from '#lib/ui/app/PageFrame.svelte';
+	import { warmRoutes } from '#lib/client/warm-routes.js';
 	import type { LayoutProps } from './$types';
 
 	let { children }: LayoutProps = $props();
@@ -72,8 +74,10 @@
 	const shell = new Shell();
 	const appearance = new Appearance();
 	/** Blueprint 13: the bell follows the selected workspace. */
-	const bell = new BellState(() =>
-		shell.state.kind === 'ready' ? shell.state.view.workspace.membershipId : null
+	const bell = new BellState(
+		() => (shell.state.kind === 'ready' ? shell.state.view.workspace.membershipId : null),
+		// Blueprint 23: the lists the bell loads are kept for this person and workspace.
+		() => shell.scope
 	);
 	setContext('shell', shell);
 	setContext('bell', bell);
@@ -111,6 +115,13 @@
 	const person = $derived(shell.state.kind === 'ready' ? shell.state.view.profile : null);
 	const photoSrc = $derived(profilePhotoSrc(person));
 	const path = $derived(page.url.pathname);
+	/**
+	 * Blueprint 23: where the person is going. The tab bar, the sidebar and the
+	 * title follow a tap at once (\`navigating.to\`), not only once the page
+	 * has loaded.
+	 */
+	const navPath = $derived(navigating.to?.url.pathname ?? path);
+	const navMore = $derived(navPath.startsWith('/app/more'));
 	/** Navigation hint only; every command is still authorized by the backend. */
 	const TITLES: Record<string, string> = {
 		// Blueprint 10 (Paper S03/S05 breadcrumbs); most specific first.
@@ -154,7 +165,7 @@
 		'/app/support': 'Support'
 	};
 	const pageTitle = $derived(
-		Object.entries(TITLES).find(([prefix]) => path.startsWith(prefix))?.[1] ??
+		Object.entries(TITLES).find(([prefix]) => navPath.startsWith(prefix))?.[1] ??
 			// Blueprint 17 (Paper X01): an unknown page is "Not found", not Home.
 			(page.route.id === '/app/[...missing]' ? 'Not found' : 'Home')
 	);
@@ -233,7 +244,52 @@
 		signOutForm?.requestSubmit();
 	}
 
-	const switchWorkspace = () => window.location.assign('/workspaces?switch');
+	/**
+	 * Blueprint 23: the picker opens inside the app (its code is preloaded, and
+	 * its server load is the one round trip it always needed). Choosing a
+	 * workspace still posts the picker's form, which sets the cookies and
+	 * reloads /app for the new workspace.
+	 */
+	const switchWorkspace = () => goto('/workspaces?switch');
+
+	// ── Blueprint 23: instant taps ───────────────────────────────────────
+	// Every screen's code, once the shell is ready and the browser is idle.
+	$effect(() => {
+		if (shell.state.kind === 'ready') untrack(() => void warmRoutes(preloadCode));
+	});
+	/**
+	 * A tap whose page is not ready within a few frames shows a light page
+	 * frame (title and placeholders) instead of the old page.
+	 */
+	let slowNav = $state(false);
+	$effect(() => {
+		const to = navigating.to?.url.pathname;
+		if (!to || to === path || !to.startsWith('/app') || navigating.type === 'form') return;
+		const timer = setTimeout(() => (slowNav = true), 80);
+		return () => {
+			clearTimeout(timer);
+			slowNav = false;
+		};
+	});
+	/**
+	 * A short page swap (≤ 200 ms) where the browser has view transitions and
+	 * motion is welcome. It starts only once the new page is ready (onNavigate
+	 * runs right before the swap), so it never delays the navigation.
+	 */
+	onNavigate((navigation) => {
+		if (!document.startViewTransition) return;
+		if (navigation.from?.url.pathname === navigation.to?.url.pathname) return;
+		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+		const root = document.documentElement;
+		return new Promise<void>((resolve) => {
+			root.dataset.pageSwap = '';
+			const swap = document.startViewTransition(async () => {
+				resolve();
+				await navigation.complete.catch(() => undefined);
+			});
+			void swap.finished.finally(() => delete root.dataset.pageSwap);
+		});
+	});
 
 	// ── Blueprint 17: brand, team theme, settings, quick search ──────────
 	const brand = $derived(shell.state.kind === 'ready' ? (shell.state.view.brand ?? null) : null);
@@ -371,17 +427,23 @@
 	// switch) shows a paused banner above the page, which stays usable so an
 	// attempt with an unknown outcome can still be checked or cancelled. Read
 	// fresh on each write page; the database refuses the operation either way.
+	// Blueprint 23: read at most once a minute, not on every tap between write
+	// pages (the database still refuses a stopped operation at once).
 	const onWritePage = $derived(stoppedHere(path, Object.keys(OPERATION_NAMES)) !== null);
+	const STOPPED_FRESH_MS = 60_000;
+	let stoppedAt = 0;
 	$effect(() => {
-		// Track the path itself: moving between write pages fetches again.
+		// Track the path itself: moving between write pages may fetch again.
 		void path;
-		if (!onWritePage || !summary) return;
+		if (!onWritePage || !summary || Date.now() - stoppedAt < STOPPED_FRESH_MS) return;
 		const controller = new AbortController();
 		fetch('/api/operations', { signal: controller.signal })
 			.then((r) => (r.ok ? r.json() : null))
 			.then((body: { data?: { stopped?: unknown } } | null) => {
-				const list = body?.data?.stopped;
+				if (!body) return;
+				const list = body.data?.stopped;
 				shell.stopped = Array.isArray(list) ? list.filter((x) => typeof x === 'string') : [];
+				stoppedAt = Date.now();
 			})
 			.catch(() => undefined);
 		return () => controller.abort();
@@ -449,14 +511,14 @@
 				<span class="side-search-label">Quick search…</span>
 				<kbd class="side-kbd" aria-hidden="true">⌘K</kbd>
 			</button>
-			<a class="side-item" href="/app" aria-current={path === '/app' ? 'page' : undefined}>
+			<a class="side-item" href="/app" aria-current={navPath === '/app' ? 'page' : undefined}>
 				<House size={18} strokeWidth={1.5} aria-hidden="true" /><span>Home</span>
 			</a>
 			{#if ownMoney('view_own_financials')}
 				<a
 					class="side-item"
 					href="/app/activity"
-					aria-current={path.startsWith('/app/activity') ? 'page' : undefined}
+					aria-current={navPath.startsWith('/app/activity') ? 'page' : undefined}
 				>
 					<Activity size={18} strokeWidth={1.5} aria-hidden="true" /><span>Activity</span>
 				</a>
@@ -465,7 +527,7 @@
 				<a
 					class="side-item"
 					href="/app/withdrawals"
-					aria-current={path.startsWith('/app/withdrawals') ? 'page' : undefined}
+					aria-current={navPath.startsWith('/app/withdrawals') ? 'page' : undefined}
 				>
 					<Upload size={18} strokeWidth={1.5} aria-hidden="true" /><span>Withdrawals</span>
 				</a>
@@ -474,7 +536,7 @@
 				<a
 					class="side-item"
 					href="/app/queue"
-					aria-current={path.startsWith('/app/queue') ? 'page' : undefined}
+					aria-current={navPath.startsWith('/app/queue') ? 'page' : undefined}
 				>
 					<ListChecks size={18} strokeWidth={1.5} aria-hidden="true" /><span>Withdrawal queue</span>
 				</a>
@@ -483,7 +545,7 @@
 				<a
 					class="side-item"
 					href="/app/transfers"
-					aria-current={path.startsWith('/app/transfers') ? 'page' : undefined}
+					aria-current={navPath.startsWith('/app/transfers') ? 'page' : undefined}
 				>
 					<ArrowLeftRight size={18} strokeWidth={1.5} aria-hidden="true" /><span>Transfers</span>
 				</a>
@@ -492,7 +554,7 @@
 				<a
 					class="side-item"
 					href="/app/reversals"
-					aria-current={path.startsWith('/app/reversals') ? 'page' : undefined}
+					aria-current={navPath.startsWith('/app/reversals') ? 'page' : undefined}
 				>
 					<Undo2 size={18} strokeWidth={1.5} aria-hidden="true" /><span>Reversals</span>
 				</a>
@@ -501,7 +563,7 @@
 				<a
 					class="side-item"
 					href="/app/evidence"
-					aria-current={path.startsWith('/app/evidence') ? 'page' : undefined}
+					aria-current={navPath.startsWith('/app/evidence') ? 'page' : undefined}
 				>
 					<Gavel size={18} strokeWidth={1.5} aria-hidden="true" /><span>Evidence review</span>
 				</a>
@@ -510,14 +572,14 @@
 				<a
 					class="side-item"
 					href="/app/team"
-					aria-current={path.startsWith('/app/team') ? 'page' : undefined}
+					aria-current={navPath.startsWith('/app/team') ? 'page' : undefined}
 				>
 					<LayoutGrid size={18} strokeWidth={1.5} aria-hidden="true" /><span>Team overview</span>
 				</a>
 				<a
 					class="side-item"
 					href="/app/wallets"
-					aria-current={path.startsWith('/app/wallets') ? 'page' : undefined}
+					aria-current={navPath.startsWith('/app/wallets') ? 'page' : undefined}
 				>
 					<WalletIcon size={18} strokeWidth={1.5} aria-hidden="true" /><span>Member wallets</span>
 				</a>
@@ -526,7 +588,7 @@
 				<a
 					class="side-item"
 					href="/app/reports"
-					aria-current={path.startsWith('/app/reports') ? 'page' : undefined}
+					aria-current={navPath.startsWith('/app/reports') ? 'page' : undefined}
 				>
 					<ChartColumn size={18} strokeWidth={1.5} aria-hidden="true" /><span>Reports</span>
 				</a>
@@ -535,7 +597,7 @@
 				<a
 					class="side-item"
 					href="/app/payout-accounts"
-					aria-current={path.startsWith('/app/payout-accounts') ? 'page' : undefined}
+					aria-current={navPath.startsWith('/app/payout-accounts') ? 'page' : undefined}
 				>
 					<Landmark size={18} strokeWidth={1.5} aria-hidden="true" /><span>Payout accounts</span>
 				</a>
@@ -544,7 +606,7 @@
 				<a
 					class="side-item"
 					href="/app/statements"
-					aria-current={path.startsWith('/app/statements') ? 'page' : undefined}
+					aria-current={navPath.startsWith('/app/statements') ? 'page' : undefined}
 				>
 					<FileIcon size={18} strokeWidth={1.5} aria-hidden="true" /><span>Statements</span>
 				</a>
@@ -553,7 +615,7 @@
 				<a
 					class="side-item"
 					href="/app/income"
-					aria-current={path.startsWith('/app/income') ? 'page' : undefined}
+					aria-current={navPath.startsWith('/app/income') ? 'page' : undefined}
 				>
 					<Download size={18} strokeWidth={1.5} aria-hidden="true" /><span>Record income</span>
 				</a>
@@ -562,7 +624,7 @@
 				<a
 					class="side-item"
 					href="/app/convert"
-					aria-current={path.startsWith('/app/convert') ? 'page' : undefined}
+					aria-current={navPath.startsWith('/app/convert') ? 'page' : undefined}
 				>
 					<Repeat size={18} strokeWidth={1.5} aria-hidden="true" /><span>Record conversion</span>
 				</a>
@@ -571,7 +633,7 @@
 				<a
 					class="side-item"
 					href="/app/invitations"
-					aria-current={path.startsWith('/app/invitations') ? 'page' : undefined}
+					aria-current={navPath.startsWith('/app/invitations') ? 'page' : undefined}
 				>
 					<MailPlus size={18} strokeWidth={1.5} aria-hidden="true" /><span>Invitations</span>
 				</a>
@@ -580,7 +642,7 @@
 				<a
 					class="side-item"
 					href="/app/reviews"
-					aria-current={path.startsWith('/app/reviews') ? 'page' : undefined}
+					aria-current={navPath.startsWith('/app/reviews') ? 'page' : undefined}
 				>
 					<IdCard size={18} strokeWidth={1.5} aria-hidden="true" /><span>NIN reviews</span>
 				</a>
@@ -588,7 +650,7 @@
 			<a
 				class="side-item"
 				href="/app/split"
-				aria-current={path.startsWith('/app/split') ? 'page' : undefined}
+				aria-current={navPath.startsWith('/app/split') ? 'page' : undefined}
 			>
 				<PieChart size={18} strokeWidth={1.5} aria-hidden="true" /><span>Pockets &amp; split</span>
 			</a>
@@ -596,14 +658,14 @@
 				<a
 					class="side-item"
 					href="/app/offices"
-					aria-current={path.startsWith('/app/offices') ? 'page' : undefined}
+					aria-current={navPath.startsWith('/app/offices') ? 'page' : undefined}
 				>
 					<Building size={18} strokeWidth={1.5} aria-hidden="true" /><span>Offices</span>
 				</a>
 				<a
 					class="side-item"
 					href="/app/members"
-					aria-current={path.startsWith('/app/members') ? 'page' : undefined}
+					aria-current={navPath.startsWith('/app/members') ? 'page' : undefined}
 				>
 					<Users size={18} strokeWidth={1.5} aria-hidden="true" /><span>Members</span>
 				</a>
@@ -612,7 +674,7 @@
 				<a
 					class="side-item"
 					href="/app/access"
-					aria-current={path.startsWith('/app/access') ? 'page' : undefined}
+					aria-current={navPath.startsWith('/app/access') ? 'page' : undefined}
 				>
 					<Shield size={18} strokeWidth={1.5} aria-hidden="true" /><span>Roles &amp; access</span>
 				</a>
@@ -621,7 +683,7 @@
 				<a
 					class="side-item"
 					href={settingsHref}
-					aria-current={path.startsWith('/app/settings') ? 'page' : undefined}
+					aria-current={navPath.startsWith('/app/settings') ? 'page' : undefined}
 				>
 					<Palette size={18} strokeWidth={1.5} aria-hidden="true" /><span
 						>Branding &amp; settings</span
@@ -632,7 +694,7 @@
 				<a
 					class="side-item"
 					href="/app/billing"
-					aria-current={path.startsWith('/app/billing') ? 'page' : undefined}
+					aria-current={navPath.startsWith('/app/billing') ? 'page' : undefined}
 				>
 					<CreditCard size={18} strokeWidth={1.5} aria-hidden="true" /><span>Billing</span>
 				</a>
@@ -641,7 +703,7 @@
 				<a
 					class="side-item"
 					href="/app/audit"
-					aria-current={path.startsWith('/app/audit') ? 'page' : undefined}
+					aria-current={navPath.startsWith('/app/audit') ? 'page' : undefined}
 				>
 					<FileText size={18} strokeWidth={1.5} aria-hidden="true" /><span>Audit log</span>
 				</a>
@@ -912,6 +974,8 @@
 						? ROLE_LABELS[summary.role]
 						: 'This role'} doesn’t hold one in this workspace."
 				/>
+			{:else if slowNav}
+				<PageFrame title={pageTitle} />
 			{:else}
 				{@render children()}
 			{/if}
@@ -919,8 +983,8 @@
 
 		{#if !pushed}
 			<nav class="tabbar" aria-label="Main">
-				<a class="tab" href="/app" aria-current={path === '/app' ? 'page' : undefined}>
-					<House size={20} strokeWidth={path === '/app' ? 2 : 1.8} aria-hidden="true" /><span
+				<a class="tab" href="/app" aria-current={navPath === '/app' ? 'page' : undefined}>
+					<House size={20} strokeWidth={navPath === '/app' ? 2 : 1.8} aria-hidden="true" /><span
 						>Home</span
 					>
 				</a>
@@ -928,11 +992,11 @@
 					<a
 						class="tab"
 						href="/app/activity"
-						aria-current={path.startsWith('/app/activity') ? 'page' : undefined}
+						aria-current={navPath.startsWith('/app/activity') ? 'page' : undefined}
 					>
 						<Activity
 							size={20}
-							strokeWidth={path.startsWith('/app/activity') ? 2 : 1.8}
+							strokeWidth={navPath.startsWith('/app/activity') ? 2 : 1.8}
 							aria-hidden="true"
 						/><span>Activity</span>
 					</a>
@@ -941,16 +1005,16 @@
 					<a
 						class="tab"
 						href="/app/team"
-						aria-current={path.startsWith('/app/team') ? 'page' : undefined}
+						aria-current={navPath.startsWith('/app/team') ? 'page' : undefined}
 					>
 						<LayoutGrid
 							size={20}
-							strokeWidth={path.startsWith('/app/team') ? 2 : 1.8}
+							strokeWidth={navPath.startsWith('/app/team') ? 2 : 1.8}
 							aria-hidden="true"
 						/><span>Team</span>
 					</a>
 				{/if}
-				<a class="tab" href="/app/more" aria-current={tabMore ? 'page' : undefined}>
+				<a class="tab" href="/app/more" aria-current={navMore ? 'page' : undefined}>
 					<Ellipsis size={20} strokeWidth={1.8} aria-hidden="true" /><span>More</span>
 				</a>
 			</nav>
@@ -1206,6 +1270,15 @@
 
 	.side-item :global(svg) {
 		color: var(--color-muted);
+	}
+
+	/* Blueprint 23: the row answers the press itself, before the page loads. */
+	.side-item {
+		-webkit-tap-highlight-color: transparent;
+	}
+
+	.side-item:active {
+		background: var(--shell-active);
 	}
 
 	.side-item[aria-current='page'] {
@@ -1523,6 +1596,50 @@
 		background: var(--shell-coral-tint);
 		color: var(--color-accent);
 		font-weight: var(--font-weight-semibold);
+	}
+
+	/* Blueprint 23: pressed at once; the current state follows the tap. */
+	.tab {
+		-webkit-tap-highlight-color: transparent;
+	}
+
+	.tab:active {
+		background: var(--shell-coral-tint);
+	}
+
+	/*
+	 * Blueprint 23: the page swap. Only the page area takes part, and only
+	 * while a swap runs (data-page-swap on <html>, set in onNavigate), so the
+	 * page keeps its normal stacking the rest of the time.
+	 */
+	:global(html[data-page-swap]) .content {
+		view-transition-name: ew-page;
+	}
+
+	:global(::view-transition-old(root)),
+	:global(::view-transition-new(root)) {
+		animation: none;
+	}
+
+	:global(::view-transition-old(ew-page)) {
+		animation: 90ms ease-out both ew-page-out;
+	}
+
+	:global(::view-transition-new(ew-page)) {
+		animation: 180ms ease-out both ew-page-in;
+	}
+
+	@keyframes -global-ew-page-out {
+		to {
+			opacity: 0;
+		}
+	}
+
+	@keyframes -global-ew-page-in {
+		from {
+			opacity: 0;
+			transform: translateY(6px);
+		}
 	}
 
 	/* ── Popovers (account menu, notifications) ────────────────────── */

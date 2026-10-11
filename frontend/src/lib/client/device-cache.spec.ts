@@ -5,6 +5,7 @@ import {
 	currentWho,
 	lastScope,
 	MAX_AGE_MS,
+	MAX_PARTS,
 	MemoryStore,
 	purgeAll,
 	readCache,
@@ -141,6 +142,100 @@ describe('device cache (decision 36a)', () => {
 			writeCache(store, alice, 'settings', { logoToken: 'x' }, { now, who: WHO })
 		).toThrow();
 		expect(store.keys()).toHaveLength(0);
+	});
+
+	it('keeps masked bank and NIN values, never full ones (Blueprint 23)', () => {
+		expect(() =>
+			assertCacheable({ accountNumberMasked: '******6789', accountLast4: '6789', ninLast4: '4321' })
+		).not.toThrow();
+		expect(() => assertCacheable({ accountNumberMasked: '0123456789' })).toThrow();
+		expect(() => assertCacheable({ accountLast4: '0123456789' })).toThrow();
+		expect(() => assertCacheable({ ninLast4: 12345678901 })).toThrow();
+		expect(() => assertCacheable({ nin: '12345678901' })).toThrow();
+	});
+
+	it('refuses receipt facts, signed links and step-up material on the new kinds', () => {
+		const store = new MemoryStore();
+		const refused: [Parameters<typeof writeCache>[2], unknown][] = [
+			['queue', { items: [{ payout: { revisions: [{ receipt: { name: 'r.pdf' } }] } }] }],
+			['withdrawals', { facts: { recipientAccount: '0123456789' } }],
+			['evidence', { items: [{ entry: { evidence: [{ name: 'r.pdf' }] } }] }],
+			['billing', { authorizationUrl: 'https://checkout.example/x' }],
+			['statements', { files: [{ downloadUrl: 'https://files.example/x' }] }],
+			['account', { sessions: [{ sessionId: 'x' }] }],
+			['account', { pinToken: 'x' }],
+			['invitations', { items: [{ token: 'x' }] }],
+			['payout-accounts', { items: [{ accountNumber: '0123456789' }] }]
+		];
+		for (const [kind, payload] of refused) {
+			expect(() => writeCache(store, alice, kind, payload, { now, who: WHO })).toThrow();
+		}
+		expect(store.keys()).toHaveLength(0);
+		// The list projections pages keep instead.
+		writeCache(
+			store,
+			alice,
+			'queue',
+			{ items: [{ payout: { revisions: null } }] },
+			{ now, who: WHO }
+		);
+		writeCache(
+			store,
+			alice,
+			'billing',
+			{ authorizationUrl: null, plan: 'yearly' },
+			{ now, who: WHO }
+		);
+		writeCache(
+			store,
+			alice,
+			'evidence',
+			{ items: [{ entry: { evidence: [] } }] },
+			{ now, who: WHO }
+		);
+		writeCache(
+			store,
+			alice,
+			'account',
+			{ security: { passwordChangedAt: '2026-10-01T09:30:00.123Z' } },
+			{ now, who: WHO }
+		);
+		expect(store.keys()).toHaveLength(4);
+		// A timestamp name never carries anything else.
+		expect(() => assertCacheable({ passwordChangedAt: 'hunter2' })).toThrow();
+		expect(() => assertCacheable({ resetTokenAt: '2026-10-01T09:30:00Z' })).not.toThrow();
+		expect(() => assertCacheable({ evidence: [{ name: 'r.pdf' }] })).toThrow();
+	});
+
+	it('keeps a record id as a part and only the newest parts of a kind', () => {
+		const store = new MemoryStore();
+		const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+		for (let n = 0; n < MAX_PARTS + 3; n += 1) {
+			writeCache(store, alice, 'members', { n }, { now: now + n, who: WHO, part: id(n) });
+		}
+		writeCache(store, alice, 'members', { list: true }, { now, who: WHO });
+		writeCache(
+			store,
+			alice,
+			'members',
+			{ presidents: true },
+			{ now, who: WHO, part: 'presidents' }
+		);
+		const parts = store.keys().filter((k) => k.includes(':members:') && /[0-9]{12}$/.test(k));
+		expect(parts).toHaveLength(MAX_PARTS);
+		// Fixed sub-keys and other families are never pushed out by records.
+		expect(
+			readCache(store, alice, 'members', { now, who: WHO, part: 'presidents' })
+		).not.toBeNull();
+		expect(readCache(store, alice, 'members', { now, who: WHO, part: id(0) })).toBeNull();
+		expect(
+			readCache(store, alice, 'members', { now: now + 30, who: WHO, part: id(MAX_PARTS + 2) })
+		).not.toBeNull();
+		// The list itself (no part) is not a part and stays.
+		expect(readCache(store, alice, 'members', { now, who: WHO })?.data).toEqual({ list: true });
+		expect(() =>
+			writeCache(store, alice, 'members', {}, { who: WHO, part: 'A'.repeat(65) })
+		).toThrow();
 	});
 
 	it('labels stale data with the time and offline state', () => {

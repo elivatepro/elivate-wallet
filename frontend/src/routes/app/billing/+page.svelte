@@ -16,6 +16,7 @@
 		BillingOverview,
 		OwnerCandidates,
 		type OwnerCandidate,
+		type Payment,
 		type PlanOffer
 	} from '#lib/contract/billing.js';
 	import {
@@ -32,9 +33,11 @@
 		yearOffer
 	} from '#lib/billing.js';
 	import { loadView, OrgCommand } from '#lib/client/org.svelte.js';
+	import { cachedPage } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { ROLE_LABELS } from '#lib/labels.js';
 	import { initials, personName } from '#lib/org.js';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import OrgDialog from '#lib/ui/org/OrgDialog.svelte';
 	import OrgHero from '#lib/ui/org/OrgHero.svelte';
 
@@ -43,25 +46,41 @@
 		shell.state.kind === 'ready' ? shell.state.view.workspace.membershipId : null
 	);
 
-	let view = $state<BillingOverview | null>(null);
-	let loadError = $state<string | null>(null);
-	let started = false;
+	/**
+	 * Blueprint 23: kept without the Paystack checkout links: a key named
+	 * `authorization…` is never kept on the device, so it is left out (not
+	 * nulled). This page never shows them.
+	 */
+	const withoutLink = (payment: Payment): Payment => {
+		const kept: Partial<Payment> = { ...payment };
+		Reflect.deleteProperty(kept, 'authorizationUrl');
+		return kept as Payment;
+	};
+	const withoutCheckout = (overview: BillingOverview): BillingOverview => ({
+		...overview,
+		payments: overview.payments.map(withoutLink)
+	});
 
-	async function load() {
-		const result = await loadView('/api/billing', BillingOverview);
-		if (result.ok) {
-			view = result.value;
-			loadError = null;
-		} else loadError = result.text;
-	}
-
+	// Blueprint 23: the plan opens from cache (kind 'billing'), then refreshes.
+	const read = cachedPage(shell, {
+		kind: 'billing',
+		load: () => loadView('/api/billing', BillingOverview),
+		keep: withoutCheckout
+	});
+	const view = $derived(read.data);
+	const loadError = $derived(read.error);
+	const load = () => read.reload();
+	// Someone who no longer holds billing access stops seeing the cached plan.
 	$effect(() => {
-		if (shell.state.kind === 'ready' && !started) {
-			started = true;
-			void load().then(() => {
-				if (page.url.searchParams.has('upgrade') && view) openUpgrade(null, true);
-			});
-		}
+		if (read.errorStatus === 403 || read.errorStatus === 404) read.clear();
+	});
+
+	// ?upgrade (from the seat cap) opens the upgrade dialog once the fresh plan is in.
+	let upgradeChecked = false;
+	$effect(() => {
+		if (upgradeChecked || !read.fresh || !read.data) return;
+		upgradeChecked = true;
+		if (page.url.searchParams.has('upgrade')) openUpgrade(null, true);
 	});
 
 	// ── Paying ──────────────────────────────────────────────────────────────
@@ -238,6 +257,7 @@
 <svelte:head><title>Billing · Elivate Wallet</title></svelte:head>
 
 <div class="o-page billing">
+	<CacheNote savedAt={read.savedAt} online={shell.online} failed={read.error !== null} />
 	{#if loadError && !view}
 		<div class="o-error" role="alert">
 			<p>{loadError}</p>

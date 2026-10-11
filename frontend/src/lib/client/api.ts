@@ -132,5 +132,5 @@ export function sendAccountCommand<S extends Schema.ConstraintDecoder<unknown>>(
 	return requestJson(
 		{ fetch, url: path, method, route: `${method} ${path}`, body, timeoutMs: COMMAND_TIMEOUT_MS },
 		schema
-	);
+	).pipe(Effect.tap(() => Effect.sync(() => invalidate(invalidatesForPath(path)))));
 }

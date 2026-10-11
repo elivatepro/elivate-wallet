@@ -9,7 +9,7 @@
 	its own menu item or a member's wallet ("Convert", ?member=).
 -->
 <script lang="ts">
-	import { getContext } from 'svelte';
+	import { getContext, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { Cause, Effect, Exit, Option } from 'effect';
 	import ArrowRight from '@lucide/svelte/icons/arrow-right';
@@ -25,7 +25,10 @@
 		type EntryTarget
 	} from '#lib/contract/entries.js';
 	import type { Currency } from '#lib/contract/ledger.js';
+	import { UUID_PATTERN } from '#lib/contract/common.js';
 	import { getJson } from '#lib/client/api.js';
+	import { loadView } from '#lib/client/org.svelte.js';
+	import { cachedPage, MorePages, type PageLoaded } from '#lib/client/page-cache.svelte.js';
 	import { CommandAttempt, showsRecovery } from '#lib/client/command-attempt.svelte.js';
 	import { EntryEvidence } from '#lib/client/entry-evidence.svelte.js';
 	import { submitEntry } from '#lib/client/entry-submit.js';
@@ -55,13 +58,8 @@
 		shell.state.kind === 'ready' ? shell.state.view.workspace.membershipId : null
 	);
 
-	let targets = $state<EntryTarget[]>([]);
-	let nextCursor = $state<string | null>(null);
-	let loadingMore = $state(false);
-	let loadError = $state<string | null>(null);
 	let denied = $state(false);
 	let target = $state<EntryTarget | null>(null);
-	let segments = $state<EntrySegments | null>(null);
 	let sourceId = $state<string | null>(null);
 	let amountText = $state('');
 	let receivedText = $state('');
@@ -96,46 +94,58 @@
 	const failureOf = <A, E>(exit: Exit.Exit<A, E>) =>
 		Exit.isFailure(exit) ? Option.getOrUndefined(Cause.findErrorOption(exit.cause)) : undefined;
 
-	async function loadTargets() {
+	// Blueprint 23: the default (unsearched) member list opens from cache, then
+	// refreshes; searches and "load more" pages are never cached.
+	async function loadTargets(): Promise<PageLoaded<EntryTargetPage>> {
 		const exit = await Effect.runPromiseExit(
 			getJson(`${EntryAppRoutes.targets}?kind=conversion`, EntryTargetPage)
 		);
 		if (Exit.isSuccess(exit)) {
-			targets = [...exit.value.items];
-			nextCursor = exit.value.nextCursor;
-			loadError = null;
 			denied = false;
-			const wanted = page.url.searchParams.get('member');
-			const pre = targets.find((t) => t.membershipId === wanted);
-			if (pre && !target) void choose(pre);
-			else if (wanted && !target) void choose({ membershipId: wanted } as EntryTarget, true);
-			return;
+			return { ok: true, value: exit.value };
 		}
 		const failure = failureOf(exit);
 		denied = failure?._tag === 'BackendError' && failure.code === 'authorization_denied';
-		loadError = denied
-			? 'Recording conversions is for leaders with that permission.'
-			: 'We couldn’t load your members.';
+		if (denied) targetView.clear();
+		return { ok: false, text: 'We couldn’t load your members.', status: null };
 	}
-	$effect(() => {
-		if (workspaceId && !targets.length && !loadError) void loadTargets();
+	const targetView = cachedPage(shell, {
+		kind: 'entries',
+		part: () => 'conversion-targets',
+		load: loadTargets
 	});
-
-	async function loadMore() {
-		if (!nextCursor) return;
-		loadingMore = true;
-		const exit = await Effect.runPromiseExit(
-			getJson(
-				`${EntryAppRoutes.targets}?kind=conversion&cursor=${encodeURIComponent(nextCursor)}`,
+	const pages = new MorePages<EntryTarget>(() => targetView.data);
+	const targets = $derived(pages.items);
+	const nextCursor = $derived(pages.nextCursor);
+	const loadingMore = $derived(pages.loading);
+	const loadError = $derived(
+		denied
+			? 'Recording conversions is for leaders with that permission.'
+			: targetView.data
+				? null
+				: targetView.error
+	);
+	const loadMore = () =>
+		pages.more((cursor) =>
+			loadView(
+				`${EntryAppRoutes.targets}?kind=conversion&cursor=${encodeURIComponent(cursor)}`,
 				EntryTargetPage
 			)
 		);
-		loadingMore = false;
-		if (Exit.isSuccess(exit)) {
-			targets = [...targets, ...exit.value.items];
-			nextCursor = exit.value.nextCursor;
-		}
-	}
+
+	// Opened from a member's wallet (?member=): choose them once the list is shown.
+	let preselected = false;
+	$effect(() => {
+		const first = targetView.data;
+		if (!first || preselected) return;
+		preselected = true;
+		untrack(() => {
+			const wanted = page.url.searchParams.get('member');
+			const pre = first.items.find((t) => t.membershipId === wanted);
+			if (pre && !target) choose(pre);
+			else if (wanted && !target) choose({ membershipId: wanted } as EntryTarget, true);
+		});
+	});
 
 	async function search(query: string, cursor: string | null) {
 		// Built and read once per call; not reactive state.
@@ -148,41 +158,82 @@
 		return Exit.isSuccess(exit) ? exit.value : null;
 	}
 
-	/** Loads the member's pockets; `adopt` fills the picker from them (opened from a wallet). */
-	/** Only the newest member read is applied (a slower, older one must not win). */
-	let memberSeq = 0;
-	async function choose(t: EntryTarget, adopt = false) {
-		const mine = ++memberSeq;
-		segments = null;
-		sourceId = null;
-		formError = null;
-		if (!adopt) target = t;
-		const params = new URLSearchParams({ kind: 'conversion', membershipId: t.membershipId });
+	// Blueprint 23: a member's pockets open from their cached copy (per member),
+	// then refresh; the newest member read wins. Submitting waits for the fresh
+	// read, and the server checks the balance either way.
+	/** The member whose pockets are shown (lower case); null until one is chosen. */
+	let memberId = $state<string | null>(null);
+	let segFailure = $state<{ id: string; text: string } | null>(null);
+	/** Opened from a wallet: the picker is filled from the pockets read. */
+	let adopting = false;
+	async function loadSegments(): Promise<PageLoaded<EntrySegments>> {
+		const id = memberId ?? '';
+		const params = new URLSearchParams({ kind: 'conversion', membershipId: id });
 		const exit = await Effect.runPromiseExit(
 			getJson(`${EntryAppRoutes.segments}?${params}`, EntrySegments)
 		);
-		if (mine !== memberSeq) return;
-		if (Exit.isFailure(exit)) {
-			formError = entryMessage(failureOf(exit));
-			return;
+		if (Exit.isSuccess(exit)) {
+			if (segFailure?.id === id) segFailure = null;
+			return { ok: true, value: exit.value };
 		}
-		segments = exit.value;
-		if (adopt && exit.value.office) {
-			target = {
-				membershipId: exit.value.membershipId,
-				person: exit.value.person,
-				role: exit.value.role,
-				officeId: exit.value.office.id,
-				officeName: exit.value.office.name
-			};
-		}
-		sourceId = sources[0]?.accountId ?? null;
+		const text = entryMessage(failureOf(exit));
+		segFailure = { id, text };
+		return { ok: false, text, status: null };
 	}
+	const segView = cachedPage(shell, {
+		kind: 'entries',
+		part: () => (memberId ? `seg-${memberId}` : undefined),
+		enabled: () => memberId !== null,
+		cacheable: () => memberId !== null && UUID_PATTERN.test(memberId),
+		load: loadSegments
+	});
+	const segments = $derived<EntrySegments | null>(
+		segView.data && segView.data.membershipId === memberId ? segView.data : null
+	);
+	/** The pockets shown came from the server just now, not from the cache. */
+	const segFresh = $derived(segments !== null && segView.savedAt === null);
+	const segError = $derived(
+		!segments && segFailure && segFailure.id === memberId ? segFailure.text : null
+	);
+
+	/** Loads the member's pockets; `adopt` fills the picker from them (opened from a wallet). */
+	function choose(t: EntryTarget, adopt = false) {
+		sourceId = null;
+		formError = null;
+		adopting = adopt;
+		if (!adopt) target = t;
+		const id = t.membershipId.toLowerCase();
+		if (id === memberId) void segView.reload();
+		else memberId = id;
+	}
+
+	$effect(() => {
+		const s = segments;
+		if (!s || !adopting || !s.office) return;
+		const office = s.office;
+		untrack(() => {
+			adopting = false;
+			target = {
+				membershipId: s.membershipId,
+				person: s.person,
+				role: s.role,
+				officeId: office.id,
+				officeName: office.name
+			};
+		});
+	});
 
 	const sources = $derived<EntrySegment[]>(
 		(segments?.segments ?? []).filter((s) => s.kind === 'ordinary' && !isZero(s.available))
 	);
 	const source = $derived(sources.find((s) => s.accountId === sourceId) ?? null);
+	// The first pocket by default; a choice survives fresh pockets replacing cached ones.
+	$effect(() => {
+		const list = sources;
+		untrack(() => {
+			if (!list.some((s) => s.accountId === sourceId)) sourceId = list[0]?.accountId ?? null;
+		});
+	});
 	const others = $derived<Currency[]>(
 		(segments?.currencies ?? [])
 			.map((c) => c.code)
@@ -252,6 +303,10 @@
 	async function submit(pin?: string) {
 		const problem = validate();
 		if (problem) return void (formError = problem);
+		if (!segFresh) {
+			const failed = segFailure?.id === memberId ? segFailure.text : null;
+			return void (formError = failed ?? 'Still updating the pockets. Try again in a moment.');
+		}
 		if (!workspaceId || !target || !source || !destination || !amount || !received) return;
 		formError = null;
 		busy = true;
@@ -350,7 +405,9 @@
 				novalidate
 			>
 				<div class="en-card">
-					{#if formError}<p class="en-error" role="alert">{formError}</p>{/if}
+					{#if formError ?? segError}<p class="en-error" role="alert">
+							{formError ?? segError}
+						</p>{/if}
 					<MemberPicker
 						{targets}
 						bind:selected={target}

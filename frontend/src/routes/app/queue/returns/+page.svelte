@@ -7,9 +7,9 @@
 	it. Opened from a completed withdrawal in the queue (?withdrawal=).
 -->
 <script lang="ts">
-	import { getContext } from 'svelte';
+	import { getContext, untrack } from 'svelte';
 	import { page } from '$app/state';
-	import { Cause, Effect, Exit, Option } from 'effect';
+	import { Cause, Effect, Exit, Option, Schema } from 'effect';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 	import {
@@ -27,6 +27,7 @@
 	import { CommandAttempt, showsRecovery } from '#lib/client/command-attempt.svelte.js';
 	import { EntryEvidence } from '#lib/client/entry-evidence.svelte.js';
 	import { submitEntry } from '#lib/client/entry-submit.js';
+	import { cachedPage, type PageLoaded } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { entryMessage, localMoment, localNow } from '#lib/entries.js';
 	import { groupAmount, parseAmount } from '#lib/income.js';
@@ -36,6 +37,7 @@
 	import Outcome from '#lib/ui/app/Outcome.svelte';
 	import OutcomeUnknown from '#lib/ui/app/OutcomeUnknown.svelte';
 	import RootHero from '#lib/ui/app/RootHero.svelte';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import EvidencePicker from '#lib/ui/money/EvidencePicker.svelte';
 	import '#lib/ui/money/entry.css';
 
@@ -45,11 +47,8 @@
 	);
 	const naira = (a: string) => formatMoney(a, 'NGN');
 
-	let completed = $state<Withdrawal[]>([]);
 	/** The withdrawal is fixed per page (the command path); picking another reloads. */
 	const withdrawalId = page.url.searchParams.get('withdrawal');
-	let returnable = $state<ReturnableType | null>(null);
-	let loadError = $state<string | null>(null);
 	let amountText = $state('');
 	let seenAt = $state(localNow());
 	let returnedBy = $state('');
@@ -81,39 +80,59 @@
 	const failureOf = <A, E>(exit: Exit.Exit<A, E>) =>
 		Exit.isFailure(exit) ? Option.getOrUndefined(Cause.findErrorOption(exit.cause)) : undefined;
 
+	async function read<S extends Schema.ConstraintDecoder<unknown>>(
+		path: string,
+		schema: S
+	): Promise<PageLoaded<S['Type']>> {
+		const exit = await Effect.runPromiseExit(getJson(path, schema));
+		if (Exit.isSuccess(exit)) return { ok: true, value: exit.value };
+		const failure = failureOf(exit);
+		return {
+			ok: false,
+			text: entryMessage(failure),
+			status: failure?._tag === 'BackendError' ? failure.status : null
+		};
+	}
+
 	/**
 	 * The linked withdrawal loads on its own (record_returned_funds is enough);
 	 * the picker's list of completed withdrawals needs the queue permission and
 	 * is only offered when it loads.
+	 *
+	 * Blueprint 23: both open from cache, then refresh. The picker is kept
+	 * without receipt revisions; the withdrawal's returnable amounts (masked
+	 * account only) are kept per withdrawal, and recording waits for the fresh
+	 * copy, since it sets the limit.
 	 */
-	async function loadCompleted() {
-		if (withdrawalId) void loadReturnable(withdrawalId);
-		const exit = await Effect.runPromiseExit(
-			getJson(`${WithdrawalAppRoutes.queue}?tab=completed`, WithdrawalPage)
-		);
-		if (Exit.isSuccess(exit)) {
-			completed = [...exit.value.items];
-			const first = completed[0]?.withdrawalId;
-			if (!withdrawalId && first) pick(first);
-			return;
-		}
-		if (!withdrawalId) loadError = entryMessage(failureOf(exit));
-	}
-	let started = false;
-	$effect(() => {
-		if (workspaceId && !started) {
-			started = true;
-			void loadCompleted();
-		}
+	const picker = cachedPage(shell, {
+		kind: 'queue',
+		part: () => 'returns',
+		load: () => read(`${WithdrawalAppRoutes.queue}?tab=completed`, WithdrawalPage),
+		keep: (value) => ({
+			...value,
+			items: value.items.map((w) =>
+				w.payout ? { ...w, payout: { ...w.payout, revisions: null } } : w
+			)
+		})
 	});
-
-	async function loadReturnable(id: string) {
-		returnable = null;
-		formError = null;
-		const exit = await Effect.runPromiseExit(getJson(EntryAppRoutes.returns(id), Returnable));
-		if (Exit.isSuccess(exit)) returnable = exit.value;
-		else loadError = entryMessage(failureOf(exit));
-	}
+	const linkedView = cachedPage(shell, {
+		kind: 'queue',
+		part: () => (withdrawalId ? `return-${withdrawalId.toLowerCase()}` : undefined),
+		enabled: () => withdrawalId !== null,
+		cacheable: () => withdrawalId !== null,
+		load: () => read(EntryAppRoutes.returns(withdrawalId ?? ''), Returnable)
+	});
+	const completed = $derived<readonly Withdrawal[]>(picker.data?.items ?? []);
+	const returnable = $derived<ReturnableType | null>(withdrawalId ? linkedView.data : null);
+	const loadError = $derived(
+		withdrawalId ? (linkedView.data ? null : linkedView.error) : picker.data ? null : picker.error
+	);
+	const savedAt = $derived(withdrawalId ? linkedView.savedAt : picker.savedAt);
+	$effect(() => {
+		// Only a fresh list picks the first withdrawal (a cached one may be gone).
+		const first = picker.fresh ? completed[0]?.withdrawalId : undefined;
+		if (!withdrawalId && first) untrack(() => pick(first));
+	});
 
 	/** The command path follows the chosen withdrawal (the attempt is per page). */
 	function pick(id: string) {
@@ -247,6 +266,11 @@
 				/>
 			</div>
 		{/if}
+		<CacheNote
+			{savedAt}
+			online={shell.online}
+			failed={(withdrawalId ? linkedView.error : picker.error) !== null}
+		/>
 		{#if loadError}
 			<p class="mm-empty" role="alert">{loadError}</p>
 		{:else if completed.length === 0 && !withdrawalId}
@@ -358,8 +382,10 @@
 						<button
 							type="submit"
 							class="en-primary"
-							disabled={!shell.canAct || shell.paused('returned_funds') || busy}
-							>{busy ? 'Sending…' : 'Send for checking'}</button
+							disabled={!shell.canAct ||
+								shell.paused('returned_funds') ||
+								busy ||
+								linkedView.savedAt !== null}>{busy ? 'Sending…' : 'Send for checking'}</button
 						>
 					</div>
 				</div>

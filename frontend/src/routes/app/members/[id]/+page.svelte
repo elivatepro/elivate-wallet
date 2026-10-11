@@ -24,6 +24,7 @@
 	import type { Role } from '#lib/contract/common.js';
 	import { AppOrgRoutes, MemberView, type MembershipAction } from '#lib/contract/org-admin.js';
 	import { loadView, OrgCommand } from '#lib/client/org.svelte.js';
+	import { cachedPage } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { formatMoney, hiddenMoney } from '#lib/money.js';
 	import {
@@ -34,6 +35,7 @@
 		STATUS_LABELS
 	} from '#lib/org.js';
 	import { ROLE_LABELS } from '#lib/labels.js';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import OrgDialog from '#lib/ui/org/OrgDialog.svelte';
 	import OrgHero from '#lib/ui/org/OrgHero.svelte';
 
@@ -41,27 +43,21 @@
 	const workspace = $derived(shell.state.kind === 'ready' ? shell.state.view.workspace : null);
 	const id = $derived(page.params.id ?? '');
 
-	let view = $state<MemberView | null>(null);
-	let loadError = $state<string | null>(null);
-	let loadedFor: string | null = null;
 	let notice = $state<string | null>(null);
 
-	async function load() {
-		const target = id;
-		const result = await loadView(AppOrgRoutes.member(target), MemberView);
-		if (target !== id) return;
-		if (result.ok) {
-			view = result.value;
-			loadError = null;
-		} else loadError = result.text;
-	}
-
+	// Blueprint 23: a member opens from cache (kind 'members', part = the
+	// membership id), then refreshes; another [id] reads its own copy.
+	const read = cachedPage(shell, {
+		kind: 'members',
+		part: () => id.toLowerCase(),
+		load: () => loadView(AppOrgRoutes.member(id), MemberView)
+	});
+	const view = $derived(read.data);
+	const loadError = $derived(view ? null : read.error);
+	const load = () => read.reload();
+	// Gone, or no longer visible to this person: drop the cached copy.
 	$effect(() => {
-		if (shell.state.kind === 'ready' && loadedFor !== id) {
-			loadedFor = id;
-			view = null;
-			void load();
-		}
+		if (read.errorStatus === 403 || read.errorStatus === 404) read.clear();
 	});
 
 	const member = $derived(view?.member ?? null);
@@ -154,6 +150,7 @@
 
 <div class="o-page">
 	<a class="back o-sub" href="/app/members">‹ Members</a>
+	<CacheNote savedAt={read.savedAt} online={shell.online} failed={read.error !== null} />
 
 	{#if !view && !loadError}
 		<div class="o-skeleton" aria-hidden="true"></div>
@@ -279,7 +276,7 @@
 										<button
 											type="button"
 											class="o-ghost funds-action"
-											disabled={!shell.canAct}
+											disabled={!shell.canAct || read.savedAt !== null}
 											onclick={() => ask('funds')}
 											>{funds.action === 'clear'
 												? 'Manage funds again'

@@ -13,6 +13,7 @@
 // device cache (36a) covers reloads. Both are keyed by kind and guarded by
 // the `ew_who` cookie. Commands are never answered from here.
 
+import { onMount, untrack } from 'svelte';
 import {
 	browserStore,
 	clearKinds,
@@ -120,7 +121,7 @@ export class CachedRead<T> {
 	 * scope. A reply for a person or workspace that is no longer current is
 	 * dropped instead (returns false).
 	 */
-	fresh(data: T, scope: CacheScope | null, ticket: ReadTicket): boolean {
+	fresh(data: T, scope: CacheScope | null, ticket: ReadTicket, kept: T = data): boolean {
 		if (!this.current(ticket)) {
 			this.clear();
 			return false;
@@ -128,8 +129,9 @@ export class CachedRead<T> {
 		this.data = data;
 		this.savedAt = null;
 		this.#shownScope = scope;
-		if (scope) this.#keep(data, scope, ticket.who);
-		else this.#pending = { data, who: ticket.who };
+		// Blueprint 23: `kept` may leave out what only the fresh view needs.
+		if (scope) this.#keep(kept, scope, ticket.who);
+		else this.#pending = { data: kept, who: ticket.who };
 		return true;
 	}
 
@@ -156,6 +158,20 @@ export class CachedRead<T> {
 			this.#shownScope = scope;
 			this.#keep(pending.data, scope, pending.who);
 		}
+	}
+
+	/**
+	 * A command changed what is shown (Greptile on PR #60): label it as a saved
+	 * copy ("Updating…") until the replacement arrives, so actions that need
+	 * fresh data wait for it.
+	 */
+	markStale(now = Date.now()): void {
+		if (this.data !== null && this.savedAt === null) this.savedAt = now;
+	}
+
+	/** Shown, but not to be kept when the scope is confirmed. */
+	forget(): void {
+		this.#pending = null;
 	}
 
 	/** Drops what is shown (not what is stored). */
@@ -195,5 +211,251 @@ export class CachedRead<T> {
 		} catch {
 			// The forbidden-field guard refused it: it is shown, never kept.
 		}
+	}
+}
+
+/** What a page read answers: the value, or the text to show (org.svelte.ts `Loaded`). */
+export type PageLoaded<T> =
+	| { readonly ok: true; readonly value: T }
+	| { readonly ok: false; readonly text: string; readonly status: number | null };
+
+/** The shell parts a cached page follows (#lib/client/shell.svelte.ts). */
+export interface PageShell {
+	readonly readable: boolean;
+	readonly scope: CacheScope | null;
+}
+
+export interface CachedPageOptions<T> {
+	readonly kind: CacheKind;
+	/**
+	 * A sub-entry (a record id, lower case); the page reads again when it
+	 * changes. With `part`, undefined means "no record yet": nothing is shown
+	 * from or kept in the cache.
+	 */
+	readonly part?: () => string | undefined;
+	readonly load: () => Promise<PageLoaded<T>>;
+	/**
+	 * Blueprint 23: the value as kept on the device (e.g. without fields only
+	 * the fresh view needs). The page still shows the full fresh value.
+	 */
+	readonly keep?: (value: T) => T;
+	/** False: neither shown from nor kept in the cache (e.g. a filtered view). */
+	readonly cacheable?: () => boolean;
+	/** False: the page reads nothing yet. */
+	readonly enabled?: () => boolean;
+}
+
+/**
+ * Blueprint 23: the Blueprint 20 B6 CachedRead steps for a whole page. Shows
+ * the memory or device copy at once (`savedAt` set: the CacheNote says
+ * "Updating…"), reads at the same time as /api/session, keeps the fresh reply
+ * once the session names the scope, drops what belongs to another person or
+ * workspace, and refetches when a command invalidates the kind. Commands are
+ * never answered from here.
+ */
+export class CachedPage<T> {
+	error: string | null = $state(null);
+	errorStatus: number | null = $state(null);
+	/** A fresh reply arrived (cached data alone does not count). */
+	fresh = $state(false);
+	#read: CachedRead<T> = $state.raw(null as unknown as CachedRead<T>);
+	#part: string | undefined;
+	#seq = 0;
+	#unwatch: (() => void) | null = null;
+	readonly #shell: PageShell;
+	readonly #o: CachedPageOptions<T>;
+	readonly #store: KeyValueStore | null;
+
+	constructor(shell: PageShell, options: CachedPageOptions<T>, store = browserStore()) {
+		this.#shell = shell;
+		this.#o = options;
+		this.#store = store;
+		this.#part = options.part?.();
+		this.#read = new CachedRead<T>(options.kind, this.#part, store);
+	}
+
+	/** Shown data: fresh, else the cached copy, else null. */
+	get data(): T | null {
+		return this.#read.data;
+	}
+	/** When the shown copy was saved; null while fresh data (or nothing) is shown. */
+	get savedAt(): number | null {
+		return this.#read.savedAt;
+	}
+
+	/** Shows the cached copy and follows invalidation. Returns the cleanup. */
+	mount(): () => void {
+		if (this.#cacheable()) this.#read.show();
+		this.#watch();
+		return () => {
+			this.#unwatch?.();
+			this.#unwatch = null;
+			this.#seq++;
+		};
+	}
+
+	/** The session named the scope: keep or drop. */
+	confirm(scope: CacheScope): void {
+		this.#read.confirm(scope);
+	}
+
+	/**
+	 * Follows `part`: another record shows its own cached copy at once (also
+	 * offline). Called by reload() and by cachedPage() when the part changes.
+	 */
+	follow(): void {
+		const part = this.#o.part?.();
+		if (part === this.#part) return;
+		this.#seq++; // a read for the previous record no longer applies
+		this.#part = part;
+		this.#read = new CachedRead<T>(this.#o.kind, part, this.#store);
+		this.fresh = false;
+		this.error = null;
+		this.errorStatus = null;
+		if (this.#unwatch) this.#watch();
+		if (this.#cacheable()) this.#read.show();
+	}
+
+	/** Reads now; the latest call wins. */
+	async reload(): Promise<void> {
+		this.follow();
+		const mine = ++this.#seq;
+		if (this.#o.enabled && !this.#o.enabled()) return;
+		const read = this.#read;
+		const ticket = read.begin();
+		const result = await this.#o.load();
+		if (mine !== this.#seq) return;
+		// Another tab switched workspace while this ran: the reply is not ours.
+		if (!read.current(ticket)) {
+			read.clear();
+			return this.reload();
+		}
+		if (!result.ok) {
+			// Not allowed any more, or gone: the cached copy must not stay up.
+			if (result.status === 403 || result.status === 404) read.clear();
+			this.error = result.text;
+			this.errorStatus = result.status;
+			return;
+		}
+		this.error = null;
+		this.errorStatus = null;
+		this.fresh = true;
+		if (this.#cacheable()) {
+			const kept = this.#o.keep ? this.#o.keep(result.value) : result.value;
+			read.fresh(result.value, this.#shell.scope, ticket, kept);
+		} else {
+			// Shown, never kept (a filtered view).
+			read.fresh(result.value, null, ticket);
+			read.forget();
+		}
+	}
+
+	/** Forget what is shown (e.g. the person lost access). */
+	clear(): void {
+		this.#read.clear();
+	}
+
+	#watch(): void {
+		this.#unwatch?.();
+		const read = this.#read;
+		this.#unwatch = read.watch(() => {
+			read.markStale();
+			this.fresh = false;
+			void this.reload();
+		});
+	}
+
+	#cacheable(): boolean {
+		if (this.#o.part && this.#part === undefined) return false;
+		return !this.#o.cacheable || this.#o.cacheable();
+	}
+}
+
+/**
+ * Creates a CachedPage during component setup and wires it: cached copy on
+ * mount, a read with /api/session and again when back online, and the scope
+ * check once the session answers.
+ *
+ *   const view = cachedPage(shell, { kind: 'audit', load: () => loadView(path, AuditEvents) });
+ *   view.data · view.savedAt · view.error · view.reload()
+ */
+export function cachedPage<T>(shell: PageShell, options: CachedPageOptions<T>): CachedPage<T> {
+	const page = new CachedPage<T>(shell, options);
+	onMount(() => page.mount());
+	// Starts with /api/session, not after it, again when back online, and when
+	// the record (`part`, e.g. a route param) changes.
+	$effect(() => {
+		options.part?.();
+		const readable = shell.readable;
+		untrack(() => {
+			page.follow();
+			if (readable) void page.reload();
+		});
+	});
+	$effect(() => {
+		if (shell.scope) page.confirm(shell.scope);
+	});
+	return page;
+}
+
+/** A cursor-paged list (`{ items, nextCursor }`). */
+export interface Paged<I> {
+	readonly items: readonly I[];
+	readonly nextCursor: string | null;
+}
+
+/**
+ * Blueprint 23: "Load more" on top of a cached first page. Only the first page
+ * is cached; pages loaded after it belong to the first page they followed and
+ * are dropped when that page is replaced (fresh data, another workspace).
+ */
+export class MorePages<I> {
+	loading = $state(false);
+	error: string | null = $state(null);
+	#extra: {
+		readonly base: Paged<I>;
+		readonly items: readonly I[];
+		readonly cursor: string | null;
+	} | null = $state.raw(null);
+	readonly #first: () => Paged<I> | null;
+
+	constructor(first: () => Paged<I> | null) {
+		this.#first = first;
+	}
+
+	get items(): readonly I[] {
+		const base = this.#first();
+		if (!base) return [];
+		const extra = this.#extra;
+		return extra && extra.base === base ? [...base.items, ...extra.items] : base.items;
+	}
+
+	get nextCursor(): string | null {
+		const base = this.#first();
+		if (!base) return null;
+		const extra = this.#extra;
+		return extra && extra.base === base ? extra.cursor : base.nextCursor;
+	}
+
+	/** Loads the page after the last one shown. */
+	async more(load: (cursor: string) => Promise<PageLoaded<Paged<I>>>): Promise<void> {
+		const base = this.#first();
+		const cursor = this.nextCursor;
+		if (!base || !cursor || this.loading) return;
+		this.loading = true;
+		this.error = null;
+		const result = await load(cursor);
+		this.loading = false;
+		if (this.#first() !== base) return; // replaced while loading
+		if (!result.ok) {
+			this.error = result.text;
+			return;
+		}
+		const before = this.#extra && this.#extra.base === base ? this.#extra.items : [];
+		this.#extra = {
+			base,
+			items: [...before, ...result.value.items],
+			cursor: result.value.nextCursor
+		};
 	}
 }

@@ -4,10 +4,11 @@
 	"Read all", "You're all caught up" at the end; the empty state is v3 H07.
 -->
 <script lang="ts">
-	import { getContext, untrack } from 'svelte';
+	import { getContext, onMount, untrack } from 'svelte';
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 	import type { Bell } from '#lib/client/bell.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import NotificationList from '#lib/ui/app/NotificationList.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
 
@@ -20,6 +21,12 @@
 	);
 	$effect(() => {
 		if (workspace) untrack(() => void bell.load('all'));
+	});
+	// Blueprint 23: the saved list at once; the read waits for the workspace.
+	onMount(() => bell.preview('all'));
+	// Blueprint 23: the bell keeps its first page once the session names the scope.
+	$effect(() => {
+		if (shell.scope) bell.confirm(shell.scope);
 	});
 
 	const list = $derived(bell.list.kind === 'ready' ? bell.list : null);
@@ -46,6 +53,8 @@
 		<button type="button" class="read-all" onclick={() => bell.markAll()}>Mark all as read</button>
 	{/if}
 </div>
+
+<CacheNote savedAt={bell.savedAt} online={shell.online} failed={bell.failed} />
 
 {#if empty}
 	<section class="empty">

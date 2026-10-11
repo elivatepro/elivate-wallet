@@ -17,7 +17,9 @@
 	import { AppRoutes, BanksView } from '#lib/contract/app.js';
 	import { Lookup, PayoutAccount, type Bank } from '#lib/contract/payout.js';
 	import type { ApiFailure } from '#lib/contract/errors.js';
-	import { getJson, newKey, sendCommand } from '#lib/client/api.js';
+	import { newKey, sendCommand } from '#lib/client/api.js';
+	import { loadView } from '#lib/client/org.svelte.js';
+	import { cachedPage } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import {
 		cleanAccountNumber,
@@ -37,8 +39,17 @@
 
 	const shell = getContext<Shell>('shell');
 
-	let banks = $state<ReadonlyArray<Bank> | null>(null);
-	let banksUnavailable = $state(false);
+	// Blueprint 23: only the bank list opens from cache (no account data in
+	// it); lookup and confirm always go to the server and are never cached.
+	const bankList = cachedPage(shell, {
+		kind: 'payout-accounts',
+		part: () => 'banks',
+		load: () => loadView(AppRoutes.payoutBanks.path, BanksView)
+	});
+	const banks = $derived<ReadonlyArray<Bank> | null>(
+		bankList.data?.banks ?? (bankList.error !== null ? [] : null)
+	);
+	const banksUnavailable = $derived(bankList.data === null && bankList.error !== null);
 	let bankCode = $state('');
 	let lookup = $state<Lookup | null>(null);
 	let needPin = $state(false);
@@ -73,21 +84,6 @@
 	$effect(() => {
 		if (replaces && !intent) intent = takeReplaceIntent(replaces);
 		if (intent && !reason) reason = intent.reason;
-	});
-
-	async function loadBanks() {
-		const exit = await Effect.runPromiseExit(getJson(AppRoutes.payoutBanks.path, BanksView));
-		if (Exit.isSuccess(exit)) {
-			banks = exit.value.banks;
-			banksUnavailable = false;
-		} else {
-			banks = [];
-			banksUnavailable = true;
-		}
-	}
-
-	$effect(() => {
-		if (shell.state.kind === 'ready' && !banks) void loadBanks();
 	});
 
 	const failureOf = <A,>(exit: Exit.Exit<A, ApiFailure>) =>

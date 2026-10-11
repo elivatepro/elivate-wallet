@@ -8,7 +8,7 @@
 	rejects it, always with a reason. No PIN.
 -->
 <script lang="ts">
-	import { getContext } from 'svelte';
+	import { getContext, untrack } from 'svelte';
 	import { Cause, Effect, Exit, Option } from 'effect';
 	import {
 		ReviewItem,
@@ -17,6 +17,7 @@
 		type ReviewItem as ReviewItemType
 	} from '#lib/contract/withdrawals.js';
 	import { getJson, newKey, sendCommand } from '#lib/client/api.js';
+	import { cachedPage, MorePages, type PageLoaded } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { initials } from '#lib/activity.js';
 	import { entryMessage, entryStage, entryTitle, signedEntryAmount } from '#lib/entries.js';
@@ -35,16 +36,12 @@
 	import QueueTabs from '#lib/ui/money/QueueTabs.svelte';
 	import '#lib/ui/money/money.css';
 	import NoAccess from '#lib/ui/app/NoAccess.svelte';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 
 	const shell = getContext<Shell>('shell');
 	type Tab = 'assigned' | 'cleared' | 'rejected' | 'all';
 
 	let tab = $state<Tab>('assigned');
-	let page = $state<ReviewPage | null>(null);
-	let items = $state<ReviewItemType[]>([]);
-	let loadError = $state<string | null>(null);
-	let denied = $state(false);
-	let selected = $state<ReviewItemType | null>(null);
 	const idOf = (c: ReviewItemType) => (c.kind === 'payout' ? c.payoutId : c.caseId);
 	let reason = $state('');
 	let reasonError = $state<string | null>(null);
@@ -57,59 +54,78 @@
 		shell.state.kind === 'ready' ? shell.state.view.workspace.membershipId : null
 	);
 
-	/** Only the newest read is applied (a slower, older tab must not win). */
-	let seq = 0;
-	/** A replacement first page is loading: its cursor isn't known yet. */
-	let loadingFirst = $state(false);
-	let loadingMore = $state(false);
-	async function load(more = false) {
-		const mine = ++seq;
-		const listFor = tab;
-		if (!more) loadingFirst = true;
-		const cursor = more && page?.nextCursor ? `&cursor=${encodeURIComponent(page.nextCursor)}` : '';
-		if (more) loadingMore = true;
-		const exit = await Effect.runPromiseExit(
-			getJson(`${WithdrawalAppRoutes.reviews}?tab=${tab}${cursor}`, ReviewPage)
-		);
-		loadingMore = false;
-		if (mine !== seq || listFor !== tab) return;
-		if (!more) loadingFirst = false;
-		if (Exit.isSuccess(exit)) {
-			page = exit.value;
-			items = more ? [...items, ...exit.value.items] : [...exit.value.items];
-			loadError = null;
-			denied = false;
-			if (!more && !items.some((c) => selected && idOf(c) === idOf(selected)))
-				void select(items[0] ?? null);
-			return;
-		}
+	const DENIED = 'Only Financial Evidence Reviewers see these cases.';
+	async function read(path: string): Promise<PageLoaded<ReviewPage>> {
+		const exit = await Effect.runPromiseExit(getJson(path, ReviewPage));
+		if (Exit.isSuccess(exit)) return { ok: true, value: exit.value };
 		const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
-		denied = failure?._tag === 'BackendError' && failure.code === 'authorization_denied';
-		loadError = denied
-			? 'Only Financial Evidence Reviewers see these cases.'
-			: 'We couldn’t load the cases.';
+		const isBackend = failure?._tag === 'BackendError';
+		const denied = isBackend && failure.code === 'authorization_denied';
+		return {
+			ok: false,
+			text: denied ? DENIED : 'We couldn’t load the cases.',
+			status: isBackend ? failure.status : null
+		};
 	}
+
+	// Blueprint 23: each tab's first page opens from cache, then refreshes (a
+	// new tab is a new `part`, so it reads again by itself). Receipt revisions
+	// (receipt facts) and evidence files are never kept; the open case is
+	// always read fresh by id.
+	const view = cachedPage(shell, {
+		kind: 'evidence',
+		part: () => tab,
+		load: () => read(`${WithdrawalAppRoutes.reviews}?tab=${tab}`),
+		keep: (value) => ({
+			...value,
+			items: value.items.map((c) =>
+				c.kind === 'payout'
+					? { ...c, payout: { ...c.payout, revisions: null } }
+					: { ...c, entry: { ...c.entry, evidence: [] } }
+			)
+		})
+	});
+	const pages = new MorePages<ReviewItemType>(() => view.data);
+	const page = $derived(view.data);
+	const items = $derived(pages.items);
+	const denied = $derived(view.error === DENIED);
+	const loadError = $derived(view.data ? null : view.error);
+	const loadMore = () => {
+		const forTab = tab;
+		return pages.more((cursor) =>
+			read(`${WithdrawalAppRoutes.reviews}?tab=${forTab}&cursor=${encodeURIComponent(cursor)}`)
+		);
+	};
+
+	/** The open case, kept by id across refreshes; its fresh read replaces the row. */
+	let selectedId = $state<string | null>(null);
+	let detail = $state.raw<ReviewItemType | null>(null);
+	const selected = $derived(
+		detail && idOf(detail) === selectedId
+			? detail
+			: (items.find((c) => idOf(c) === selectedId) ?? null)
+	);
 
 	async function select(c: ReviewItemType | null) {
 		reason = '';
 		reasonError = null;
 		error = null;
 		key = newKey();
-		selected = c;
-		if (!c) return;
-		const exit = await Effect.runPromiseExit(
-			getJson(WithdrawalAppRoutes.review(idOf(c)), ReviewItem)
-		);
-		if (Exit.isSuccess(exit) && selected && idOf(selected) === idOf(c)) selected = exit.value;
+		const id = c ? idOf(c) : null;
+		selectedId = id;
+		detail = null;
+		if (!id) return;
+		const exit = await Effect.runPromiseExit(getJson(WithdrawalAppRoutes.review(id), ReviewItem));
+		if (Exit.isSuccess(exit) && selectedId === id) detail = exit.value;
 	}
 
-	let loadedFor = $state<string | null>(null);
+	// A list without the open case opens its first one.
 	$effect(() => {
-		const k = `${workspaceId}:${tab}`;
-		if (workspaceId && loadedFor !== k) {
-			loadedFor = k;
-			void load();
-		}
+		const value = view.data;
+		if (!value) return;
+		untrack(() => {
+			if (!value.items.some((c) => idOf(c) === selectedId)) void select(value.items[0] ?? null);
+		});
 	});
 
 	async function decide(decision: 'clear' | 'reject') {
@@ -148,13 +164,13 @@
 						? `Cleared. ${c.entry.reference} is posted.`
 						: `Rejected. Nothing posts for ${c.entry.reference}.`;
 			key = newKey();
-			void load();
+			// The command invalidated 'evidence': the list reads again by itself.
 			return;
 		}
 		const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
 		if (failure && !isUnknownOutcome(failure)) key = newKey();
 		error = c.kind === 'payout' ? moveMessage(failure) : entryMessage(failure);
-		if (failure?._tag === 'BackendError' && failure.code === 'conflict') void load();
+		if (failure?._tag === 'BackendError' && failure.code === 'conflict') void view.reload();
 	}
 
 	const counts = $derived(page?.counts ?? null);
@@ -237,6 +253,7 @@
 {:else}
 	<div class="mm-page">
 		<QueueTabs {tabs} bind:value={tab} label="Evidence review" />
+		<CacheNote savedAt={view.savedAt} online={shell.online} failed={view.error !== null} />
 		{#if notice}<p class="mm-notice" role="status">{notice}</p>{/if}
 
 		{#if !page && !loadError}
@@ -279,13 +296,14 @@
 								</button>
 							{/each}
 						</div>
-						{#if page?.nextCursor}
+						{#if pages.nextCursor}
 							<button
 								type="button"
 								class="mm-btn sm more"
-								disabled={loadingMore || loadingFirst}
-								onclick={() => load(true)}>{loadingMore ? 'Loading…' : 'Show more'}</button
+								disabled={pages.loading}
+								onclick={loadMore}>{pages.loading ? 'Loading…' : 'Show more'}</button
 							>
+							{#if pages.error}<p class="mm-empty" role="alert">{pages.error}</p>{/if}
 						{/if}
 					{/if}
 					{#if tab === 'assigned' && counts?.assigned}

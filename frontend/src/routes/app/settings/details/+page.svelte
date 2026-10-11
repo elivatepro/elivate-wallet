@@ -6,10 +6,11 @@
 -->
 <script lang="ts">
 	import '#lib/ui/settings/settings.css';
-	import { getContext } from 'svelte';
+	import { getContext, untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { SettingsView, type Revision } from '#lib/contract/settings.js';
 	import { loadView, OrgCommand } from '#lib/client/org.svelte.js';
+	import { cachedPage } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { personName } from '#lib/org.js';
 	import {
@@ -22,6 +23,7 @@
 		type FieldErrors,
 		type SettingsForm
 	} from '#lib/settings.js';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import OrgDialog from '#lib/ui/org/OrgDialog.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
 	import SettingsTabs from '#lib/ui/settings/SettingsTabs.svelte';
@@ -39,34 +41,40 @@
 	const LOCALES: Record<string, string> = { 'en-NG': 'English (Nigeria)' };
 	const ZONES: Record<string, string> = { 'Africa/Lagos': 'Africa/Lagos (WAT)' };
 
-	let view = $state<SettingsView | null>(null);
-	let loadError = $state<string | null>(null);
+	// Blueprint 23: the same cached copy as Branding (kind 'settings'), then
+	// fresh. Non-editors read nothing once the shell names their permissions.
+	const read = cachedPage(shell, {
+		kind: 'settings',
+		load: () => loadView('/api/settings', SettingsView),
+		enabled: () => shell.state.kind !== 'ready' || canEdit
+	});
+	const view = $derived(read.data);
+	let denied = $state<string | null>(null);
+	const loadError = $derived(denied ?? (view ? null : read.error));
 	let form = $state<SettingsForm | null>(null);
 	let errors = $state<FieldErrors>({});
 	let saved = $state<string | null>(null);
-	let started = false;
+	let checked = false;
 
-	async function load() {
-		const result = await loadView('/api/settings', SettingsView);
-		if (result.ok) {
-			view = result.value;
-			form = formOf(result.value.settings);
-			loadError = null;
-		} else loadError = result.text;
-	}
+	// The form follows the shown view (cached, then fresh); it stays read-only
+	// while the cached copy shows, so no edit is lost when fresh data arrives.
+	$effect(() => {
+		const shown = view;
+		untrack(() => (form = shown ? formOf(shown.settings) : null));
+	});
 
 	$effect(() => {
-		if (shell.state.kind !== 'ready' || started) return;
-		started = true;
+		if (shell.state.kind !== 'ready' || checked) return;
+		checked = true;
 		if (!canEdit) {
+			read.clear();
 			if (canVault) void goto('/app/settings/backups', { replaceState: true });
-			else loadError = 'You don’t have access to team settings.';
-			return;
+			else denied = 'You don’t have access to team settings.';
 		}
-		void load();
 	});
 
 	const editable = $derived(!!view?.canEdit);
+	const writable = $derived(editable && read.savedAt === null);
 	const patch = $derived.by(() => {
 		if (!view || !form) return {};
 		const phone = normalizePhone(form.supportPhone);
@@ -89,7 +97,7 @@
 
 	function openSave(event: SubmitEvent) {
 		event.preventDefault();
-		if (!form || !dirty || !editable) return;
+		if (!form || !dirty || !writable) return;
 		errors = checkForm(form);
 		if (Object.keys(errors).length > 0) return;
 		save.reset(JSON.stringify(patch));
@@ -106,7 +114,7 @@
 		);
 		if (!result) return;
 		confirmOpen = false;
-		await load();
+		await read.reload();
 		saved = 'Saved.';
 		void shell.load();
 	}
@@ -136,7 +144,7 @@
 		);
 		if (!result) return;
 		restoreOpen = false;
-		await load();
+		await read.reload();
 		saved = `Restored revision ${restoring.revision}.`;
 		void shell.load();
 	}
@@ -146,6 +154,7 @@
 
 <div class="s-page">
 	<SettingsTabs {canEdit} {canVault} />
+	<CacheNote savedAt={read.savedAt} online={shell.online} failed={read.error !== null} />
 
 	{#if loadError}
 		<p class="s-notice bad" role="alert">{loadError}</p>
@@ -169,7 +178,7 @@
 							maxlength="100"
 							autocomplete="organization"
 							bind:value={form.name}
-							disabled={!editable}
+							disabled={!writable}
 							aria-invalid={errors.name ? 'true' : undefined}
 							aria-describedby={errors.name ? 'team-name-error' : undefined}
 						/>
@@ -182,7 +191,7 @@
 							class="s-input"
 							maxlength="30"
 							bind:value={form.shortName}
-							disabled={!editable}
+							disabled={!writable}
 							aria-invalid={errors.shortName ? 'true' : undefined}
 							aria-describedby={errors.shortName ? 'short-name-error' : undefined}
 						/>
@@ -192,7 +201,7 @@
 					</div>
 				</div>
 
-				<fieldset class="s-section" disabled={!editable}>
+				<fieldset class="s-section" disabled={!writable}>
 					<legend class="s-eyebrow">Support contact</legend>
 					<div class="s-grid2">
 						<div class="s-field">
@@ -260,7 +269,7 @@
 					</div>
 				</fieldset>
 
-				<fieldset class="s-section" disabled={!editable}>
+				<fieldset class="s-section" disabled={!writable}>
 					<legend class="s-eyebrow">Region</legend>
 					<div class="s-grid2">
 						<div class="s-field">
@@ -284,7 +293,7 @@
 
 				<div class="s-actions">
 					<button type="button" class="s-ghost" onclick={discard} disabled={!dirty}>Discard</button>
-					<button type="submit" class="s-primary" disabled={!dirty || !editable || !shell.canAct}
+					<button type="submit" class="s-primary" disabled={!dirty || !writable || !shell.canAct}
 						>Save changes</button
 					>
 				</div>
@@ -314,6 +323,7 @@
 									<button
 										type="button"
 										class="s-link"
+										disabled={!writable}
 										onclick={() => openRestore(revision)}
 										aria-label="Restore revision {revision.revision}">Restore</button
 									>

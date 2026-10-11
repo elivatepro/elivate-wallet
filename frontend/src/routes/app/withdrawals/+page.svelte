@@ -17,6 +17,7 @@
 		type Withdrawal as WithdrawalType
 	} from '#lib/contract/withdrawals.js';
 	import { getJson, newKey, sendCommand } from '#lib/client/api.js';
+	import { cachedPage, MorePages, type PageLoaded } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { isUnknownOutcome } from '#lib/recovery.js';
 	import { formatMoney } from '#lib/money.js';
@@ -32,16 +33,12 @@
 	import Pill from '#lib/ui/money/Pill.svelte';
 	import '#lib/ui/money/money.css';
 	import NoAccess from '#lib/ui/app/NoAccess.svelte';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 
 	const shell = getContext<Shell>('shell');
 	type Filter = 'all' | 'open' | 'completed' | 'closed';
 
 	let filter = $state<Filter>('all');
-	let page = $state<WithdrawalPage | null>(null);
-	let items = $state<WithdrawalType[]>([]);
-	let loadError = $state<string | null>(null);
-	let denied = $state(false);
-	let loadingMore = $state(false);
 	let notice = $state<string | null>(null);
 
 	let target = $state<WithdrawalType | null>(null);
@@ -54,49 +51,51 @@
 		shell.state.kind === 'ready' ? shell.state.view.workspace.membershipId : null
 	);
 
-	/** Only the newest read is applied (a slower, older tab must not win). */
-	let seq = 0;
-	/** A replacement first page is loading: its cursor isn't known yet. */
-	let loadingFirst = $state(false);
-	async function load(more = false) {
-		const mine = ++seq;
-		const listFor = filter;
-		if (!more) loadingFirst = true;
+	const DENIED = 'Withdrawals aren’t open to you in this network.';
+	const queryFor = (status: Filter, cursor?: string) => {
 		// Built and read once per call; not reactive state.
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const params = new URLSearchParams();
-		if (filter !== 'all') params.set('status', filter);
-		if (more && page?.nextCursor) params.set('cursor', page.nextCursor);
-		const query = params.size ? `?${params}` : '';
-		if (more) loadingMore = true;
-		const exit = await Effect.runPromiseExit(
-			getJson(`${WithdrawalAppRoutes.mine}${query}`, WithdrawalPage)
-		);
-		loadingMore = false;
-		if (mine !== seq || listFor !== filter) return;
-		if (!more) loadingFirst = false;
-		if (Exit.isSuccess(exit)) {
-			page = exit.value;
-			items = more ? [...items, ...exit.value.items] : [...exit.value.items];
-			loadError = null;
-			denied = false;
-			return;
-		}
+		if (status !== 'all') params.set('status', status);
+		if (cursor) params.set('cursor', cursor);
+		return params.size ? `?${params}` : '';
+	};
+	async function read(path: string): Promise<PageLoaded<WithdrawalPage>> {
+		const exit = await Effect.runPromiseExit(getJson(path, WithdrawalPage));
+		if (Exit.isSuccess(exit)) return { ok: true, value: exit.value };
 		const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
-		denied = failure?._tag === 'BackendError' && failure.code === 'authorization_denied';
-		loadError = denied
-			? 'Withdrawals aren’t open to you in this network.'
-			: 'We couldn’t load your withdrawals.';
+		const isBackend = failure?._tag === 'BackendError';
+		const denied = isBackend && failure.code === 'authorization_denied';
+		return {
+			ok: false,
+			text: denied ? DENIED : 'We couldn’t load your withdrawals.',
+			status: isBackend ? failure.status : null
+		};
 	}
 
-	let loadedFor = $state<string | null>(null);
-	$effect(() => {
-		const key = `${workspaceId}:${filter}`;
-		if (workspaceId && loadedFor !== key) {
-			loadedFor = key;
-			void load();
-		}
+	// Blueprint 23: each filter's first page opens from cache, then refreshes
+	// (a new filter is a new `part`, so it reads again by itself). Receipt
+	// revisions (receipt facts, evidence ids) are detail-only: never kept.
+	const view = cachedPage(shell, {
+		kind: 'withdrawals',
+		part: () => filter,
+		load: () => read(`${WithdrawalAppRoutes.mine}${queryFor(filter)}`),
+		keep: (value) => ({
+			...value,
+			items: value.items.map((w) =>
+				w.payout ? { ...w, payout: { ...w.payout, revisions: null } } : w
+			)
+		})
 	});
+	const pages = new MorePages<WithdrawalType>(() => view.data);
+	const page = $derived(view.data);
+	const items = $derived(pages.items);
+	const denied = $derived(view.error === DENIED);
+	const loadError = $derived(view.data ? null : view.error);
+	const loadMore = () => {
+		const status = filter;
+		return pages.more((cursor) => read(`${WithdrawalAppRoutes.mine}${queryFor(status, cursor)}`));
+	};
 
 	const counts = $derived(page?.counts ?? null);
 	const filters = $derived<{ key: Filter; label: string }[]>([
@@ -130,13 +129,13 @@
 		if (Exit.isSuccess(exit)) {
 			dialogOpen = false;
 			notice = `Cancelled. ${formatMoney(exit.value.amount, 'NGN')} is back in ${exit.value.pocket.name}.`;
-			void load();
+			// The command invalidated 'withdrawals': the list reads again by itself.
 			return;
 		}
 		const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
 		if (failure && !isUnknownOutcome(failure)) cancelKey = newKey();
 		dialogError = moveMessage(failure);
-		if (failure?._tag === 'BackendError' && failure.code === 'conflict') void load();
+		if (failure?._tag === 'BackendError' && failure.code === 'conflict') void view.reload();
 	}
 
 	const amountText = (w: WithdrawalType) =>
@@ -185,6 +184,8 @@
 			{/if}
 		</div>
 
+		<CacheNote savedAt={view.savedAt} online={shell.online} failed={view.error !== null} />
+
 		{#if notice}<p class="mm-notice" role="status">{notice}</p>{/if}
 
 		{#if !page && !loadError}
@@ -232,13 +233,11 @@
 					</div>
 				{/each}
 			</div>
-			{#if page?.nextCursor}
-				<button
-					type="button"
-					class="mm-btn more"
-					disabled={loadingMore || loadingFirst}
-					onclick={() => load(true)}>{loadingMore ? 'Loading…' : 'Show more'}</button
+			{#if pages.nextCursor}
+				<button type="button" class="mm-btn more" disabled={pages.loading} onclick={loadMore}
+					>{pages.loading ? 'Loading…' : 'Show more'}</button
 				>
+				{#if pages.error}<p class="mm-empty" role="alert">{pages.error}</p>{/if}
 			{/if}
 		{/if}
 	</div>

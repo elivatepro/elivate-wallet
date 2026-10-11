@@ -10,33 +10,27 @@
 	import { UID_PATTERN } from '#lib/contract/common.js';
 	import { AppOrgRoutes, MemberRows, type MemberRow } from '#lib/contract/org-admin.js';
 	import { loadView, OrgCommand } from '#lib/client/org.svelte.js';
+	import { cachedPage } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { personName } from '#lib/org.js';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import PinField from '#lib/ui/auth/PinField.svelte';
 
 	const shell = getContext<Shell>('shell');
 	const workspace = $derived(shell.state.kind === 'ready' ? shell.state.view.workspace : null);
-	let items = $state<MemberRow[] | null>(null);
-	let loadError = $state<string | null>(null);
-	let started = false;
+	// Blueprint 23: the President Team list opens from cache, then refreshes.
+	const view = cachedPage(shell, {
+		kind: 'members',
+		part: () => 'presidents',
+		load: () => loadView(`${AppOrgRoutes.members}?role=president_team_member`, MemberRows)
+	});
+	const items = $derived(view.data?.items ?? null);
+	const loadError = $derived(view.data ? null : view.error);
 	let uid = $state('');
 	let reason = $state('');
 	let removing = $state<MemberRow | null>(null);
 	let notice = $state<string | null>(null);
 	const command = new OrgCommand();
-
-	async function load() {
-		const result = await loadView(`${AppOrgRoutes.members}?role=president_team_member`, MemberRows);
-		if (result.ok) items = [...result.value.items];
-		else loadError = result.text;
-	}
-
-	$effect(() => {
-		if (shell.state.kind === 'ready' && !started) {
-			started = true;
-			void load();
-		}
-	});
 
 	async function submit(event: SubmitEvent) {
 		event.preventDefault();
@@ -72,7 +66,7 @@
 			removing = null;
 			uid = '';
 			reason = '';
-			await load();
+			await view.reload();
 		}
 	}
 </script>
@@ -82,6 +76,7 @@
 <div class="o-page stub">
 	<a class="o-sub" href="/app/access">Back to roles & access</a>
 	<h1>President Team</h1>
+	<CacheNote savedAt={view.savedAt} online={shell.online} failed={view.error !== null} />
 	{#if notice}<p class="o-notice" role="status">{notice}</p>{/if}
 	{#if loadError}
 		<p class="o-error" role="alert">{loadError}</p>

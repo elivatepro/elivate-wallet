@@ -3,11 +3,12 @@
 	identity hero, Profile card (Edit), Security card (Password, Change PIN)
 	and the signed-in devices. Edit profile is the Paper "App — Screens v4" Z04
 	dialog (owner approved 2026-10-08; no time zone, owner decision). The
-	Password row opens the signed-in change (Blueprint 14, Paper Z08). Read
-	live, never cached on device.
+	Password row opens the signed-in change (Blueprint 14, Paper Z08).
+	Blueprint 23: the profile and password date open from cache (phone masked,
+	no devices or sign-ins); devices and Edit wait for the live read.
 -->
 <script lang="ts">
-	import { getContext, onMount } from 'svelte';
+	import { getContext } from 'svelte';
 	import { Effect, Exit } from 'effect';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
@@ -20,12 +21,14 @@
 	import { Revoked } from '#lib/contract/security.js';
 	import { sendAccountCommand } from '#lib/client/api.js';
 	import { failureOf, followGate, loadAccount, uploadPhoto } from '#lib/client/account.js';
+	import { cachedPage } from '#lib/client/page-cache.svelte.js';
 	import { profilePhotoSrc, shrinkPhoto } from '#lib/client/photo.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { initials, maskPhone } from '#lib/devices.js';
 	import { rankLabel, ROLE_LABELS } from '#lib/labels.js';
 	import AccountHero from '#lib/ui/account/AccountHero.svelte';
 	import PageBar from '#lib/ui/account/PageBar.svelte';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import SessionList from '#lib/ui/account/SessionList.svelte';
 	import FormAlert from '#lib/ui/auth/FormAlert.svelte';
 	import { shownName } from '#lib/contract/identity.js';
@@ -33,8 +36,33 @@
 	const shell = getContext<Shell>('shell');
 	const SELF = '/app/account';
 
-	let view = $state<AccountView | null>(null);
-	let loadError = $state<string | null>(null);
+	// Blueprint 23: kind 'account'. The kept copy has the phone masked and no
+	// device sessions (their ids sign devices out) or sign-ins; it never
+	// holds step-up state. Edit and the device list wait for the live read.
+	const account = cachedPage(shell, {
+		kind: 'account',
+		load: async () => {
+			const exit = await loadAccount();
+			if (Exit.isSuccess(exit)) return { ok: true, value: exit.value };
+			const failure = failureOf(exit);
+			followGate(failure, SELF);
+			return {
+				ok: false,
+				text: 'We couldn’t load your profile right now. Try again shortly.',
+				status: failure?._tag === 'BackendError' ? failure.status : null
+			};
+		},
+		keep: (value: AccountView): AccountView => ({
+			...value,
+			profile: { ...value.profile, phone: maskPhone(value.profile.phone) },
+			sessions: [],
+			security: { ...value.security, unusualSignIns: [] }
+		})
+	});
+	const view = $derived(account.data);
+	/** The live read arrived: what Edit and the device list need. */
+	const live = $derived(view !== null && account.savedAt === null);
+	const loadError = $derived(account.savedAt === null ? account.error : null);
 	let notice = $state<string | null>(null);
 	let busy = $state<string | null>(null);
 	let now = $state(Date.now());
@@ -65,20 +93,9 @@
 			: null
 	);
 
-	async function load() {
-		const exit = await loadAccount();
-		now = Date.now();
-		if (Exit.isSuccess(exit)) {
-			view = exit.value;
-			loadError = null;
-			return;
-		}
-		if (followGate(failureOf(exit), SELF)) return;
-		loadError = 'We couldn’t load your profile right now. Try again shortly.';
-	}
-
-	onMount(() => {
-		void load();
+	const load = () => account.reload();
+	$effect(() => {
+		if (account.data) now = Date.now();
 	});
 
 	// Edit profile (Z04): photo, display name, phone (locked when the NIN gave
@@ -93,7 +110,7 @@
 	const phoneLocked = $derived(view?.profile.phoneSource === 'nin');
 
 	function openEdit() {
-		if (!view) return;
+		if (!view || !live) return;
 		editError = null;
 		fieldErrors = {};
 		photoPreview = null;
@@ -107,7 +124,7 @@
 	}
 
 	async function saveProfile({ form }: { form: FormData }) {
-		if (!view || !shell.online) return;
+		if (!view || !live || !shell.online) return;
 		const displayRaw = String(form.get('displayName') ?? '').trim();
 		const phoneRaw = String(form.get('phone') ?? '');
 		const rank = String(form.get('rank') ?? '');
@@ -214,6 +231,7 @@
 <PageBar title="Profile & security" back="/app/more" backLabel="Back to More" />
 
 <div class="page">
+	<CacheNote savedAt={account.savedAt} online={shell.online} failed={account.error !== null} />
 	{#if loadError}
 		<FormAlert message={loadError} />
 	{/if}
@@ -244,11 +262,11 @@
 			<div class="card">
 				<div class="card-head">
 					<h2 class="card-title">Profile</h2>
-					<button type="button" class="link" disabled={!view} onclick={openEdit}>Edit</button>
+					<button type="button" class="link" disabled={!live} onclick={openEdit}>Edit</button>
 				</div>
 				{#snippet row(label: string, value: string | null, editable = false)}
 					{#if editable}
-						<button type="button" class="row" disabled={!view} onclick={openEdit}>
+						<button type="button" class="row" disabled={!live} onclick={openEdit}>
 							<span class="label">{label}</span>
 							<span class="value">{value ?? 'Not set'}</span>
 							<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
@@ -304,7 +322,7 @@
 
 	{#if notice}<p class="notice" role="status">{notice}</p>{/if}
 
-	{#if view}
+	{#if view && live}
 		<SessionList
 			sessions={view.sessions}
 			{now}
@@ -317,7 +335,7 @@
 	{/if}
 </div>
 
-{#if view}
+{#if view && live}
 	{@const profile = view.profile}
 	<RootDialog
 		bind:open={editing}

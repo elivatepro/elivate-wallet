@@ -7,18 +7,26 @@
 	downloading a report needs the PIN (S14d). Currencies are never added.
 -->
 <script lang="ts">
-	import { getContext, onDestroy } from 'svelte';
+	import { getContext, onDestroy, untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { Exit } from 'effect';
 	import type { ExportFile, ReportKind, ReportOverview } from '#lib/contract/exports.js';
 	import type { Currency } from '#lib/contract/ledger.js';
 	import { newKey } from '#lib/client/api.js';
 	import { ExportFiles, messageOf, retryFile } from '#lib/client/exports.svelte.js';
-	import { createReport, loadOverview, loadReports } from '#lib/client/reports.js';
+	import { cachedPage } from '#lib/client/page-cache.svelte.js';
+	import {
+		createReport,
+		isPresetPeriod,
+		overviewPart,
+		readOverview,
+		readReports
+	} from '#lib/client/reports.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { formatMoney, hiddenMoney, isZero } from '#lib/money.js';
 	import { periodPresets, recreatePeriod, watToday, type Period } from '#lib/statements.js';
 	import PageBar from '#lib/ui/account/PageBar.svelte';
+	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import ExportReportForm from '#lib/ui/exports/ExportReportForm.svelte';
 	import FileList from '#lib/ui/exports/FileList.svelte';
 	import PeriodPicker from '#lib/ui/exports/PeriodPicker.svelte';
@@ -36,8 +44,6 @@
 
 	let currency = $state<Currency>('NGN');
 	let period = $state<Period>(periodPresets(today)[0]!);
-	let overview = $state<ReportOverview | null>(null);
-	let failed = $state<string | null>(null);
 	let notice = $state<string | null>(null);
 	const files = new ExportFiles();
 	onDestroy(() => files.stop());
@@ -55,29 +61,26 @@
 	let downloading = $state<ExportFile | null>(null);
 	let rowBusy = $state<string | null>(null);
 
-	$effect(() => {
-		if (!workspaceId) return;
-		const controller = new AbortController();
-		const c = currency;
-		const p = period;
-		// Never show one currency's figures under another's symbol while loading.
-		overview = null;
-		failed = null;
-		void loadOverview(c, p, controller.signal).then((exit) => {
-			if (controller.signal.aborted) return;
-			if (Exit.isSuccess(exit)) {
-				overview = exit.value;
-				failed = null;
-			} else failed = messageOf(exit, 'We couldn’t load the report figures.');
-		});
-		return () => controller.abort();
+	// Blueprint 23: the figures of each preset period and currency open from
+	// cache (kind 'reports', one part each), then refresh; a custom range is
+	// read fresh and never kept. A figure is only ever shown with the
+	// currency it was read in.
+	const figures = cachedPage(shell, {
+		kind: 'reports',
+		part: () => overviewPart(currency, period),
+		cacheable: () => isPresetPeriod(period, today),
+		load: () => readOverview(currency, period)
 	});
+	const overview = $derived<ReportOverview | null>(
+		figures.data && figures.data.currency === currency ? figures.data : null
+	);
+	const failed = $derived(overview ? null : figures.error);
 
+	// Blueprint 23: recent report files (part 'files'), cached the same way.
+	const recent = cachedPage(shell, { kind: 'reports', part: () => 'files', load: readReports });
 	$effect(() => {
-		if (!workspaceId) return;
-		void loadReports().then((exit) => {
-			if (Exit.isSuccess(exit)) files.set(exit.value.items, exit.value.nextCursor);
-		});
+		const list = recent.data;
+		if (list) untrack(() => files.set(list.items, list.nextCursor));
 	});
 
 	/** Figures always carry the currency they were read in. */
@@ -167,6 +170,11 @@
 <PageBar title="Reports" back="/app/more" backLabel="Back to More" />
 
 <div class="page">
+	<CacheNote
+		savedAt={figures.savedAt ?? recent.savedAt}
+		online={shell.online}
+		failed={figures.error !== null || recent.error !== null}
+	/>
 	<div class="controls">
 		<div class="ex-segment small" role="group" aria-label="Currency">
 			{#each currencies as c (c)}

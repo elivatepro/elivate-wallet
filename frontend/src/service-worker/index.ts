@@ -2,6 +2,10 @@
 // files, the static files and the prerendered app shell so the installed app
 // opens offline. Blueprint 20 B8: other route chunks (Admin included) are not
 // precached; a hashed /_app/immutable/ file is kept the first time it loads.
+// Blueprint 23: once the shell is ready and the browser is idle, the app
+// preloads every /app screen's code (#lib/client/warm-routes), so this runtime
+// cache soon holds all of them; install stays small and quick. Each version
+// has its own cache, and activating a new version deletes the older ones.
 // The Admin site registers no service worker (src/routes/+layout.svelte).
 //
 // It NEVER caches: /api/* (wallet data, which lives in the device cache under
