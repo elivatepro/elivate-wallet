@@ -22,7 +22,9 @@ anchored), DP02 (phone, bottom sheet). Frontend only.
 - Keyboard (WAI-ARIA date picker dialog): arrows by day and week, Home/End, Page Up/Down by month
   (Shift: year), Enter/Space choose, Escape closes (months view first; never a Bits dialog
   underneath). Day buttons are named "Sunday 11 October 2026", today has `aria-current="date"`.
-- Without JS: the native `<input type="date">` with the same id, name, min and max.
+- Before it hydrates: the native `<input type="date">` with the same id, name, min and max (the
+  member app renders only with JS, so this is not a no-JS mode).
+- Report and statement periods pass their WAT `today`, so Today / Yesterday follow Lagos.
 - Every member-app date field uses it (13): Record income, payout record and fix, access grants
   (expiry can't be before the start), Activity custom range (both places), report and statement
   periods. The admin console keeps native fields (as with selects).

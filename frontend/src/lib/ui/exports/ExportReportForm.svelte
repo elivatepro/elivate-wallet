@@ -216,6 +216,7 @@
 		<div class="ex-dates">
 			<span class="ex-date"
 				><label for="report-from">From</label><DatePicker
+					{today}
 					id="report-from"
 					class="ex-input"
 					label="From"
@@ -226,6 +227,7 @@
 			>
 			<span class="ex-date"
 				><label for="report-to">To</label><DatePicker
+					{today}
 					id="report-to"
 					class="ex-input"
 					label="To"

@@ -3,8 +3,8 @@
 	date field. The field reads "2 Oct 2026"; it opens a calendar anchored under
 	it on a desktop with a mouse (DP01), and a bottom sheet on phones and touch
 	screens (DP02). Choosing a day closes it.
-	- Without JS: a native <input type="date"> with the same id, name, min and
-	  max, so forms work as before.
+	- Before it hydrates, a native <input type="date"> with the same id, name,
+	  min and max (the member app itself renders only with JS).
 	- Keyboard (WAI-ARIA date picker dialog): arrows by day and week, Home/End to
 	  the week's ends, Page Up/Down by month (with Shift by year), Enter/Space
 	  choose, Escape closes (never a Bits dialog underneath). The month title
@@ -27,6 +27,7 @@
 		addMonths,
 		clamp,
 		compare,
+		daysIn,
 		fieldLabel,
 		keyMove,
 		monthGrid,
@@ -54,6 +55,7 @@
 		invalid = false,
 		describedby,
 		disabled = false,
+		today: todayIso,
 		onchange
 	}: {
 		/** `YYYY-MM-DD`, or '' when empty. */
@@ -73,6 +75,11 @@
 		invalid?: boolean;
 		describedby?: string | undefined;
 		disabled?: boolean;
+		/**
+		 * The day "Today" means (`YYYY-MM-DD`), when it isn't the device's: report
+		 * and statement periods use WAT (Lagos).
+		 */
+		today?: string | undefined;
 		onchange?: (value: string) => void;
 	} = $props();
 
@@ -93,7 +100,9 @@
 	const minDay = $derived(parseIso(min));
 	const maxDay = $derived(parseIso(max));
 	const chosen = $derived(parseIso(value));
-	const today = $derived(todayLocal());
+	/** Refreshed on every open (a page left open overnight). */
+	let deviceToday = $state<Day>(todayLocal());
+	const today = $derived(parseIso(todayIso) ?? deviceToday);
 	const yesterday = $derived(addDays(today, -1));
 	const weeks = $derived(monthGrid(focusDay.y, focusDay.m));
 	const canPrev = $derived(
@@ -110,6 +119,7 @@
 
 	async function show() {
 		if (disabled || open) return;
+		deviceToday = todayLocal();
 		mode = matchMedia('(min-width: 1024px) and (pointer: fine)').matches ? 'pop' : 'sheet';
 		view = 'days';
 		focusDay = clamp(chosen ?? today, minDay, maxDay);
@@ -231,11 +241,8 @@
 	// ── Month and year view ──
 	function monthAllowed(y: number, m: number) {
 		const first = { y, m, d: 1 };
-		const last = { y, m, d: 28 };
-		return (
-			(!maxDay || compare(first, maxDay) <= 0) &&
-			(!minDay || compare(addMonths(last, 1), minDay) > 0)
-		);
+		const last = { y, m, d: daysIn(y, m) };
+		return (!maxDay || compare(first, maxDay) <= 0) && (!minDay || compare(last, minDay) >= 0);
 	}
 
 	function pickMonth(y: number, m: number) {
@@ -383,8 +390,11 @@
 		class="dp-field {className}"
 		class:dp-invalid={invalid}
 		bind:this={trigger}
+		role="combobox"
 		aria-haspopup="dialog"
 		aria-expanded={open}
+		aria-controls={open ? `${key}-panel` : undefined}
+		aria-invalid={invalid ? 'true' : undefined}
 		aria-describedby={describedby}
 		{disabled}
 		onclick={show}
@@ -412,6 +422,7 @@
 {#if open && mode === 'pop'}
 	<div
 		bind:this={pop}
+		id={`${key}-panel`}
 		class="dp-pop"
 		class:up={place.up}
 		popover="manual"
@@ -429,6 +440,7 @@
 {:else if open}
 	<dialog
 		bind:this={sheet}
+		id={`${key}-panel`}
 		class="dp-sheet"
 		aria-labelledby={`${key}-title`}
 		data-wheel-picker

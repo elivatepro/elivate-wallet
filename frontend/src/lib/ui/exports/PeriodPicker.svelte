@@ -53,6 +53,7 @@
 		<div class="ex-dates">
 			<span class="ex-date"
 				><label for="period-from">From</label><DatePicker
+					{today}
 					id="period-from"
 					class="ex-input"
 					label="From"
@@ -63,6 +64,7 @@
 			>
 			<span class="ex-date"
 				><label for="period-to">To</label><DatePicker
+					{today}
 					id="period-to"
 					class="ex-input"
 					label="To"
