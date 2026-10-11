@@ -8,10 +8,11 @@ import {
 	confirmLinkFor,
 	createConfirmedAccount,
 	expectAccessible,
-	inviteMember,
-	setJoinPassword,
-	recordIncome,
 	humanReady,
+	inviteMember,
+	pick,
+	recordIncome,
+	setJoinPassword,
 	uniqueEmail
 } from './helpers';
 
@@ -52,7 +53,7 @@ test('member Home shows the posted income split across pockets', async ({ page }
 	const { joinPath } = await inviteMember(founder, 'Ledger Test Network', member);
 	await joinAsNewMember(page, joinPath, member);
 	await completeIdentityAndProfile(page);
-	await page.getByLabel('Bank').selectOption('058');
+	await pick(page.getByLabel('Bank', { exact: true }), 'Test Bank');
 	await page.getByLabel('Account number').fill('0123456789');
 	await page.getByRole('button', { name: 'Check account' }).click();
 	await page.getByRole('button', { name: 'Save account' }).click();

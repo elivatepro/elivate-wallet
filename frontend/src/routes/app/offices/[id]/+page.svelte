@@ -28,6 +28,7 @@
 	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import OrgDialog from '#lib/ui/org/OrgDialog.svelte';
 	import OrgHero from '#lib/ui/org/OrgHero.svelte';
+	import WheelPicker from '#lib/ui/WheelPicker.svelte';
 
 	const shell = getContext<Shell>('shell');
 	const workspace = $derived(shell.state.kind === 'ready' ? shell.state.view.workspace : null);
@@ -436,11 +437,17 @@
 	{#if office && office.leaders.length > 1}
 		<div class="o-field">
 			<label for="replace-outgoing">Leader to replace</label>
-			<select id="replace-outgoing" class="o-input" bind:value={outgoing}>
-				{#each office.leaders as leader (leader.membershipId)}
-					<option value={leader.membershipId}>{personName(leader.person)}</option>
-				{/each}
-			</select>
+			<WheelPicker
+				id="replace-outgoing"
+				class="o-input"
+				label="Leader to replace"
+				options={office.leaders.map((leader) => ({
+					value: leader.membershipId,
+					label: personName(leader.person)
+				}))}
+				value={outgoing || null}
+				onchange={(id) => (outgoing = id)}
+			/>
 		</div>
 	{:else if office?.leaders[0]}
 		<div class="o-field">
@@ -725,10 +732,6 @@
 		margin-left: auto;
 		background: color-mix(in oklab, var(--color-warning) 16%, transparent);
 		color: var(--color-warning);
-	}
-
-	select.o-input {
-		appearance: auto;
 	}
 
 	@media (min-width: 1024px) {

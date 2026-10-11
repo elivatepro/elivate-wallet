@@ -10,6 +10,7 @@ import {
 	expectAccessible,
 	humanReady,
 	inviteMember,
+	pick,
 	setJoinPassword,
 	uniqueEmail
 } from './helpers';
@@ -55,7 +56,7 @@ test('payout accounts: list, add a second (cooling off), refuse a mismatch, remo
 	await page.getByLabel('Repeat PIN').fill(PIN);
 	await page.getByRole('button', { name: 'Save PIN' }).click();
 	await completeIdentityAndProfile(page);
-	await page.getByLabel('Bank').selectOption('058');
+	await pick(page.getByLabel('Bank', { exact: true }), 'Test Bank');
 	await page.getByLabel('Account number').fill('0123456789');
 	await page.getByRole('button', { name: 'Check account' }).click();
 	await page.getByRole('button', { name: 'Save account' }).click();
@@ -77,7 +78,7 @@ test('payout accounts: list, add a second (cooling off), refuse a mismatch, remo
 	// A mismatching name can't be saved.
 	await page.getByRole('link', { name: 'Add bank account' }).first().click();
 	await expect(page).toHaveURL(/\/app\/payout-accounts\/add$/);
-	await page.getByLabel('Bank', { exact: true }).selectOption('058');
+	await pick(page.getByLabel('Bank', { exact: true }), 'Test Bank');
 	await page.getByLabel('Account number').fill('0987654321');
 	await pinIfAsked(page, 'Enter your PIN to check the account');
 	await page.getByRole('button', { name: 'Check account' }).click();
@@ -86,7 +87,7 @@ test('payout accounts: list, add a second (cooling off), refuse a mismatch, remo
 	await page.getByRole('button', { name: 'Use a different account' }).click();
 
 	// A second matching account cools off for 24 hours.
-	await page.getByLabel('Bank', { exact: true }).selectOption('058');
+	await pick(page.getByLabel('Bank', { exact: true }), 'Test Bank');
 	await page.getByLabel('Account number').fill('1122334455');
 	await pinIfAsked(page, 'Enter your PIN to check the account');
 	await page.getByRole('button', { name: 'Check account' }).click();

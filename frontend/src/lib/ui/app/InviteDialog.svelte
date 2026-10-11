@@ -13,6 +13,7 @@
 	import { inviteRoles } from '#lib/invitations.js';
 	import { ROLE_LABELS } from '#lib/labels.js';
 	import PinField from '#lib/ui/auth/PinField.svelte';
+	import WheelPicker from '#lib/ui/WheelPicker.svelte';
 
 	let {
 		open = $bindable(false),
@@ -116,9 +117,15 @@
 
 					{#if offices.length > 1}
 						<label class="label" for="invite-office">Office</label>
-						<select id="invite-office" class="input" bind:value={officeId}>
-							{#each offices as o (o.officeId)}<option value={o.officeId}>{o.name}</option>{/each}
-						</select>
+						<div class="pick">
+							<WheelPicker
+								id="invite-office"
+								label="Office"
+								options={offices.map((o) => ({ value: o.officeId, label: o.name }))}
+								value={officeId}
+								onchange={(id) => (officeId = id)}
+							/>
+						</div>
 					{:else if office}
 						<p class="label">Office</p>
 						<p class="fixed">{office.name}</p>
@@ -194,7 +201,8 @@
 		font-weight: var(--font-weight-medium);
 	}
 
-	.input {
+	.input,
+	.pick :global(.wp-trigger) {
 		min-height: 48px;
 		padding: 0 16px;
 		border-radius: var(--radius-12);
@@ -212,7 +220,8 @@
 		resize: vertical;
 	}
 
-	.input:focus {
+	.input:focus,
+	.pick :global(.wp-trigger:focus) {
 		outline: none;
 		border-color: var(--color-accent);
 	}

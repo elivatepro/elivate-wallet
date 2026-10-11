@@ -10,7 +10,6 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
 	import { Effect, Exit } from 'effect';
-	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import Lock from '@lucide/svelte/icons/lock';
 	import { AccountRoutes, type AccountView } from '#lib/contract/account.js';
@@ -18,6 +17,7 @@
 	import { normalisePhone } from '#lib/phone.js';
 	import { newKey } from '#lib/client/api.js';
 	import RootDialog from '#lib/ui/account/RootDialog.svelte';
+	import WheelPicker from '#lib/ui/WheelPicker.svelte';
 	import { Revoked } from '#lib/contract/security.js';
 	import { sendAccountCommand } from '#lib/client/api.js';
 	import { failureOf, followGate, loadAccount, uploadPhoto } from '#lib/client/account.js';
@@ -424,11 +424,18 @@
 				<div class="edit-field">
 					<label class="edit-label" for="edit-rank">Rank</label>
 					<span class="edit-select">
-						<select id="edit-rank" name="rank" value={profile.rank ?? ''}>
-							{#if !profile.rank}<option value="" disabled>Choose your rank</option>{/if}
-							{#each RANKS as rank (rank)}<option value={rank}>{rankLabel(rank)}</option>{/each}
-						</select>
-						<ChevronDown size={16} strokeWidth={2} aria-hidden="true" />
+						<WheelPicker
+							id="edit-rank"
+							name="rank"
+							label="Rank"
+							title="Your rank"
+							confirmText="Set rank"
+							placeholder="Choose your rank"
+							searchPlaceholder="Search ranks"
+							initial="Executive Manager"
+							options={RANKS.map((rank) => ({ value: rank, label: rankLabel(rank) }))}
+							value={profile.rank ?? null}
+						/>
 					</span>
 				</div>
 			</div>
@@ -711,7 +718,7 @@
 	}
 
 	.edit-input,
-	.edit-select select {
+	.edit-select :global(:is(.wp-trigger, select)) {
 		width: 100%;
 		height: 48px;
 		padding: 0 14px;
@@ -725,13 +732,13 @@
 	}
 
 	:global([data-theme='light']) .edit-input,
-	:global([data-theme='light']) .edit-select select {
+	:global([data-theme='light']) .edit-select :global(:is(.wp-trigger, select)) {
 		border-color: var(--color-border);
 		background: var(--color-raised);
 	}
 
 	.edit-input:focus,
-	.edit-select select:focus {
+	.edit-select :global(:is(.wp-trigger, select)):focus {
 		outline: none;
 		border-color: var(--color-accent);
 	}
@@ -741,21 +748,11 @@
 	}
 
 	.edit-select {
-		position: relative;
 		display: block;
 	}
 
-	.edit-select select {
-		appearance: none;
-		padding-right: 40px;
-	}
-
-	.edit-select :global(svg) {
-		position: absolute;
-		top: 16px;
-		right: 14px;
+	.edit-select :global(.wp-chevron) {
 		color: #a9b0b3;
-		pointer-events: none;
 	}
 
 	.edit-locked {

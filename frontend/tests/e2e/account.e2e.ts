@@ -6,13 +6,14 @@ import { type Page } from '@playwright/test';
 import { expect, stubTurnstile, test } from './fixtures';
 import { createClient } from '@supabase/supabase-js';
 import {
-	fillSettled,
 	completeIdentityAndProfile,
 	confirmLinkFor,
 	createConfirmedAccount,
 	expectAccessible,
+	fillSettled,
 	humanReady,
 	inviteMember,
+	pick,
 	setJoinPassword,
 	uniqueEmail
 } from './helpers';
@@ -118,7 +119,7 @@ test('Profile & security: change PIN, devices and profile edit', async ({ page, 
 	await page.getByLabel('Repeat PIN').fill(PIN);
 	await page.getByRole('button', { name: 'Save PIN' }).click();
 	await completeIdentityAndProfile(page);
-	await page.getByLabel('Bank').selectOption('058');
+	await pick(page.getByLabel('Bank', { exact: true }), 'Test Bank');
 	await page.getByLabel('Account number').fill('0123456789');
 	await page.getByRole('button', { name: 'Check account' }).click();
 	await page.getByRole('button', { name: 'Save account' }).click();
@@ -176,7 +177,7 @@ test('Profile & security: change PIN, devices and profile edit', async ({ page, 
 	const edit = page.getByRole('dialog', { name: 'Edit profile' });
 	await expect(edit.getByText('From your NIN')).toBeVisible();
 	await edit.getByLabel('Display name').fill('Ada Test');
-	await edit.getByLabel('Rank').selectOption('Director');
+	await pick(edit.getByLabel('Rank'), 'Director');
 	await edit.getByRole('button', { name: 'Save changes' }).click();
 	await expect(edit).toHaveCount(0);
 	await expect(page.getByRole('heading', { level: 1, name: 'Ada Test' })).toBeVisible();
@@ -191,7 +192,7 @@ test('Profile & security: change PIN, devices and profile edit', async ({ page, 
 	await replace.getByLabel('Your PIN').fill(NEW_PIN);
 	await replace.getByRole('button', { name: 'Continue' }).click();
 	await expect(page.getByRole('heading', { name: 'Replace bank account' })).toBeVisible();
-	await page.getByLabel('Bank', { exact: true }).selectOption('058');
+	await pick(page.getByLabel('Bank', { exact: true }), 'Test Bank');
 	await page.getByLabel('Account number').fill('1122334455');
 	await page.getByRole('button', { name: 'Check account' }).click();
 	await page.getByRole('button', { name: 'Replace account' }).click();

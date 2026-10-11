@@ -6,7 +6,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { createHmac } from 'node:crypto';
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { createClient } from '@supabase/supabase-js';
 
@@ -16,6 +16,28 @@ const PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY ?? '';
 const DB_CONTAINER = process.env.E2E_DB_CONTAINER ?? 'supabase_db_elivate-wallet';
 const INVITATION_TOKEN_SECRET = process.env.INVITATION_TOKEN_SECRET ?? '';
 const OUTBOX_WORKER_SECRET = process.env.OUTBOX_WORKER_SECRET ?? '';
+
+/**
+ * Blueprint 24: chooses an option in a wheel picker field (the member app's
+ * dropdowns). Opens the sheet from the field, turns the wheel to the row named
+ * `option` and confirms. With `search`, types it into the sheet's search first.
+ */
+export async function pick(
+	field: Locator,
+	option: string | RegExp,
+	{ search }: { search?: string } = {}
+) {
+	const page = field.page();
+	await field.click();
+	const sheet = page.locator('dialog[data-wheel-picker][open]');
+	await expect(sheet).toBeVisible();
+	if (search !== undefined) await sheet.getByRole('combobox').fill(search);
+	const row = sheet.getByRole('option', { name: option, exact: typeof option === 'string' });
+	await row.click();
+	await expect(row).toHaveAttribute('aria-selected', 'true');
+	await sheet.locator('[data-wheel-confirm]').click();
+	await expect(sheet).toHaveCount(0);
+}
 
 export const uniqueEmail = (label: string) =>
 	`e2e-${label}-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.test`;
@@ -366,7 +388,7 @@ export async function completeIdentityAndProfile(page: Page) {
 		await photo.setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: TINY_PNG });
 	}
 	await page.getByLabel('Phone number').fill('803 214 5678');
-	await page.getByRole('button', { name: /Your rank/ }).click();
+	await page.getByRole('combobox', { name: 'Your rank', exact: true }).click();
 	await expect(page.getByRole('dialog', { name: 'Your rank' })).toBeVisible();
 	await page.getByRole('listbox', { name: 'Rank' }).press('ArrowDown');
 	await page.getByRole('button', { name: 'Set rank' }).click();
@@ -386,7 +408,7 @@ export async function lightSetupWizard(page: Page) {
 	await page
 		.getByLabel('Profile photo')
 		.setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: TINY_PNG });
-	await page.getByRole('button', { name: /Your rank/ }).click();
+	await page.getByRole('combobox', { name: 'Your rank', exact: true }).click();
 	await page.getByRole('listbox', { name: 'Rank' }).press('ArrowDown');
 	await page.getByRole('button', { name: 'Set rank' }).click();
 	await page.getByRole('button', { name: 'Continue' }).click();
@@ -551,7 +573,7 @@ async function joinAsNewMember(page: Page, joinPath: string, email: string) {
 	await page.getByLabel('Repeat PIN').fill(PIN);
 	await page.getByRole('button', { name: 'Save PIN' }).click();
 	await completeIdentityAndProfile(page);
-	await page.getByLabel('Bank').selectOption('058');
+	await pick(page.getByLabel('Bank', { exact: true }), 'Test Bank');
 	await page.getByLabel('Account number').fill('0123456789');
 	await page.getByRole('button', { name: 'Check account' }).click();
 	await page.getByRole('button', { name: 'Save account' }).click();

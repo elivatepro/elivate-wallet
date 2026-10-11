@@ -35,6 +35,7 @@
 	import '#lib/ui/money/money.css';
 	import NoAccess from '#lib/ui/app/NoAccess.svelte';
 	import CacheNote from '#lib/ui/app/CacheNote.svelte';
+	import WheelPicker from '#lib/ui/WheelPicker.svelte';
 
 	const shell = getContext<Shell>('shell');
 	// Same pocket colours as Pockets & split (Paper L01).
@@ -260,23 +261,26 @@
 				<form class="mm-card grow" onsubmit={review} novalidate>
 					{#if error}<p class="mm-error" role="alert">{error}</p>{/if}
 					{#if choices.groups.length > 1}
-						<label class="mm-field">
-							<span class="mm-field-label">Wallet</span>
-							<select
+						<div class="mm-field">
+							<label class="mm-field-label" for="mm-wallet">Wallet</label>
+							<WheelPicker
+								id="mm-wallet"
 								class="mm-input"
-								value={groupIndex}
-								onchange={(e) => {
-									groupIndex = Number(e.currentTarget.value);
+								label="Wallet"
+								options={choices.groups.map((g, i) => ({
+									value: String(i),
+									label: g.office.name,
+									hint: g.currency
+								}))}
+								value={String(groupIndex)}
+								onchange={(v) => {
+									groupIndex = Number(v);
 									fromId =
 										choices?.groups[groupIndex]?.pockets.find((p) => p.canSend)?.pocketId ?? null;
 									toId = null;
 								}}
-							>
-								{#each choices.groups as g, i (`${g.membershipId}:${g.currency}`)}
-									<option value={i}>{g.office.name} · {g.currency}</option>
-								{/each}
-							</select>
-						</label>
+							/>
+						</div>
 					{/if}
 					{#if step === 'details'}
 						<div class="mm-field" role="radiogroup" aria-label="From pocket">

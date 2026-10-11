@@ -10,7 +10,6 @@
 	import { getContext, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { Cause, Effect, Exit, Option, Schema } from 'effect';
-	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 	import {
 		EntryAppRoutes,
@@ -39,6 +38,7 @@
 	import RootHero from '#lib/ui/app/RootHero.svelte';
 	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import EvidencePicker from '#lib/ui/money/EvidencePicker.svelte';
+	import WheelPicker from '#lib/ui/WheelPicker.svelte';
 	import '#lib/ui/money/entry.css';
 
 	const shell = getContext<Shell>('shell');
@@ -288,26 +288,31 @@
 					{#if formError}<p class="en-error" role="alert">{formError}</p>{/if}
 					<div class="en-field">
 						<label class="en-label" for="rtn-withdrawal">Completed withdrawal</label>
-						<div class="en-box">
-							<select
-								id="rtn-withdrawal"
-								class="en-input"
-								value={withdrawalId}
-								onchange={(e) => pick(e.currentTarget.value)}
-							>
-								{#if withdrawalId && !selected && returnable}
-									<option value={withdrawalId}
-										>{memberName} · {naira(returnable.paidOut)} · {returnable.reference}</option
-									>
-								{/if}
-								{#each completed as w (w.withdrawalId)}
-									<option value={w.withdrawalId}
-										>{w.member?.name ?? w.member?.uid} · {naira(debited(w))} · {w.reference}</option
-									>
-								{/each}
-							</select>
-							<ChevronDown class="en-select-icon" size={16} aria-hidden="true" />
-						</div>
+						<WheelPicker
+							id="rtn-withdrawal"
+							class="en-box"
+							label="Completed withdrawal"
+							searchPlaceholder="Search name or reference"
+							placeholder="Choose a withdrawal"
+							options={[
+								...(withdrawalId && !selected && returnable
+									? [
+											{
+												value: withdrawalId,
+												label: memberName,
+												hint: `${naira(returnable.paidOut)} · ${returnable.reference}`
+											}
+										]
+									: []),
+								...completed.map((w) => ({
+									value: w.withdrawalId,
+									label: w.member?.name ?? w.member?.uid ?? 'Member',
+									hint: `${naira(debited(w))} · ${w.reference}`
+								}))
+							]}
+							value={withdrawalId}
+							onchange={pick}
+						/>
 					</div>
 
 					<div class="en-row">

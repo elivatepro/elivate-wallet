@@ -37,7 +37,8 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
   a renderer and a `notify.emit` call (Blueprint 13). Paystack (test mode) for yearly billing.
 - Design: Paper file `Elivate Wallet`. Build drawn screens directly; draft undrawn ones in Paper
   and get approval first. Extend existing routes in `frontend/src/routes`. Accepted deviations:
-  single-screen PIN entry, wizard progress bar in the panel, native bank select.
+  single-screen PIN entry, wizard progress bar in the panel. Member-app dropdowns are the
+  `WheelPicker` (Blueprint 24; banks included); the admin console keeps native selects.
 
 ## Backend rules
 
@@ -94,5 +95,6 @@ bootstrap/home reads, device-cache-first pages, 30 s session touch, indexes). Sl
 (Blueprint 21): owner feedback fixes. Slice 22 (Blueprint 22, PR #59, not yet on dev): setup by
 role (light vs wallet), a backend `profile_required` gate, "funds not managed" directors. Slice 23
 (Blueprint 23, frontend only): every page opens from its saved copy, instant tap feedback, idle
-code preload of every screen, page swap. Next, in order: 24 haptic wheel pickers, 25 navigation
-redesign, then set-based authorization reads.
+code preload of every screen, page swap. Slice 24 (Blueprint 24, frontend only): one haptic
+wheel picker, with search for long lists and banks, for every member-app dropdown. Next, in
+order: 25 navigation redesign, then set-based authorization reads.

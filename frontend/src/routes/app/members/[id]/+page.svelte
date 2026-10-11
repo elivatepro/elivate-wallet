@@ -38,6 +38,7 @@
 	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import OrgDialog from '#lib/ui/org/OrgDialog.svelte';
 	import OrgHero from '#lib/ui/org/OrgHero.svelte';
+	import WheelPicker from '#lib/ui/WheelPicker.svelte';
 
 	const shell = getContext<Shell>('shell');
 	const workspace = $derived(shell.state.kind === 'ready' ? shell.state.view.workspace : null);
@@ -396,12 +397,20 @@
 		>
 			<div class="o-field">
 				<label for="move-office">New office</label>
-				<select id="move-office" class="o-input" bind:value={toOffice}>
-					<option value="" disabled>Choose an office</option>
-					{#each moveTargets as office (office.id)}
-						<option value={office.id}>{office.name} · {OFFICE_TYPE_LABELS[office.type]}</option>
-					{/each}
-				</select>
+				<WheelPicker
+					id="move-office"
+					class="o-input"
+					label="New office"
+					placeholder="Choose an office"
+					searchPlaceholder="Search offices"
+					options={moveTargets.map((office) => ({
+						value: office.id,
+						label: office.name,
+						hint: OFFICE_TYPE_LABELS[office.type]
+					}))}
+					value={toOffice || null}
+					onchange={(id) => (toOffice = id)}
+				/>
 			</div>
 		</OrgDialog>
 	{:else if dialog === 'role'}
@@ -419,11 +428,14 @@
 		>
 			<div class="o-field">
 				<label for="role-new">New role</label>
-				<select id="role-new" class="o-input" bind:value={newRole}>
-					{#each roleChoices as role (role)}
-						<option value={role}>{ROLE_LABELS[role]}</option>
-					{/each}
-				</select>
+				<WheelPicker
+					id="role-new"
+					class="o-input"
+					label="New role"
+					options={roleChoices.map((role) => ({ value: role, label: ROLE_LABELS[role] }))}
+					value={newRole || null}
+					onchange={(role) => (newRole = role)}
+				/>
 				<p class="o-sub currently">
 					Currently <span class="cur">{ROLE_LABELS[member.role]} · {place}</span>
 				</p>
@@ -626,10 +638,6 @@
 
 	.ms-status[data-status='suspended'] {
 		color: var(--color-danger);
-	}
-
-	select.o-input {
-		appearance: auto;
 	}
 
 	@media (min-width: 1024px) {

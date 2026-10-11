@@ -13,7 +13,6 @@
 	import { page } from '$app/state';
 	import { Cause, Effect, Exit, Option } from 'effect';
 	import ArrowRight from '@lucide/svelte/icons/arrow-right';
-	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import X from '@lucide/svelte/icons/x';
 	import {
 		Entry,
@@ -49,6 +48,7 @@
 	import OutcomeUnknown from '#lib/ui/app/OutcomeUnknown.svelte';
 	import MemberPicker from '#lib/ui/income/MemberPicker.svelte';
 	import EvidencePicker from '#lib/ui/money/EvidencePicker.svelte';
+	import WheelPicker from '#lib/ui/WheelPicker.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
 	import '#lib/ui/money/entry.css';
 	import NoAccess from '#lib/ui/app/NoAccess.svelte';
@@ -429,16 +429,19 @@
 										)}
 										aria-hidden="true"
 									></span>{/if}
-								<select id="cnv-pocket" class="en-input" bind:value={sourceId}>
-									{#each sources as s (s.accountId)}
-										<option value={s.accountId}
-											>{s.pocket} · {money(s.available, s.currency)} available in {s.currency}</option
-										>
-									{:else}
-										<option value={null}>No pocket has money to convert</option>
-									{/each}
-								</select>
-								<ChevronDown class="en-select-icon" size={16} aria-hidden="true" />
+								<WheelPicker
+									id="cnv-pocket"
+									class="en-input"
+									label="Pocket"
+									placeholder="No pocket has money to convert"
+									disabled={sources.length === 0}
+									options={sources.map((s) => ({
+										value: s.accountId,
+										label: s.pocket,
+										hint: `${money(s.available, s.currency)} available in ${s.currency}`
+									}))}
+									bind:value={sourceId}
+								/>
 							</div>
 						</div>
 
@@ -476,13 +479,16 @@
 											(receivedText = `${destination ? currencySymbol(destination) : ''}${groupAmount(received)}`)}
 									/>
 									{#if others.length > 1}
-										<select
+										<WheelPicker
+											id="cnv-currency"
 											class="en-chip"
-											bind:value={destinationChoice}
-											aria-label="Currency received"
-										>
-											{#each others as c (c)}<option value={c}>{c}</option>{/each}
-										</select>
+											fit
+											label="Currency received"
+											ariaLabel="Currency received"
+											options={others.map((c) => ({ value: c, label: c }))}
+											value={destination}
+											onchange={(c) => (destinationChoice = c as Currency)}
+										/>
 									{:else if destination}<span class="en-chip">{destination}</span>{/if}
 								</div>
 							</div>

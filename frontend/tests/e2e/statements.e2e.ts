@@ -18,6 +18,7 @@ import {
 	inviteMember,
 	localSql,
 	mailFor,
+	pick,
 	recordIncome,
 	runOutboxWorker,
 	shot,
@@ -102,7 +103,7 @@ test('a member makes PDF and CSV statements; every file state shows', async ({ p
 	await expectAccessible(page);
 	await shot(page, 'S10d-statements-first-visit');
 
-	await page.getByLabel('Network').selectOption({ label: 'Cedar Statements' });
+	await pick(page.getByLabel('Network'), 'Cedar Statements');
 	await page.getByRole('button', { name: 'This month' }).click();
 	await page.getByRole('button', { name: 'Create PDF statement' }).click();
 	// The scheduled runner path works too (and is harmless when the job is done).
@@ -150,7 +151,7 @@ test('a member makes PDF and CSV statements; every file state shows', async ({ p
               where u.email = '${member}' and f.kind = 'statement_csv' order by f.created_at limit 1);
   set local session_replication_role = origin;
 end $$`);
-	await page.getByLabel('Network').selectOption({ label: 'Oak Statements' });
+	await pick(page.getByLabel('Network'), 'Oak Statements');
 	await page.getByRole('radio', { name: /PDF statement/ }).check();
 	await page.getByRole('button', { name: 'Create PDF statement' }).click();
 	await untilReady(page, /NGN/);
@@ -229,7 +230,7 @@ test('the President exports an office report and downloads it with the PIN', asy
 	await page.getByRole('button', { name: 'Export PDF' }).click();
 	const dialog = page.getByRole('dialog', { name: 'Export report' });
 	await expect(dialog.getByRole('radio', { name: /Member balances · CSV/ })).toBeVisible();
-	await dialog.getByLabel('Period').selectOption('this_month');
+	await pick(dialog.getByLabel('Period'), /This month/);
 	await shot(page, 'S13d-export-report');
 	await dialog.getByRole('button', { name: 'Create report' }).click();
 	await expect(dialog).toBeHidden();

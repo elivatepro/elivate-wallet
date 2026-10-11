@@ -14,6 +14,7 @@ import {
 	expectNoHorizontalScroll,
 	finishCheck,
 	localSql,
+	pick,
 	recordIncome,
 	shot,
 	uniqueEmail,
@@ -79,9 +80,7 @@ test('a conversion and an adjustment are checked by an evidence reviewer', async
 	await page.goto(`/app/wallets?wallet=${wallet}`);
 	await page.getByRole('link', { name: 'Convert' }).click();
 	await expect(page).toHaveURL(/\/app\/convert\?member=/);
-	await page
-		.getByLabel('Pocket', { exact: true })
-		.selectOption({ label: 'Point Value · $400.00 available in USD' });
+	await pick(page.getByLabel('Pocket', { exact: true }), /^Point Value \$400\.00 available in USD/);
 	await page.getByLabel('Converted from').fill('100');
 	await page.getByLabel('Actually received').fill('152000');
 	await page.getByLabel('Provider').fill('Grey');

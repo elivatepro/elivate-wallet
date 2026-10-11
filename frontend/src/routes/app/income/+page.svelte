@@ -72,6 +72,7 @@
 	import Outcome from '#lib/ui/app/Outcome.svelte';
 	import MemberPicker from '#lib/ui/income/MemberPicker.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
+	import WheelPicker from '#lib/ui/WheelPicker.svelte';
 
 	const shell = getContext<Shell>('shell');
 	const KNOWN: ReadonlyArray<Currency> = ['NGN', 'USD'];
@@ -780,16 +781,16 @@
 				<div class="money">
 					<div class="currency-wrap">
 						<label class="label" for="income-currency">Currency</label>
-						<select
+						<WheelPicker
 							id="income-currency"
-							class="currency"
-							bind:value={currency}
-							onchange={onCurrencyChange}
-						>
-							{#each currencies as option (option.code)}
-								<option value={option.code}>{option.code}</option>
-							{/each}
-						</select>
+							label="Currency"
+							options={currencies.map((option) => ({ value: option.code, label: option.code }))}
+							value={currency}
+							onchange={(code) => {
+								currency = code as Currency;
+								onCurrencyChange();
+							}}
+						/>
 					</div>
 					<div class="amount-wrap">
 						<label class="label amount-label" for="income-amount">Amount received</label>
@@ -1141,19 +1142,21 @@
 		white-space: nowrap;
 	}
 
-	.currency {
-		appearance: none;
-		padding: 3px 26px 3px 10px;
+	.currency-wrap :global(:is(.wp-trigger, select)) {
+		gap: 4px;
+		width: auto;
+		padding: 3px 8px 3px 10px;
 		border: 0;
 		border-radius: var(--radius-pill);
-		background: var(--color-raised)
-			url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6' fill='none' stroke='%23A9B0B3' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E")
-			no-repeat right 10px center;
+		background: var(--color-raised);
 		color: var(--shell-strong, var(--color-text));
-		font: inherit;
 		font-size: 12px;
 		line-height: 16px;
-		cursor: pointer;
+	}
+
+	.currency-wrap :global(.wp-chevron) {
+		width: 12px;
+		height: 12px;
 	}
 
 	.amount-wrap {
@@ -1571,17 +1574,21 @@
 			clip-path: none;
 		}
 
-		.currency {
+		.currency-wrap :global(:is(.wp-trigger, select)) {
+			width: 100%;
 			height: 56px;
-			padding: 0 40px 0 16px;
+			padding: 0 16px;
 			border: 1px solid var(--color-border);
 			border-radius: 14px;
-			background-color: transparent;
-			background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6' fill='none' stroke='%23A9B0B3' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
-			background-position: right 16px center;
+			background: transparent;
 			color: var(--color-text);
 			font-size: 15px;
 			line-height: 18px;
+		}
+
+		.currency-wrap :global(.wp-chevron) {
+			width: 16px;
+			height: 16px;
 		}
 
 		.amount-wrap {
