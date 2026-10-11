@@ -119,7 +119,26 @@ createServer(async (req, res) => {
 	if (url.pathname === '/bank') {
 		return json(res, 200, {
 			status: true,
-			data: [{ name: 'Test Bank', code: '058', slug: 'test-bank', active: true, type: 'nuban' }],
+			// Blueprint 24: enough banks for the bank picker's search; only 058
+			// resolves accounts.
+			data: [
+				['Access Bank', '044'],
+				['Ecobank Nigeria', '050'],
+				['Fidelity Bank', '070'],
+				['First Bank of Nigeria', '011'],
+				['Polaris Bank', '076'],
+				['Sterling Bank', '232'],
+				['Test Bank', '058'],
+				['United Bank For Africa', '033'],
+				['Wema Bank', '035'],
+				['Zenith Bank', '057']
+			].map(([name = '', code = '']) => ({
+				name,
+				code,
+				slug: name.toLowerCase().replaceAll(' ', '-'),
+				active: true,
+				type: 'nuban'
+			})),
 			meta: { next: null }
 		});
 	}

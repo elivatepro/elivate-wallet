@@ -47,6 +47,7 @@
 	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import OrgDialog from '#lib/ui/org/OrgDialog.svelte';
 	import OrgHero from '#lib/ui/org/OrgHero.svelte';
+	import WheelPicker from '#lib/ui/WheelPicker.svelte';
 
 	type Tab = 'roles' | 'access' | 'reviewers';
 
@@ -181,7 +182,6 @@
 	let grantOpen = $state(false);
 	let subjectUid = $state('');
 	let grantPermissions = $state<string[]>([]);
-	let addPermission = $state('');
 	let ruleEffect = $state<'allow' | 'deny'>('allow');
 	let scopeType = $state<'tenant' | 'office_subtree' | 'member'>('office_subtree');
 	let scopeOffice = $state('');
@@ -198,6 +198,8 @@
 					(g) => g.keys
 				)
 	);
+	/** What "+ Add" still offers. */
+	const addable = $derived(grantable.filter((k) => !grantPermissions.includes(k)));
 	const today = () => new Date().toISOString().slice(0, 10);
 
 	function openGrant() {
@@ -796,22 +798,22 @@
 					></span
 				>
 			{/each}
-			<select
-				id="grant-permission"
-				class="add-token"
-				bind:value={addPermission}
-				onchange={() => {
-					if (addPermission && !grantPermissions.includes(addPermission)) {
-						grantPermissions = [...grantPermissions, addPermission];
-					}
-					addPermission = '';
-				}}
-			>
-				<option value="">+ Add</option>
-				{#each grantable.filter((k) => !grantPermissions.includes(k)) as key (key)}
-					<option value={key}>{permissionLabel(key)}</option>
-				{/each}
-			</select>
+			<span class="add-token">
+				<WheelPicker
+					id="grant-permission"
+					label="Permission"
+					title="Add a permission"
+					confirmText="Add"
+					triggerText="+ Add"
+					searchPlaceholder="Search permissions"
+					disabled={addable.length === 0}
+					options={addable.map((key) => ({ value: key, label: permissionLabel(key) }))}
+					value={null}
+					onchange={(key) => {
+						if (!grantPermissions.includes(key)) grantPermissions = [...grantPermissions, key];
+					}}
+				/>
+			</span>
 		</div>
 	</div>
 	<div class="pair">
@@ -853,11 +855,14 @@
 	{#if scopeType === 'office_subtree'}
 		<div class="o-field">
 			<label for="grant-office">Office and everything under it</label>
-			<select id="grant-office" class="o-input" bind:value={scopeOffice}>
-				{#each view?.offices ?? [] as office (office.id)}
-					<option value={office.id}>{office.name}</option>
-				{/each}
-			</select>
+			<WheelPicker
+				id="grant-office"
+				class="o-input"
+				label="Office"
+				options={(view?.offices ?? []).map((office) => ({ value: office.id, label: office.name }))}
+				value={scopeOffice || null}
+				onchange={(id) => (scopeOffice = id)}
+			/>
 		</div>
 	{:else if scopeType === 'member'}
 		<div class="o-field">
@@ -1229,19 +1234,19 @@
 		cursor: pointer;
 	}
 
-	.add-token {
+	.add-token :global(.wp-trigger) {
+		width: auto;
 		height: 32px;
 		padding: 0 10px;
 		border: 1px dashed var(--color-border);
 		border-radius: var(--radius-pill);
 		background: transparent;
 		color: var(--o-strong);
-		font: inherit;
 		font-size: 13px;
 	}
 
-	select.o-input {
-		appearance: auto;
+	.add-token :global(.wp-chevron) {
+		display: none;
 	}
 
 	@media (min-width: 1024px) {

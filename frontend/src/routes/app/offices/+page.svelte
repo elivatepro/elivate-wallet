@@ -35,6 +35,7 @@
 	import CurrencySwitch from '#lib/ui/app/CurrencySwitch.svelte';
 	import OrgDialog from '#lib/ui/org/OrgDialog.svelte';
 	import OrgHero from '#lib/ui/org/OrgHero.svelte';
+	import WheelPicker from '#lib/ui/WheelPicker.svelte';
 
 	const shell = getContext<Shell>('shell');
 	const workspace = $derived(shell.state.kind === 'ready' ? shell.state.view.workspace : null);
@@ -311,12 +312,18 @@
 	</fieldset>
 	<div class="o-field">
 		<label for="office-parent">Parent office</label>
-		<select id="office-parent" class="o-input" bind:value={newParent}>
-			<option value="">None (top of the network)</option>
-			{#each parents as parent (parent.id)}
-				<option value={parent.id}>{parent.name}</option>
-			{/each}
-		</select>
+		<WheelPicker
+			id="office-parent"
+			class="o-input"
+			label="Parent office"
+			searchPlaceholder="Search offices"
+			options={[
+				{ value: '', label: 'None (top of the network)' },
+				...parents.map((parent) => ({ value: parent.id, label: parent.name }))
+			]}
+			value={newParent}
+			onchange={(id) => (newParent = id)}
+		/>
 	</div>
 	<div class="o-field">
 		<label for="office-leader">{ROLE_LABELS[LEADER_ROLE[newType]]} UID</label>
@@ -372,10 +379,6 @@
 		flex: 1;
 		height: 40px;
 		font-size: var(--text-14);
-	}
-
-	select.o-input {
-		appearance: auto;
 	}
 
 	@media (min-width: 1024px) {

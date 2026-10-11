@@ -1,7 +1,8 @@
 <!--
 	Wizard step 4 · payout account. Paper "Onboarding — Invited member" 11
 	(matched), 12 (name mismatch) and "App — Screens v3" Y01 (identity check
-	pending). Nigerian NUBAN only (W-17).
+	pending). Nigerian NUBAN only (W-17). The bank is the wheel picker with
+	search (Blueprint 24).
 -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
@@ -13,6 +14,7 @@
 	import PrimaryButton from '#lib/ui/auth/PrimaryButton.svelte';
 	import NameCheck from '#lib/ui/onboarding/NameCheck.svelte';
 	import WizardProgress from '#lib/ui/onboarding/WizardProgress.svelte';
+	import WheelPicker from '#lib/ui/WheelPicker.svelte';
 	import { useRoot } from '#lib/ui/root.svelte.js';
 	import type { PageProps } from './$types';
 
@@ -61,17 +63,21 @@
 	<input type="hidden" name="idempotencyKey" value={data.idempotencyKey} />
 	<div class="field">
 		<label for="bankCode">Bank</label>
-		<select
+		<WheelPicker
 			id="bankCode"
 			name="bankCode"
+			variant="auth"
+			label="Bank"
+			title="Your bank"
+			placeholder="Choose your bank"
+			searchable
+			searchPlaceholder="Search banks"
+			emptyText="No bank matches that name."
 			disabled={!!lookup}
-			aria-invalid={errors.bankCode ? 'true' : undefined}
-		>
-			<option value="" disabled selected={!bankCode}>Choose your bank</option>
-			{#each data.banks as bank (bank.code)}
-				<option value={bank.code} selected={bank.code === bankCode}>{bank.name}</option>
-			{/each}
-		</select>
+			options={data.banks.map((bank) => ({ value: bank.code, label: bank.name }))}
+			value={bankCode || null}
+			invalid={!!errors.bankCode}
+		/>
 		{#if errors.bankCode}<p class="error">{errors.bankCode}</p>{/if}
 	</div>
 	<Field
@@ -133,21 +139,6 @@
 		font-size: var(--text-14);
 		font-weight: var(--font-weight-medium);
 		line-height: var(--leading-20);
-	}
-
-	select {
-		height: 52px;
-		padding: 0 16px;
-		border-radius: var(--radius-12);
-		border: 1px solid var(--auth-field-border);
-		background: var(--auth-field-bg);
-		color: var(--color-text);
-		font: inherit;
-		font-size: 15px;
-	}
-
-	select:disabled {
-		opacity: 0.8;
 	}
 
 	.error {

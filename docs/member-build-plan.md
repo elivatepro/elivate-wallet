@@ -245,6 +245,13 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
     to slice 25.
   - **All screens' code downloaded upfront** once the shell is idle (about 1.8 MB once).
   - **A short page swap** (≤ 200 ms view transition; off with reduced motion; never delays).
+- **Wheel pickers (2026-10-11, Blueprint 24):** every member-app dropdown is the onboarding rank
+  wheel (bottom sheet, 52 px scroll-snap rows, a vibration per step where the browser allows
+  it, keyboard, native `<select>` without JS). Lists of more than 8 options, and banks always,
+  get a search field with an empty-result message. The bank selects move to the wheel: the
+  **"native bank select" accepted deviation is withdrawn**. Desktop shows the same wheel as a
+  centred dialog. iOS has no web vibration, so iPhones get the visual snap and tick only. The
+  admin console keeps native selects.
 - **Sequencing:** one slice at a time, each new slice in its own thread. Order: 4 → 5 → 8 →
   slice 9 follow-up (IP storage, signed-in password change, PIN-change email, sign-out
   choice after reset) → 6 → 7 → 10.

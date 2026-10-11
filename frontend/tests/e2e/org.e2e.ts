@@ -11,6 +11,7 @@ import {
 	expectNoHorizontalScroll,
 	humanReady,
 	inviteMember,
+	pick,
 	uidOf,
 	uniqueEmail
 } from './helpers';
@@ -58,7 +59,7 @@ test('President manages offices, a role permission and reads the audit log', asy
 	const create = page.getByRole('dialog', { name: 'New office' });
 	await create.getByLabel('Office name').fill('Lagos office');
 	await create.getByText('Team office', { exact: true }).click();
-	await create.getByLabel('Parent office').selectOption({ label: 'Org World Team' });
+	await pick(create.getByLabel('Parent office'), 'Org World Team');
 	await create.getByLabel('Team Leader UID').fill(uid);
 	await create.getByLabel('Your PIN').fill(PIN);
 	await create.getByRole('button', { name: 'Create office' }).click();

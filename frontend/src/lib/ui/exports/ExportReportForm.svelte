@@ -10,6 +10,7 @@
 	import { ReportMembers, type ReportKind } from '#lib/contract/exports.js';
 	import { getJson } from '#lib/client/api.js';
 	import { customPeriod, periodPresets, periodTitle, type Period } from '#lib/statements.js';
+	import WheelPicker from '#lib/ui/WheelPicker.svelte';
 	import PeriodPicker from './PeriodPicker.svelte';
 
 	let {
@@ -183,17 +184,21 @@
 	<div class="pair">
 		<div class="ex-field grow">
 			<label class="ex-label" for="ex-report-period">Period</label>
-			<select
+			<WheelPicker
 				id="ex-report-period"
 				class="ex-select"
+				label="Period"
+				options={[
+					...presets.map((p) => ({
+						value: p.id,
+						label: periodTitle(p),
+						hint: periodTitle(p).startsWith(p.label) ? undefined : p.label
+					})),
+					{ value: 'custom', label: 'Custom…' }
+				]}
 				value={presetId}
-				onchange={(e) => choose(e.currentTarget.value)}
-			>
-				{#each presets as p (p.id)}
-					<option value={p.id}>{periodTitle(p)}</option>
-				{/each}
-				<option value="custom">Custom…</option>
-			</select>
+				onchange={choose}
+			/>
 		</div>
 		<div class="ex-field" role="group" aria-labelledby="ex-currency">
 			<span class="ex-label" id="ex-currency">Currency</span>

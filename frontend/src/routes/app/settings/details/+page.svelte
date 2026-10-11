@@ -27,6 +27,7 @@
 	import OrgDialog from '#lib/ui/org/OrgDialog.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
 	import SettingsTabs from '#lib/ui/settings/SettingsTabs.svelte';
+	import WheelPicker from '#lib/ui/WheelPicker.svelte';
 
 	const shell = getContext<Shell>('shell');
 	const workspaceId = $derived(
@@ -274,19 +275,26 @@
 					<div class="s-grid2">
 						<div class="s-field">
 							<label class="s-field-head" for="locale">Language</label>
-							<select id="locale" class="s-input" bind:value={form.locale}>
-								{#each view.options.locales as locale (locale)}
-									<option value={locale}>{LOCALES[locale] ?? locale}</option>
-								{/each}
-							</select>
+							<WheelPicker
+								id="locale"
+								class="s-input"
+								label="Language"
+								options={view.options.locales.map((l) => ({ value: l, label: LOCALES[l] ?? l }))}
+								value={form.locale}
+								onchange={(v) => form && (form.locale = v)}
+							/>
 						</div>
 						<div class="s-field">
 							<label class="s-field-head" for="time-zone">Time zone</label>
-							<select id="time-zone" class="s-input" bind:value={form.timeZone}>
-								{#each view.options.timeZones as zone (zone)}
-									<option value={zone}>{ZONES[zone] ?? zone}</option>
-								{/each}
-							</select>
+							<WheelPicker
+								id="time-zone"
+								class="s-input"
+								label="Time zone"
+								searchPlaceholder="Search time zones"
+								options={view.options.timeZones.map((z) => ({ value: z, label: ZONES[z] ?? z }))}
+								value={form.timeZone}
+								onchange={(v) => form && (form.timeZone = v)}
+							/>
 						</div>
 					</div>
 				</fieldset>

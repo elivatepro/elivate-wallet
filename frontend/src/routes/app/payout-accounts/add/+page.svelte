@@ -36,6 +36,7 @@
 	import PinField from '#lib/ui/auth/PinField.svelte';
 	import PrimaryButton from '#lib/ui/auth/PrimaryButton.svelte';
 	import NameCheck from '#lib/ui/onboarding/NameCheck.svelte';
+	import WheelPicker from '#lib/ui/WheelPicker.svelte';
 
 	const shell = getContext<Shell>('shell');
 
@@ -260,17 +261,21 @@
 				<form onsubmit={check} novalidate>
 					<div class="field">
 						<label for="bankCode">Bank</label>
-						<select
+						<WheelPicker
 							id="bankCode"
-							bind:value={bankCode}
-							aria-invalid={errors.bankCode ? 'true' : undefined}
-							aria-describedby={errors.bankCode ? 'bankCode-error' : undefined}
-						>
-							<option value="" disabled>Choose your bank</option>
-							{#each banks ?? [] as bank (bank.code)}
-								<option value={bank.code}>{bank.name}</option>
-							{/each}
-						</select>
+							variant="auth"
+							label="Bank"
+							title="Your bank"
+							placeholder="Choose your bank"
+							searchable
+							searchPlaceholder="Search banks"
+							emptyText="No bank matches that name."
+							options={(banks ?? []).map((bank) => ({ value: bank.code, label: bank.name }))}
+							value={bankCode || null}
+							onchange={(code) => (bankCode = code)}
+							invalid={!!errors.bankCode}
+							describedby={errors.bankCode ? 'bankCode-error' : undefined}
+						/>
 						{#if errors.bankCode}<p class="error" id="bankCode-error">{errors.bankCode}</p>{/if}
 					</div>
 					<Field
@@ -431,26 +436,6 @@
 	}
 
 	textarea[aria-invalid='true'] {
-		border-color: var(--color-danger);
-	}
-
-	select {
-		height: 52px;
-		padding: 0 16px;
-		border-radius: var(--radius-12);
-		border: 1px solid var(--auth-field-border);
-		background: var(--auth-field-bg);
-		color: var(--color-text);
-		font: inherit;
-		font-size: 15px;
-	}
-
-	select:focus {
-		outline: none;
-		border-color: var(--color-accent);
-	}
-
-	select[aria-invalid='true'] {
 		border-color: var(--color-danger);
 	}
 

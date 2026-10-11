@@ -12,6 +12,7 @@ import {
 	fillSettled,
 	humanReady,
 	inviteMember,
+	pick,
 	recordIncome,
 	uniqueEmail
 } from './helpers';
@@ -63,7 +64,7 @@ test('a member searches and filters activity and opens a transaction', async ({ 
 	await page.getByLabel('Repeat PIN').fill(PIN);
 	await page.getByRole('button', { name: 'Save PIN' }).click();
 	await completeIdentityAndProfile(page);
-	await page.getByLabel('Bank').selectOption('058');
+	await pick(page.getByLabel('Bank', { exact: true }), 'Test Bank');
 	await page.getByLabel('Account number').fill('0123456789');
 	await page.getByRole('button', { name: 'Check account' }).click();
 	await page.getByRole('button', { name: 'Save account' }).click();

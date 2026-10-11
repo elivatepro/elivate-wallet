@@ -11,7 +11,6 @@
 	import { getContext, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { Cause, Effect, Exit, Option } from 'effect';
-	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import X from '@lucide/svelte/icons/x';
 	import {
 		Entry,
@@ -40,6 +39,7 @@
 	import RootImage from '#lib/ui/RootImage.svelte';
 	import '#lib/ui/money/entry.css';
 	import NoAccess from '#lib/ui/app/NoAccess.svelte';
+	import WheelPicker from '#lib/ui/WheelPicker.svelte';
 
 	const shell = getContext<Shell>('shell');
 	const workspaceId = $derived(
@@ -417,13 +417,17 @@
 
 						<div class="en-field">
 							<label class="en-label" for="adj-reason">Reason</label>
-							<div class="en-box">
-								<select id="adj-reason" class="en-input" bind:value={reasonChoice}>
-									{#each ADJUSTMENT_REASONS as r (r)}<option value={r}>{r}</option>{/each}
-									<option value={OTHER}>Other…</option>
-								</select>
-								<ChevronDown class="en-select-icon" size={16} aria-hidden="true" />
-							</div>
+							<WheelPicker
+								id="adj-reason"
+								class="en-box"
+								label="Reason"
+								options={[
+									...ADJUSTMENT_REASONS.map((r) => ({ value: r, label: r })),
+									{ value: OTHER, label: 'Other…' }
+								]}
+								value={reasonChoice}
+								onchange={(v) => (reasonChoice = v)}
+							/>
 							{#if reasonChoice === OTHER}
 								<div class="en-box">
 									<input

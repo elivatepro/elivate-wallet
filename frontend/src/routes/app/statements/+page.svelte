@@ -27,6 +27,7 @@
 	import PeriodPicker from '#lib/ui/exports/PeriodPicker.svelte';
 	import PreviewDialog from '#lib/ui/exports/PreviewDialog.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
+	import WheelPicker from '#lib/ui/WheelPicker.svelte';
 	import '#lib/ui/exports/exports.css';
 
 	const shell = getContext<Shell>('shell');
@@ -203,9 +204,13 @@
 			{#if networks.length > 1}
 				<div class="ex-field">
 					<label class="ex-label" for="ex-network">Network</label>
-					<select id="ex-network" class="ex-select" bind:value={tenantId}>
-						{#each networks as n (n.tenantId)}<option value={n.tenantId}>{n.name}</option>{/each}
-					</select>
+					<WheelPicker
+						id="ex-network"
+						class="ex-select"
+						label="Network"
+						options={networks.map((n) => ({ value: n.tenantId, label: n.name }))}
+						bind:value={tenantId}
+					/>
 					<p class="ex-hint desktop-only">One network and one currency per statement.</p>
 				</div>
 			{/if}

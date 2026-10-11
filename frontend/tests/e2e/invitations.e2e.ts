@@ -5,14 +5,15 @@
 import { type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 import {
-	fillSettled,
 	completeIdentityAndProfile,
 	confirmLinkFor,
 	createConfirmedAccount,
 	expectAccessible,
 	expectNoHorizontalScroll,
-	inviteMember,
+	fillSettled,
 	humanReady,
+	inviteMember,
+	pick,
 	uniqueEmail
 } from './helpers';
 
@@ -99,13 +100,35 @@ test('new person: join link → verify email → password → accept → PIN →
 
 	// Bank: a mismatching name is refused, a matching one is saved.
 	await expect(page.getByRole('heading', { name: 'Where should payouts go?' })).toBeVisible();
-	await page.getByLabel('Bank').selectOption('058');
+	await pick(page.getByLabel('Bank', { exact: true }), 'Test Bank');
 	await page.getByLabel('Account number').fill('0987654321');
 	await page.getByRole('button', { name: 'Check account' }).click();
 	await expect(page.getByRole('heading', { name: 'Name doesn’t match' })).toBeVisible();
 	await expect(page.getByText('Doesn’t match Ada Nkem Obi')).toBeVisible();
 	await page.getByRole('link', { name: 'Use a different account' }).click();
-	await page.getByLabel('Bank').selectOption('058');
+	// Blueprint 24: the bank wheel's search filters as you type, says when
+	// nothing matches, and Enter chooses the top match.
+	const bank = page.getByRole('combobox', { name: 'Bank', exact: true });
+	await bank.click();
+	const sheet = page.getByRole('dialog', { name: 'Your bank' });
+	const search = sheet.getByRole('combobox', { name: 'Search bank' });
+	await expect(search).toBeFocused();
+	await search.fill('zzz');
+	await expect(sheet.getByText('No bank matches that name.')).toBeVisible();
+	await expect(sheet.getByRole('button', { name: 'Done' })).toBeDisabled();
+	await search.fill('nigeria');
+	await expect(sheet.getByRole('option')).toHaveCount(2);
+	await search.fill('test');
+	await expect(sheet.getByRole('option')).toHaveCount(1);
+	await expect(sheet.getByRole('option', { name: 'Test Bank' })).toHaveAttribute(
+		'aria-selected',
+		'true'
+	);
+	await expectAccessible(page);
+	await search.press('Enter');
+	await expect(sheet).toHaveCount(0);
+	await expect(bank).toBeFocused();
+	await expect(bank).toHaveText('Test Bank');
 	await page.getByLabel('Account number').fill('0123456789');
 	await page.getByRole('button', { name: 'Check account' }).click();
 	await expect(page.getByText('Matches your verified name')).toBeVisible();

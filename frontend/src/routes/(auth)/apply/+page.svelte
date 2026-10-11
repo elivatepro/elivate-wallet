@@ -1,10 +1,9 @@
 <!--
 	Paper "Authentication v2" 13d/13m · Apply to start a network (Blueprint 19).
 	Root with clipboard and pen; desktop pairs name/phone and team/rank in a
-	wider panel. The rank is a native select (accepted deviation, like banks).
+	wider panel. The rank is the shared wheel picker (Blueprint 24).
 -->
 <script lang="ts">
-	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import { enhance } from '$app/forms';
 	import { FOUNDER_RANKS } from '#lib/contract/founders.js';
 	import { rankLabel } from '#lib/labels.js';
@@ -14,6 +13,7 @@
 	import FormAlert from '#lib/ui/auth/FormAlert.svelte';
 	import PrimaryButton from '#lib/ui/auth/PrimaryButton.svelte';
 	import Turnstile from '#lib/ui/auth/Turnstile.svelte';
+	import WheelPicker from '#lib/ui/WheelPicker.svelte';
 	import { useRoot } from '#lib/ui/root.svelte.js';
 	import type { PageProps } from './$types';
 
@@ -95,21 +95,20 @@
 		/>
 		<div class="field">
 			<label for="rank">Your rank</label>
-			<div class="select" class:invalid={!!errors?.rank}>
-				<select
-					id="rank"
-					name="rank"
-					required
-					aria-invalid={errors?.rank ? 'true' : undefined}
-					aria-describedby={errors?.rank ? 'rank-hint rank-error' : 'rank-hint'}
-				>
-					<option value="" disabled selected={!values?.rank}>Choose one</option>
-					{#each FOUNDER_RANKS as rank (rank)}
-						<option value={rank} selected={values?.rank === rank}>{rankLabel(rank)}</option>
-					{/each}
-				</select>
-				<ChevronDown size={18} strokeWidth={1.6} aria-hidden="true" />
-			</div>
+			<WheelPicker
+				id="rank"
+				name="rank"
+				variant="auth"
+				label="Rank"
+				title="Your rank"
+				placeholder="Choose one"
+				confirmText="Set rank"
+				required
+				options={FOUNDER_RANKS.map((rank) => ({ value: rank, label: rankLabel(rank) }))}
+				value={values?.rank ?? null}
+				invalid={!!errors?.rank}
+				describedby={errors?.rank ? 'rank-hint rank-error' : 'rank-hint'}
+			/>
 			<p class="hint" id="rank-hint">4 Ruby Director or above only</p>
 			{#if errors?.rank}<p class="error" id="rank-error">{errors.rank}</p>{/if}
 		</div>
@@ -162,56 +161,6 @@
 		font-size: var(--text-14);
 		font-weight: var(--font-weight-medium);
 		line-height: var(--leading-20);
-	}
-
-	.select {
-		position: relative;
-		display: flex;
-		align-items: center;
-		height: 52px;
-		border-radius: var(--radius-12);
-		border: 1px solid var(--auth-field-border);
-		background: var(--auth-field-bg);
-		color: var(--color-muted);
-	}
-
-	.select:focus-within {
-		border-color: var(--color-accent);
-		box-shadow: color-mix(in oklab, var(--color-accent) 20%, transparent) 0px 0px 0px 3px;
-	}
-
-	.select.invalid {
-		border-color: var(--color-danger);
-	}
-
-	select {
-		flex: 1;
-		min-width: 0;
-		height: 100%;
-		padding: 0 44px 0 16px;
-		border: 0;
-		background: transparent;
-		color: var(--color-text);
-		font: inherit;
-		font-size: 15px;
-		appearance: none;
-		outline: none;
-		cursor: pointer;
-	}
-
-	select:has(option[value='']:checked) {
-		color: var(--auth-placeholder);
-	}
-
-	option {
-		color: var(--color-text);
-		background: var(--color-surface);
-	}
-
-	.select :global(svg) {
-		position: absolute;
-		right: 16px;
-		pointer-events: none;
 	}
 
 	.hint {

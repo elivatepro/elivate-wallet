@@ -15,7 +15,6 @@
 	import { Cause, Effect, Exit, Option } from 'effect';
 	import ArrowDown from '@lucide/svelte/icons/arrow-down';
 	import ArrowUp from '@lucide/svelte/icons/arrow-up';
-	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import X from '@lucide/svelte/icons/x';
 	import {
 		EntryAppRoutes,
@@ -38,6 +37,7 @@
 	import OutcomeUnknown from '#lib/ui/app/OutcomeUnknown.svelte';
 	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
+	import WheelPicker from '#lib/ui/WheelPicker.svelte';
 	import '#lib/ui/money/entry.css';
 
 	const shell = getContext<Shell>('shell');
@@ -323,13 +323,14 @@
 					{#if blockerText}<p class="en-notice">{blockerText}</p>{/if}
 					<div class="en-field">
 						<label class="en-label" for="rev-reason">Reason</label>
-						<div class="en-box">
-							<select id="rev-reason" class="en-input" bind:value={category}>
-								{#each REVERSAL_CATEGORIES as c (c)}<option value={c}>{REVERSAL_LABELS[c]}</option
-									>{/each}
-							</select>
-							<ChevronDown class="en-select-icon" size={16} aria-hidden="true" />
-						</div>
+						<WheelPicker
+							id="rev-reason"
+							class="en-box"
+							label="Reason"
+							options={REVERSAL_CATEGORIES.map((c) => ({ value: c, label: REVERSAL_LABELS[c] }))}
+							value={category}
+							onchange={(c) => (category = c as ReversalCategory)}
+						/>
 					</div>
 					<div class="en-field">
 						<label class="en-label" for="rev-note">Note</label>

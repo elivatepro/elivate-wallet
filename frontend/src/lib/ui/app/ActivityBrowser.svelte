@@ -13,10 +13,9 @@
 	import { page } from '$app/state';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	import { Cause, Effect, Exit, Option } from 'effect';
-	import { Dialog, DropdownMenu } from 'bits-ui';
+	import { Dialog } from 'bits-ui';
 	import ArrowDown from '@lucide/svelte/icons/arrow-down';
 	import ArrowUp from '@lucide/svelte/icons/arrow-up';
-	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import Search from '@lucide/svelte/icons/search';
 	import SlidersHorizontal from '@lucide/svelte/icons/sliders-horizontal';
 	import { ActivityView } from '#lib/contract/app.js';
@@ -52,6 +51,7 @@
 	import RootHero from '#lib/ui/app/RootHero.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
 	import TransactionDetailView from '#lib/ui/app/TransactionDetail.svelte';
+	import WheelPicker from '#lib/ui/WheelPicker.svelte';
 
 	let {
 		wallet = null,
@@ -441,35 +441,30 @@
 </script>
 
 {#snippet dropdown(
+	id: string,
+	name: string,
 	label: string,
 	value: string,
 	options: ReadonlyArray<readonly [string, string]>,
 	set: (v: string) => void
 )}
-	<DropdownMenu.Root>
-		<DropdownMenu.Trigger class="filter">
-			<span>{label}</span>
-			<ChevronDown size={14} strokeWidth={1.8} aria-hidden="true" />
-		</DropdownMenu.Trigger>
-		<DropdownMenu.Portal>
-			<DropdownMenu.Content class="popover filter-menu" sideOffset={8} align="start">
-				<DropdownMenu.RadioGroup class="menu-group" {value} onValueChange={set}>
-					{#each options as [key, text] (key)}
-						<DropdownMenu.RadioItem class="menu-row" value={key}>
-							{#snippet children({ checked })}
-								<span class="menu-label">{text}</span>
-								{#if checked}<span class="tick" aria-hidden="true">✓</span>{/if}
-							{/snippet}
-						</DropdownMenu.RadioItem>
-					{/each}
-				</DropdownMenu.RadioGroup>
-			</DropdownMenu.Content>
-		</DropdownMenu.Portal>
-	</DropdownMenu.Root>
+	<WheelPicker
+		id={`activity-${id}`}
+		class="filter"
+		fit
+		label={name}
+		ariaLabel={name}
+		triggerText={label}
+		options={options.map(([key, text]) => ({ value: key, label: text }))}
+		{value}
+		onchange={set}
+	/>
 {/snippet}
 
 {#snippet filterMenus()}
 	{@render dropdown(
+		'currency',
+		'Currency',
 		`Currency: ${currencyLabel}`,
 		currency,
 		[
@@ -480,24 +475,32 @@
 		(v) => (currency = v as Currency | 'all')
 	)}
 	{@render dropdown(
+		'status',
+		'Status',
 		`Status: ${statusText}`,
 		status,
 		[['any', 'Any status'], ...Object.entries(STATUS_LABELS)],
 		(v) => (status = v)
 	)}
 	{@render dropdown(
+		'type',
+		'Type',
 		`Type: ${typeText}`,
 		type,
 		[['any', 'Any type'], ...Object.entries(TYPE_FILTERS)],
 		(v) => (type = v)
 	)}
 	{@render dropdown(
+		'pocket',
+		'Pocket',
 		`Pocket: ${pocketText}`,
 		pocketId,
 		[['all', 'All pockets'], ...pockets.map((p) => [p.pocketId, p.name] as const)],
 		(v) => (pocketId = v)
 	)}
 	{@render dropdown(
+		'date',
+		'Date',
 		rangeText,
 		range,
 		[...Object.entries(DATE_RANGE_LABELS), ['custom', 'Pick dates']],
@@ -1168,14 +1171,6 @@
 		line-height: var(--leading-16);
 		white-space: nowrap;
 		cursor: pointer;
-	}
-
-	:global(.popover.filter-menu) {
-		min-width: 200px;
-	}
-
-	.tick {
-		color: var(--color-accent);
 	}
 
 	.body {

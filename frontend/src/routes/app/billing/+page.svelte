@@ -40,6 +40,7 @@
 	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import OrgDialog from '#lib/ui/org/OrgDialog.svelte';
 	import OrgHero from '#lib/ui/org/OrgHero.svelte';
+	import WheelPicker from '#lib/ui/WheelPicker.svelte';
 
 	const shell = getContext<Shell>('shell');
 	const workspaceId = $derived(
@@ -529,11 +530,20 @@
 			<div>
 				<dt><label for="next-plan">Next year’s plan</label></dt>
 				<dd>
-					<select id="next-plan" class="plan-select" bind:value={nextKey}>
-						{#each smaller as option (option.key)}
-							<option value={option.key} disabled={!option.fits}>{option.name}</option>
-						{/each}
-					</select>
+					<span class="plan-select">
+						<WheelPicker
+							id="next-plan"
+							fit
+							label="Next year’s plan"
+							options={smaller.map((option) => ({
+								value: option.key,
+								label: option.name,
+								disabled: !option.fits
+							}))}
+							value={nextKey || null}
+							onchange={(key) => (nextKey = key)}
+						/>
+					</span>
 				</dd>
 			</div>
 		</dl>
@@ -860,13 +870,18 @@
 	}
 
 	.plan-select {
+		display: flex;
+		justify-content: flex-end;
+	}
+
+	.plan-select :global(.wp-trigger) {
+		gap: 6px;
 		height: 32px;
+		padding: 0;
 		border: 0;
 		background: transparent;
 		color: var(--color-text);
-		font: inherit;
 		font-weight: var(--font-weight-medium);
-		text-align: right;
 	}
 
 	.candidates {

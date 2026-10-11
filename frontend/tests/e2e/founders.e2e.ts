@@ -17,6 +17,7 @@ import {
 	lightSetupWizard,
 	localSql,
 	mailFor,
+	pick,
 	setJoinPassword,
 	shot,
 	uniqueEmail,
@@ -62,7 +63,7 @@ async function apply(page: Page, person: { name: string; email: string; team: st
 	await page.getByLabel('Phone number').fill('0803 555 0142');
 	await page.getByLabel('Email address').fill(person.email);
 	await page.getByLabel('Team name').fill(person.team);
-	await page.getByLabel('Your rank').selectOption('ruby_director_4');
+	await pick(page.getByLabel('Your rank'), '4 Ruby Director');
 	await humanReady(page);
 	await page.getByRole('button', { name: 'Send application' }).click();
 	// The first call may wake a cold Edge Function.
