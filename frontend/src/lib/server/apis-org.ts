@@ -27,7 +27,9 @@ export interface OrgAdminApiShape {
 	readonly command: (
 		route: EdgeRoute,
 		body: Readonly<Record<string, unknown>>,
-		membershipId: string
+		membershipId: string,
+		/** Blueprint 27: leader invitations go to the `invitations` function. */
+		fn?: 'org' | 'invitations'
 	) => Effect.Effect<typeof CommandResult.Type, EdgeFailure>;
 }
 
@@ -42,8 +44,8 @@ export const OrgAdminApiLive = Layer.effect(
 				edge
 					.call({ fn, route, membershipId, ...(query ? { query } : {}) }, schema)
 					.pipe(Effect.retry(readPolicy)),
-			command: (route, body, membershipId) =>
-				edge.call({ fn: 'org', route, body, membershipId }, CommandResult)
+			command: (route, body, membershipId, fn = 'org') =>
+				edge.call({ fn, route, body, membershipId }, CommandResult)
 		};
 	})
 );

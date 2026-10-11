@@ -76,6 +76,7 @@ Deno.test("create: actor from the token, workspace from the header, server-made 
     p_role: "member",
     p_email: "new@example.test",
     p_reason: null,
+    p_replaces_membership_id: null,
     p_idempotency_key: key,
     p_token_id: issued.tokenId,
     p_token_digest: issued.digest,
@@ -303,4 +304,73 @@ Deno.test("founder link: accepting needs a session and sends only the digest", a
   assertEquals(calls[0]?.args.p_token_digest, await tokenDigest(token));
   assertEquals(calls[0]?.args.p_user_id, actor.userId);
   assert(!JSON.stringify(calls[0]?.args).includes(token));
+});
+
+// Blueprint 27: a leader invitation that replaces a current leader on accept.
+Deno.test("create: carries the leader it replaces", async () => {
+  const { handler, calls } = setup();
+  const replaces = "00000000-0000-0000-0000-0000000000f1";
+  const response = await handler(
+    request("POST", "", {
+      officeId,
+      role: "team_leader",
+      email: "next@example.test",
+      reason: "Handover",
+      replacesMembershipId: replaces,
+      idempotencyKey: key,
+    }),
+  );
+  assertEquals(response.status, 200);
+  assertEquals(calls[0]?.args.p_replaces_membership_id, replaces);
+  const bad = await handler(
+    request("POST", "", {
+      officeId,
+      role: "team_leader",
+      email: "next@example.test",
+      reason: "Handover",
+      replacesMembershipId: "nope",
+      idempotencyKey: key,
+    }),
+  );
+  assertEquals(bad.status, 400);
+  assertEquals(calls.length, 1);
+});
+
+// Blueprint 27: a new office whose leader is invited by email.
+Deno.test("create office inviting its leader: a server-made link, no reason from the client", async () => {
+  const { handler, calls } = setup();
+  const response = await handler(
+    request("POST", "/office", {
+      type: "team_leader",
+      name: "Team C",
+      parentOfficeId: officeId,
+      email: " Lead@Example.test ",
+      idempotencyKey: key,
+    }),
+  );
+  assertEquals(response.status, 200);
+  assertEquals(calls[0]?.fn, "create_office_inviting_leader");
+  assertEquals(calls[0]?.args, {
+    p_user_id: actor.userId,
+    p_session_id: actor.sessionId,
+    p_membership_id: membershipId,
+    p_request_id: calls[0]?.args.p_request_id,
+    p_type: "team_leader",
+    p_name: "Team C",
+    p_parent_office_id: officeId,
+    p_email: "lead@example.test",
+    p_idempotency_key: key,
+    p_token_id: issued.tokenId,
+    p_token_digest: issued.digest,
+  });
+  for (
+    const body of [
+      { type: "team_leader", name: "Team C", email: "a@b.co", idempotencyKey: key, reason: "x" },
+      { type: "boss", name: "Team C", email: "a@b.co", idempotencyKey: key },
+      { type: "team_leader", name: "Team C", email: "not-an-email", idempotencyKey: key },
+    ]
+  ) {
+    assertEquals((await handler(request("POST", "/office", body))).status, 400);
+  }
+  assertEquals(calls.length, 1);
 });

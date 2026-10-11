@@ -10,7 +10,8 @@
 	import { page } from '$app/state';
 	import Check from '@lucide/svelte/icons/check';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
-	import { UID_PATTERN } from '#lib/contract/common.js';
+	import Clock from '@lucide/svelte/icons/clock';
+	import { AppRoutes } from '#lib/contract/app.js';
 	import type { Currency } from '#lib/contract/ledger.js';
 	import { AppOrgRoutes, OfficeView } from '#lib/contract/org-admin.js';
 	import { loadView, OrgCommand } from '#lib/client/org.svelte.js';
@@ -29,6 +30,9 @@
 	import OrgDialog from '#lib/ui/org/OrgDialog.svelte';
 	import OrgHero from '#lib/ui/org/OrgHero.svelte';
 	import WheelPicker from '#lib/ui/WheelPicker.svelte';
+	import PersonPicker from '#lib/ui/org/PersonPicker.svelte';
+	import { expiryLabel } from '#lib/invitations.js';
+	import type { Picked } from '#lib/person-picker.js';
 
 	const shell = getContext<Shell>('shell');
 	const workspace = $derived(shell.state.kind === 'ready' ? shell.state.view.workspace : null);
@@ -101,12 +105,12 @@
 	const replace = new OrgCommand();
 	let replaceOpen = $state(false);
 	let outgoing = $state('');
-	let incoming = $state('');
+	let incoming = $state<Picked | null>(null);
 
 	function openReplace() {
 		replace.reset(id);
 		outgoing = office?.leaders[0]?.membershipId ?? '';
-		incoming = '';
+		incoming = null;
 		notice = null;
 		replaceOpen = true;
 	}
@@ -114,26 +118,75 @@
 	const checkReplace = () =>
 		!outgoing
 			? 'Choose the leader to replace.'
-			: !UID_PATTERN.test(incoming.trim().toUpperCase())
-				? 'Enter the new leader’s UID (EW-…).'
+			: !incoming
+				? `Choose the new ${leaderTitle}.`
 				: null;
 
 	async function submitReplace({ reason, pin }: { reason: string; pin: string | undefined }) {
-		if (!workspace) return;
-		const ok = await replace.send(
-			AppOrgRoutes.officeLeaderReplace(id),
+		const next = incoming;
+		if (!workspace || !office || !next) return;
+		// Blueprint 27: an email with no account is invited; the current leader
+		// stays until the invitation is accepted.
+		const ok =
+			next.kind === 'invite'
+				? await replace.send(
+						AppOrgRoutes.officeLeaderInvite(id),
+						'POST',
+						{
+							role: LEADER_ROLE[office.type],
+							email: next.email,
+							reason,
+							replacesMembershipId: outgoing,
+							...(pin ? { pin } : {})
+						},
+						workspace.membershipId
+					)
+				: await replace.send(
+						AppOrgRoutes.officeLeaderReplace(id),
+						'POST',
+						{
+							outgoingMembershipId: outgoing,
+							incomingUid: next.uid,
+							reason,
+							...(pin ? { pin } : {})
+						},
+						workspace.membershipId
+					);
+		if (ok) {
+			replaceOpen = false;
+			notice =
+				next.kind === 'invite'
+					? `${next.email} invited. The current leader stays until they accept.`
+					: 'Leader replaced.';
+			await load();
+		}
+	}
+
+	const daysLeft = (iso: string) => expiryLabel(iso, Date.now()).text;
+
+	// ── Resend a pending leader invitation (Blueprint 27, Paper PP03) ──
+	const resend = new OrgCommand();
+	let resendOpen = $state(false);
+	const waiting = $derived(office?.pendingLeaders ?? []);
+
+	function openResend() {
+		resend.reset(waiting[0]?.invitationId ?? null);
+		notice = null;
+		resendOpen = true;
+	}
+
+	async function submitResend({ pin }: { pin: string | undefined }) {
+		const invitation = waiting[0];
+		if (!workspace || !invitation) return;
+		const ok = await resend.send(
+			AppRoutes.reissueInvitation(invitation.invitationId).path,
 			'POST',
-			{
-				outgoingMembershipId: outgoing,
-				incomingUid: incoming.trim().toUpperCase(),
-				reason,
-				...(pin ? { pin } : {})
-			},
+			{ ...(pin ? { pin } : {}) },
 			workspace.membershipId
 		);
 		if (ok) {
-			replaceOpen = false;
-			notice = 'Leader replaced.';
+			resendOpen = false;
+			notice = `New link sent to ${invitation.email}.`;
 			await load();
 		}
 	}
@@ -241,6 +294,11 @@
 				{#if office.status === 'closed'}
 					<span class="hero-chip closed-chip"
 						>Closed{office.closure ? ` · ${closedOn(office.closure.at)}` : ''}</span
+					>
+				{/if}
+				{#if office.status === 'active' && office.leaders.length === 0 && waiting.length > 0}
+					<button type="button" class="hero-chip" disabled={!shell.canAct} onclick={openResend}
+						>Resend invite</button
 					>
 				{/if}
 				{#if office.status === 'active' && office.canLeadAssign && office.leaders.length > 0}
@@ -371,7 +429,28 @@
 								</span>
 							</a>
 						{:else}
-							<p class="o-sub">No active leader.</p>
+							{#if waiting[0]}
+								<div class="leader waiting">
+									<span class="o-avatar lg wait" aria-hidden="true"
+										><Clock size={18} strokeWidth={1.6} /></span
+									>
+									<span class="o-stack">
+										<span class="leader-name">Waiting for its leader</span>
+										<span class="o-sub">{waiting[0].email} · {daysLeft(waiting[0].expiresAt)}</span>
+									</span>
+								</div>
+							{:else}
+								<p class="o-sub">
+									Waiting for its leader. The invitation ended; invite someone from Invitations.
+								</p>
+							{/if}
+						{/each}
+						{#each waiting.filter((p) => p.replaces) as pending (pending.invitationId)}
+							<p class="o-sub pending">
+								{pending.email} invited to replace {personName(pending.replaces)} · {daysLeft(
+									pending.expiresAt
+								)}
+							</p>
 						{/each}
 					</section>
 				{/if}
@@ -460,17 +539,36 @@
 		</div>
 	{/if}
 	<div class="o-field">
-		<label for="replace-incoming">New {leaderTitle} UID</label>
-		<input
+		<label for="replace-incoming">New {leaderTitle}</label>
+		<PersonPicker
 			id="replace-incoming"
-			class="o-input o-mono"
-			placeholder="EW-00000"
-			autocomplete="off"
-			autocapitalize="characters"
 			bind:value={incoming}
+			allowInvite
+			networkName={workspace?.tenantName ?? null}
 		/>
+		{#if incoming?.kind === 'invite'}
+			<p class="o-sub invite-note">
+				They get a 7-day link to sign up. The current leader stays until they accept.
+			</p>
+		{/if}
 	</div>
 </OrgDialog>
+
+<OrgDialog
+	bind:open={resendOpen}
+	pose="office-leader"
+	title="Resend the invite?"
+	subtitle={waiting[0]
+		? `${waiting[0].email} · a fresh 7-day link; the old one stops working`
+		: undefined}
+	confirmLabel="Resend invite"
+	mobileConfirmLabel="Resend"
+	needsReason={false}
+	busy={resend.busy}
+	error={resend.error}
+	pinError={resend.pinError}
+	onConfirm={submitResend}
+/>
 
 <OrgDialog
 	bind:open={closeOpen}
@@ -664,6 +762,21 @@
 		gap: 12px;
 		color: inherit;
 		text-decoration: none;
+	}
+
+	.leader.waiting {
+		cursor: default;
+	}
+
+	:global(.o-avatar.wait) {
+		border: 1px dashed var(--color-warning);
+		background: transparent;
+		color: var(--color-warning);
+	}
+
+	.pending,
+	.invite-note {
+		margin-top: 8px;
 	}
 
 	.leader-name {

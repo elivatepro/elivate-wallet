@@ -13,7 +13,7 @@
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Search from '@lucide/svelte/icons/search';
-	import { UID_PATTERN, type OfficeType } from '#lib/contract/common.js';
+	import type { OfficeType } from '#lib/contract/common.js';
 	import type { Currency } from '#lib/contract/ledger.js';
 	import { AppOrgRoutes, OfficesView, type OfficeRow } from '#lib/contract/org-admin.js';
 	import { loadView, OrgCommand } from '#lib/client/org.svelte.js';
@@ -35,6 +35,8 @@
 	import CurrencySwitch from '#lib/ui/app/CurrencySwitch.svelte';
 	import OrgDialog from '#lib/ui/org/OrgDialog.svelte';
 	import OrgHero from '#lib/ui/org/OrgHero.svelte';
+	import PersonPicker from '#lib/ui/org/PersonPicker.svelte';
+	import type { Picked } from '#lib/person-picker.js';
 	import WheelPicker from '#lib/ui/WheelPicker.svelte';
 
 	const shell = getContext<Shell>('shell');
@@ -100,7 +102,7 @@
 
 	const leaderLine = (office: OfficeRow) =>
 		office.leaders.length === 0
-			? 'No leader'
+			? 'Waiting for its leader'
 			: office.leaders.length === 1
 				? personName(office.leaders[0] ?? null)
 				: `${personName(office.leaders[0] ?? null)} +${office.leaderCount - 1}`;
@@ -111,7 +113,7 @@
 	let newName = $state('');
 	let newType = $state<OfficeType>('team_leader');
 	let newParent = $state('');
-	let newLeader = $state('');
+	let newLeader = $state<Picked | null>(null);
 	const parents = $derived(active.filter((o) => PARENT_TYPES[newType].includes(o.type)));
 
 	$effect(() => {
@@ -127,29 +129,38 @@
 	function checkCreate(): string | null {
 		const name = newName.trim();
 		if (name.length < 2 || name.length > 100) return 'Give the office a name (2–100 characters).';
-		if (!UID_PATTERN.test(newLeader.trim().toUpperCase())) return 'Enter the leader’s UID (EW-…).';
+		if (!newLeader) return `Choose the ${ROLE_LABELS[LEADER_ROLE[newType]]}.`;
 		return null;
 	}
 
 	async function submitCreate({ pin }: { pin: string | undefined }) {
 		if (!workspace) return;
-		const ok = await create.send(
-			AppOrgRoutes.offices,
-			'POST',
-			{
-				type: newType,
-				name: newName.trim(),
-				parentOfficeId: newParent || null,
-				leaderUids: [newLeader.trim().toUpperCase()],
-				...(pin ? { pin } : {})
-			},
-			workspace.membershipId
-		);
+		const leader = newLeader;
+		if (!leader) return;
+		const office = { type: newType, name: newName.trim(), parentOfficeId: newParent || null };
+		// Blueprint 27: an email with no account creates the office and invites its leader.
+		const ok =
+			leader.kind === 'invite'
+				? await create.send(
+						AppOrgRoutes.officesInvite,
+						'POST',
+						{ ...office, email: leader.email, ...(pin ? { pin } : {}) },
+						workspace.membershipId
+					)
+				: await create.send(
+						AppOrgRoutes.offices,
+						'POST',
+						{ ...office, leaderUids: [leader.uid], ...(pin ? { pin } : {}) },
+						workspace.membershipId
+					);
 		if (ok) {
 			createOpen = false;
-			notice = `${newName.trim()} created.`;
+			notice =
+				leader.kind === 'invite'
+					? `${office.name} created. ${leader.email} was invited to lead it.`
+					: `${office.name} created.`;
 			newName = '';
-			newLeader = '';
+			newLeader = null;
 			await load();
 		}
 	}
@@ -281,7 +292,7 @@
 	pose="office-new"
 	title="New office"
 	subtitle={workspace ? `Add a branch to ${workspace.tenantName}` : undefined}
-	confirmLabel="Create office"
+	confirmLabel={newLeader?.kind === 'invite' ? 'Create and invite' : 'Create office'}
 	needsReason={false}
 	busy={create.busy}
 	error={create.error}
@@ -326,19 +337,33 @@
 		/>
 	</div>
 	<div class="o-field">
-		<label for="office-leader">{ROLE_LABELS[LEADER_ROLE[newType]]} UID</label>
-		<input
+		<label for="office-leader">{ROLE_LABELS[LEADER_ROLE[newType]]}</label>
+		<PersonPicker
 			id="office-leader"
-			class="o-input o-mono"
-			placeholder="EW-00000"
-			autocomplete="off"
-			autocapitalize="characters"
 			bind:value={newLeader}
+			allowInvite
+			networkName={workspace?.tenantName ?? null}
 		/>
+		{#if newLeader?.kind === 'invite'}
+			<p class="invite-note">
+				The office is created now and waits for its leader. They get a 7-day link to sign up, and
+				become {ROLE_LABELS[LEADER_ROLE[newType]]} when they accept.
+			</p>
+		{/if}
 	</div>
 </OrgDialog>
 
 <style>
+	.invite-note {
+		margin-top: 8px;
+		padding: 12px;
+		border-radius: var(--radius-12);
+		background: var(--color-accent-subtle);
+		color: var(--color-text);
+		font-size: 13px;
+		line-height: 18px;
+	}
+
 	.kinds {
 		flex: 1 1 100%;
 	}

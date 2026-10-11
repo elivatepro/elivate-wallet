@@ -448,6 +448,16 @@ export function createHandler(
       });
     }),
 
+    // Blueprint 27: the person picker (name in the network; exact UID or email).
+    route("GET", "/people", (c) => {
+      onlyQuery(c.query, ["q"]);
+      const q = queryText(c.query, "q", 254);
+      if (q === null || q.trim().length < 2) {
+        throw new ApiError("validation_error", { field: "q" });
+      }
+      return call("find_people", { ...inWorkspace(c), p_query: q });
+    }),
+
     route("POST", "/offices", async (c) => {
       const body = await v.readBody(c.request, [
         "type",

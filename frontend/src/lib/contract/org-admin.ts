@@ -4,7 +4,7 @@
 // backend/supabase/functions/org/handler.ts and the api.* JSON builders.
 
 import { Schema } from 'effect';
-import { IdempotencyKey, Reason } from './invitations';
+import { IdempotencyKey, InviteEmail, Reason } from './invitations';
 import { Currency, Money } from './ledger';
 import { IsoDateTime, OfficeType, PIN_PATTERN, Person, Role, Uid, Uuid } from './common';
 
@@ -39,6 +39,32 @@ export type Leader = typeof Leader.Type;
 
 const OfficeRef = Schema.Struct({ id: Uuid, name: Schema.String, type: OfficeType });
 
+/** Blueprint 27: an open leader invitation (waiting office, or a pending replacement). */
+export const PendingLeader = Schema.Struct({
+	invitationId: Uuid,
+	email: Schema.String,
+	expiresAt: IsoDateTime,
+	/** The leader this invitation replaces when accepted; null for a new leader. */
+	replaces: Person
+});
+export type PendingLeader = typeof PendingLeader.Type;
+
+/** GET /people (api.find_people): the person picker's matches. */
+export const FoundPerson = Schema.Struct({
+	uid: Uid,
+	name: Schema.NullOr(Schema.String),
+	inNetwork: Schema.Boolean,
+	role: Schema.NullOr(Role),
+	officeName: Schema.NullOr(Schema.String)
+});
+export type FoundPerson = typeof FoundPerson.Type;
+export const FoundPeople = Schema.Struct({
+	items: Schema.Array(FoundPerson),
+	/** The query was a full email address that no account uses. */
+	noAccount: Schema.Boolean
+});
+export type FoundPeople = typeof FoundPeople.Type;
+
 /** GET /offices/:id (api.office_detail). */
 export const OfficeDetail = Schema.Struct({
 	id: Uuid,
@@ -53,6 +79,8 @@ export const OfficeDetail = Schema.Struct({
 	memberCount: Schema.Int,
 	ownMemberCount: Schema.Int,
 	pendingInvitations: Schema.Int,
+	/** Blueprint 27 (optional: copies saved before it have none). */
+	pendingLeaders: Schema.optional(Schema.Array(PendingLeader)),
 	/** Set once the office is closed (from the network audit log). */
 	closure: Schema.NullOr(
 		Schema.Struct({ at: IsoDateTime, reason: Schema.NullOr(Schema.String), by: Person })
@@ -239,7 +267,12 @@ export const OrgAdminRoutes = {
 	endReviewer: (id: string) => ({ method: 'DELETE', path: `/reviewers/${id}` }) as const,
 	audit: { method: 'GET', path: '/audit' },
 	officeTotals: (id: string) => ({ method: 'GET', path: `/offices/${id}/totals` }) as const,
-	wallet: (id: string) => ({ method: 'GET', path: `/wallets/${id}` }) as const
+	wallet: (id: string) => ({ method: 'GET', path: `/wallets/${id}` }) as const,
+	// Blueprint 27: the picker's search (org) and leaders invited by email
+	// (the `invitations` function, which issues the link).
+	people: { method: 'GET', path: '/people' },
+	inviteOffice: { method: 'POST', path: '/office' },
+	inviteLeader: { method: 'POST', path: '/' }
 } as const;
 
 export type MembershipAction = 'suspend' | 'reactivate' | 'end' | 'move' | 'role' | 'funds';
@@ -307,6 +340,21 @@ export const CreateOfficeCommand = Command({
 	parentOfficeId: Schema.NullOr(Uuid),
 	leaderUids: Schema.Array(Uid).check(Schema.isMinLength(1), Schema.isMaxLength(20))
 });
+/** Blueprint 27: a new office whose leader is invited by email (reason filled in). */
+export const CreateOfficeInviteCommand = Command({
+	type: OfficeType,
+	name: Name,
+	parentOfficeId: Schema.NullOr(Uuid),
+	email: InviteEmail
+});
+/** Blueprint 27: add a leader by email, or replace one (on accept). */
+export const InviteLeaderCommand = Command({
+	/** The office's leader role (the backend refuses a mismatch). */
+	role: Schema.Literals(['team_leader', 'director', 'world_team_member']),
+	email: InviteEmail,
+	reason: Reason,
+	replacesMembershipId: Schema.optionalKey(Uuid)
+});
 export const RenameOfficeCommand = Command({ name: Name });
 export const ReasonCommand = Command({ reason: Reason });
 export const PlaceCommand = Command({ parentOfficeId: Schema.NullOr(Uuid), reason: Reason });
@@ -360,6 +408,9 @@ export const AppOrgRoutes = {
 	officePlace: (id: string) => `/api/org/offices/${id}/place`,
 	officeLeaders: (id: string) => `/api/org/offices/${id}/leaders`,
 	officeLeaderReplace: (id: string) => `/api/org/offices/${id}/leaders/replace`,
+	officeLeaderInvite: (id: string) => `/api/org/offices/${id}/leaders/invite`,
+	officesInvite: '/api/org/offices/invite',
+	people: '/api/org/people',
 	members: '/api/org/members',
 	member: (id: string) => `/api/org/members/${id}`,
 	memberAction: (id: string, action: MembershipAction) => `/api/org/members/${id}/${action}`,
