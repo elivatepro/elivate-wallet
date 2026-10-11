@@ -127,8 +127,9 @@ test('sign out, then another person signs in: no flash of the first person’s d
 		await expect(page.getByTestId('cache-note')).toHaveCount(0);
 		await page.waitForTimeout(200);
 	}
-	// Slice 21: the founder's President Team workspace holds no wallet.
-	await expect(page.getByRole('heading', { name: 'No wallet in this workspace' })).toBeVisible({
+	// The founder's President Team workspace holds no wallet: Home is the
+	// network overview (Blueprint 25).
+	await expect(page.getByRole('region', { name: 'Income recorded this month' })).toBeVisible({
 		timeout: 10_000
 	});
 });
@@ -239,15 +240,15 @@ test.describe('a tap answers at once (mobile)', () => {
 			await new Promise((resolve) => setTimeout(resolve, 2500));
 			await route.continue();
 		});
-		const team = page.locator('.tabbar a[href="/app/team"]');
-		await team.click();
-		await expect(team).toHaveAttribute('aria-current', 'page', { timeout: 500 });
-		await expect(page.locator('.tabbar a[href="/app"]')).not.toHaveAttribute(
+		const people = page.locator('.tabbar [data-tab="people"]');
+		await people.click();
+		await expect(people).toHaveAttribute('aria-current', 'page', { timeout: 500 });
+		await expect(page.locator('.tabbar [data-tab="home"]')).not.toHaveAttribute(
 			'aria-current',
 			'page'
 		);
 		await expect(page.getByTestId('page-frame')).toBeVisible({ timeout: 1000 });
-		await expect(page).toHaveURL(/\/app\/team$/, { timeout: 10_000 });
+		await expect(page).toHaveURL(/\/app\/members$/, { timeout: 10_000 });
 		await expect(page.getByTestId('page-frame')).toHaveCount(0);
 	});
 });

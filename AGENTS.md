@@ -68,7 +68,7 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
 
 - One slice at a time, in worktree `../elivate-wallet-worktrees/<nn-name>` from fresh
   `origin/main` (copy `backend/supabase/.temp` in). Blueprint `docs/blueprints/NN-*.md`;
-  migrations `20261009NNxxxx`, pgTAP `NN0_` (next: `23`/`230_`).
+  migrations `20261009NNxxxx`, pgTAP `NN0_` (next: `26`/`260_`).
 - Checks: `backend/scripts/verify-database.sh`, `deno task check`; frontend `pnpm check`,
   `pnpm lint`, `pnpm test:unit`, e2e via `frontend/scripts/e2e-local.sh` (fake Cloudflare into
   local Mailpit). The local stack is shared: hold the `/tmp/elivate-supabase.lock` directory
@@ -96,5 +96,6 @@ bootstrap/home reads, device-cache-first pages, 30 s session touch, indexes). Sl
 role (light vs wallet), a backend `profile_required` gate, "funds not managed" directors. Slice 23
 (Blueprint 23, frontend only): every page opens from its saved copy, instant tap feedback, idle
 code preload of every screen, page swap. Slice 24 (Blueprint 24, frontend only): one haptic
-wheel picker, with search for long lists and banks, for every member-app dropdown. Next, in
-order: 25 navigation redesign, then set-based authorization reads.
+wheel picker, with search for long lists and banks, for every member-app dropdown. Slice 25
+(Blueprint 25): pill tab bar per role, sectioned sidebar, network home with "Offices this month"
+(`api.leadership_offices`). Next: set-based authorization reads.

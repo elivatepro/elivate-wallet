@@ -64,8 +64,9 @@ test('sign-up → email confirm → PIN setup → workspace picker → shell, th
 	await page.goto('/workspaces');
 	await expect(page).toHaveURL(/\/app$/);
 	await expect(page.getByText('Sunrise Test Network').filter({ visible: true })).toBeVisible();
-	// Slice 21: the founder's President Team workspace holds no wallet.
-	await expect(page.getByRole('heading', { name: 'No wallet in this workspace' })).toBeVisible();
+	// The founder's President Team workspace holds no wallet: Home is the network
+	// overview (Blueprint 25).
+	await expect(page.getByRole('region', { name: 'Income recorded this month' })).toBeVisible();
 	// No token or membership id in any URL.
 	expect(page.url()).not.toMatch(/token|membership|[0-9a-f]{8}-[0-9a-f]{4}/i);
 

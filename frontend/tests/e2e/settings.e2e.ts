@@ -51,7 +51,7 @@ test('a President themes the network, members see it, and an older revision come
 
 	await asPresident(page, founder.email, 'Cedar Branding');
 	await page.setViewportSize(DESKTOP);
-	await page.getByRole('link', { name: 'Branding & settings' }).click();
+	await page.getByRole('link', { name: 'Settings', exact: true }).click();
 	await expect(page).toHaveURL(/\/app\/settings$/);
 	await expect(page.getByRole('heading', { name: 'What members see' })).toBeVisible();
 	await expectAccessible(page);
@@ -184,7 +184,7 @@ test('⌘K finds people and offices in reach; unknown and closed pages say so', 
 	await page.setViewportSize(DESKTOP);
 	// The shortcut works once the workspace has loaded. The test browser reports
 	// Windows ("Desktop Chrome"), so it is Ctrl+K there (⌘K on a Mac).
-	await expect(page.getByRole('link', { name: 'Branding & settings' })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Settings', exact: true })).toBeVisible();
 	await page.keyboard.press('Control+k');
 	const search = page.getByRole('combobox', {
 		name: 'Search people, offices, references and pages'

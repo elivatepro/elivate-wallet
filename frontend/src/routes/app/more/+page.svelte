@@ -5,66 +5,56 @@
 	card shows role, network and the Elivate ID.
 -->
 <script lang="ts">
-	import { getContext } from 'svelte';
+	import { getContext, type Snippet } from 'svelte';
 	import Bell from '@lucide/svelte/icons/bell';
-	import Building from '@lucide/svelte/icons/building-2';
-	import CreditCard from '@lucide/svelte/icons/credit-card';
-	import FileText from '@lucide/svelte/icons/file-text';
-	import FileIcon from '@lucide/svelte/icons/file';
-	import ChartColumn from '@lucide/svelte/icons/chart-column';
-	import Shield from '@lucide/svelte/icons/shield';
-	import Users from '@lucide/svelte/icons/users';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
-	import IdCard from '@lucide/svelte/icons/id-card';
-	import Landmark from '@lucide/svelte/icons/landmark';
-	import MailPlus from '@lucide/svelte/icons/mail-plus';
-	import PieChart from '@lucide/svelte/icons/chart-pie';
 	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
-	import Download from '@lucide/svelte/icons/download';
-	import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
-	import Repeat from '@lucide/svelte/icons/repeat';
-	import Undo2 from '@lucide/svelte/icons/undo-2';
-	import Gavel from '@lucide/svelte/icons/gavel';
-	import ListChecks from '@lucide/svelte/icons/list-checks';
-	import Upload from '@lucide/svelte/icons/upload';
 	import EyeOff from '@lucide/svelte/icons/eye-off';
-	import Palette from '@lucide/svelte/icons/palette';
 	import CircleHelp from '@lucide/svelte/icons/circle-help';
 	import LogOut from '@lucide/svelte/icons/log-out';
 	import Moon from '@lucide/svelte/icons/moon';
+	import Search from '@lucide/svelte/icons/search';
 	import UserRound from '@lucide/svelte/icons/user-round';
 	import UserCog from '@lucide/svelte/icons/user-cog';
+	import { goto } from '$app/navigation';
 	import { THEME_LABELS, type Appearance } from '#lib/client/appearance.svelte.js';
 	import { profilePhotoSrc } from '#lib/client/photo.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { ROLE_LABELS } from '#lib/labels.js';
+	import type { NavModel } from '#lib/nav.js';
 	import { THEMES } from '#lib/theme.js';
+	import NavIcon from '#lib/ui/app/NavIcon.svelte';
 
 	const shell = getContext<Shell>('shell');
 	const appearance = getContext<Appearance>('appearance');
 	const signOut = getContext<() => void>('signOut');
+	const nav = getContext<() => NavModel>('nav');
+	const openSearch = getContext<(() => void) | undefined>('openSearch');
+	const brandTile = getContext<(() => Snippet) | undefined>('brandTile');
 
 	const summary = $derived(
 		shell.state.kind === 'ready' || shell.state.kind === 'offline' ? shell.state.summary : null
 	);
 	const uid = $derived(shell.state.kind === 'ready' ? shell.state.view.state.uid : null);
-	/** Navigation hint only; the backend authorizes every command. */
-	const can = (permission: string) =>
-		shell.state.kind === 'ready' &&
-		(shell.state.view.capabilities?.permissions ?? []).includes(permission);
-	/** Blueprint 16: manage_subscription holders and the Billing Owner. */
-	const billing = $derived(
-		can('manage_subscription') ||
-			(shell.state.kind === 'ready' && shell.state.view.capabilities?.billingOwner === true)
-	);
 	const person = $derived(shell.state.kind === 'ready' ? shell.state.view.profile : null);
 	const photoSrc = $derived(profilePhotoSrc(person));
-	/** Org management entries (Blueprint 07); navigation hints only. */
-	const president = $derived(summary?.role === 'president_team_member');
-	/** Slice 21: own-money rows only for a workspace that holds a wallet (see the shell). */
-	const ownMoney = (permission: string) =>
-		shell.state.kind === 'ready' ? can(permission) : !!summary && !president;
-	const leads = $derived(president || can('manage_members') || can('view_managed_wallets'));
+	let brokenPhoto = $state<string | null>(null);
+	/**
+	 * Blueprint 25: the sidebar's sections (#lib/nav.ts), without what the tab
+	 * bar already holds (Home, Activity); everything else is listed here.
+	 */
+	const tabs = $derived(new Set(['home', ...nav().tabs.map((t) => t.id)]));
+	const sections = $derived(
+		nav()
+			.sections.map((section) => ({
+				...section,
+				items: section.items.filter((item) => !tabs.has(item.id))
+			}))
+			.filter((section) => section.items.length > 0)
+	);
+	const scopeLine = $derived(
+		summary ? `${ROLE_LABELS[summary.role]} · ${summary.officeName ?? 'whole network'}` : ''
+	);
 
 	function nextTheme() {
 		const next = THEMES[(THEMES.indexOf(appearance.theme) + 1) % THEMES.length] ?? 'dark';
@@ -81,177 +71,62 @@
 	</a>
 </header>
 
+{#if openSearch && shell.state.kind === 'ready'}
+	<button type="button" class="search" onclick={openSearch} aria-haspopup="dialog">
+		<Search size={16} strokeWidth={2} aria-hidden="true" />
+		<span>Quick search…</span>
+	</button>
+{/if}
+
 <div class="profile">
 	<span class="profile-avatar" aria-hidden="true">
-		{#if photoSrc}<img src={photoSrc} alt="" />{:else}<UserRound size={24} strokeWidth={1.6} />{/if}
+		{#if photoSrc && photoSrc !== brokenPhoto}<img
+				src={photoSrc}
+				alt=""
+				onerror={() => (brokenPhoto = photoSrc)}
+			/>{:else}<UserRound size={24} strokeWidth={1.6} />{/if}
 	</span>
 	<span class="profile-text">
 		{#if person?.name}<span class="profile-name">{person.name}</span>{/if}
-		{#if summary}<span class={person?.name ? 'profile-uid' : 'profile-name'}
+		{#if summary}<span class={person?.name ? 'profile-sub' : 'profile-name'}
 				>{ROLE_LABELS[summary.role]}{summary.officeName ? ` · ${summary.officeName}` : ''}</span
 			>{/if}
 		{#if uid}<span class="profile-uid">{uid}</span>{/if}
 	</span>
 </div>
 
-<a class="workspace" href="/workspaces?switch">
-	<span class="brand-tile" aria-hidden="true"
-		><img src="/icons/mark.svg" alt="" width="18" height="18" /></span
-	>
+<!-- Paper NV01's app bar tile and wording: the network, then "role · scope". -->
+<button type="button" class="workspace" onclick={() => goto('/workspaces?switch')}>
+	{#if brandTile}<span class="tile">{@render brandTile()()}</span>{/if}
 	<span class="ws-text">
-		<span class="ws-name">{summary?.officeName ?? summary?.tenantName ?? ''}</span>
-		{#if summary}<span class="ws-chip">{ROLE_LABELS[summary.role]}</span>{/if}
+		<span class="ws-name">{summary?.tenantName ?? ''}</span>
+		{#if summary}<span class="ws-sub">{scopeLine}</span>{/if}
 	</span>
-	<ChevronsUpDown size={14} strokeWidth={1.6} aria-hidden="true" />
+	<ChevronsUpDown size={16} strokeWidth={2} aria-hidden="true" />
 	<span class="visually-hidden">Switch workspace</span>
-</a>
+</button>
 
-<section class="group" aria-labelledby="wallet-label">
-	<h2 class="eyebrow" id="wallet-label">{president ? 'Money' : 'Wallet'}</h2>
-	<div class="card">
-		{#if ownMoney('manage_own_payout_accounts')}
-			<a class="row" href="/app/payout-accounts">
-				<Landmark size={20} strokeWidth={1.8} aria-hidden="true" />
-				<span class="label">Payout accounts</span>
-				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
-			</a>
-		{/if}
-		{#if ownMoney('export_own_statement')}
-			<a class="row" href="/app/statements">
-				<FileIcon size={20} strokeWidth={1.8} aria-hidden="true" />
-				<span class="label">Statements</span>
-				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
-			</a>
-		{/if}
-		{#if can('view_scoped_financial_reports') || can('export_scoped_reports')}
-			<a class="row" href="/app/reports">
-				<ChartColumn size={20} strokeWidth={1.8} aria-hidden="true" />
-				<span class="label">Reports</span>
-				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
-			</a>
-		{/if}
-		{#if can('record_income')}
-			<a class="row" href="/app/income">
-				<Download size={20} strokeWidth={1.8} aria-hidden="true" />
-				<span class="label">Record income</span>
-				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
-			</a>
-		{/if}
-		{#if can('perform_currency_conversion')}
-			<a class="row" href="/app/convert">
-				<Repeat size={20} strokeWidth={1.8} aria-hidden="true" />
-				<span class="label">Record conversion</span>
-				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
-			</a>
-		{/if}
-		{#if can('initiate_own_withdrawal')}
-			<a class="row" href="/app/withdrawals">
-				<Upload size={20} strokeWidth={1.8} aria-hidden="true" />
-				<span class="label">Withdrawals</span>
-				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
-			</a>
-		{/if}
-		{#if can('approve_withdrawal')}
-			<a class="row" href="/app/queue">
-				<ListChecks size={20} strokeWidth={1.8} aria-hidden="true" />
-				<span class="label">Withdrawal queue</span>
-				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
-			</a>
-		{/if}
-		{#if can('approve_pocket_transfer')}
-			<a class="row" href="/app/transfers">
-				<ArrowLeftRight size={20} strokeWidth={1.8} aria-hidden="true" />
-				<span class="label">Transfers</span>
-				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
-			</a>
-		{/if}
-		{#if can('reverse_transaction')}
-			<a class="row" href="/app/reversals">
-				<Undo2 size={20} strokeWidth={1.8} aria-hidden="true" />
-				<span class="label">Reversals</span>
-				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
-			</a>
-		{/if}
-		{#if can('review_financial_evidence')}
-			<a class="row" href="/app/evidence">
-				<Gavel size={20} strokeWidth={1.8} aria-hidden="true" />
-				<span class="label">Evidence review</span>
-				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
-			</a>
-		{/if}
-		<a class="row" href="/app/split">
-			<PieChart size={20} strokeWidth={1.8} aria-hidden="true" />
-			<span class="label">Pockets &amp; split</span>
-			<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
-		</a>
-		{#if summary?.role === 'president_team_member' || summary?.role === 'world_team_member'}
-			<a class="row" href="/app/reviews">
-				<IdCard size={20} strokeWidth={1.8} aria-hidden="true" />
-				<span class="label">NIN reviews</span>
-				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
-			</a>
-		{/if}
-		{#if can('invite_members')}
-			<a class="row" href="/app/invitations">
-				<MailPlus size={20} strokeWidth={1.8} aria-hidden="true" />
-				<span class="label">Invitations</span>
-				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
-			</a>
-		{/if}
-	</div>
-</section>
-
-{#if leads || can('manage_access_rules')}
-	<section class="group" aria-labelledby="org-label">
-		<h2 class="eyebrow" id="org-label">Organization</h2>
+{#each sections as section (section.id)}
+	<section class="group" aria-labelledby="more-{section.id}">
+		<h2 class="eyebrow" id="more-{section.id}">{section.label ?? 'Go to'}</h2>
 		<div class="card">
-			{#if leads}
-				<a class="row" href="/app/offices">
-					<Building size={20} strokeWidth={1.8} aria-hidden="true" />
-					<span class="label">Offices</span>
+			{#each section.items as item (item.id)}
+				<a class="row" href={item.href}>
+					<span class="row-icon"><NavIcon name={item.icon} size={20} strokeWidth={1.8} /></span>
+					<span class="label">{item.label}</span>
+					{#if item.count}<span class="count" class:accent={item.accent}
+							>{item.count}<span class="visually-hidden"> waiting</span></span
+						>{/if}
 					<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
 				</a>
-				<a class="row" href="/app/members">
-					<Users size={20} strokeWidth={1.8} aria-hidden="true" />
-					<span class="label">Members</span>
-					<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
-				</a>
-			{/if}
-			{#if president || can('manage_access_rules')}
-				<a class="row" href="/app/access">
-					<Shield size={20} strokeWidth={1.8} aria-hidden="true" />
-					<span class="label">Roles &amp; access</span>
-					<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
-				</a>
-			{/if}
-			{#if president}
-				<a class="row" href="/app/audit">
-					<FileText size={20} strokeWidth={1.8} aria-hidden="true" />
-					<span class="label">Audit log</span>
-					<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
-				</a>
-			{/if}
+			{/each}
 		</div>
 	</section>
-{/if}
+{/each}
 
 <section class="group" aria-labelledby="account-label">
 	<h2 class="eyebrow" id="account-label">Account</h2>
 	<div class="card">
-		{#if can('manage_team_settings') || can('request_restore')}
-			<a class="row" href={can('manage_team_settings') ? '/app/settings' : '/app/settings/backups'}>
-				<Palette size={20} strokeWidth={1.8} aria-hidden="true" />
-				<span class="label">Branding & settings</span>
-				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
-			</a>
-		{/if}
-		{#if billing}
-			<a class="row" href="/app/billing">
-				<CreditCard size={20} strokeWidth={1.8} aria-hidden="true" />
-				<span class="label">Billing</span>
-				<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
-			</a>
-		{/if}
 		<a class="row" href="/app/account">
 			<UserCog size={20} strokeWidth={1.8} aria-hidden="true" />
 			<span class="label">Profile & security</span>
@@ -304,17 +179,30 @@
 		line-height: 36px;
 	}
 
+	/* Blueprint 25: the new design language (Paper "Navigation v5"): 18 px
+	   cards on the surface, one quiet edge, mono eyebrows. */
 	.profile,
 	.workspace,
-	.card {
-		border: 1px solid #ffffff14;
+	.card,
+	.search {
+		border: 1px solid var(--shell-edge, var(--color-border));
 		background: var(--color-surface);
 	}
 
-	:global([data-theme='light']) .profile,
-	:global([data-theme='light']) .workspace,
-	:global([data-theme='light']) .card {
-		border-color: var(--color-border);
+	.search {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		width: 100%;
+		height: 46px;
+		padding: 0 16px;
+		border-radius: var(--radius-pill);
+		color: var(--color-muted);
+		font: inherit;
+		font-size: var(--text-14);
+		line-height: 18px;
+		text-align: left;
+		cursor: pointer;
 	}
 
 	.profile {
@@ -332,6 +220,7 @@
 		flex-shrink: 0;
 		width: 52px;
 		height: 52px;
+		overflow: hidden;
 		border-radius: var(--radius-pill);
 		background: var(--color-accent-subtle);
 		color: var(--color-accent-text);
@@ -350,6 +239,12 @@
 		line-height: var(--leading-20);
 	}
 
+	.profile-sub {
+		color: var(--color-muted);
+		font-size: 13px;
+		line-height: 18px;
+	}
+
 	.profile-uid {
 		color: var(--color-muted);
 		font-family: var(--font-mono);
@@ -362,65 +257,62 @@
 		display: flex;
 		align-items: center;
 		gap: 10px;
-		height: 60px;
-		padding: 0 16px 0 10px;
-		border-color: #2a2f31;
+		width: 100%;
+		height: 64px;
+		padding: 0 16px 0 12px;
 		border-radius: 18px;
-		box-shadow: #ffffff0a 0px 1px 0px inset;
 		color: var(--color-text);
-		text-decoration: none;
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
+		-webkit-tap-highlight-color: transparent;
+	}
+
+	.workspace:active {
+		background: var(--color-raised);
 	}
 
 	.workspace > :global(svg) {
 		flex-shrink: 0;
-		color: #d5dadb;
+		color: var(--color-muted);
 	}
 
-	.brand-tile {
+	.tile {
 		display: flex;
-		align-items: center;
-		justify-content: center;
 		flex-shrink: 0;
-		width: 38px;
-		height: 38px;
-		border: 1px solid var(--color-accent-ring);
-		border-radius: var(--radius-pill);
-		background: #2a1e1a;
 	}
 
-	.brand-tile img {
-		width: 18px;
-		height: 18px;
+	.tile :global(.brand-tile) {
+		width: 36px;
+		height: 36px;
+		border-radius: 10px;
 	}
 
 	.ws-text {
 		display: flex;
 		flex: 1;
 		flex-direction: column;
-		align-items: flex-start;
 		gap: 2px;
 		min-width: 0;
 	}
 
+	.ws-name,
+	.ws-sub {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
 	.ws-name {
-		font-size: var(--text-14);
+		font-size: 15px;
 		font-weight: var(--font-weight-semibold);
 		line-height: 18px;
 	}
 
-	.ws-chip {
-		padding: 0 6px;
-		border-radius: var(--radius-pill);
-		background: var(--color-raised);
-		color: #d5dadb;
-		font-size: 11px; /* slice 21: nothing below 11 px */
-		font-weight: var(--font-weight-medium);
-		line-height: 14px;
-	}
-
-	:global([data-theme='light']) .ws-chip,
-	:global([data-theme='light']) .workspace > :global(svg) {
-		color: var(--color-text);
+	.ws-sub {
+		color: var(--color-muted);
+		font-size: var(--text-12);
+		line-height: var(--leading-16);
 	}
 
 	.group {
@@ -434,7 +326,7 @@
 		padding-left: 4px;
 		color: var(--color-muted);
 		font-family: var(--font-mono);
-		font-size: var(--text-12);
+		font-size: 11px;
 		font-weight: var(--font-weight-regular);
 		letter-spacing: 0.08em;
 		line-height: var(--leading-16);
@@ -445,7 +337,29 @@
 		display: flex;
 		flex-direction: column;
 		overflow: clip;
-		border-radius: var(--radius-16);
+		border-radius: 18px;
+	}
+
+	.row-icon {
+		display: flex;
+		flex-shrink: 0;
+		color: var(--shell-strong, var(--color-text));
+	}
+
+	.count {
+		flex-shrink: 0;
+		padding: 2px 9px;
+		border-radius: var(--radius-pill);
+		background: var(--color-raised);
+		color: var(--color-text);
+		font-size: var(--text-12);
+		font-weight: var(--font-weight-semibold);
+		line-height: 16px;
+	}
+
+	.count.accent {
+		background: var(--color-accent);
+		color: var(--button-primary-ink);
 	}
 
 	.row {
@@ -475,7 +389,7 @@
 	}
 
 	.row + .row {
-		border-top: 1px solid #ffffff0a;
+		border-top: 1px solid color-mix(in oklab, var(--color-text) 4%, transparent);
 	}
 
 	.row > :global(svg:first-child) {

@@ -582,6 +582,20 @@ export function createHandler(
       });
     }),
 
+    // Blueprint 25 (W-07): "Offices this month" on the network home. Members and
+    // income recorded per office of the scope, per currency, in the network's month.
+    route("GET", "/overview/offices", async (c) => {
+      onlyQuery(c.query, []);
+      const view = record(await call("leadership_offices", inWorkspace(c)));
+      if (
+        !Array.isArray(view.offices) || !Array.isArray(view.currencies) ||
+        typeof view.excluded !== "object" || view.excluded === null
+      ) {
+        throw new Error("leadership_offices returned an unexpected result");
+      }
+      return view;
+    }),
+
     route("GET", "/offices/:id/totals", (c) => {
       onlyQuery(c.query, []);
       return call("office_totals", {

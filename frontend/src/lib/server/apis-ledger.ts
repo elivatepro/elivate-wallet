@@ -11,6 +11,7 @@ import {
 	Allocation,
 	AllocationVersions,
 	CommandOutcome,
+	LeadershipOffices,
 	LeadershipOverview,
 	LedgerRoutes,
 	ManagedWallet,
@@ -69,6 +70,8 @@ export interface LedgerApiShape {
 		membershipId: string,
 		tz: string | null
 	) => Effect.Effect<LeadershipOverview, EdgeFailure>;
+	/** Blueprint 25: "Offices this month" for the workspace's scope. */
+	readonly overviewOffices: (membershipId: string) => Effect.Effect<LeadershipOffices, EdgeFailure>;
 	readonly managedWallets: (
 		membershipId: string,
 		query: { q?: string; cursor?: string; officeId?: string }
@@ -146,6 +149,10 @@ export const LedgerApiLive = Layer.effect(
 						{ fn, route: LedgerRoutes.overview, membershipId, query: tz ? { tz } : {} },
 						LeadershipOverview
 					)
+					.pipe(Effect.retry(readPolicy)),
+			overviewOffices: (membershipId) =>
+				edge
+					.call({ fn, route: LedgerRoutes.overviewOffices, membershipId }, LeadershipOffices)
 					.pipe(Effect.retry(readPolicy)),
 			managedWallets: (membershipId, query) =>
 				edge

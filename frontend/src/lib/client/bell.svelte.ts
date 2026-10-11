@@ -17,7 +17,8 @@ import { isRetryableRead, type ApiFailure } from '#lib/contract/errors.js';
 import { READ_TIMEOUT_MS, requestJson } from '#lib/contract/transport.js';
 import { sendCommand } from './api';
 import type { CacheScope } from './device-cache';
-import { CachedRead } from './page-cache.svelte';
+import { CachedRead, onInvalidate } from './page-cache.svelte';
+import { countTasks, type TaskCounts } from '#lib/nav.js';
 
 const POLL_MS = 60_000;
 
@@ -64,6 +65,11 @@ export type BellList =
 
 export class Bell {
 	unread = $state(0);
+	/**
+	 * Blueprint 25: live "needs your action" tasks by kind, for the Approvals
+	 * badges and Home's "Needs your action". Null before the first read.
+	 */
+	tasks: TaskCounts | null = $state(null);
 	view: NotificationView = $state('unread');
 	list: BellList = $state({ kind: 'idle' });
 	more = $state(false);
@@ -134,6 +140,10 @@ export class Bell {
 		const tick = () => {
 			if (document.visibilityState === 'visible' && navigator.onLine) void this.refreshCount();
 		};
+		// Blueprint 25: an approval, a new request or a review changes the tasks.
+		const stopTasks = onInvalidate(['queue', 'transfers', 'evidence', 'nin-reviews'], () => {
+			void this.refreshTasks();
+		});
 		const timer = setInterval(tick, POLL_MS);
 		window.addEventListener('focus', tick);
 		document.addEventListener('visibilitychange', tick);
@@ -143,6 +153,7 @@ export class Bell {
 			window.removeEventListener('focus', tick);
 			document.removeEventListener('visibilitychange', tick);
 			for (const stop of unwatch) stop();
+			stopTasks();
 		};
 	}
 
@@ -150,7 +161,26 @@ export class Bell {
 		const workspace = this.#workspace();
 		if (!workspace) return;
 		const exit = await Effect.runPromiseExit(read(BellRoutes.unread, workspace, UnreadCount));
-		if (Exit.isSuccess(exit)) this.unread = exit.value.unread;
+		if (!Exit.isSuccess(exit)) return;
+		const changed = exit.value.unread !== this.unread;
+		this.unread = exit.value.unread;
+		// A new task always arrives as an unread item; read the tasks again then.
+		if (changed || this.tasks === null) void this.refreshTasks();
+	}
+
+	/**
+	 * Blueprint 25: the open tasks only (they come first on the bell's first
+	 * page, whatever the limit).
+	 */
+	async refreshTasks(): Promise<void> {
+		const workspace = this.#workspace();
+		if (!workspace) return;
+		const exit = await Effect.runPromiseExit(
+			read(`${BellRoutes.list}?view=unread&limit=1`, workspace, NotificationPage)
+		);
+		if (Exit.isSuccess(exit) && this.#workspace() === workspace) {
+			this.tasks = countTasks(exit.value.actions);
+		}
 	}
 
 	async load(view: NotificationView = this.view): Promise<void> {
@@ -230,6 +260,7 @@ export class Bell {
 	}
 
 	#show(page: NotificationPage): void {
+		this.tasks = countTasks(page.actions);
 		this.list = {
 			kind: 'ready',
 			actions: page.actions,
