@@ -88,3 +88,25 @@ for (const [size, viewport] of [
 		});
 	});
 }
+
+test.describe('a phone on its side', () => {
+	test.use({ viewport: { width: 844, height: 390 } });
+
+	test('the sheet fits the screen and scrolls to its button', async ({ page }) => {
+		await page.goto('/apply');
+		await page.getByRole('combobox', { name: 'Your rank', exact: true }).click();
+		const sheet = page.getByRole('dialog', { name: 'Your rank' });
+		// After the 200 ms rise, the sheet sits inside the 390 px screen.
+		await expect
+			.poll(async () => {
+				const box = await sheet.boundingBox();
+				return !!box && box.y >= 0 && box.y + box.height <= 390;
+			})
+			.toBe(true);
+		await sheet.getByRole('option', { name: '5 Ruby Director' }).click();
+		await sheet.getByRole('button', { name: 'Set rank' }).click();
+		await expect(page.getByRole('combobox', { name: 'Your rank', exact: true })).toHaveText(
+			'5 Ruby Director'
+		);
+	});
+});

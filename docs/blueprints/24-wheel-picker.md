@@ -26,7 +26,8 @@ new routes. The admin console keeps its native selects.
   `label` (the wheel's name and default title), `title`, `sub`, `confirmText` (default "Done"),
   `placeholder`, `triggerText` (fixed field text: Activity filters, "+ Add"), `ariaLabel` (when
   the page has no `<label for>`), `class` (the page's own field class) or `variant`
-  (`field` | `auth`), `fit`, `invalid`, `describedby`, `disabled`, `required`, `searchable`
+  (`field` | `auth`), `fit`, `action` ("+ Add": every confirmed row calls `onchange`, the field
+  keeps no value), `invalid`, `describedby`, `disabled`, `required`, `searchable`
   (`'auto'` | `true` | `false`), `searchPlaceholder`, `emptyText`, `initial` (the row to start
   on when nothing is chosen), `onchange(value)`.
 - **Without JS** (and for the instant before a server-rendered page hydrates): a native `<select>`
@@ -40,7 +41,8 @@ new routes. The admin console keeps its native selects.
   Escape and Tab are handled first and stop there, so the dialog underneath stays open. The
   page doesn't scroll while it is open. On iOS the sheet lifts above the on-screen keyboard
   (`visualViewport`). Grip, title, optional line, optional search, the wheel (5 rows visible,
-  lens on the third) and the confirm button: the rank sheet's look, unchanged.
+  lens on the third) and the confirm button: the rank sheet's look, unchanged. On short screens (a phone
+  on its side) the sheet is capped at the screen height and scrolls.
 - **Choosing:** scrolling (touch, mouse wheel, trackpad) snaps row by row; tapping a row turns
   the wheel to it; the confirm button, Enter or Space chooses the row in the lens. Escape, the
   backdrop or Android's back gesture closes without choosing. Focus returns to the field.
@@ -128,7 +130,8 @@ new routes. The admin console keeps its native selects.
   - `pickers.e2e.ts` (on `/apply`, no account): without JS the rank is a native select the form
     posts; with JS, at 390 px and 1440 px: the combobox opens the sheet, axe passes with it open,
     Escape keeps the old value and returns focus, End + Enter chooses, Tab stays in the sheet, a
-    tapped row is chosen, and the hidden input posts the value.
+    tapped row is chosen, and the hidden input posts the value; on a phone on its side the sheet
+    fits the screen.
   - `invitations.e2e.ts`: the bank search (no match message with Done disabled, filtering, the
     top match chosen with Enter, focus back on the field), axe with the sheet open.
   - Every flow that used `selectOption` on a converted field drives the wheel through the

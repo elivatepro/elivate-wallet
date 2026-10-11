@@ -805,6 +805,7 @@
 					title="Add a permission"
 					confirmText="Add"
 					triggerText="+ Add"
+					action
 					searchPlaceholder="Search permissions"
 					disabled={addable.length === 0}
 					options={addable.map((key) => ({ value: key, label: permissionLabel(key) }))}

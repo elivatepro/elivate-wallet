@@ -61,6 +61,8 @@
 		variant?: 'field' | 'auth';
 		/** Size the field to its text instead of the full width (chips). */
 		fit?: boolean;
+		/** An action ("+ Add"): every confirmed row calls `onchange`; the field keeps no value. */
+		action?: boolean;
 		invalid?: boolean;
 		describedby?: string;
 		disabled?: boolean;
@@ -88,6 +90,7 @@
 		class: className,
 		variant = 'field',
 		fit = false,
+		action = false,
 		invalid = false,
 		describedby,
 		disabled = false,
@@ -155,7 +158,8 @@
 		if (save) {
 			const chosen = shown[active];
 			if (!chosen || chosen.disabled) return;
-			if (chosen.value !== value) {
+			if (action) onchange?.(chosen.value);
+			else if (chosen.value !== value) {
 				value = chosen.value;
 				onchange?.(chosen.value);
 			}
@@ -580,7 +584,15 @@
 		color: var(--color-text);
 		text-align: left;
 		transform: translateY(calc(-1 * var(--wp-lift, 0px)));
+		/* Short screens (a phone on its side): the sheet scrolls, never off screen. */
+		max-height: calc(100dvh - var(--wp-lift, 0px));
+		overflow-y: auto;
+		overscroll-behavior: contain;
 		animation: wp-rise 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+	}
+
+	.wp-sheet > * {
+		flex-shrink: 0;
 	}
 
 	@keyframes wp-rise {
