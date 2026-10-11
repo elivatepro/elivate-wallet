@@ -100,6 +100,9 @@
 	const loaded = $derived(view.data !== null);
 	const loadError = $derived(view.data ? null : view.error || null);
 	const load = () => view.reload();
+	/** Why there is no "Invite a member": an invitation always goes into an office. */
+	const noOffices = $derived(loaded && !canInvite ? (offices ? 'none' : 'unavailable') : null);
+	const president = $derived(workspace?.role === 'president_team_member');
 
 	// Offices come with every first page; kept while another filter loads.
 	$effect(() => {
@@ -349,8 +352,25 @@
 			<button type="button" class="invite" disabled={!shell.canAct} onclick={openInvite}>
 				<Plus size={18} strokeWidth={2.2} aria-hidden="true" />Invite a member
 			</button>
+		{:else if noOffices === 'none' && president}
+			<a class="invite" href="/app/offices">
+				<Plus size={18} strokeWidth={2.2} aria-hidden="true" />Add an office
+			</a>
 		{/if}
 	</section>
+
+	{#if noOffices}
+		<p class="hint" role="status">
+			{#if noOffices === 'unavailable'}
+				We couldn’t load the offices you can invite into.
+				<button type="button" class="link" onclick={() => load()}>Try again</button>
+			{:else if president}
+				Everyone joins into an office. Add your first office, then invite people into it.
+			{:else}
+				There’s no active office you can invite into.
+			{/if}
+		</p>
+	{/if}
 
 	<CacheNote savedAt={view.savedAt} online={shell.online} failed={!!view.error} />
 
@@ -658,6 +678,10 @@
 		cursor: pointer;
 	}
 
+	a.invite {
+		text-decoration: none;
+	}
+
 	.invite:disabled {
 		opacity: var(--opacity-disabled);
 		cursor: not-allowed;
@@ -708,6 +732,23 @@
 	.segment:has(input:focus-visible) {
 		outline: 2px solid var(--focus-ring);
 		outline-offset: -2px;
+	}
+
+	.hint {
+		color: var(--color-muted);
+		font-size: var(--text-14);
+		line-height: 20px;
+	}
+
+	.link {
+		padding: 0;
+		border: 0;
+		background: none;
+		color: var(--color-text);
+		font: inherit;
+		font-weight: var(--font-weight-medium);
+		text-decoration: underline;
+		cursor: pointer;
 	}
 
 	.notice {
