@@ -33,7 +33,7 @@ async function sign(secret: string, value: string): Promise<string> {
 }
 
 /** The Chatwoot contact attributes support reads (all strings, none secret). */
-export function chatContext(boot: AppBootstrap, plan: string | null): Record<string, string> {
+function chatContext(boot: AppBootstrap, plan: string | null): Record<string, string> {
 	const workspace = boot.workspace;
 	const context: Record<string, string> = {
 		uid: boot.state.uid,
