@@ -59,7 +59,7 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
 - Worker secrets: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `TURNSTILE_SITE_KEY`,
   `TURNSTILE_SECRET_KEY`, `APP_SERVER_SECRET` and `EXPORTS_WORKER_SECRET` (each of the last two
   matches its Edge secret; the exports one also matches Vault), plus `CHATWOOT_WEBSITE_TOKEN`
-  and `CHATWOOT_HMAC_TOKEN` (Blueprint 17). Admin Worker `elivate-wallet-admin`
+  and `CHATWOOT_HMAC_TOKEN` (Blueprint 17; the app inbox's values since Blueprint 34). Admin Worker `elivate-wallet-admin`
   (`frontend/wrangler.admin.jsonc`, `APP_SURFACE=admin`, admin.elivatewallet.com behind Cloudflare
   Access): `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `APP_SERVER_SECRET`. Edge `BILLING_WORKER_SECRET`
   matches Vault `billing_worker_secret`; Paystack is test mode (`PAYSTACK_SECRET_KEY`).
@@ -113,4 +113,6 @@ Activity chips and Profile banner fixed (leaked global styles). Slice 31 (Bluepr
 only): email Root poses and hero grain about 70% lighter. Slice 32 (Blueprint 32): member picker
 layout, one `DatePicker` for every member-app date (Paper "Date picker v8"). Slice 33: site details
 (description, Open Graph / X preview `static/og.jpg` from Paper "Website" → OG — App preview,
-favicon.ico, robots + sitemap, security.txt, manifest details). Next: set-based authorization reads.
+favicon.ico, robots + sitemap, security.txt, manifest details). Slice 34 (Blueprint 34): the app's own
+Chatwoot inbox ("Elivate Wallet — App"), support sees name, email and account context, topic first.
+Next: set-based authorization reads.

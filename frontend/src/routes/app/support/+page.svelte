@@ -7,6 +7,7 @@
 -->
 <script lang="ts">
 	import { getContext } from 'svelte';
+	import { version } from '$app/env';
 	import { page } from '$app/state';
 	import MessageCircle from '@lucide/svelte/icons/message-circle';
 	import { chatScreen, openSupportChat, SUPPORT_EMAIL } from '#lib/client/chat.js';
@@ -60,7 +61,7 @@
 	async function startChat() {
 		if (chat === 'opening') return;
 		chat = 'opening';
-		const opened = await openSupportChat(chatScreen(page.route.id));
+		const opened = await openSupportChat(chatScreen(page.route.id), version);
 		chat = opened ? 'idle' : 'unavailable';
 	}
 </script>

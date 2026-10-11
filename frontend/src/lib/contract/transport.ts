@@ -17,6 +17,8 @@ export interface JsonRequest {
 	readonly timeoutMs: number;
 	/** Caller's signal (navigation/request cancelled). */
 	readonly signal?: AbortSignal;
+	/** Slice 34: a poll the person never sees fail (the bell); not their "last error". */
+	readonly background?: boolean;
 }
 
 /**
@@ -27,18 +29,20 @@ export interface JsonRequest {
 export interface ReplyObserver {
 	/** A reply came back from the server (any status). */
 	readonly replied: () => void;
-	/** The server refused with this error code. */
-	readonly refused: (code: string) => void;
+	/** The server refused with this error code (slice 34: and its request ID). */
+	readonly refused?: (code: string, requestId: string | null, background: boolean) => void;
+	/** Slice 34: no usable reply (timeout, network, unexpected body). Not aborts. */
+	readonly failed?: (reason: string, background: boolean) => void;
 }
 
-let observer: ReplyObserver | null = null;
+const observers = new Set<ReplyObserver>();
 
-/** Registers the browser's observer; returns the unregister function. */
+/** Registers a browser observer; returns the unregister function. */
 export function observeReplies(next: ReplyObserver): () => void {
 	if (typeof window === 'undefined') return () => {};
-	observer = next;
+	observers.add(next);
 	return () => {
-		if (observer === next) observer = null;
+		observers.delete(next);
 	};
 }
 
@@ -70,21 +74,34 @@ export function requestJson<S extends Schema.ConstraintDecoder<unknown>>(
 					reason: timeout.aborted ? 'timeout' : request.signal?.aborted ? 'aborted' : 'network',
 					status: null
 				})
-		});
+		}).pipe(Effect.tapError(notify));
 
 		const text = yield* Effect.tryPromise({
 			try: () => response.text(),
-			catch: () => new TransportError({ reason: 'network', status: response.status })
-		});
-		observer?.replied();
-		return yield* decodeResponse(request.route, response.status, parseJson(text), schema).pipe(
-			Effect.tapError((failure) =>
-				Effect.sync(() => {
-					if (failure._tag === 'BackendError') observer?.refused(failure.code);
+			catch: () =>
+				new TransportError({
+					reason: timeout.aborted ? 'timeout' : request.signal?.aborted ? 'aborted' : 'network',
+					status: response.status
 				})
-			)
+		}).pipe(Effect.tapError(notify));
+		for (const o of observers) o.replied();
+		return yield* decodeResponse(request.route, response.status, parseJson(text), schema).pipe(
+			Effect.tapError(notify)
 		);
 	});
+
+	/** Tells the observers about a failure (never a cancellation). */
+	function notify(failure: BackendError | TransportError | ContractViolation) {
+		return Effect.sync(() => {
+			const background = request.background === true;
+			for (const o of observers) {
+				if (failure._tag === 'BackendError')
+					o.refused?.(failure.code, failure.requestId, background);
+				else if (failure._tag === 'ContractViolation') o.failed?.('contract_violation', background);
+				else if (failure.reason !== 'aborted') o.failed?.(failure.reason, background);
+			}
+		});
+	}
 }
 
 /** Parsed JSON, or undefined for an empty or non-JSON body (HTML 502 pages...). */
