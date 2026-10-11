@@ -250,7 +250,7 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
   it, keyboard, native `<select>` without JS). Lists of more than 8 options, and banks always,
   get a search field with an empty-result message. The bank selects move to the wheel: the
   **"native bank select" accepted deviation is withdrawn**. Desktop shows the same wheel as a
-  centred dialog. iOS has no web vibration, so iPhones get the visual snap and tick only. The
+  centred dialog (to become an anchored list on desktop, owner 2026-10-11, slice 30). iOS has no web vibration, so iPhones get the visual snap and tick only. The
   admin console keeps native selects.
 - **Navigation and role homes (2026-10-10, Blueprint 25; Paper "Navigation v5" NV01–NV03
   approved):** the mobile tab bar is the Roudio "Fresh Direction" floating pill (icons only; the
@@ -262,6 +262,16 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
   Home (President Team, funds-not-managed director) is the network overview with "Offices this
   month" (new read `api.leadership_offices`); leaders with a wallet get it as Team overview.
   Open for owner: the President Team's Activity opens the audit log (no network money feed).
+  **Superseded in part 2026-10-11 (Blueprint 28):** see the next entry.
+- **What leaders see, and unlock in place (2026-10-11, Blueprint 28; Paper "PIN unlock v7"
+  PU01–PU03):** every leader's Home is the overview of what they lead; a leader's own wallet is
+  under **My wallet** (`/app/wallet`). The Offices page is for the President Team and World Team
+  only; directors keep the read-only "Offices this month" table, and a single-office scope
+  drops the Offices count and table. Nobody sees themselves in Members; a leader doesn't see the
+  invitation they accepted. "Invite a member" opens the form directly. A PIN owed inside the app
+  locks in place (no "no access", no leaving the page): the page is unmounted, **every saved
+  device copy is deleted** (amends 36a/Blueprint 23), other tabs lock, and it unlocks on the 4th
+  digit. The backend's PIN gate (`identity.require_session`) stays the enforcement.
 - **Sequencing:** one slice at a time, each new slice in its own thread. Order: 4 → 5 → 8 →
   slice 9 follow-up (IP storage, signed-in password change, PIN-change email, sign-out
   choice after reset) → 6 → 7 → 10.

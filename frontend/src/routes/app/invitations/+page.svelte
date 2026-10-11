@@ -8,6 +8,8 @@
 -->
 <script lang="ts">
 	import { getContext } from 'svelte';
+	import { afterNavigate, replaceState } from '$app/navigation';
+	import { page } from '$app/state';
 	import { Cause, Effect, Exit, Option, type Schema } from 'effect';
 	import { Dialog, DropdownMenu } from 'bits-ui';
 	import Ban from '@lucide/svelte/icons/ban';
@@ -234,7 +236,7 @@
 
 	// ── Invite a member (I01 hero action).
 	let inviteKey = newKey();
-	let inviteOpen = $state(false);
+	let inviteOpen = $state(page.url.searchParams.has('invite'));
 	let inviteVersion = $state(0);
 	let inviteBusy = $state(false);
 	let inviteAskPin = $state(false);
@@ -254,6 +256,18 @@
 		notice = null;
 		inviteOpen = true;
 	}
+
+	/**
+	 * Slice 28: "Invite a member" elsewhere links here with ?invite: the form is
+	 * open from the first render (it shows once the offices it needs are known),
+	 * and the URL drops the flag so Back and reload don't reopen it.
+	 */
+	afterNavigate(() => {
+		if (!page.url.searchParams.has('invite')) return;
+		const url = new URL(page.url.href);
+		url.searchParams.delete('invite');
+		replaceState(url, page.state);
+	});
 
 	async function invite(input: {
 		email: string;
@@ -557,7 +571,7 @@
 	onConfirm={({ pin }) => resendTarget && resend(resendTarget, pin)}
 />
 
-{#if offices && workspace}
+{#if canInvite && offices && workspace}
 	{#key inviteVersion}
 		<InviteDialog
 			bind:open={inviteOpen}

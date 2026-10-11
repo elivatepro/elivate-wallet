@@ -19,6 +19,29 @@ export interface JsonRequest {
 	readonly signal?: AbortSignal;
 }
 
+/**
+ * Slice 28: the browser shell watches every same-origin reply, so a PIN owed
+ * anywhere (any page, any read or command) locks the app in place. Set only in
+ * the browser; the app server never registers one.
+ */
+export interface ReplyObserver {
+	/** A reply came back from the server (any status). */
+	readonly replied: () => void;
+	/** The server refused with this error code. */
+	readonly refused: (code: string) => void;
+}
+
+let observer: ReplyObserver | null = null;
+
+/** Registers the browser's observer; returns the unregister function. */
+export function observeReplies(next: ReplyObserver): () => void {
+	if (typeof window === 'undefined') return () => {};
+	observer = next;
+	return () => {
+		if (observer === next) observer = null;
+	};
+}
+
 export const READ_TIMEOUT_MS = 10_000;
 export const COMMAND_TIMEOUT_MS = 20_000;
 
@@ -53,7 +76,14 @@ export function requestJson<S extends Schema.ConstraintDecoder<unknown>>(
 			try: () => response.text(),
 			catch: () => new TransportError({ reason: 'network', status: response.status })
 		});
-		return yield* decodeResponse(request.route, response.status, parseJson(text), schema);
+		observer?.replied();
+		return yield* decodeResponse(request.route, response.status, parseJson(text), schema).pipe(
+			Effect.tapError((failure) =>
+				Effect.sync(() => {
+					if (failure._tag === 'BackendError') observer?.refused(failure.code);
+				})
+			)
+		);
 	});
 }
 

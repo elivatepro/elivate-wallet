@@ -48,6 +48,7 @@ export const APP_ROUTES = [
 	'/app/support',
 	'/app/team',
 	'/app/transfers',
+	'/app/wallet',
 	'/app/wallets',
 	'/app/withdrawals',
 	'/app/withdrawals/new',

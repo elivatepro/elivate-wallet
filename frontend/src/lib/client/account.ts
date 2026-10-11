@@ -8,6 +8,7 @@ import { TransportError, type ApiFailure } from '#lib/contract/errors.js';
 import { COMMAND_TIMEOUT_MS } from '#lib/contract/transport.js';
 import { pathForGateCode, withNext } from '#lib/gate.js';
 import { getJson } from './api';
+import { pinLock } from './pin-lock.svelte';
 
 export const failureOf = <A>(exit: Exit.Exit<A, ApiFailure>): ApiFailure | undefined =>
 	Exit.isFailure(exit) ? Option.getOrUndefined(Cause.findErrorOption(exit.cause)) : undefined;
@@ -19,6 +20,11 @@ export function followGate(failure: ApiFailure | undefined, next: string): boole
 		return true;
 	}
 	if (failure?._tag !== 'BackendError') return false;
+	// Slice 28: the app locks in place instead of leaving the page.
+	if (failure.code === 'pin_required' && pinLock.active) {
+		pinLock.owe();
+		return true;
+	}
 	const path = pathForGateCode(failure.code);
 	if (!path) return false;
 	window.location.assign(withNext(path, next));

@@ -33,6 +33,16 @@ async function signInPresident(page: Page, email: string) {
 	await expect(page).toHaveURL(/\/app$/);
 }
 
+/** Slice 28: "Invite a member" elsewhere opens the form on the Invitations page. */
+async function expectInviteForm(page: Page) {
+	await expect(page).toHaveURL(/\/app\/invitations$/);
+	const form = page.getByRole('dialog', { name: 'Invite a member' });
+	await expect(form).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(form).toHaveCount(0);
+	await expectInvitations(page);
+}
+
 async function expectInvitations(page: Page) {
 	await expect(page).toHaveURL(/\/app\/invitations$/);
 	await expect(page.getByRole('heading', { name: 'Invitations', level: 1 })).toBeVisible();
@@ -101,16 +111,15 @@ test('President Team: every Invite entry opens Invitations; no wallet modules', 
 	await page.reload();
 	await expectInvitations(page);
 
-	// Team overview's shortcut.
+	// The overview's shortcut (Home).
 	await sidebar.getByRole('link', { name: 'Network overview' }).click();
-	await page.goto('/app/team');
 	await page.getByRole('link', { name: /Invite a member/ }).click();
-	await expectInvitations(page);
+	await expectInviteForm(page);
 
 	// Members' hero action.
 	await page.goto('/app/members');
 	await page.getByRole('link', { name: /Invite a member/ }).click();
-	await expectInvitations(page);
+	await expectInviteForm(page);
 
 	// Quick search.
 	await page.goto('/app');
@@ -131,15 +140,21 @@ test('President Team: every Invite entry opens Invitations; no wallet modules', 
 	await page.getByRole('link', { name: 'Invitations' }).click();
 	await expectInvitations(page);
 
-	// A lapsed PIN (idle lock) on a full load returns to the asked-for page.
+	// A lapsed PIN (idle lock) on a full load asks in place (Slice 28, PU01–PU03)
+	// and stays on the asked-for page.
 	const lapse = () =>
 		localSql(`update identity.session_pin_proofs p set last_activity_at = now() - interval '1 hour'
 		  from auth.users u where u.id = p.user_id and u.email = '${president}'`);
+	const unlockInPlace = async () => {
+		const sheet = page.getByRole('dialog', { name: 'Enter your PIN' });
+		await expect(sheet).toBeVisible();
+		await expect(page).toHaveURL(/\/app\/invitations$/);
+		await sheet.getByLabel('PIN').fill(PIN);
+		await expect(sheet).toHaveCount(0);
+	};
 	lapse();
 	await page.goto('/app/invitations');
-	await expect(page).toHaveURL(/\/pin\?next=%2Fapp%2Finvitations$/);
-	await page.getByLabel('PIN', { exact: true }).fill(PIN);
-	await page.getByRole('button', { name: 'Verify' }).click();
+	await unlockInPlace();
 	await expectInvitations(page);
 
 	// ... and so does one found by the page's own read after an in-app tap.
@@ -151,9 +166,7 @@ test('President Team: every Invite entry opens Invitations; no wallet modules', 
 		.getByRole('complementary', { name: 'Main' })
 		.getByRole('link', { name: 'Invitations' })
 		.click();
-	await expect(page).toHaveURL(/\/pin\?next=%2Fapp%2Finvitations$/);
-	await page.getByLabel('PIN', { exact: true }).fill(PIN);
-	await page.getByRole('button', { name: 'Verify' }).click();
+	await unlockInPlace();
 	await expectInvitations(page);
 
 	// ... and through the server gates too (sign-in while signed in → picker → PIN).

@@ -283,7 +283,11 @@ export function purgeAll(store: KeyValueStore): void {
 		// Pending command attempts (ew:attempt:, #lib/recovery) are NOT erased here:
 		// owner decision 2026-10-09, an unknown outcome may stay on the device for
 		// up to 24 hours after sign-out (scoped per person; no secrets stored).
-		if (key.startsWith(PREFIX) || key === LAST_SCOPE_KEY) store.removeItem(key);
+		// Slice 28: the lock's "last heard from the server" goes too, so the next
+		// sign-in never starts locked.
+		if (key.startsWith(PREFIX) || key === LAST_SCOPE_KEY || key === 'ew:last-reply:v1') {
+			store.removeItem(key);
+		}
 	}
 }
 

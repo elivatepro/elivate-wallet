@@ -35,7 +35,8 @@ export type NavIcon =
 	| 'audit'
 	| 'payout'
 	| 'statements'
-	| 'split';
+	| 'split'
+	| 'mywallet';
 
 export interface NavItem {
 	readonly id: string;
@@ -94,8 +95,9 @@ export interface NavModel {
 	readonly sections: readonly NavSection[];
 	readonly tabs: readonly NavTab[];
 	/**
-	 * Home shows the network overview: a leadership workspace that holds no
-	 * money (President Team, a director whose funds are not managed).
+	 * Home shows the team (or network) overview: every leader (owner decision
+	 * 2026-10-11, Slice 28). A leader who also holds a wallet finds it under
+	 * My wallet.
 	 */
 	readonly networkHome: boolean;
 	/** The workspace holds the person's own wallet. */
@@ -146,10 +148,12 @@ export function navModel(input: NavInput): NavModel {
 	const reviewer = president || role === 'world_team_member';
 	const billing = can('manage_subscription') || input.billingOwner;
 	const settings = can('manage_team_settings') || can('request_restore');
-	// Offline (no permissions) the saved Home kind stands in; without one the
-	// President Team (never a wallet) still gets its network Home.
-	const networkHome =
-		permissions !== null ? !wallet && leader : (input.networkHomeHint ?? president);
+	/** Slice 28: Offices is for the President Team and World Team only. */
+	const runsOffices = president || role === 'world_team_member';
+	// Slice 28: every leader's Home is the overview of what they lead. Offline
+	// (no permissions) the saved Home kind stands in; without one the President
+	// Team still gets its network Home.
+	const networkHome = permissions !== null ? leader : (input.networkHomeHint ?? president);
 
 	const item = (
 		id: string,
@@ -169,8 +173,12 @@ export function navModel(input: NavInput): NavModel {
 			: null;
 
 	const top = pick(
-		item('home', networkHome && president ? 'Network overview' : 'Home', '/app', 'home'),
-		leader && !networkHome && item('team', 'Team overview', '/app/team', 'team'),
+		item(
+			'home',
+			networkHome ? (president ? 'Network overview' : 'Team overview') : 'Home',
+			'/app',
+			'home'
+		),
 		!!activity && activity
 	);
 
@@ -204,7 +212,7 @@ export function navModel(input: NavInput): NavModel {
 
 	const people = pick(
 		leads && item('members', 'Members', '/app/members', 'members'),
-		leads && item('offices', 'Offices', '/app/offices', 'offices'),
+		runsOffices && item('offices', 'Offices', '/app/offices', 'offices'),
 		can('invite_members') && item('invitations', 'Invitations', '/app/invitations', 'invitations'),
 		(president || can('manage_access_rules')) && item('access', 'Access', '/app/access', 'access')
 	);
@@ -226,6 +234,8 @@ export function navModel(input: NavInput): NavModel {
 	);
 
 	const mine = pick(
+		// Slice 28: a leader's own balance and pockets moved off Home.
+		wallet && networkHome && item('mywallet', 'My wallet', '/app/wallet', 'mywallet'),
 		own('initiate_own_withdrawal') &&
 			item('withdrawals', 'Withdrawals', '/app/withdrawals', 'withdraw'),
 		own('manage_own_payout_accounts') &&

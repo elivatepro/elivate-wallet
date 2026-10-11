@@ -158,11 +158,11 @@
 	/>
 	{#if teamView}
 		<nav class="actions" aria-label="Team actions">
-			<a class="action" href="/app/team"
+			<a class="action" href="/app"
 				><LayoutGrid size={18} strokeWidth={1.6} aria-hidden="true" />Team overview</a
 			>
 			{#if permitted('invite_members')}
-				<a class="action" href="/app/invitations"
+				<a class="action" href="/app/invitations?invite"
 					><MailPlus size={18} strokeWidth={1.6} aria-hidden="true" />Invite a member</a
 				>
 			{/if}
@@ -228,7 +228,7 @@
 		{/if}
 		{#if teamView}
 			<!-- Blueprint 25: the leader's network overview is one tap away. -->
-			<a class="action" href="/app/team"
+			<a class="action" href="/app"
 				><LayoutGrid size={18} strokeWidth={1.6} aria-hidden="true" />Team overview</a
 			>
 		{/if}

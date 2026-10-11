@@ -15,6 +15,7 @@
 	import { UUID_PATTERN } from '#lib/contract/common.js';
 	import { AppOrgRoutes, MemberRows, type MemberRow } from '#lib/contract/org-admin.js';
 	import { loadView } from '#lib/client/org.svelte.js';
+	import { browserStore, lastScope } from '#lib/client/device-cache.js';
 	import { CachedRead } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { initials, personName, STATUS_LABELS } from '#lib/org.js';
@@ -106,6 +107,14 @@
 		timer = setTimeout(() => void load(), 300);
 	}
 
+	/** Slice 28 (owner decision 2026-10-11): the list never shows the person themselves. */
+	// Before the session answers, the remembered scope names the same person.
+	const rememberedUid = (() => {
+		const store = browserStore();
+		return store ? (lastScope(store)?.uid ?? null) : null;
+	})();
+	const myUid = $derived(shell.state.kind === 'ready' ? shell.state.view.state.uid : rememberedUid);
+	const others = $derived(items.filter((m) => !myUid || m.person?.uid !== myUid));
 	const officeName = $derived(officeId ? (items[0]?.officeName ?? null) : null);
 	const joined = (iso: string) =>
 		new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(
@@ -126,13 +135,13 @@
 		id="members-heading"
 		pose={null}
 		title={loaded && !nextCursor
-			? `${items.length} ${items.length === 1 ? 'member' : 'members'}`
+			? `${others.length} ${others.length === 1 ? 'member' : 'members'}`
 			: 'Members'}
 		line={officeName ? `${officeName} and below` : null}
 	>
 		{#snippet actions()}
 			{#if canInvite}
-				<a class="hero-cta" href="/app/invitations"
+				<a class="hero-cta" href="/app/invitations?invite"
 					><Plus size={18} strokeWidth={2.2} aria-hidden="true" />Invite a member</a
 				>
 			{/if}
@@ -171,7 +180,7 @@
 			<p>{loadError}</p>
 			<button type="button" class="o-ghost" onclick={() => load()}>Try again</button>
 		</div>
-	{:else if items.length === 0}
+	{:else if others.length === 0}
 		<p class="o-card o-empty">{query.trim() ? 'No members match.' : 'No members here yet.'}</p>
 	{:else}
 		<section class="o-card" aria-label="Members">
@@ -183,7 +192,7 @@
 				<span class="c-chev"></span>
 			</div>
 			<ul class="o-rows">
-				{#each items as member (member.membershipId)}
+				{#each others as member (member.membershipId)}
 					<li>
 						<a class="o-row" href={`/app/members/${member.membershipId}`}>
 							<span class="o-avatar" class:coral={member.status === 'active'} aria-hidden="true"

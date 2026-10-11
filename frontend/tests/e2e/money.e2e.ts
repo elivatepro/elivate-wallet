@@ -116,9 +116,9 @@ test('a member searches and filters activity and opens a transaction', async ({ 
 
 test('the President sees the team overview and opens a member wallet', async ({ page }) => {
 	await openPresidentWorkspace(page);
+	// Slice 28: the team overview is Home (/app/team sends old links there).
 	await page.goto('/app/team');
-	await expect(page.getByRole('heading', { name: NETWORK })).toBeVisible();
-	// Blueprint 25: the team overview is the network overview.
+	await expect(page).toHaveURL(/\/app$/);
 	await expect(page.getByTestId('network-income')).toHaveText('₦3,500.00');
 	await expectAccessible(page);
 

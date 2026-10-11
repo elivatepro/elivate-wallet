@@ -16,6 +16,7 @@
 	import FileText from '@lucide/svelte/icons/file-text';
 	import House from '@lucide/svelte/icons/house';
 	import Landmark from '@lucide/svelte/icons/landmark';
+	import PiggyBank from '@lucide/svelte/icons/piggy-bank';
 	import LayoutGrid from '@lucide/svelte/icons/layout-grid';
 	import List from '@lucide/svelte/icons/list';
 	import Mail from '@lucide/svelte/icons/mail';
@@ -51,6 +52,7 @@
 		reversals: RotateCcw,
 		income: ArrowDownToLine,
 		wallets: Wallet,
+		mywallet: PiggyBank,
 		convert: Blend,
 		reports: ChartNoAxesColumn,
 		members: Users,
