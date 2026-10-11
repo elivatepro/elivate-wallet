@@ -5,6 +5,7 @@
 	for the PIN (manage_team_settings); every save is a new revision.
 -->
 <script lang="ts">
+	import { enterMovesOn } from '#lib/ui/enter-moves-on.js';
 	import '#lib/ui/settings/settings.css';
 	import { getContext, onMount, untrack } from 'svelte';
 	import { goto } from '$app/navigation';
@@ -210,7 +211,13 @@
 			</p>
 		{/if}
 		<div class="s-body">
-			<form class="s-form" onsubmit={openSave} novalidate aria-label="Branding">
+			<form
+				class="s-form"
+				onsubmit={openSave}
+				novalidate
+				aria-label="Branding"
+				{@attach enterMovesOn}
+			>
 				<fieldset class="s-section" disabled={!writable}>
 					<legend class="s-section-label">Logo</legend>
 					<div class="logos">

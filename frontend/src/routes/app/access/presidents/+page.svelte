@@ -5,6 +5,7 @@
 	remains and nobody removes themselves. Replace with the approved design.
 -->
 <script lang="ts">
+	import { enterMovesOn } from '#lib/ui/enter-moves-on.js';
 	import '#lib/ui/org/org.css';
 	import { getContext } from 'svelte';
 	import { AppOrgRoutes, MemberRows, type MemberRow } from '#lib/contract/org-admin.js';
@@ -104,7 +105,7 @@
 			{/each}
 		</ul>
 	{/if}
-	<form class="o-card o-card-pad" onsubmit={submit} novalidate>
+	<form class="o-card o-card-pad" onsubmit={submit} novalidate {@attach enterMovesOn}>
 		<h2>{removing ? `Remove ${personName(removing.person)}` : 'Add a President Team Member'}</h2>
 		{#if command.error}<p class="o-field-error" role="alert">{command.error}</p>{/if}
 		{#if !removing}

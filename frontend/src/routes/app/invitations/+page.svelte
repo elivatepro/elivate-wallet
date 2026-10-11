@@ -469,6 +469,7 @@
 											class="more"
 											aria-label={`Actions for ${invitation.email}`}
 											disabled={!shell.canAct || resendBusy !== null}
+											type="button"
 										>
 											<Ellipsis size={18} strokeWidth={1.8} />
 										</DropdownMenu.Trigger>

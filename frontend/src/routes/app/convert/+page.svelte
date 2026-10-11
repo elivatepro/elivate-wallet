@@ -9,6 +9,7 @@
 	its own menu item or a member's wallet ("Convert", ?member=).
 -->
 <script lang="ts">
+	import { enterMovesOn } from '#lib/ui/enter-moves-on.js';
 	import { getContext, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { Cause, Effect, Exit, Option } from 'effect';
@@ -398,6 +399,7 @@
 		{:else}
 			<form
 				class="en-layout"
+				{@attach enterMovesOn}
 				onsubmit={(e) => {
 					e.preventDefault();
 					void submit();

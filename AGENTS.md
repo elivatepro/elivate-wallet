@@ -104,5 +104,6 @@ person picker (name, email or UID) on every person field, leaders invited by ema
 for their leader; replacements happen on accept). Slice 28 (Blueprint 28): every leader's Home is
 their overview (own wallet under My wallet), Offices for the President Team and World Team only,
 no self in Members/Invitations, invite opens directly, a PIN owed locks in place (no data left
-behind). Next: slices 29–31 (owner list 2026-10-11: forms, visual fixes, email Root), then
-set-based authorization reads.
+behind). Slice 29 (Blueprint 29, frontend only): no form submits early (typed Bits buttons,
+`enterMovesOn`), Withdraw on phones per Paper M09/M10, Invite per C13/C14. Next: slices 30–31
+(owner list 2026-10-11: visual fixes, email Root), then set-based authorization reads.

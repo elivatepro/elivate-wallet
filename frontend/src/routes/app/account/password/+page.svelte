@@ -7,6 +7,7 @@
 	never stored, and the rows remount after each try.
 -->
 <script lang="ts">
+	import { enterMovesOn } from '#lib/ui/enter-moves-on.js';
 	import { getContext } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { Effect, Exit } from 'effect';
@@ -146,7 +147,7 @@
 			>
 		</div>
 	{:else}
-		<form onsubmit={submit} novalidate>
+		<form onsubmit={submit} novalidate {@attach enterMovesOn}>
 			{#if formError}<FormAlert message={formError} />{/if}
 			{#key attempt}
 				<div class="card">
@@ -160,7 +161,7 @@
 						error={errors.password}
 						autofocus
 					/>
-					<PinRow id="pin" name="pin" label="Your PIN" error={errors.pin} />
+					<PinRow id="pin" name="pin" label="Your PIN" error={errors.pin} submitsOnEnter />
 				</div>
 			{/key}
 			<div class="actions">

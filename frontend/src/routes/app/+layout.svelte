@@ -251,6 +251,7 @@
 	const pushed = $derived(
 		path.startsWith('/app/notifications') ||
 			path.startsWith('/app/income') ||
+			path === '/app/withdrawals/new' ||
 			path.startsWith('/app/convert') ||
 			path.startsWith('/app/adjust') ||
 			path.startsWith('/app/reversals') ||
@@ -645,7 +646,7 @@
 					<CircleHelp size={18} strokeWidth={1.6} aria-hidden="true" /><span>Support</span>
 				</a>
 				<Popover.Root bind:open={bellOpen}>
-					<Popover.Trigger class="bell" aria-label={bellLabel}>
+					<Popover.Trigger class="bell" aria-label={bellLabel} type="button">
 						<Bell size={19} strokeWidth={1.5} aria-hidden="true" />
 						{#if bell.unread > 0}<span class="bell-dot" aria-hidden="true"></span>{/if}
 					</Popover.Trigger>
@@ -705,7 +706,7 @@
 					</Popover.Portal>
 				</Popover.Root>
 				<DropdownMenu.Root>
-					<DropdownMenu.Trigger class="avatar" aria-label="Account">
+					<DropdownMenu.Trigger class="avatar" aria-label="Account" type="button">
 						{@render avatar()}
 					</DropdownMenu.Trigger>
 					<DropdownMenu.Portal>

@@ -3,6 +3,7 @@
 	choices as the desktop dialog, then the workspace's recent reports.
 -->
 <script lang="ts">
+	import { enterMovesOn } from '#lib/ui/enter-moves-on.js';
 	import { getContext, onDestroy, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { Exit } from 'effect';
@@ -99,7 +100,7 @@
 
 <PageBar title="Export report" back="/app/reports" backLabel="Back to Reports" />
 
-<form class="page" onsubmit={submit}>
+<form class="page" onsubmit={submit} {@attach enterMovesOn}>
 	<CacheNote savedAt={recent.savedAt} online={shell.online} failed={recent.error !== null} />
 	<section class="stage" aria-hidden="true">
 		<div class="stage-shade"></div>

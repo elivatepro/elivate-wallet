@@ -6,6 +6,7 @@
 	restoring starts. One open request per network.
 -->
 <script lang="ts">
+	import { enterMovesOn } from '#lib/ui/enter-moves-on.js';
 	import '#lib/ui/settings/settings.css';
 	import { getContext, untrack } from 'svelte';
 	import { page } from '$app/state';
@@ -169,7 +170,7 @@
 			<a class="s-ghost" href="/app/settings/backups">Back to backup vault</a>
 		</div>
 	{:else}
-		<form class="s-form request" onsubmit={submit} novalidate>
+		<form class="s-form request" onsubmit={submit} novalidate {@attach enterMovesOn}>
 			<fieldset class="s-section">
 				<legend class="s-section-label">Backup to restore from</legend>
 				<div class="picks">

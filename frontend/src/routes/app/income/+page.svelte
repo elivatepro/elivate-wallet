@@ -15,6 +15,7 @@
 	with the posted income if it went through (F-03).
 -->
 <script lang="ts">
+	import { enterMovesOn } from '#lib/ui/enter-moves-on.js';
 	import { getContext, tick, untrack } from 'svelte';
 	import { Cause, Effect, Exit, Option } from 'effect';
 	import FileText from '@lucide/svelte/icons/file-text';
@@ -760,7 +761,7 @@
 	</section>
 {:else}
 	{@render bar()}
-	<form class="body" onsubmit={openPost} novalidate>
+	<form class="body" onsubmit={openPost} novalidate {@attach enterMovesOn}>
 		<fieldset class="lock" disabled={busy}>
 			<div class="form-card">
 				{#if notice}<p class="notice" role="status">{notice}</p>{/if}
@@ -1422,6 +1423,9 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: 8px 16px;
+		margin: 0;
+		/* Slice 29: no list indent (Paper J01 mobile starts at the card's edge). */
+		padding: 0;
 		list-style: none;
 	}
 

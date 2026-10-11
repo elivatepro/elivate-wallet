@@ -272,6 +272,11 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
   locks in place (no "no access", no leaving the page): the page is unmounted, **every saved
   device copy is deleted** (amends 36a/Blueprint 23), other tabs lock, and it unlocks on the 4th
   digit. The backend's PIN gate (`identity.require_session`) stays the enforcement.
+- **Forms wait for you (2026-10-11, Blueprint 29):** a picker or Enter (a phone's Go / Done) never
+  submits a form. Enter moves to the next field and the last one closes the keyboard; only the
+  PIN submits on Enter. Withdraw on phones follows Paper M09/M10 (full-screen, keypad); Invite
+  follows C13/C14 (Root band). Paper's invite "Full name" and "Copy invite link" are not built
+  (no backend name; links never reach the page).
 - **Sequencing:** one slice at a time, each new slice in its own thread. Order: 4 → 5 → 8 →
   slice 9 follow-up (IP storage, signed-in password change, PIN-change email, sign-out
   choice after reset) → 6 → 7 → 10.
