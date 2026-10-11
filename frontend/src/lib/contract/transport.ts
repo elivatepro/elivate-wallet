@@ -27,18 +27,20 @@ export interface JsonRequest {
 export interface ReplyObserver {
 	/** A reply came back from the server (any status). */
 	readonly replied: () => void;
-	/** The server refused with this error code. */
-	readonly refused: (code: string) => void;
+	/** The server refused with this error code (slice 34: and its request ID). */
+	readonly refused?: (code: string, requestId: string | null) => void;
+	/** Slice 34: no usable reply (timeout, network, unexpected body). Not aborts. */
+	readonly failed?: (reason: string) => void;
 }
 
-let observer: ReplyObserver | null = null;
+const observers = new Set<ReplyObserver>();
 
-/** Registers the browser's observer; returns the unregister function. */
+/** Registers a browser observer; returns the unregister function. */
 export function observeReplies(next: ReplyObserver): () => void {
 	if (typeof window === 'undefined') return () => {};
-	observer = next;
+	observers.add(next);
 	return () => {
-		if (observer === next) observer = null;
+		observers.delete(next);
 	};
 }
 
@@ -70,17 +72,27 @@ export function requestJson<S extends Schema.ConstraintDecoder<unknown>>(
 					reason: timeout.aborted ? 'timeout' : request.signal?.aborted ? 'aborted' : 'network',
 					status: null
 				})
-		});
+		}).pipe(
+			Effect.tapError((failure) =>
+				Effect.sync(() => {
+					if (failure.reason !== 'aborted') for (const o of observers) o.failed?.(failure.reason);
+				})
+			)
+		);
 
 		const text = yield* Effect.tryPromise({
 			try: () => response.text(),
 			catch: () => new TransportError({ reason: 'network', status: response.status })
 		});
-		observer?.replied();
+		for (const o of observers) o.replied();
 		return yield* decodeResponse(request.route, response.status, parseJson(text), schema).pipe(
 			Effect.tapError((failure) =>
 				Effect.sync(() => {
-					if (failure._tag === 'BackendError') observer?.refused(failure.code);
+					for (const o of observers) {
+						if (failure._tag === 'BackendError') o.refused?.(failure.code, failure.requestId);
+						else if (failure._tag === 'TransportError') o.failed?.(failure.reason);
+						else o.failed?.('contract_violation');
+					}
 				})
 			)
 		);

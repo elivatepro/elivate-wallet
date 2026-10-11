@@ -13,7 +13,7 @@
 -->
 <script lang="ts">
 	import { onMount, setContext, untrack } from 'svelte';
-	import { goto, onNavigate, preloadCode } from '$app/navigation';
+	import { afterNavigate, goto, onNavigate, preloadCode } from '$app/navigation';
 	import { navigating, page, updated } from '$app/state';
 	import { DropdownMenu, Popover } from 'bits-ui';
 	import Activity from '@lucide/svelte/icons/activity';
@@ -58,6 +58,7 @@
 	import NavIcon from '#lib/ui/app/NavIcon.svelte';
 	import { Shell } from '#lib/client/shell.svelte.js';
 	import { pinLock } from '#lib/client/pin-lock.svelte.js';
+	import { rememberScreen, watchErrors } from '#lib/client/chat.js';
 	import PinUnlock from '#lib/ui/app/PinUnlock.svelte';
 	import { Bell as BellState } from '#lib/client/bell.svelte.js';
 	import NotificationList from '#lib/ui/app/NotificationList.svelte';
@@ -116,11 +117,17 @@
 		// Slice 28: a PIN owed locks in place; the idle check asks the server.
 		const stopLock = pinLock.start(() => void shell.load());
 		const stopShell = shell.start();
+		// Slice 34: the last error, for support chat context.
+		const stopErrors = watchErrors(() => page.route.id);
 		return () => {
 			stopLock();
 			stopShell();
+			stopErrors();
 		};
 	});
+
+	// Slice 34: the screen before Support, for support chat context.
+	afterNavigate(({ to }) => rememberScreen(to?.route.id));
 
 	const summary = $derived(
 		shell.state.kind === 'ready' || shell.state.kind === 'offline' ? shell.state.summary : null

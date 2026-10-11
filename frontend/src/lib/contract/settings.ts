@@ -314,7 +314,15 @@ export const SupportChat = Schema.Union([
 		websiteToken: Schema.String,
 		identifier: Schema.String,
 		identifierHash: Schema.String,
-		network: Schema.String
+		network: Schema.String,
+		/**
+		 * Slice 34 (owner decision 2026-10-11): support sees who they are
+		 * talking to and the account context it needs. Never money, bank
+		 * details, evidence, PINs or tokens.
+		 */
+		name: Schema.NullOr(Schema.String),
+		email: Schema.NullOr(Schema.String),
+		context: Schema.Record(Schema.String, Schema.String)
 	})
 ]);
 export type SupportChat = typeof SupportChat.Type;

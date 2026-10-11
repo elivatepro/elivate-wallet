@@ -277,6 +277,12 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
   PIN submits on Enter. Withdraw on phones follows Paper M09/M10 (full-screen, keypad); Invite
   follows C13/C14 (Root band). Paper's invite "Full name" and "Copy invite link" are not built
   (no backend name; links never reach the page).
+- **Support chat with context (2026-10-11, Blueprint 34):** the app has its own Chatwoot inbox
+  ("Elivate Wallet — App", identity validation required, Mon–Fri 9–5 Lagos). Support sees the
+  name, account email, role, office, network (name, ID, status), plan (when the person can read
+  billing), device, app build, the screen they came from and the last error (code and request
+  ID). A topic is picked before chatting and labels the conversation. Still never money, bank
+  details, evidence, PINs or tokens. Supersedes "UID, network name and screen only" (W-21).
 - **Sequencing:** one slice at a time, each new slice in its own thread. Order: 4 → 5 → 8 →
   slice 9 follow-up (IP storage, signed-in password change, PIN-change email, sign-out
   choice after reset) → 6 → 7 → 10.
