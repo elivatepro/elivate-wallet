@@ -25,7 +25,10 @@ test('the preview image, icons, robots, sitemap and security.txt are served', as
 	expect((await request.get('/favicon.ico')).status()).toBe(200);
 	expect((await request.get('/icons/favicon-32.png')).status()).toBe(200);
 	const robots = await (await request.get('/robots.txt')).text();
-	expect(robots).toContain('Disallow: /app');
+	expect(robots).toContain('Disallow: /app/');
+	// Rules match by prefix: /apply (public) must stay open.
+	expect(robots).toContain('Allow: /apply');
+	expect(robots).not.toMatch(/^Disallow: \/app\s*$/m);
 	expect(robots).toContain('Sitemap: https://app.elivatewallet.com/sitemap.xml');
 	expect(await (await request.get('/sitemap.xml')).text()).toContain('/sign-in');
 	expect(await (await request.get('/.well-known/security.txt')).text()).toContain(

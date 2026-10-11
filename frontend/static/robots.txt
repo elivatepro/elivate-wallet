@@ -2,7 +2,9 @@
 # its API and the admin console are private (and send X-Robots-Tag: noindex).
 User-agent: *
 Allow: /
-Disallow: /app
+Allow: /apply
+Disallow: /app$
+Disallow: /app/
 Disallow: /api/
 Disallow: /admin
 Disallow: /internal/
