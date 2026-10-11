@@ -4,6 +4,7 @@
 	year keeps its name. Dates are WAT calendar days (owner decision Q1).
 -->
 <script lang="ts">
+	import DatePicker from '#lib/ui/DatePicker.svelte';
 	import { customPeriod, periodPresets, type Period } from '#lib/statements.js';
 
 	let {
@@ -50,17 +51,28 @@
 	</div>
 	{#if custom}
 		<div class="ex-dates">
-			<label
-				>From<input
+			<span class="ex-date"
+				><label for="period-from">From</label><DatePicker
+					{today}
+					id="period-from"
 					class="ex-input"
-					type="date"
+					label="From"
 					max={today}
 					bind:value={from}
 					onchange={apply}
-				/></label
+				/></span
 			>
-			<label
-				>To<input class="ex-input" type="date" min={from} bind:value={to} onchange={apply} /></label
+			<span class="ex-date"
+				><label for="period-to">To</label><DatePicker
+					{today}
+					id="period-to"
+					class="ex-input"
+					label="To"
+					min={from}
+					max={today}
+					bind:value={to}
+					onchange={apply}
+				/></span
 			>
 		</div>
 		{#if from && to && from > to}<p class="ex-error">

@@ -7,8 +7,11 @@
 }
 
 /* Slice 21: app lists are rows, never bulleted (some showed stray dots); zero
-   specificity, so each list's own styles still apply. */
+   specificity, so each list's own styles still apply. Slice 32: and never
+   indented by the browser's 40 px default (the member picker's rows were). */
 :where(ul, ol) {
+	margin: 0;
+	padding: 0;
 	list-style: none;
 }
 

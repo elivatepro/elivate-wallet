@@ -188,7 +188,7 @@
 						>
 					{/if}
 				</div>
-				<div class="confirm-actions">
+				<div class="picker-actions">
 					<Dialog.Close class="confirm-cancel" type="button">Close</Dialog.Close>
 				</div>
 			</Dialog.Content>
@@ -330,6 +330,7 @@
 		gap: 2px;
 		max-height: min(50dvh, 420px);
 		margin: 0 -8px;
+		padding: 0;
 		overflow-y: auto;
 		list-style: none;
 	}
@@ -367,6 +368,15 @@
 		padding: 16px 8px;
 		color: var(--color-muted);
 		font-size: var(--text-14);
+	}
+
+	/* Slice 32: its own row (ConfirmDialog's .confirm-actions is scoped there). */
+	.picker-actions {
+		display: flex;
+		justify-content: flex-end;
+		gap: 12px;
+		padding: 16px 28px 20px;
+		border-top: 1px solid color-mix(in oklab, var(--color-text) 8%, transparent);
 	}
 
 	.more {

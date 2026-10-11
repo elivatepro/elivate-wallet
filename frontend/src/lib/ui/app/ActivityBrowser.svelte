@@ -8,6 +8,7 @@
 	Used for your own activity and, with `wallet`, a managed wallet's.
 -->
 <script lang="ts">
+	import DatePicker from '#lib/ui/DatePicker.svelte';
 	import { getContext, onMount, untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -567,9 +568,26 @@
 		</div>
 		{#if range === 'custom'}
 			<div class="custom-dates">
-				<label>From <input type="date" bind:value={customFrom} max={customTo || undefined} /></label
+				<span class="date-pair"
+					><label for="act-from">From</label><DatePicker
+						id="act-from"
+						class="act-date"
+						label="From"
+						max={customTo || undefined}
+						clearable
+						bind:value={customFrom}
+					/></span
 				>
-				<label>To <input type="date" bind:value={customTo} min={customFrom || undefined} /></label>
+				<span class="date-pair"
+					><label for="act-to">To</label><DatePicker
+						id="act-to"
+						class="act-date"
+						label="To"
+						min={customFrom || undefined}
+						clearable
+						bind:value={customTo}
+					/></span
+				>
 			</div>
 		{/if}
 
@@ -768,8 +786,26 @@
 				)}
 				{#if draft.range === 'custom'}
 					<div class="custom-dates">
-						<label>From <input type="date" bind:value={draft.from} /></label>
-						<label>To <input type="date" bind:value={draft.to} /></label>
+						<span class="date-pair"
+							><label for="sheet-from">From</label><DatePicker
+								id="sheet-from"
+								class="act-date"
+								label="From"
+								max={draft.to || undefined}
+								clearable
+								bind:value={draft.from}
+							/></span
+						>
+						<span class="date-pair"
+							><label for="sheet-to">To</label><DatePicker
+								id="sheet-to"
+								class="act-date"
+								label="To"
+								min={draft.from || undefined}
+								clearable
+								bind:value={draft.to}
+							/></span
+						>
 					</div>
 				{/if}
 			</div>
@@ -812,21 +848,20 @@
 		font-size: 13px;
 	}
 
-	.custom-dates label {
+	.date-pair {
 		display: flex;
 		align-items: center;
 		gap: 8px;
 	}
 
-	.custom-dates input {
+	.custom-dates :global(.act-date) {
+		width: 168px;
 		height: 40px;
-		padding: 0 10px;
+		padding: 0 12px;
 		border: 1px solid var(--color-border);
 		border-radius: 10px;
 		background: var(--color-surface);
-		color: var(--color-text);
-		font: inherit;
-		color-scheme: dark;
+		font-size: 14px;
 	}
 
 	/* ── Q02 no matches ── */

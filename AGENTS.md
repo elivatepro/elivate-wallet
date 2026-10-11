@@ -39,7 +39,8 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
   and get approval first. Extend existing routes in `frontend/src/routes`. Accepted deviations:
   single-screen PIN entry, wizard progress bar in the panel. Member-app dropdowns are the
   `WheelPicker` (Blueprint 24; banks included): a wheel on phones, a list anchored under the
-  field on desktop (Blueprint 30); the admin console keeps native selects.
+  field on desktop (Blueprint 30); dates are the `DatePicker` (Blueprint 32); the admin console
+  keeps native selects and dates.
 
 ## Backend rules
 
@@ -109,4 +110,6 @@ behind). Slice 29 (Blueprint 29, frontend only): no form submits early (typed Bi
 `enterMovesOn`), Withdraw on phones per Paper M09/M10, Invite per C13/C14. Slice 30 (Blueprint 30,
 frontend only): name-only header with a quiet tile, desktop dropdowns anchored under the field,
 Activity chips and Profile banner fixed (leaked global styles). Slice 31 (Blueprint 31, assets
-only): email Root poses and hero grain about 70% lighter. Next: set-based authorization reads.
+only): email Root poses and hero grain about 70% lighter. Slice 32 (Blueprint 32): member picker
+layout, one `DatePicker` for every member-app date (Paper "Date picker v8"). Next: set-based
+authorization reads.

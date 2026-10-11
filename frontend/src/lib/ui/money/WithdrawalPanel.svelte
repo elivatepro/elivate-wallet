@@ -13,6 +13,7 @@
 	and is dropped when another withdrawal is selected.
 -->
 <script lang="ts">
+	import DatePicker from '#lib/ui/DatePicker.svelte';
 	import { enterMovesOn } from '#lib/ui/enter-moves-on.js';
 	import { Cause, Effect, Exit, Option } from 'effect';
 	import Lock from '@lucide/svelte/icons/lock';
@@ -701,10 +702,16 @@
 					<span class="mm-field-label">Amount sent</span>
 					<input class="mm-input" inputmode="decimal" bind:value={sentText} autocomplete="off" />
 				</label>
-				<label class="mm-field">
-					<span class="mm-field-label">Date paid</span>
-					<input class="mm-input" type="date" max={localToday()} bind:value={paidOn} />
-				</label>
+				<div class="mm-field">
+					<label class="mm-field-label" for="payout-date">Date paid</label>
+					<DatePicker
+						id="payout-date"
+						class="mm-input"
+						label="Date paid"
+						max={localToday()}
+						bind:value={paidOn}
+					/>
+				</div>
 			</div>
 			<label class="mm-field">
 				<span class="mm-field-label">Bank reference</span>
@@ -911,7 +918,13 @@
 		{#if fixFields.includes('date')}
 			<div class="rd-field">
 				<label class="rd-label" for="fix-date">Date paid</label>
-				<input id="fix-date" class="rd-input" type="date" max={localToday()} bind:value={fixDate} />
+				<DatePicker
+					id="fix-date"
+					class="rd-input"
+					label="Date paid"
+					max={localToday()}
+					bind:value={fixDate}
+				/>
 			</div>
 		{/if}
 	{/snippet}
