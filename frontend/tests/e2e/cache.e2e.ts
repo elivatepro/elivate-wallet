@@ -121,9 +121,10 @@ test('sign out, then another person signs in: no flash of the first person’s d
 		await page.getByRole('link', { name: 'Go to my wallet' }).click();
 	}
 	await expect(page).toHaveURL(/\/app$/);
-	// While /api/home is held back, the first person's money never shows.
+	// While /api/home is held back, the first person's money never shows (the
+	// founder's own network home shows the network's income, Blueprint 25).
 	for (let i = 0; i < 10; i += 1) {
-		await expect(page.getByText('₦1,000.00')).toHaveCount(0);
+		await expect(page.getByRole('region', { name: 'Balance' })).toHaveCount(0);
 		await expect(page.getByTestId('cache-note')).toHaveCount(0);
 		await page.waitForTimeout(200);
 	}

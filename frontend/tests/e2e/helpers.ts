@@ -299,11 +299,20 @@ export function invitationToken(invitationId: string): string {
 		.digest('base64url');
 }
 
-/** axe-core WCAG A/AA scan; no violations allowed. */
-export async function expectAccessible(page: Page) {
-	const results = await new AxeBuilder({ page })
-		.withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-		.analyze();
+/**
+ * axe-core WCAG A/AA scan; no violations allowed. `exclude` leaves out parts
+ * scanned elsewhere (e.g. a control an open popover covers).
+ */
+export async function expectAccessible(page: Page, exclude: readonly string[] = []) {
+	let builder = new AxeBuilder({ page }).withTags([
+		'wcag2a',
+		'wcag2aa',
+		'wcag21a',
+		'wcag21aa',
+		'wcag22aa'
+	]);
+	for (const selector of exclude) builder = builder.exclude(selector);
+	const results = await builder.analyze();
 	expect(
 		results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)
 	).toEqual([]);

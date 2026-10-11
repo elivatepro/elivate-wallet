@@ -111,7 +111,9 @@ test('money events reach the bell and the mail catcher; tasks clear when done', 
 	const leaderPanel = page.locator('.popover.notifications');
 	await expect(leaderPanel.getByText('Withdrawal to approve')).toBeVisible();
 	await expect(leaderPanel.getByText(/₦48,000\.00 to .* •• 6789/)).toBeVisible();
-	await expectAccessible(page);
+	// The open panel covers the network home's currency switch (Blueprint 25),
+	// which navigation.e2e.ts scans with nothing over it.
+	await expectAccessible(page, ['.hero .switch']);
 	await shot(page, 'NB01-bell-leader-desktop');
 	await leaderPanel.getByText('Withdrawal to approve').click();
 	await expect(page).toHaveURL(/\/app\/queue\?withdrawal=/);

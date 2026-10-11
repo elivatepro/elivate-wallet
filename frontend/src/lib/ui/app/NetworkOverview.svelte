@@ -521,9 +521,11 @@
 		background: #0000004d;
 	}
 
+	/* 24 px tall (Paper draws 22): the WCAG 2.2 minimum target. */
 	.switch button {
-		min-height: 22px;
-		padding: 3px 10px;
+		min-width: 44px;
+		min-height: 24px;
+		padding: 4px 10px;
 		border: 0;
 		border-radius: var(--radius-pill);
 		background: transparent;
