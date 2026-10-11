@@ -5,6 +5,7 @@
 	revisions; Restore makes a new revision from an older one. Both need the PIN.
 -->
 <script lang="ts">
+	import { enterMovesOn } from '#lib/ui/enter-moves-on.js';
 	import '#lib/ui/settings/settings.css';
 	import { getContext, untrack } from 'svelte';
 	import { goto } from '$app/navigation';
@@ -169,7 +170,13 @@
 		{/if}
 		{#if saved}<p class="s-notice good" role="status">{saved}</p>{/if}
 		<div class="s-body">
-			<form class="s-form" onsubmit={openSave} novalidate aria-label="Team details">
+			<form
+				class="s-form"
+				onsubmit={openSave}
+				novalidate
+				aria-label="Team details"
+				{@attach enterMovesOn}
+			>
 				<div class="s-grid2 names">
 					<div class="s-field">
 						<label class="s-field-head" for="team-name">Team name</label>

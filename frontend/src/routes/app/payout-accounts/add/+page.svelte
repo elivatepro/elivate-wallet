@@ -9,6 +9,7 @@
 	(waiting on owner approval); it reuses this layout.
 -->
 <script lang="ts">
+	import { enterMovesOn } from '#lib/ui/enter-moves-on.js';
 	import { getContext } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -258,7 +259,7 @@
 
 		{#key formId}
 			{#if !lookup}
-				<form onsubmit={check} novalidate>
+				<form onsubmit={check} novalidate {@attach enterMovesOn}>
 					<div class="field">
 						<label for="bankCode">Bank</label>
 						<WheelPicker
@@ -307,7 +308,7 @@
 			{:else}
 				<NameCheck accountName={lookup.accountName} match={lookup.nameMatch} legalName={null} />
 				{#if !mismatch}
-					<form onsubmit={save} novalidate>
+					<form onsubmit={save} novalidate {@attach enterMovesOn}>
 						{#if replaces && !intent}
 							<!-- Only when the Z05 dialog's reason is missing (e.g. after a reload). -->
 							<div class="field">

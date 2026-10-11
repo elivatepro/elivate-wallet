@@ -69,14 +69,14 @@
 				<header class="pv-band">
 					<div class="pv-shade" aria-hidden="true"></div>
 					<RootImage pose="statement-preview" class="pv-root" sizes="140px" />
-					<Dialog.Close class="pv-back" aria-label="Close preview"
+					<Dialog.Close class="pv-back" aria-label="Close preview" type="button"
 						><ChevronLeft size={22} strokeWidth={2} aria-hidden="true" /></Dialog.Close
 					>
 					<div class="pv-heading">
 						<Dialog.Title class="pv-title">{file.period.title} · {file.currency}</Dialog.Title>
 						<p class="pv-sub" id="pv-sub">PDF · {pages} {pages === 1 ? 'page' : 'pages'}</p>
 					</div>
-					<Dialog.Close class="pv-close" aria-label="Close preview"
+					<Dialog.Close class="pv-close" aria-label="Close preview" type="button"
 						><X size={16} strokeWidth={2} aria-hidden="true" /></Dialog.Close
 					>
 				</header>

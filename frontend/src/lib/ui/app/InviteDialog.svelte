@@ -6,6 +6,7 @@
 	choice here is only what it can accept.
 -->
 <script lang="ts">
+	import { enterMovesOn } from '#lib/ui/enter-moves-on.js';
 	import { Dialog } from 'bits-ui';
 	import type { InviteOffice } from '#lib/contract/app.js';
 	import type { Role } from '#lib/contract/common.js';
@@ -13,6 +14,7 @@
 	import { inviteRoles } from '#lib/invitations.js';
 	import { ROLE_LABELS } from '#lib/labels.js';
 	import PinField from '#lib/ui/auth/PinField.svelte';
+	import RootImage from '#lib/ui/RootImage.svelte';
 	import WheelPicker from '#lib/ui/WheelPicker.svelte';
 
 	let {
@@ -51,6 +53,10 @@
 	const office = $derived(offices.find((o) => o.officeId === officeId) ?? offices[0]);
 	const roles = $derived(office ? inviteRoles(workspace, office) : (['member'] as Role[]));
 	const leader = $derived(role !== 'member');
+	/** "as a Member", "on the World Team" (Paper C13 subtitle). */
+	const joinsAs = $derived(
+		ROLE_LABELS[role].endsWith('Team') ? `on the ${ROLE_LABELS[role]}` : `as a ${ROLE_LABELS[role]}`
+	);
 
 	$effect(() => {
 		if (open) fieldError = null;
@@ -92,9 +98,17 @@
 	<Dialog.Portal>
 		<Dialog.Overlay class="confirm-overlay" />
 		<Dialog.Content class="confirm-dialog">
-			<form onsubmit={submit} novalidate>
+			<form onsubmit={submit} novalidate {@attach enterMovesOn}>
+				<!-- Paper C13/C14: the grainy band with Root holding the invitation. -->
+				<header class="stage">
+					<span class="shade" aria-hidden="true"></span>
+					<RootImage pose="invite-member" class="stage-root" sizes="118px" eager />
+					<Dialog.Title class="stage-title">Invite a member</Dialog.Title>
+					{#if office}
+						<p class="stage-sub">Joins {office.name} {joinsAs}</p>
+					{/if}
+				</header>
 				<div class="body">
-					<Dialog.Title class="confirm-title">Invite a member</Dialog.Title>
 					{#if error}<p class="error" role="alert">{error}</p>{/if}
 
 					<label class="label" for="invite-email">Email address</label>
@@ -176,6 +190,56 @@
 </Dialog.Root>
 
 <style>
+	.stage {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		justify-content: flex-end;
+		height: 150px;
+		padding: 24px 28px;
+		overflow: clip;
+		/* The sheet's 24 px corners, inside its 1 px border. */
+		border-radius: 23px 23px 0 0;
+		background: var(--color-surface) url('/auth-bg/desktop-dark.jpg') 60% 30% / cover;
+	}
+
+	.shade {
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(
+			90deg,
+			color-mix(in oklab, var(--color-surface) 94%, transparent) 0%,
+			color-mix(in oklab, var(--color-surface) 55%, transparent) 55%,
+			transparent 100%
+		);
+	}
+
+	.stage :global(.stage-root) {
+		position: absolute;
+		right: 40px;
+		bottom: -12px;
+		width: 118px;
+		height: 158px;
+	}
+
+	.stage :global(.stage-title) {
+		position: relative;
+		color: var(--color-text);
+		font-size: 24px;
+		font-weight: var(--font-weight-semibold);
+		letter-spacing: -0.01em;
+		line-height: 30px;
+	}
+
+	.stage-sub {
+		position: relative;
+		max-width: calc(100% - 150px);
+		padding-top: 4px;
+		color: var(--color-muted);
+		font-size: var(--text-14);
+		line-height: 20px;
+	}
+
 	.body {
 		display: flex;
 		flex-direction: column;

@@ -171,7 +171,7 @@
 			{#snippet actions()}
 				{#if anyAction}
 					<DropdownMenu.Root>
-						<DropdownMenu.Trigger class="hero-chip" disabled={!shell.canAct}>
+						<DropdownMenu.Trigger class="hero-chip" disabled={!shell.canAct} type="button">
 							Actions <ChevronDown size={16} strokeWidth={1.8} aria-hidden="true" />
 						</DropdownMenu.Trigger>
 						<DropdownMenu.Portal>

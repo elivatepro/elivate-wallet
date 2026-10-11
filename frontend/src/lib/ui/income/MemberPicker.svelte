@@ -115,6 +115,7 @@
 			aria-labelledby="member-label member-value"
 			aria-invalid={error ? 'true' : undefined}
 			aria-describedby={error ? 'member-error' : undefined}
+			type="button"
 		>
 			{#if selected}
 				<span class="avatar" aria-hidden="true"

@@ -6,6 +6,7 @@
 	WAT. Files are made by a background job and kept 7 days.
 -->
 <script lang="ts">
+	import { enterMovesOn } from '#lib/ui/enter-moves-on.js';
 	import { getContext, onDestroy, untrack } from 'svelte';
 	import { Effect, Exit } from 'effect';
 	import { ExportFile, StatementsView, type StatementNetwork } from '#lib/contract/exports.js';
@@ -198,7 +199,11 @@
 			<p class="stage-title">{big ? 'That’s a big one' : 'Your money, on paper'}</p>
 		</section>
 
-		<form class="builder ex-card" onsubmit={(e) => (e.preventDefault(), void create())}>
+		<form
+			class="builder ex-card"
+			onsubmit={(e) => (e.preventDefault(), void create())}
+			{@attach enterMovesOn}
+		>
 			<h1 class="ex-title desktop-only">Create a statement</h1>
 
 			{#if networks.length > 1}

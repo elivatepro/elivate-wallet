@@ -258,7 +258,11 @@
 						{/if}
 					</span>
 					<DropdownMenu.Root>
-						<DropdownMenu.Trigger class="row-menu" aria-label={`Options for ${title}`}>
+						<DropdownMenu.Trigger
+							class="row-menu"
+							aria-label={`Options for ${title}`}
+							type="button"
+						>
 							<span class="desk"><Ellipsis size={18} strokeWidth={2} aria-hidden="true" /></span>
 							<span class="mob"><ChevronRight size={18} strokeWidth={2} aria-hidden="true" /></span>
 						</DropdownMenu.Trigger>

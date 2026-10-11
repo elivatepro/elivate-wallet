@@ -7,6 +7,7 @@
 	focus is trapped and returns to the trigger.
 -->
 <script lang="ts">
+	import { enterMovesOn } from '#lib/ui/enter-moves-on.js';
 	import type { Snippet } from 'svelte';
 	import { Dialog } from 'bits-ui';
 	import PinField from '#lib/ui/auth/PinField.svelte';
@@ -89,7 +90,7 @@
 		<Dialog.Overlay class="org-scrim" />
 		<Dialog.Content class={wide ? 'org-dialog wide' : 'org-dialog'}>
 			<RootImage {pose} class="org-dialog-peek" sizes="120px" />
-			<form class="org-form" onsubmit={submit} novalidate>
+			<form class="org-form" onsubmit={submit} novalidate {@attach enterMovesOn}>
 				<header class="org-band">
 					<div class="org-shade" aria-hidden="true"></div>
 					<RootImage {pose} class="org-dialog-root" sizes="140px" />

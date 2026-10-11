@@ -13,6 +13,7 @@
 	and is dropped when another withdrawal is selected.
 -->
 <script lang="ts">
+	import { enterMovesOn } from '#lib/ui/enter-moves-on.js';
 	import { Cause, Effect, Exit, Option } from 'effect';
 	import Lock from '@lucide/svelte/icons/lock';
 	import Upload from '@lucide/svelte/icons/upload';
@@ -687,7 +688,7 @@
 	{/if}
 
 	{#if (w.status === 'approved' && !shown && w.can.record) || mode !== 'view'}
-		<form class="mm-section" onsubmit={submitPayout} novalidate>
+		<form class="mm-section" onsubmit={submitPayout} novalidate {@attach enterMovesOn}>
 			<span class="mm-label">{mode === 'correct' ? 'New receipt' : 'Record payout'}</span>
 			{#if mode === 'correct'}
 				<p class="mm-note">

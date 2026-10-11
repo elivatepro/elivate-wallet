@@ -5,6 +5,7 @@
 	and leads to the email reset. Other devices must enter the new PIN.
 -->
 <script lang="ts">
+	import { enterMovesOn } from '#lib/ui/enter-moves-on.js';
 	import { getContext } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { Effect, Exit } from 'effect';
@@ -118,7 +119,7 @@
 			<button type="button" class="primary" onclick={() => goto('/app/account')}>Done</button>
 		</div>
 	{:else}
-		<form onsubmit={submit} novalidate>
+		<form onsubmit={submit} novalidate {@attach enterMovesOn}>
 			{#if formError}<FormAlert message={formError} />{/if}
 			{#key attempt}
 				<div class="card">

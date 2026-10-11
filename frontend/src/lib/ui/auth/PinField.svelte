@@ -48,6 +48,7 @@
 			{id}
 			{name}
 			type="password"
+			data-enter-submits
 			inputmode="numeric"
 			pattern={'[0-9]{4}'}
 			minlength="4"

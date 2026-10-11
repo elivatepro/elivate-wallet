@@ -7,6 +7,7 @@
 	listed under the form.
 -->
 <script lang="ts">
+	import { enterMovesOn } from '#lib/ui/enter-moves-on.js';
 	import { getContext, untrack } from 'svelte';
 	import { Cause, Effect, Exit, Option } from 'effect';
 	import type { Currency } from '#lib/contract/ledger.js';
@@ -258,7 +259,7 @@
 			<p class="mm-empty">You don’t have pockets with money in this network yet.</p>
 		{:else}
 			<div class="layout">
-				<form class="mm-card grow" onsubmit={review} novalidate>
+				<form class="mm-card grow" onsubmit={review} novalidate {@attach enterMovesOn}>
 					{#if error}<p class="mm-error" role="alert">{error}</p>{/if}
 					{#if choices.groups.length > 1}
 						<div class="mm-field">

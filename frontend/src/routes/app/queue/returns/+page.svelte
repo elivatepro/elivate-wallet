@@ -7,6 +7,7 @@
 	it. Opened from a completed withdrawal in the queue (?withdrawal=).
 -->
 <script lang="ts">
+	import { enterMovesOn } from '#lib/ui/enter-moves-on.js';
 	import { getContext, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { Cause, Effect, Exit, Option, Schema } from 'effect';
@@ -278,6 +279,7 @@
 		{:else}
 			<form
 				class="en-layout"
+				{@attach enterMovesOn}
 				onsubmit={(e) => {
 					e.preventDefault();
 					void submit();

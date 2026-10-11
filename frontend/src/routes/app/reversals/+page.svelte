@@ -10,6 +10,7 @@
 	until one is chosen.
 -->
 <script lang="ts">
+	import { enterMovesOn } from '#lib/ui/enter-moves-on.js';
 	import { getContext } from 'svelte';
 	import { page } from '$app/state';
 	import { Cause, Effect, Exit, Option } from 'effect';
@@ -268,6 +269,7 @@
 		<CacheNote savedAt={view.savedAt} online={shell.online} failed={view.error !== null} />
 		<form
 			class="en-layout"
+			{@attach enterMovesOn}
 			onsubmit={(e) => {
 				e.preventDefault();
 				if (tx) void submit();

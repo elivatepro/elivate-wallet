@@ -8,6 +8,7 @@
 	Opened from a member's wallet or detail (?member=) or by picking a member.
 -->
 <script lang="ts">
+	import { enterMovesOn } from '#lib/ui/enter-moves-on.js';
 	import { getContext, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { Cause, Effect, Exit, Option } from 'effect';
@@ -329,6 +330,7 @@
 		{:else}
 			<form
 				class="en-layout"
+				{@attach enterMovesOn}
 				onsubmit={(e) => {
 					e.preventDefault();
 					review();
