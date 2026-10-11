@@ -141,7 +141,10 @@
 	onMount(() => {
 		hydrated = true;
 		enhanced = true;
-		return () => release();
+		return () => {
+			release();
+			detachList();
+		};
 	});
 
 	const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -369,9 +372,7 @@
 				onchange?.(chosen.value);
 			}
 		}
-		document.removeEventListener('pointerdown', outside, true);
-		window.removeEventListener('resize', measure);
-		window.removeEventListener('scroll', onPageScroll, true);
+		detachList();
 		try {
 			pop?.hidePopover();
 		} catch {
@@ -379,6 +380,13 @@
 		}
 		open = false;
 		trigger?.focus();
+	}
+
+	/** The list's page listeners (also on unmount, e.g. Back while it is open). */
+	function detachList() {
+		document.removeEventListener('pointerdown', outside, true);
+		window.removeEventListener('resize', measure);
+		window.removeEventListener('scroll', onPageScroll, true);
 	}
 
 	function outside(event: PointerEvent) {
@@ -417,6 +425,9 @@
 			event.preventDefault();
 			return closeList(pick);
 		}
+		// In the search field Home/End edit the text; only the arrows and pages move.
+		const inSearch = event.target instanceof HTMLInputElement;
+		if (inSearch && !['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp'].includes(event.key)) return;
 		const to = keyTarget(event.key, pick, shown.length);
 		if (to !== null) {
 			event.preventDefault();

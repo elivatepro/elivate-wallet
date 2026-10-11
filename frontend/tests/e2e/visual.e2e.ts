@@ -52,6 +52,29 @@ test('desktop: the dropdown opens anchored under its field, keys and clicks choo
 	await page.mouse.click(1200, 900);
 	await expect(page.locator('.wp-pop')).toHaveCount(0);
 	await expect(field).toHaveText(/NGN/);
+
+	// Follows the page: scrolling moves the open list with its field.
+	await page.setViewportSize({ width: 1440, height: 520 });
+	await field.evaluate((el) => el.scrollIntoView({ block: 'start' }));
+	await field.click();
+	const before = (await page.locator('.wp-pop').boundingBox())!;
+	await page.evaluate(() => window.scrollBy(0, 40));
+	await expect
+		.poll(async () => {
+			const now = (await page.locator('.wp-pop').boundingBox())!;
+			const at = (await field.boundingBox())!;
+			return Math.abs(now.y - (at.y + at.height)) < 12 && now.y !== before.y;
+		})
+		.toBe(true);
+	await page.keyboard.press('Escape');
+
+	// No room below: the list opens above the field.
+	await field.evaluate((el) => el.scrollIntoView({ block: 'end' }));
+	await field.click();
+	const above = (await page.locator('.wp-pop').boundingBox())!;
+	const at = (await field.boundingBox())!;
+	expect(above.y + above.height).toBeLessThanOrEqual(at.y + 1);
+	await page.keyboard.press('Escape');
 });
 
 test('phone: the header has the name only, the chips no rail, the banner one edge', async ({
