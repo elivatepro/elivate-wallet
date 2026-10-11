@@ -137,9 +137,14 @@
 			role: summary?.role ?? null,
 			billingOwner:
 				shell.state.kind === 'ready' && shell.state.view.capabilities?.billingOwner === true,
-			tasks: bell.tasks
+			tasks: bell.tasks,
+			networkHomeHint: summary?.networkHome
 		})
 	);
+	// Blueprint 25: the bell reads the live tasks on every poll for people who approve.
+	$effect(() => {
+		bell.watchTasks = nav.approvals.length > 0;
+	});
 	setContext('nav', () => nav);
 	const tabNow = $derived(currentTab(nav.tabs, navPath));
 	/** "President Team · whole network" / "Team Leader · Team A". */
@@ -1591,6 +1596,30 @@
 		.tab,
 		.tab-label {
 			transition: none;
+		}
+	}
+
+	/*
+	 * Narrow phones (P-06: checked at 320 px). Below 380 px the bar comes closer
+	 * to the edges; below 350 px five tabs leave no room for a label, so the
+	 * current one stays a filled pill with its icon (its name is still read out).
+	 */
+	@media (max-width: 379px) {
+		.tabbar {
+			right: 12px;
+			left: 12px;
+		}
+	}
+
+	@media (max-width: 349px) {
+		.tabbar[data-tabs='5'] .tab[aria-current='page'] {
+			gap: 0;
+			padding: 0;
+		}
+
+		.tabbar[data-tabs='5'] .tab[aria-current='page'] .tab-label {
+			max-width: 0;
+			opacity: 0;
 		}
 	}
 

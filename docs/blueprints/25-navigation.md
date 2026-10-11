@@ -32,7 +32,9 @@ Team, mobile), NV02 (member, mobile), NV03 (President Team, desktop). Migration
 ## B1. Navigation model (`#lib/nav.ts`, unit tested)
 One pure function, `navModel({ permissions, role, billingOwner, tasks })`, gives the sidebar
 sections, the tab set and Home's kind; the layout, the More page and Home all use it. Before the
-capabilities load (or offline) the role stands in for own money, as in slice 21.
+capabilities load (or offline) the role stands in for own money, as in slice 21, and the Home
+kind saved with the workspace summary (`networkHome`) keeps a network Home a network Home
+(without it, the President Team's role does).
 
 **Sections** (each item keeps its pre-slice permission):
 
@@ -80,6 +82,9 @@ capabilities load (or offline) the role stands in for own money, as in slice 21.
   the current tab is `flex: none` with the label's `max-width` and the padding animating over
   260 ms (`cubic-bezier(0.2, 0.8, 0.2, 1)`). Reduced motion: no transition. Light and team themes
   come from the tokens (`--color-accent`, `--button-primary-ink`, surface and border).
+- **Narrow phones:** below 380 px the bar sits 12 px from the edges; below 350 px a five-tab
+  bar keeps the current tab as a filled icon pill without its label (still read out), so every
+  tab keeps a 44 px target. e2e checks every selected tab at 320, 360 and 390 px.
 
 ## B3. "Offices this month": `api.leadership_offices` (migration `20261009250100`)
 - `api.leadership_offices(p_user_id, p_session_id, p_membership_id)`: `security definer`,
@@ -122,8 +127,10 @@ capabilities load (or offline) the role stands in for own money, as in slice 21.
   figures leave out.
 - **Needs your action** lists the approval items the person can use, with the bell's live task
   counts: Withdrawals to approve, Identity reviews, Evidence to check, plus Payouts to record and
-  Pocket moves to approve when any wait. The counts load with the bell and refresh when the
-  unread count changes or an approval command clears its cache (`onInvalidate`).
+  Pocket moves to approve when any wait. For people who approve, the counts are read with every
+  bell poll and focus (another leader may finish a task) and when an approval command clears its
+  cache (`onInvalidate`).
+- When the offices read fails while its saved copy is shown, the table says how old it is.
 
 ## B5. More
 - The same sections as the sidebar (without what the tab bar holds), then Account (Profile &

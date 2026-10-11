@@ -31,6 +31,36 @@ const tabIds = (tabbar: Locator) =>
 	tabbar.getByRole('link').evaluateAll((links) => links.map((l) => (l as HTMLElement).dataset.tab));
 const width = async (locator: Locator) => (await locator.boundingBox())?.width ?? 0;
 
+/** At 320, 360 and 390 px, every tab sits inside the bar and the bar on screen. */
+async function expectTabsFit(page: Page, pages: Record<string, string>) {
+	for (const w of [320, 360, 390]) {
+		await page.setViewportSize({ width: w, height: 760 });
+		for (const [id, path] of Object.entries(pages)) {
+			await page.goto(path);
+			const tab = page.locator(`.tabbar [data-tab="${id}"]`);
+			await expect(tab).toHaveAttribute('aria-current', 'page');
+			await page.waitForTimeout(320); // the pill's 260 ms width animation
+			const boxes = await page.evaluate(() => {
+				const bar = document.querySelector('.tabbar')!.getBoundingClientRect();
+				const tabs = [...document.querySelectorAll('.tabbar .tab')].map((t) =>
+					t.getBoundingClientRect()
+				);
+				return {
+					bar: { left: bar.left, right: bar.right },
+					tabs: tabs.map((t) => [t.left, t.right, t.width])
+				};
+			});
+			expect(boxes.bar.left, `${w}px ${id}`).toBeGreaterThanOrEqual(0);
+			expect(boxes.bar.right, `${w}px ${id}`).toBeLessThanOrEqual(w);
+			for (const [left, right, size] of boxes.tabs) {
+				expect(left, `${w}px ${id}`).toBeGreaterThanOrEqual(boxes.bar.left);
+				expect(right, `${w}px ${id}`).toBeLessThanOrEqual(boxes.bar.right);
+				expect(size, `${w}px ${id}: 44 px targets`).toBeGreaterThanOrEqual(44);
+			}
+		}
+	}
+}
+
 async function theme(page: Page, value: 'light' | 'dark') {
 	await page.context().addCookies([{ name: 'ew_theme', value, url: page.url() }]);
 	await page.reload();
@@ -134,6 +164,15 @@ test('President Team: network home, leader tabs, sections, no wallet items', asy
 	// Activity is the network's audit log (the President Team holds no wallet).
 	await tabbar.locator('[data-tab="activity"]').click();
 	await expect(page).toHaveURL(/\/app\/audit$/);
+
+	// Every selected tab fits the bar on narrow phones (P-06: 320 px).
+	await expectTabsFit(page, {
+		home: '/app',
+		approvals: '/app/queue',
+		people: '/app/members',
+		activity: '/app/audit',
+		more: '/app/more'
+	});
 });
 
 test('member: wallet tabs and My wallet; no leadership sections', async ({ page }) => {
@@ -168,6 +207,14 @@ test('member: wallet tabs and My wallet; no leadership sections', async ({ page 
 	await shot(page, 'NV02-member-activity-mobile-dark');
 	await theme(page, 'light');
 	await shot(page, 'NV02-member-activity-mobile-light');
+
+	await expectTabsFit(page, {
+		home: '/app',
+		activity: '/app/activity',
+		withdraw: '/app/withdrawals',
+		more: '/app/more'
+	});
+	await page.setViewportSize(MOBILE);
 
 	// More lists My wallet too.
 	await page.goto('/app/more');

@@ -381,6 +381,10 @@
 					</tbody>
 				</table>
 			{/if}
+			{#if rows && offices.error !== null}
+				<!-- A saved copy whose refresh failed: say how old it is. -->
+				<CacheNote savedAt={offices.savedAt} online={shell.online} failed />
+			{/if}
 			{#if excluded > 0}
 				<p class="excluded">
 					Figures leave out {memberWord(excluded)} you can’t view.

@@ -83,6 +83,11 @@ export interface NavInput {
 	/** The current Billing Owner (Blueprint 16) sees Billing too. */
 	readonly billingOwner: boolean;
 	readonly tasks: TaskCounts | null;
+	/**
+	 * The Home kind saved with the workspace summary (offline, or before the
+	 * capabilities load): keeps a network Home a network Home.
+	 */
+	readonly networkHomeHint?: boolean | undefined;
 }
 
 export interface NavModel {
@@ -141,7 +146,10 @@ export function navModel(input: NavInput): NavModel {
 	const reviewer = president || role === 'world_team_member';
 	const billing = can('manage_subscription') || input.billingOwner;
 	const settings = can('manage_team_settings') || can('request_restore');
-	const networkHome = permissions !== null && !wallet && leader;
+	// Offline (no permissions) the saved Home kind stands in; without one the
+	// President Team (never a wallet) still gets its network Home.
+	const networkHome =
+		permissions !== null ? !wallet && leader : (input.networkHomeHint ?? president);
 
 	const item = (
 		id: string,

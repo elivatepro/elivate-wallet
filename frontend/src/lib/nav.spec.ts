@@ -142,6 +142,17 @@ describe('tab sets (owner decision 1)', () => {
 		expect(busy.tabs.find((t) => t.id === 'approvals')?.dot).toBe(true);
 	});
 
+	it('offline: a network Home stays a network Home (saved kind, else the President Team)', () => {
+		expect(model({ permissions: null, role: 'president_team_member' }).networkHome).toBe(true);
+		expect(model({ permissions: null, role: 'director', networkHomeHint: true }).networkHome).toBe(
+			true
+		);
+		expect(model({ permissions: null, role: 'director' }).networkHome).toBe(false);
+		expect(model({ permissions: null, role: 'member', networkHomeHint: false }).networkHome).toBe(
+			false
+		);
+	});
+
 	it('offline (no permissions yet): the role stands in for own money', () => {
 		expect(tabs(model({ permissions: null, role: 'member' }))).toEqual([
 			'Home',

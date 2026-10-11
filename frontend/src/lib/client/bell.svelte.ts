@@ -70,6 +70,11 @@ export class Bell {
 	 * badges and Home's "Needs your action". Null before the first read.
 	 */
 	tasks: TaskCounts | null = $state(null);
+	/**
+	 * Blueprint 25: read the tasks on every poll and focus (a task another
+	 * leader finished changes no unread count here). Set for people who approve.
+	 */
+	watchTasks = $state(false);
 	view: NotificationView = $state('unread');
 	list: BellList = $state({ kind: 'idle' });
 	more = $state(false);
@@ -165,7 +170,7 @@ export class Bell {
 		const changed = exit.value.unread !== this.unread;
 		this.unread = exit.value.unread;
 		// A new task always arrives as an unread item; read the tasks again then.
-		if (changed || this.tasks === null) void this.refreshTasks();
+		if (changed || this.tasks === null || this.watchTasks) void this.refreshTasks();
 	}
 
 	/**
