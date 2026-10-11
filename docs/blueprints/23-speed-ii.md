@@ -47,7 +47,8 @@ item following the tap.
 - Home is reloaded under throttling and left idle for 12 s. Then each route is tapped from More
   twice: **cold** (first visit) and **warm** (revisit). Timed in the page with
   `requestAnimationFrame`: `nav` until the URL changed, `paint` until the route's data marker is
-  on screen.
+  on screen. Both are DOM times: with the page swap, the new page starts fading in then and is
+  fully opaque up to 180 ms later.
 - `E2E_SPEED=1 E2E_SPEED_OUT=/tmp/speed.json scripts/e2e-local.sh speed.e2e.ts`. The same spec ran
   against `origin/main` (before) and this branch (after), 3 runs each; medians below. Raw numbers:
   `docs/perf/2026-10-11-speed-ii.md`.

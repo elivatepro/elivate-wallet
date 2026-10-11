@@ -8,9 +8,11 @@
 // blocked so every fetch is throttled) signs in as a President, turns on
 // throttling (150 ms RTT, 1.6 Mbps down, CPU ×4, +300 ms per /api read for the
 // trip to Supabase), reloads Home and stays idle 12 s, then taps each route
-// from the More page twice: "cold" (first visit) and "warm" (revisit). Times are taken
-// in the page: `nav` until the URL changed and the old page is gone, `paint` until the route's data
-// marker is on screen, `feedback` until the tapped tab shows as current.
+// from the More page twice: "cold" (first visit) and "warm" (revisit). Times
+// are DOM times taken in the page: `nav` until the URL changed and the old page
+// is gone, `paint` until the route's data marker is in the page, and the tab
+// times until the tapped tab shows as current. With the page swap, the new page
+// starts fading in at that frame and is fully shown up to 180 ms later.
 
 import { writeFileSync } from 'node:fs';
 import { type Page } from '@playwright/test';
