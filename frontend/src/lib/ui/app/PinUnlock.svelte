@@ -43,7 +43,9 @@
 			sendAccountCommand(AccountRoutes.unlock.path, 'POST', { pin }, UnlockResult)
 		);
 		busy = false;
+		// The real input too: it still holds the four digits (maxlength would block a retry).
 		value = '';
+		if (input) input.value = '';
 		if (Exit.isSuccess(exit)) {
 			if (exit.value.gate === 'ready') return onUnlocked();
 			if (exit.value.gate === 'profile_required') {

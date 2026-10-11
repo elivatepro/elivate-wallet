@@ -74,6 +74,11 @@ export function onInvalidate(kinds: readonly CacheKind[], refetch: () => void): 
 }
 
 /** Test seam: forget the memory store and every watcher. */
+/** Slice 28: the PIN is owed; no page keeps a copy in memory either. */
+export function forgetPageCopies(): void {
+	memory.clear();
+}
+
 export function resetPageCache(): void {
 	memory.clear();
 	watchers.clear();

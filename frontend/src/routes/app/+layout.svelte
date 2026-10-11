@@ -242,6 +242,11 @@
 	/** Org management entries (Blueprint 07); navigation hints only. */
 	const president = $derived(summary?.role === 'president_team_member');
 	const leads = $derived(president || can('manage_members') || can('view_managed_wallets'));
+	/** Slice 28: Offices is for the President Team and World Team only. */
+	const runsOffices = $derived(president || summary?.role === 'world_team_member');
+	const officesBlocked = $derived(
+		!!summary && !runsOffices && (path === '/app/offices' || path.startsWith('/app/offices/'))
+	);
 	/** Pushed pages (mobile Notifications) have their own nav bar and no tabs. */
 	const pushed = $derived(
 		path.startsWith('/app/notifications') ||
@@ -449,7 +454,7 @@
 				icon: MailPlus
 			},
 			{ label: 'Pockets & split', href: '/app/split', icon: PieChart },
-			leads && { label: 'Offices', href: '/app/offices', icon: Building },
+			runsOffices && { label: 'Offices', href: '/app/offices', icon: Building },
 			leads && { label: 'Members', href: '/app/members', keywords: 'people', icon: Users },
 			(president || can('manage_access_rules')) && {
 				label: 'Roles & access',
@@ -873,6 +878,12 @@
 					</div>
 				{:else if pausedHere && summary}
 					<PausedView network={summary.tenantName} canPay={billing} />
+				{:else if officesBlocked}
+					<!-- Slice 28: offices are run by the President Team and World Team. -->
+					<NoAccess
+						title="Not available for your role"
+						lead="Offices are managed by the President Team and World Team."
+					/>
 				{:else if ownBlocked}
 					<!-- Slice 21: an own-money page in a workspace that holds no wallet. -->
 					<NoAccess

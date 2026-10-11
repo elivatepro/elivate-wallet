@@ -15,6 +15,7 @@
 
 import { observeReplies } from '#lib/contract/transport.js';
 import { browserStore, CACHE_KINDS, clearKinds } from './device-cache';
+import { forgetPageCopies } from './page-cache.svelte';
 
 /** identity.pin_idle_timeout() (B3). */
 export const PIN_IDLE_MS = 15 * 60 * 1000;
@@ -112,6 +113,7 @@ export class PinLock {
 	owe(broadcast = true): void {
 		if (this.locked) return;
 		this.locked = true;
+		forgetPageCopies();
 		const store = browserStore();
 		if (store) clearKinds(store, CACHE_KINDS);
 		if (!broadcast) return;

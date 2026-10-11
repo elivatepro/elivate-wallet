@@ -71,10 +71,11 @@ for (const viewport of [
 		// A fresh load asks again, in place.
 		await page.reload();
 		await expect(sheet).toBeVisible();
-		await sheet.getByLabel('PIN').fill(PIN === '0000' ? '1111' : '0000');
+		await sheet.getByLabel('PIN').pressSequentially(PIN === '0000' ? '1111' : '0000');
 		await expect(sheet.getByText('Wrong PIN. 4 tries left.')).toBeVisible();
 
-		await sheet.getByLabel('PIN').fill(PIN);
+		// Typed key by key, as a person would: the retry must not be blocked.
+		await sheet.getByLabel('PIN').pressSequentially(PIN);
 		await expect(sheet).toHaveCount(0);
 		await expect(page).toHaveURL(/\/app\/activity$/);
 		await expect(

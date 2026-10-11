@@ -127,9 +127,10 @@ test('President manages offices, a role permission and reads the audit log', asy
 	await expect(page.getByText('Merged into the World Team office')).toBeVisible();
 	await expectAccessible(page);
 
-	// Members (C11): the founder is listed.
+	// Members (C11): nobody sees themselves (Slice 28), so the founder isn't listed.
 	await page.goto('/app/members');
-	await expect(page.getByText(uid).first()).toBeVisible();
+	await expect(page.getByText(/No members here yet\.|^\d+ members?$/).first()).toBeVisible();
+	await expect(page.getByText(uid)).toHaveCount(0);
 	await expectNoHorizontalScroll(page);
 
 	// R01: switch a configurable permission, save with a reason and the PIN.

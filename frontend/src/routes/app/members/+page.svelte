@@ -15,6 +15,7 @@
 	import { UUID_PATTERN } from '#lib/contract/common.js';
 	import { AppOrgRoutes, MemberRows, type MemberRow } from '#lib/contract/org-admin.js';
 	import { loadView } from '#lib/client/org.svelte.js';
+	import { browserStore, lastScope } from '#lib/client/device-cache.js';
 	import { CachedRead } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { initials, personName, STATUS_LABELS } from '#lib/org.js';
@@ -107,7 +108,12 @@
 	}
 
 	/** Slice 28 (owner decision 2026-10-11): the list never shows the person themselves. */
-	const myUid = $derived(shell.state.kind === 'ready' ? shell.state.view.state.uid : null);
+	// Before the session answers, the remembered scope names the same person.
+	const rememberedUid = (() => {
+		const store = browserStore();
+		return store ? (lastScope(store)?.uid ?? null) : null;
+	})();
+	const myUid = $derived(shell.state.kind === 'ready' ? shell.state.view.state.uid : rememberedUid);
 	const others = $derived(items.filter((m) => !myUid || m.person?.uid !== myUid));
 	const officeName = $derived(officeId ? (items[0]?.officeName ?? null) : null);
 	const joined = (iso: string) =>
