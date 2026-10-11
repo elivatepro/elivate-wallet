@@ -13,7 +13,6 @@
 	import { sendAccountCommand } from '#lib/client/api.js';
 	import { failureOf } from '#lib/client/account.js';
 	import { GATE_PATHS, gatePath, SIGN_IN_PATH, withNext } from '#lib/gate.js';
-	import RootImage from '#lib/ui/RootImage.svelte';
 
 	let {
 		firstName,
@@ -107,12 +106,12 @@
 <div class="scrim" aria-hidden="true"></div>
 
 <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="unlock-title">
-	<div class="stage" aria-hidden="true">
-		<RootImage pose="pin-unlock" class="root" sizes="140px" eager />
-	</div>
 	<div class="heading">
 		<h1 id="unlock-title">Enter your PIN</h1>
-		<p>{firstName ? `Welcome back, ${firstName}.` : 'Welcome back.'} Your page is right here.</p>
+		<p>
+			{firstName ? `Welcome back, ${firstName}.` : 'Welcome back.'} Your wallet locked while you were
+			away.
+		</p>
 	</div>
 
 	<div class="pin" class:invalid={!!error} class:busy>
@@ -258,7 +257,7 @@
 		-webkit-backdrop-filter: blur(14px);
 	}
 
-	/* PU01: a bottom sheet with Root standing on its edge. */
+	/* PU01: a bottom sheet. */
 	.sheet {
 		position: fixed;
 		left: 0;
@@ -267,7 +266,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 24px;
-		padding: 52px 24px calc(28px + env(safe-area-inset-bottom));
+		padding: 32px 24px calc(28px + env(safe-area-inset-bottom));
 		border-top: 1px solid color-mix(in oklab, var(--color-text) 8%, transparent);
 		border-radius: 28px 28px 0 0;
 		background:
@@ -275,22 +274,6 @@
 			var(--color-surface);
 		box-shadow: 0 -24px 64px rgb(0 0 0 / 0.55);
 		animation: rise 220ms ease-out;
-	}
-
-	.stage {
-		position: absolute;
-		left: 0;
-		right: 0;
-		top: -132px;
-		display: flex;
-		justify-content: center;
-		height: 170px;
-		pointer-events: none;
-	}
-
-	.stage :global(.root) {
-		width: 140px;
-		height: 180px;
 	}
 
 	.heading {
@@ -438,18 +421,12 @@
 			right: auto;
 			bottom: auto;
 			width: 440px;
-			padding: 72px 40px 36px;
+			padding: 40px 40px 36px;
 			border: 1px solid color-mix(in oklab, var(--color-text) 8%, transparent);
 			border-radius: 28px;
 			box-shadow: 0 32px 80px rgb(0 0 0 / 0.6);
 			translate: -50% -50%;
 			animation: fade 200ms ease-out;
-		}
-
-		.stage {
-			top: -148px;
-			height: 200px;
-			align-items: flex-end;
 		}
 	}
 
