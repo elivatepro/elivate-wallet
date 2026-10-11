@@ -15,6 +15,7 @@
 	with the posted income if it went through (F-03).
 -->
 <script lang="ts">
+	import DatePicker from '#lib/ui/DatePicker.svelte';
 	import { enterMovesOn } from '#lib/ui/enter-moves-on.js';
 	import { getContext, tick, untrack } from 'svelte';
 	import { Cause, Effect, Exit, Option } from 'effect';
@@ -826,14 +827,14 @@
 					</div>
 					<div class="box" class:bad={!!errors.receivedOn}>
 						<label class="label" for="income-date">Date received</label>
-						<input
+						<DatePicker
 							id="income-date"
 							class="input"
-							type="date"
+							label="Date received"
 							max={today}
 							bind:value={receivedOn}
-							aria-invalid={errors.receivedOn ? 'true' : undefined}
-							aria-describedby={errors.receivedOn ? 'date-error' : undefined}
+							invalid={!!errors.receivedOn}
+							describedby={errors.receivedOn ? 'date-error' : undefined}
 						/>
 					</div>
 				</div>
@@ -1233,7 +1234,8 @@
 		line-height: 14px;
 	}
 
-	.box .input {
+	/* :global: the date field is DatePicker's button (Slice 32). */
+	.box :global(.input) {
 		width: 100%;
 		min-width: 0;
 		padding: 0;
@@ -1245,7 +1247,7 @@
 		line-height: 18px;
 	}
 
-	.box .input:focus {
+	.box :global(.input:focus) {
 		outline: none;
 	}
 
@@ -1646,7 +1648,7 @@
 			line-height: 16px;
 		}
 
-		.box .input {
+		.box :global(.input) {
 			height: 56px;
 			padding: 0 16px;
 			border: 1px solid var(--color-border);
@@ -1654,11 +1656,11 @@
 			font-size: 15px;
 		}
 
-		.box .input:focus {
+		.box :global(.input:focus) {
 			border-color: var(--color-accent);
 		}
 
-		.box.bad .input {
+		.box.bad :global(.input) {
 			border-color: var(--color-danger);
 		}
 

@@ -9,6 +9,7 @@
 	2026-10-08) and are switched per role here.
 -->
 <script lang="ts">
+	import DatePicker from '#lib/ui/DatePicker.svelte';
 	import '#lib/ui/org/org.css';
 	import { getContext, untrack } from 'svelte';
 	import { SvelteMap } from 'svelte/reactivity';
@@ -876,16 +877,23 @@
 	<div class="pair">
 		<div class="o-field">
 			<label for="grant-starts">Starts</label>
-			<input id="grant-starts" class="o-input" type="date" min={today()} bind:value={startsOn} />
+			<DatePicker
+				id="grant-starts"
+				class="o-input"
+				label="Starts"
+				min={today()}
+				bind:value={startsOn}
+			/>
 		</div>
 		{#if ruleEffect === 'allow'}
 			<div class="o-field">
 				<label for="grant-expires">Expires <span class="o-sub">optional</span></label>
-				<input
+				<DatePicker
 					id="grant-expires"
 					class="o-input"
-					type="date"
-					min={today()}
+					label="Expires"
+					min={startsOn || today()}
+					clearable
 					bind:value={expiresOn}
 				/>
 			</div>

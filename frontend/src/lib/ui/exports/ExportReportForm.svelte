@@ -5,6 +5,7 @@
 	and currency. The backend checks every choice (export_scoped_reports).
 -->
 <script lang="ts">
+	import DatePicker from '#lib/ui/DatePicker.svelte';
 	import { Effect, Exit } from 'effect';
 	import type { Currency } from '#lib/contract/ledger.js';
 	import { ReportMembers, type ReportKind } from '#lib/contract/exports.js';
@@ -213,23 +214,26 @@
 	</div>
 	{#if customOpen}
 		<div class="ex-dates">
-			<label
-				>From<input
+			<span class="ex-date"
+				><label for="report-from">From</label><DatePicker
+					id="report-from"
 					class="ex-input"
-					type="date"
+					label="From"
 					max={today}
 					bind:value={customFrom}
 					onchange={applyCustom}
-				/></label
+				/></span
 			>
-			<label
-				>To<input
+			<span class="ex-date"
+				><label for="report-to">To</label><DatePicker
+					id="report-to"
 					class="ex-input"
-					type="date"
+					label="To"
 					min={customFrom}
+					max={today}
 					bind:value={customTo}
 					onchange={applyCustom}
-				/></label
+				/></span
 			>
 		</div>
 	{/if}
