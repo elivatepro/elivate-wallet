@@ -108,5 +108,5 @@ no self in Members/Invitations, invite opens directly, a PIN owed locks in place
 behind). Slice 29 (Blueprint 29, frontend only): no form submits early (typed Bits buttons,
 `enterMovesOn`), Withdraw on phones per Paper M09/M10, Invite per C13/C14. Slice 30 (Blueprint 30,
 frontend only): name-only header with a quiet tile, desktop dropdowns anchored under the field,
-Activity chips and Profile banner fixed (leaked global styles). Next: slice 31 (email Root), then
-set-based authorization reads.
+Activity chips and Profile banner fixed (leaked global styles). Slice 31 (Blueprint 31, assets
+only): email Root poses and hero grain about 70% lighter. Next: set-based authorization reads.
