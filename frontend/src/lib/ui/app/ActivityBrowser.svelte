@@ -1117,10 +1117,22 @@
 		border-color: var(--color-accent);
 	}
 
+	/* Slice 30 (Paper M04): separate chips on phones. The shell's global
+	   .segmented (a bordered rail) must not wrap them. */
 	.segmented {
 		display: flex;
 		flex-wrap: wrap;
 		gap: 8px;
+		padding: 0;
+		border: 0;
+		border-radius: 0;
+		background: none;
+	}
+
+	@media (max-width: 1023.98px) {
+		:global([data-theme='light']) .segmented {
+			background: none;
+		}
 	}
 
 	.segmented button {

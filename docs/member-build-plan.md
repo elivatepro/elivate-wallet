@@ -250,7 +250,7 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
   it, keyboard, native `<select>` without JS). Lists of more than 8 options, and banks always,
   get a search field with an empty-result message. The bank selects move to the wheel: the
   **"native bank select" accepted deviation is withdrawn**. Desktop shows the same wheel as a
-  centred dialog (to become an anchored list on desktop, owner 2026-10-11, slice 30). iOS has no web vibration, so iPhones get the visual snap and tick only. The
+  list anchored under the field on desktop (owner 2026-10-11, Blueprint 30). iOS has no web vibration, so iPhones get the visual snap and tick only. The
   admin console keeps native selects.
 - **Navigation and role homes (2026-10-10, Blueprint 25; Paper "Navigation v5" NV01–NV03
   approved):** the mobile tab bar is the Roudio "Fresh Direction" floating pill (icons only; the

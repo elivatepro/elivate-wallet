@@ -56,7 +56,13 @@ for (const viewport of [
 		expect((await savedCopies(page)).length).toBeGreaterThan(0);
 
 		goIdle(member);
-		await page.getByRole('link', { name: 'Activity' }).first().click();
+		// Opening Activity reads from the server. A background read (the bell)
+		// may get there first and lock the app before the click: same result.
+		await page
+			.getByRole('link', { name: 'Activity' })
+			.first()
+			.click({ timeout: 5000 })
+			.catch(() => {});
 		const sheet = page.getByRole('dialog', { name: 'Enter your PIN' });
 		await expect(sheet).toBeVisible();
 		await expect(page.getByText(/don’t have access/)).toHaveCount(0);
@@ -77,7 +83,7 @@ for (const viewport of [
 		// Typed key by key, as a person would: the retry must not be blocked.
 		await sheet.getByLabel('PIN').pressSequentially(PIN);
 		await expect(sheet).toHaveCount(0);
-		await expect(page).toHaveURL(/\/app\/activity$/);
+		await expect(page).toHaveURL(/\/app(\/activity)?$/);
 		await expect(
 			page
 				.getByText(/₦1,000\.00/)

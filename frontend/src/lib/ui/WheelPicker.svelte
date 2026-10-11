@@ -114,6 +114,17 @@
 	let touch = $state(false);
 	let lift = $state(0);
 
+	/**
+	 * Slice 30 (owner 2026-10-11): on a desktop with a mouse the picker is a
+	 * list anchored under the field (field width, search for long lists); the
+	 * wheel stays on phones and touch screens.
+	 */
+	let mode = $state<'wheel' | 'list'>('wheel');
+	let pick = $state(0);
+	let place = $state({ left: 0, top: 0, width: 0, maxHeight: 320, up: false });
+	let pop: HTMLDivElement | undefined = $state();
+	let list: HTMLUListElement | undefined = $state();
+
 	let trigger: HTMLButtonElement | undefined = $state();
 	let dialog: HTMLDialogElement | undefined = $state();
 	let wheel: HTMLDivElement | undefined = $state();
@@ -130,7 +141,10 @@
 	onMount(() => {
 		hydrated = true;
 		enhanced = true;
-		return () => release();
+		return () => {
+			release();
+			detachList();
+		};
 	});
 
 	const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -141,6 +155,8 @@
 		pending = null;
 		centre = startIndex(options, value, initial);
 		touch = matchMedia('(pointer: coarse)').matches;
+		mode = matchMedia('(min-width: 1024px) and (pointer: fine)').matches ? 'list' : 'wheel';
+		if (mode === 'list') return showList();
 		open = true;
 		await tick();
 		if (!dialog) return;
@@ -155,6 +171,7 @@
 	}
 
 	function close(save: boolean) {
+		if (mode === 'list') return closeList(save ? pick : null);
 		if (save) {
 			const chosen = shown[active];
 			if (!chosen || chosen.disabled) return;
@@ -312,6 +329,129 @@
 		// The dialog box itself is only hit outside the sheet (the backdrop).
 		if (event.target === dialog) close(false);
 	}
+	// ── The anchored list (desktop) ──
+	const GAP = 6;
+	const LIST_MAX = 320;
+	function measure() {
+		if (!trigger) return;
+		const r = trigger.getBoundingClientRect();
+		const width = Math.max(r.width, 220);
+		const below = window.innerHeight - r.bottom - GAP - 8;
+		const above = r.top - GAP - 8;
+		const up = below < Math.min(LIST_MAX, 200) && above > below;
+		const room = Math.max(120, Math.min(LIST_MAX, up ? above : below));
+		const left = Math.min(Math.max(8, r.left), window.innerWidth - width - 8);
+		place = { left, top: up ? r.top - GAP : r.bottom + GAP, width, maxHeight: room, up };
+	}
+
+	async function showList() {
+		pick = Math.max(0, startIndex(options, value, initial));
+		measure();
+		open = true;
+		await tick();
+		if (!pop) return;
+		try {
+			pop.showPopover();
+		} catch {
+			// No Popover API: it still shows, fixed under the field.
+		}
+		(search ? pop.querySelector<HTMLInputElement>('input') : list)?.focus();
+		scrollPick();
+		document.addEventListener('pointerdown', outside, true);
+		window.addEventListener('resize', measure);
+		window.addEventListener('scroll', onPageScroll, true);
+	}
+
+	function closeList(index: number | null) {
+		if (index !== null) {
+			const chosen = shown[index];
+			if (!chosen || chosen.disabled) return;
+			if (action) onchange?.(chosen.value);
+			else if (chosen.value !== value) {
+				value = chosen.value;
+				onchange?.(chosen.value);
+			}
+		}
+		detachList();
+		try {
+			pop?.hidePopover();
+		} catch {
+			// not shown as a popover
+		}
+		open = false;
+		trigger?.focus();
+	}
+
+	/** The list's page listeners (also on unmount, e.g. Back while it is open). */
+	function detachList() {
+		document.removeEventListener('pointerdown', outside, true);
+		window.removeEventListener('resize', measure);
+		window.removeEventListener('scroll', onPageScroll, true);
+	}
+
+	function outside(event: PointerEvent) {
+		const target = event.target as Node;
+		if (pop?.contains(target) || trigger?.contains(target)) return;
+		closeList(null);
+	}
+
+	/** The page scrolled under the list: follow the field (the list's own scroll is fine). */
+	function onPageScroll(event: Event) {
+		if (pop && event.target instanceof Node && pop.contains(event.target)) return;
+		measure();
+	}
+
+	function scrollPick() {
+		list
+			?.querySelector<HTMLElement>(`[data-index="${pick}"]`)
+			?.scrollIntoView({ block: 'nearest' });
+	}
+
+	async function movePick(to: number) {
+		pick = to;
+		await tick();
+		scrollPick();
+	}
+
+	function listKey(event: KeyboardEvent) {
+		if (event.key === 'Escape') {
+			// Ours alone: a Bits UI dialog underneath must stay open.
+			event.preventDefault();
+			event.stopPropagation();
+			return closeList(null);
+		}
+		if (event.key === 'Tab') return closeList(null);
+		if (event.key === 'Enter' || (event.key === ' ' && event.target === list)) {
+			event.preventDefault();
+			return closeList(pick);
+		}
+		// In the search field Home/End edit the text; only the arrows and pages move.
+		const inSearch = event.target instanceof HTMLInputElement;
+		if (inSearch && !['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp'].includes(event.key)) return;
+		const to = keyTarget(event.key, pick, shown.length);
+		if (to !== null) {
+			event.preventDefault();
+			return void movePick(to);
+		}
+		if (
+			event.target === list &&
+			event.key.length === 1 &&
+			!event.ctrlKey &&
+			!event.metaKey &&
+			!event.altKey
+		) {
+			const now = Date.now();
+			typed = now - typedAt > 700 ? event.key : typed + event.key;
+			typedAt = now;
+			const hit = typeahead(shown, typed, pick);
+			if (hit !== null) void movePick(hit);
+		}
+	}
+
+	function onListQuery() {
+		pick = 0;
+		void tick().then(scrollPick);
+	}
 </script>
 
 {#if enhanced}
@@ -323,9 +463,9 @@
 		class:wp-fit={fit}
 		bind:this={trigger}
 		role="combobox"
-		aria-haspopup="dialog"
+		aria-haspopup={mode === 'list' ? 'listbox' : 'dialog'}
 		aria-expanded={open}
-		aria-controls={open ? `${key}-dialog` : undefined}
+		aria-controls={open ? (mode === 'list' ? `${key}-list` : `${key}-dialog`) : undefined}
 		aria-label={ariaLabel}
 		aria-invalid={invalid ? 'true' : undefined}
 		aria-required={required ? 'true' : undefined}
@@ -370,7 +510,75 @@
 	</select>
 {/if}
 
-{#if open}
+{#if open && mode === 'list'}
+	<div
+		bind:this={pop}
+		class="wp-pop"
+		class:up={place.up}
+		popover="manual"
+		data-wheel-picker
+		style:left={`${place.left}px`}
+		style:top={`${place.top}px`}
+		style:width={`${place.width}px`}
+		style:max-height={`${place.maxHeight}px`}
+		onkeydown={listKey}
+		role="presentation"
+	>
+		{#if search}
+			<label class="wp-pop-search">
+				<Search size={15} strokeWidth={2} aria-hidden="true" />
+				<span class="visually-hidden">Search {label.toLowerCase()}</span>
+				<input
+					type="search"
+					role="combobox"
+					aria-expanded="true"
+					aria-controls={`${key}-list`}
+					aria-autocomplete="list"
+					aria-activedescendant={shown.length ? `${key}-opt-${pick}` : undefined}
+					placeholder={searchPlaceholder}
+					autocomplete="off"
+					autocapitalize="off"
+					spellcheck="false"
+					bind:value={query}
+					oninput={onListQuery}
+				/>
+			</label>
+		{/if}
+		{#if shown.length}
+			<ul
+				bind:this={list}
+				class="wp-pop-list"
+				id={`${key}-list`}
+				role="listbox"
+				tabindex={search ? -1 : 0}
+				aria-label={label}
+				aria-activedescendant={`${key}-opt-${pick}`}
+			>
+				{#each shown as o, i (o.value)}
+					<!-- The listbox (or search) holds focus; rows are pointer targets. -->
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<li
+						id={`${key}-opt-${i}`}
+						class="wp-pop-opt"
+						class:on={i === pick}
+						class:chosen={o.value === value}
+						role="option"
+						data-index={i}
+						aria-selected={o.value === value}
+						aria-disabled={o.disabled ? 'true' : undefined}
+						onpointermove={() => (pick = i)}
+						onclick={() => closeList(i)}
+					>
+						<span class="wp-opt-label">{o.label}</span>
+						{#if o.hint}<span class="wp-opt-hint">{o.hint}</span>{/if}
+					</li>
+				{/each}
+			</ul>
+		{:else}
+			<p class="wp-pop-empty" role="status">{emptyText ?? `Nothing matches “${query.trim()}”.`}</p>
+		{/if}
+	</div>
+{:else if open}
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<dialog
 		bind:this={dialog}
@@ -475,6 +683,116 @@
 {/if}
 
 <style>
+	/* ── The anchored list (desktop, Slice 30) ── */
+	.wp-pop {
+		position: fixed;
+		inset: auto;
+		z-index: 60;
+		display: flex;
+		flex-direction: column;
+		margin: 0;
+		padding: 6px;
+		overflow: hidden;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-12);
+		background: var(--color-surface);
+		color: var(--color-text);
+		box-shadow: 0 18px 48px rgb(0 0 0 / 0.45);
+		animation: wp-pop-in 120ms ease-out;
+	}
+
+	.wp-pop.up {
+		translate: 0 -100%;
+	}
+
+	.wp-pop-search {
+		display: flex;
+		flex-shrink: 0;
+		align-items: center;
+		gap: 8px;
+		height: 38px;
+		margin-bottom: 6px;
+		padding: 0 10px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-8);
+		color: var(--color-muted);
+	}
+
+	.wp-pop-search:focus-within {
+		border-color: var(--color-accent);
+	}
+
+	.wp-pop-search input {
+		flex: 1;
+		min-width: 0;
+		border: 0;
+		outline: none;
+		background: none;
+		color: var(--color-text);
+		font: inherit;
+		font-size: var(--text-14);
+	}
+
+	.wp-pop-list {
+		margin: 0;
+		padding: 0;
+		overflow-y: auto;
+		list-style: none;
+		outline: none;
+		overscroll-behavior: contain;
+	}
+
+	.wp-pop-opt {
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 2px;
+		min-height: 40px;
+		padding: 8px 12px;
+		border-radius: var(--radius-8);
+		font-size: var(--text-14);
+		line-height: 18px;
+		cursor: pointer;
+	}
+
+	.wp-pop-opt.on {
+		background: var(--color-raised);
+	}
+
+	.wp-pop-opt.chosen .wp-opt-label {
+		color: var(--color-accent-text, var(--color-accent));
+		font-weight: var(--font-weight-semibold);
+	}
+
+	.wp-pop-opt[aria-disabled='true'] {
+		cursor: not-allowed;
+		opacity: var(--opacity-disabled, 0.5);
+	}
+
+	.wp-pop-opt .wp-opt-hint {
+		color: var(--color-muted);
+		font-size: var(--text-12);
+		line-height: 16px;
+	}
+
+	.wp-pop-empty {
+		padding: 12px;
+		color: var(--color-muted);
+		font-size: var(--text-14);
+	}
+
+	@keyframes wp-pop-in {
+		from {
+			opacity: 0;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.wp-pop {
+			animation: none;
+		}
+	}
+
 	/* The field. A page's own class (o-input, en-box, s-input…) sets the box;
 	   these zero-specificity defaults only lay out the text and chevron. */
 	:where(.wp-trigger) {

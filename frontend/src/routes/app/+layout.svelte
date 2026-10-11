@@ -30,6 +30,7 @@
 	import Shield from '@lucide/svelte/icons/shield';
 	import Users from '@lucide/svelte/icons/users';
 	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
+	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import Download from '@lucide/svelte/icons/download';
 	import ListChecks from '@lucide/svelte/icons/list-checks';
 	import Gavel from '@lucide/svelte/icons/gavel';
@@ -157,10 +158,6 @@
 	});
 	setContext('nav', () => nav);
 	const tabNow = $derived(currentTab(nav.tabs, navPath));
-	/** "President Team · whole network" / "Team Leader · Team A". */
-	const roleLine = $derived(
-		summary ? `${ROLE_LABELS[summary.role]} · ${summary.officeName ?? 'whole network'}` : ''
-	);
 	const initials = $derived(
 		(person?.name ?? '')
 			.split(/\s+/)
@@ -529,10 +526,10 @@
 
 <form method="POST" action="/sign-out" bind:this={signOutForm} hidden></form>
 
-{#snippet workspaceLabel(sub: string)}
+{#snippet workspaceLabel()}
+	<!-- Slice 30 (owner 2026-10-11): the network's name only; role and office are on Profile. -->
 	<span class="ws-text">
 		<span class="ws-name">{brand?.name ?? summary?.tenantName ?? ''}</span>
-		{#if summary}<span class="ws-sub">{sub}</span>{/if}
 	</span>
 {/snippet}
 
@@ -583,11 +580,7 @@
 					aria-label={summary ? `${summary.tenantName}: switch workspace` : 'Switch workspace'}
 				>
 					{@render brandTile()}
-					{@render workspaceLabel(
-						summary
-							? `${ROLE_LABELS[summary.role]}${summary.officeName ? ` · ${summary.officeName}` : ''}`
-							: ''
-					)}
+					{@render workspaceLabel()}
 					<ChevronsUpDown size={16} strokeWidth={2} aria-hidden="true" />
 				</button>
 			</div>
@@ -787,7 +780,8 @@
 						aria-label={summary ? `${summary.tenantName}: switch workspace` : 'Switch workspace'}
 					>
 						{@render brandTile()}
-						{@render workspaceLabel(roleLine)}
+						{@render workspaceLabel()}
+						<ChevronDown class="ws-chevron" size={16} strokeWidth={2} aria-hidden="true" />
 					</button>
 					<div class="appbar-actions">
 						<a class="bell" href="/app/notifications" aria-label={bellLabel}>
@@ -1047,12 +1041,13 @@
 		height: 20px;
 	}
 
+	/* Slice 30: a quiet initial (no solid coral block); the team logo replaces it. */
 	.brand-tile.initial {
-		border-color: transparent;
-		background: var(--color-accent);
-		color: var(--button-primary-ink);
+		border-color: var(--color-border);
+		background: var(--color-raised);
+		color: var(--color-accent-text);
 		font-size: var(--text-14);
-		font-weight: var(--font-weight-bold);
+		font-weight: var(--font-weight-semibold);
 		line-height: 18px;
 	}
 
@@ -1076,8 +1071,7 @@
 		min-width: 0;
 	}
 
-	.ws-name,
-	.ws-sub {
+	.ws-name {
 		max-width: 100%;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -1088,12 +1082,6 @@
 		font-size: var(--text-14);
 		font-weight: var(--font-weight-semibold);
 		line-height: 18px;
-	}
-
-	.ws-sub {
-		color: var(--color-muted);
-		font-size: var(--text-12);
-		line-height: var(--leading-16);
 	}
 
 	.side-search-wrap {
@@ -1323,13 +1311,15 @@
 		line-height: var(--leading-16);
 	}
 
-	/* Paper NV01: the network's tile, its name and "role · scope". */
+	/* Paper NV01, simplified (Slice 30): tile, network name and a switch chevron;
+	   one 56 px row whose items share a centre line with the bell and avatar. */
 	.appbar {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: 12px;
-		padding: calc(4px + env(safe-area-inset-top)) 20px 12px;
+		min-height: calc(56px + env(safe-area-inset-top));
+		padding: env(safe-area-inset-top) 20px 0;
 	}
 
 	.ws-button {
@@ -1350,21 +1340,24 @@
 	}
 
 	.ws-button .brand-tile {
-		width: 36px;
-		height: 36px;
-		border-radius: 10px;
-	}
-
-	.ws-button .brand-tile.initial {
-		font-size: 15px;
+		width: 32px;
+		height: 32px;
+		border-radius: 9px;
 	}
 
 	.ws-button .ws-text {
-		gap: 2px;
+		flex: 0 1 auto;
 	}
 
 	.ws-button .ws-name {
-		font-size: 15px;
+		font-size: var(--text-16);
+		line-height: 20px;
+	}
+
+	.ws-button :global(.ws-chevron) {
+		flex-shrink: 0;
+		margin-left: -4px;
+		color: var(--color-muted);
 	}
 
 	.appbar-actions {
