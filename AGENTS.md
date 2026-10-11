@@ -111,5 +111,6 @@ behind). Slice 29 (Blueprint 29, frontend only): no form submits early (typed Bi
 frontend only): name-only header with a quiet tile, desktop dropdowns anchored under the field,
 Activity chips and Profile banner fixed (leaked global styles). Slice 31 (Blueprint 31, assets
 only): email Root poses and hero grain about 70% lighter. Slice 32 (Blueprint 32): member picker
-layout, one `DatePicker` for every member-app date (Paper "Date picker v8"). Next: set-based
-authorization reads.
+layout, one `DatePicker` for every member-app date (Paper "Date picker v8"). Slice 33: site details
+(description, Open Graph / X preview `static/og.jpg` from Paper "Website" → OG — App preview,
+favicon.ico, robots + sitemap, security.txt, manifest details). Next: set-based authorization reads.

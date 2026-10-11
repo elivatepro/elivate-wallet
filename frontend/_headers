@@ -9,6 +9,17 @@
 
 /app
   Cache-Control: no-cache
+  X-Robots-Tag: noindex, nofollow
+
+/app/*
+  X-Robots-Tag: noindex, nofollow
+
+# Slice 33: the link-preview image and the root icons.
+/og.jpg
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/favicon.ico
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
 
 /service-worker.js
   Cache-Control: no-cache

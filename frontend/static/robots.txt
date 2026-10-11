@@ -1,3 +1,12 @@
-# allow crawling everything by default
+# Slice 33: the sign-in and application pages are public; the signed-in app,
+# its API and the admin console are private (and send X-Robots-Tag: noindex).
 User-agent: *
-Disallow:
+Allow: /
+Allow: /apply
+Disallow: /app$
+Disallow: /app/
+Disallow: /api/
+Disallow: /admin
+Disallow: /internal/
+
+Sitemap: https://app.elivatewallet.com/sitemap.xml
