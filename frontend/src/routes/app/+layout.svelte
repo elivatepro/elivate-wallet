@@ -7,6 +7,9 @@
 	Blueprint 17: the network's team theme (data-team-theme on <html>) and tile,
 	⌘K quick search (K01/K02), Support and Branding & settings entries, and the
 	PL06 paused view on write pages of a paused network.
+	Blueprint 25 (Paper "Navigation v5" NV01–NV03): a sectioned sidebar, the
+	floating pill tab bar with a tab set per role (#lib/nav.ts), and a mobile
+	app bar with the network's tile.
 -->
 <script lang="ts">
 	import { onMount, setContext, untrack } from 'svelte';
@@ -27,14 +30,12 @@
 	import Shield from '@lucide/svelte/icons/shield';
 	import Users from '@lucide/svelte/icons/users';
 	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
-	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import Download from '@lucide/svelte/icons/download';
 	import ListChecks from '@lucide/svelte/icons/list-checks';
 	import Gavel from '@lucide/svelte/icons/gavel';
 	import Upload from '@lucide/svelte/icons/upload';
 	import EyeOff from '@lucide/svelte/icons/eye-off';
 	import House from '@lucide/svelte/icons/house';
-	import IdCard from '@lucide/svelte/icons/id-card';
 	import LayoutGrid from '@lucide/svelte/icons/layout-grid';
 	import Landmark from '@lucide/svelte/icons/landmark';
 	import MailPlus from '@lucide/svelte/icons/mail-plus';
@@ -52,6 +53,8 @@
 	import { purgeAllDeviceData, staleLabel } from '#lib/client/device-cache.js';
 	import { profilePhotoSrc } from '#lib/client/photo.js';
 	import { ownWalletBlocked, type OwnWalletPermission } from '#lib/own-wallet.js';
+	import { currentTab, isCurrent, navModel, type NavModel } from '#lib/nav.js';
+	import NavIcon from '#lib/ui/app/NavIcon.svelte';
 	import { Shell } from '#lib/client/shell.svelte.js';
 	import { Bell as BellState } from '#lib/client/bell.svelte.js';
 	import NotificationList from '#lib/ui/app/NotificationList.svelte';
@@ -114,6 +117,8 @@
 	const uid = $derived(shell.state.kind === 'ready' ? shell.state.view.state.uid : null);
 	const person = $derived(shell.state.kind === 'ready' ? shell.state.view.profile : null);
 	const photoSrc = $derived(profilePhotoSrc(person));
+	/** A photo that failed to load falls back to the initials (Blueprint 25). */
+	let brokenPhoto = $state<string | null>(null);
 	const path = $derived(page.url.pathname);
 	/**
 	 * Blueprint 23: where the person is going. The tab bar, the sidebar and the
@@ -121,7 +126,39 @@
 	 * has loaded.
 	 */
 	const navPath = $derived(navigating.to?.url.pathname ?? path);
-	const navMore = $derived(navPath.startsWith('/app/more'));
+	/**
+	 * Blueprint 25: tabs, sidebar sections and Home's kind, derived once from
+	 * the capabilities (navigation hints only; the backend authorizes).
+	 */
+	const nav: NavModel = $derived(
+		navModel({
+			permissions:
+				shell.state.kind === 'ready' ? (shell.state.view.capabilities?.permissions ?? []) : null,
+			role: summary?.role ?? null,
+			billingOwner:
+				shell.state.kind === 'ready' && shell.state.view.capabilities?.billingOwner === true,
+			tasks: bell.tasks,
+			networkHomeHint: summary?.networkHome
+		})
+	);
+	// Blueprint 25: the bell reads the live tasks on every poll for people who approve.
+	$effect(() => {
+		bell.watchTasks = nav.approvals.length > 0;
+	});
+	setContext('nav', () => nav);
+	const tabNow = $derived(currentTab(nav.tabs, navPath));
+	/** "President Team · whole network" / "Team Leader · Team A". */
+	const roleLine = $derived(
+		summary ? `${ROLE_LABELS[summary.role]} · ${summary.officeName ?? 'whole network'}` : ''
+	);
+	const initials = $derived(
+		(person?.name ?? '')
+			.split(/\s+/)
+			.filter(Boolean)
+			.slice(0, 2)
+			.map((word) => word.charAt(0).toUpperCase())
+			.join('')
+	);
 	/** Navigation hint only; every command is still authorized by the backend. */
 	const TITLES: Record<string, string> = {
 		// Blueprint 10 (Paper S03/S05 breadcrumbs); most specific first.
@@ -167,11 +204,11 @@
 	const pageTitle = $derived(
 		Object.entries(TITLES).find(([prefix]) => navPath.startsWith(prefix))?.[1] ??
 			// Blueprint 17 (Paper X01): an unknown page is "Not found", not Home.
-			(page.route.id === '/app/[...missing]' ? 'Not found' : 'Home')
-	);
-	/** Blueprint 06 Q4 reviewers (the backend re-checks each review). */
-	const reviewer = $derived(
-		summary?.role === 'president_team_member' || summary?.role === 'world_team_member'
+			(page.route.id === '/app/[...missing]'
+				? 'Not found'
+				: nav.networkHome && summary?.role === 'president_team_member'
+					? 'Network overview'
+					: 'Home')
 	);
 	const can = (permission: string) =>
 		shell.state.kind === 'ready' &&
@@ -317,6 +354,10 @@
 	);
 
 	let searchOpen = $state(false);
+	/** Blueprint 25: More opens quick search on phones (the app bar has no search button). */
+	setContext('openSearch', () => (searchOpen = true));
+	/** Blueprint 25: More shows the same network tile as the bars. */
+	setContext('brandTile', () => brandTile);
 	function onKeydown(event: KeyboardEvent) {
 		if (shell.state.kind !== 'ready' || !isSearchShortcut(event)) return;
 		event.preventDefault();
@@ -354,6 +395,7 @@
 			can('review_financial_evidence') && {
 				label: 'Evidence review',
 				href: '/app/evidence',
+				keywords: 'evidence receipts',
 				icon: Gavel
 			},
 			leader && { label: 'Team overview', href: '/app/team', icon: LayoutGrid },
@@ -379,6 +421,7 @@
 			can('perform_currency_conversion') && {
 				label: 'Record conversion',
 				href: '/app/convert',
+				keywords: 'convert',
 				icon: Repeat
 			},
 			can('invite_members') && {
@@ -393,13 +436,13 @@
 			(president || can('manage_access_rules')) && {
 				label: 'Roles & access',
 				href: '/app/access',
-				keywords: 'permissions',
+				keywords: 'permissions access',
 				icon: Shield
 			},
 			settings && {
 				label: 'Branding & settings',
 				href: settingsHref,
-				keywords: 'theme logo backup restore team details',
+				keywords: 'settings theme logo backup restore team details',
 				icon: Palette
 			},
 			billing && {
@@ -408,7 +451,12 @@
 				keywords: 'plan payment',
 				icon: CreditCard
 			},
-			president && { label: 'Audit log', href: '/app/audit', icon: FileText },
+			president && {
+				label: 'Audit log',
+				href: '/app/audit',
+				keywords: 'activity',
+				icon: FileText
+			},
 			{
 				label: 'Profile & security',
 				href: '/app/account',
@@ -457,10 +505,10 @@
 
 <form method="POST" action="/sign-out" bind:this={signOutForm} hidden></form>
 
-{#snippet workspaceLabel()}
+{#snippet workspaceLabel(sub: string)}
 	<span class="ws-text">
-		<span class="ws-name">{summary?.officeName ?? summary?.tenantName ?? ''}</span>
-		{#if summary}<span class="ws-chip">{ROLE_LABELS[summary.role]}</span>{/if}
+		<span class="ws-name">{brand?.name ?? summary?.tenantName ?? ''}</span>
+		{#if summary}<span class="ws-sub">{sub}</span>{/if}
 	</span>
 {/snippet}
 
@@ -480,7 +528,14 @@
 {/snippet}
 
 {#snippet avatar()}
-	<UserRound size={18} strokeWidth={1.6} aria-hidden="true" />
+	{#if photoSrc && photoSrc !== brokenPhoto}<img
+			class="avatar-photo"
+			src={photoSrc}
+			alt=""
+			onerror={() => (brokenPhoto = photoSrc)}
+		/>
+	{:else if initials}<span class="avatar-initials" aria-hidden="true">{initials}</span>
+	{:else}<UserRound size={18} strokeWidth={1.6} aria-hidden="true" />{/if}
 {/snippet}
 
 <div class="shell" class:pushed>
@@ -493,13 +548,15 @@
 				aria-label={summary ? `${summary.tenantName}: switch workspace` : 'Switch workspace'}
 			>
 				{@render brandTile()}
-				{@render workspaceLabel()}
-				<span class="chev-circle" aria-hidden="true"
-					><ChevronsUpDown size={14} strokeWidth={1.6} /></span
-				>
+				{@render workspaceLabel(
+					summary
+						? `${ROLE_LABELS[summary.role]}${summary.officeName ? ` · ${summary.officeName}` : ''}`
+						: ''
+				)}
+				<ChevronsUpDown size={16} strokeWidth={2} aria-hidden="true" />
 			</button>
 		</div>
-		<nav class="side-nav">
+		<div class="side-search-wrap">
 			<button
 				type="button"
 				class="side-search"
@@ -507,209 +564,40 @@
 				aria-haspopup="dialog"
 				aria-keyshortcuts="Meta+K Control+K"
 			>
-				<Search size={16} strokeWidth={1.8} aria-hidden="true" />
+				<Search size={15} strokeWidth={2} aria-hidden="true" />
 				<span class="side-search-label">Quick search…</span>
 				<kbd class="side-kbd" aria-hidden="true">⌘K</kbd>
 			</button>
-			<a class="side-item" href="/app" aria-current={navPath === '/app' ? 'page' : undefined}>
-				<House size={18} strokeWidth={1.5} aria-hidden="true" /><span>Home</span>
-			</a>
-			{#if ownMoney('view_own_financials')}
-				<a
-					class="side-item"
-					href="/app/activity"
-					aria-current={navPath.startsWith('/app/activity') ? 'page' : undefined}
+		</div>
+		<nav class="side-nav">
+			{#each nav.sections as section (section.id)}
+				<div
+					class="side-section"
+					role="group"
+					aria-labelledby={section.label ? `nav-${section.id}` : undefined}
+					aria-label={section.label ? undefined : 'Start'}
 				>
-					<Activity size={18} strokeWidth={1.5} aria-hidden="true" /><span>Activity</span>
-				</a>
-			{/if}
-			{#if can('initiate_own_withdrawal')}
-				<a
-					class="side-item"
-					href="/app/withdrawals"
-					aria-current={navPath.startsWith('/app/withdrawals') ? 'page' : undefined}
-				>
-					<Upload size={18} strokeWidth={1.5} aria-hidden="true" /><span>Withdrawals</span>
-				</a>
-			{/if}
-			{#if can('approve_withdrawal')}
-				<a
-					class="side-item"
-					href="/app/queue"
-					aria-current={navPath.startsWith('/app/queue') ? 'page' : undefined}
-				>
-					<ListChecks size={18} strokeWidth={1.5} aria-hidden="true" /><span>Withdrawal queue</span>
-				</a>
-			{/if}
-			{#if can('approve_pocket_transfer')}
-				<a
-					class="side-item"
-					href="/app/transfers"
-					aria-current={navPath.startsWith('/app/transfers') ? 'page' : undefined}
-				>
-					<ArrowLeftRight size={18} strokeWidth={1.5} aria-hidden="true" /><span>Transfers</span>
-				</a>
-			{/if}
-			{#if can('reverse_transaction')}
-				<a
-					class="side-item"
-					href="/app/reversals"
-					aria-current={navPath.startsWith('/app/reversals') ? 'page' : undefined}
-				>
-					<Undo2 size={18} strokeWidth={1.5} aria-hidden="true" /><span>Reversals</span>
-				</a>
-			{/if}
-			{#if can('review_financial_evidence')}
-				<a
-					class="side-item"
-					href="/app/evidence"
-					aria-current={navPath.startsWith('/app/evidence') ? 'page' : undefined}
-				>
-					<Gavel size={18} strokeWidth={1.5} aria-hidden="true" /><span>Evidence review</span>
-				</a>
-			{/if}
-			{#if leader}
-				<a
-					class="side-item"
-					href="/app/team"
-					aria-current={navPath.startsWith('/app/team') ? 'page' : undefined}
-				>
-					<LayoutGrid size={18} strokeWidth={1.5} aria-hidden="true" /><span>Team overview</span>
-				</a>
-				<a
-					class="side-item"
-					href="/app/wallets"
-					aria-current={navPath.startsWith('/app/wallets') ? 'page' : undefined}
-				>
-					<WalletIcon size={18} strokeWidth={1.5} aria-hidden="true" /><span>Member wallets</span>
-				</a>
-			{/if}
-			{#if reports}
-				<a
-					class="side-item"
-					href="/app/reports"
-					aria-current={navPath.startsWith('/app/reports') ? 'page' : undefined}
-				>
-					<ChartColumn size={18} strokeWidth={1.5} aria-hidden="true" /><span>Reports</span>
-				</a>
-			{/if}
-			{#if ownMoney('manage_own_payout_accounts')}
-				<a
-					class="side-item"
-					href="/app/payout-accounts"
-					aria-current={navPath.startsWith('/app/payout-accounts') ? 'page' : undefined}
-				>
-					<Landmark size={18} strokeWidth={1.5} aria-hidden="true" /><span>Payout accounts</span>
-				</a>
-			{/if}
-			{#if ownMoney('export_own_statement')}
-				<a
-					class="side-item"
-					href="/app/statements"
-					aria-current={navPath.startsWith('/app/statements') ? 'page' : undefined}
-				>
-					<FileIcon size={18} strokeWidth={1.5} aria-hidden="true" /><span>Statements</span>
-				</a>
-			{/if}
-			{#if can('record_income')}
-				<a
-					class="side-item"
-					href="/app/income"
-					aria-current={navPath.startsWith('/app/income') ? 'page' : undefined}
-				>
-					<Download size={18} strokeWidth={1.5} aria-hidden="true" /><span>Record income</span>
-				</a>
-			{/if}
-			{#if can('perform_currency_conversion')}
-				<a
-					class="side-item"
-					href="/app/convert"
-					aria-current={navPath.startsWith('/app/convert') ? 'page' : undefined}
-				>
-					<Repeat size={18} strokeWidth={1.5} aria-hidden="true" /><span>Record conversion</span>
-				</a>
-			{/if}
-			{#if can('invite_members')}
-				<a
-					class="side-item"
-					href="/app/invitations"
-					aria-current={navPath.startsWith('/app/invitations') ? 'page' : undefined}
-				>
-					<MailPlus size={18} strokeWidth={1.5} aria-hidden="true" /><span>Invitations</span>
-				</a>
-			{/if}
-			{#if reviewer}
-				<a
-					class="side-item"
-					href="/app/reviews"
-					aria-current={navPath.startsWith('/app/reviews') ? 'page' : undefined}
-				>
-					<IdCard size={18} strokeWidth={1.5} aria-hidden="true" /><span>NIN reviews</span>
-				</a>
-			{/if}
-			<a
-				class="side-item"
-				href="/app/split"
-				aria-current={navPath.startsWith('/app/split') ? 'page' : undefined}
-			>
-				<PieChart size={18} strokeWidth={1.5} aria-hidden="true" /><span>Pockets &amp; split</span>
-			</a>
-			{#if leads}
-				<a
-					class="side-item"
-					href="/app/offices"
-					aria-current={navPath.startsWith('/app/offices') ? 'page' : undefined}
-				>
-					<Building size={18} strokeWidth={1.5} aria-hidden="true" /><span>Offices</span>
-				</a>
-				<a
-					class="side-item"
-					href="/app/members"
-					aria-current={navPath.startsWith('/app/members') ? 'page' : undefined}
-				>
-					<Users size={18} strokeWidth={1.5} aria-hidden="true" /><span>Members</span>
-				</a>
-			{/if}
-			{#if president || can('manage_access_rules')}
-				<a
-					class="side-item"
-					href="/app/access"
-					aria-current={navPath.startsWith('/app/access') ? 'page' : undefined}
-				>
-					<Shield size={18} strokeWidth={1.5} aria-hidden="true" /><span>Roles &amp; access</span>
-				</a>
-			{/if}
-			{#if settings}
-				<a
-					class="side-item"
-					href={settingsHref}
-					aria-current={navPath.startsWith('/app/settings') ? 'page' : undefined}
-				>
-					<Palette size={18} strokeWidth={1.5} aria-hidden="true" /><span
-						>Branding &amp; settings</span
-					>
-				</a>
-			{/if}
-			{#if billing}
-				<a
-					class="side-item"
-					href="/app/billing"
-					aria-current={navPath.startsWith('/app/billing') ? 'page' : undefined}
-				>
-					<CreditCard size={18} strokeWidth={1.5} aria-hidden="true" /><span>Billing</span>
-				</a>
-			{/if}
-			{#if president}
-				<a
-					class="side-item"
-					href="/app/audit"
-					aria-current={navPath.startsWith('/app/audit') ? 'page' : undefined}
-				>
-					<FileText size={18} strokeWidth={1.5} aria-hidden="true" /><span>Audit log</span>
-				</a>
-			{/if}
+					{#if section.label}<span class="side-label" id="nav-{section.id}">{section.label}</span
+						>{/if}
+					{#each section.items as item (item.id)}
+						<a
+							class="side-item"
+							class:top={section.id === 'top'}
+							href={item.href}
+							aria-current={isCurrent(item, navPath) ? 'page' : undefined}
+						>
+							<span class="side-icon"><NavIcon name={item.icon} /></span>
+							<span class="side-text">{item.label}</span>
+							{#if item.count}<span class="side-count" class:accent={item.accent}
+									><span aria-hidden="true">{item.count}</span><span class="visually-hidden"
+										>, {item.count} waiting</span
+									></span
+								>{/if}
+						</a>
+					{/each}
+				</div>
+			{/each}
 		</nav>
-		<div class="side-footer"><span class="version">v2.0</span></div>
 	</aside>
 
 	<div class="main">
@@ -859,24 +747,14 @@
 			<header class="appbar">
 				<button
 					type="button"
-					class="switcher pill"
+					class="ws-button"
 					onclick={switchWorkspace}
 					aria-label={summary ? `${summary.tenantName}: switch workspace` : 'Switch workspace'}
 				>
 					{@render brandTile()}
-					{@render workspaceLabel()}
-					<ChevronsUpDown size={14} strokeWidth={1.6} aria-hidden="true" />
+					{@render workspaceLabel(roleLine)}
 				</button>
 				<div class="appbar-actions">
-					<button
-						type="button"
-						class="bell"
-						onclick={() => (searchOpen = true)}
-						aria-label="Quick search"
-						aria-haspopup="dialog"
-					>
-						<Search size={19} strokeWidth={1.5} aria-hidden="true" />
-					</button>
 					<a class="bell" href="/app/notifications" aria-label={bellLabel}>
 						<Bell size={19} strokeWidth={1.5} aria-hidden="true" />
 						{#if bell.unread > 0}<span class="bell-dot" aria-hidden="true"></span>{/if}
@@ -982,41 +860,25 @@
 		</main>
 
 		{#if !pushed}
-			<nav class="tabbar" aria-label="Main">
-				<a class="tab" href="/app" aria-current={navPath === '/app' ? 'page' : undefined}>
-					<House size={20} strokeWidth={navPath === '/app' ? 2 : 1.8} aria-hidden="true" /><span
-						>Home</span
-					>
-				</a>
-				{#if ownMoney('view_own_financials')}
+			<!-- Blueprint 25: the floating pill bar (Roudio "Fresh Direction"): icons only;
+			     the current tab grows into a filled pill with its name. -->
+			<nav class="tabbar" aria-label="Main" data-tabs={nav.tabs.length}>
+				{#each nav.tabs as tab (tab.id)}
+					{@const current = tabNow === tab.id}
 					<a
 						class="tab"
-						href="/app/activity"
-						aria-current={navPath.startsWith('/app/activity') ? 'page' : undefined}
+						href={tab.href}
+						data-tab={tab.id}
+						aria-current={current ? 'page' : undefined}
 					>
-						<Activity
-							size={20}
-							strokeWidth={navPath.startsWith('/app/activity') ? 2 : 1.8}
-							aria-hidden="true"
-						/><span>Activity</span>
+						<span class="tab-icon">
+							<NavIcon name={tab.icon} size={22} strokeWidth={current ? 2 : 1.8} />
+							{#if tab.dot && !current}<span class="tab-dot" aria-hidden="true"></span>{/if}
+						</span>
+						<span class="tab-label">{tab.label}</span>
+						{#if tab.dot}<span class="visually-hidden">, something is waiting</span>{/if}
 					</a>
-				{/if}
-				{#if leader}
-					<a
-						class="tab"
-						href="/app/team"
-						aria-current={navPath.startsWith('/app/team') ? 'page' : undefined}
-					>
-						<LayoutGrid
-							size={20}
-							strokeWidth={navPath.startsWith('/app/team') ? 2 : 1.8}
-							aria-hidden="true"
-						/><span>Team</span>
-					</a>
-				{/if}
-				<a class="tab" href="/app/more" aria-current={navMore ? 'page' : undefined}>
-					<Ellipsis size={20} strokeWidth={1.8} aria-hidden="true" /><span>More</span>
-				</a>
+				{/each}
 			</nav>
 		{/if}
 	</div>
@@ -1041,14 +903,19 @@
 		 * dividers sit on the same pixel row at every width.
 		 */
 		--shell-header: 64px;
-		--shell-line: #1f2324;
-		--shell-sidebar: #0d0f10;
-		--shell-field: #141718;
+		/* Blueprint 25 (Paper NV03): the sidebar sits on the canvas; one line colour. */
+		--shell-line: var(--color-raised);
+		--shell-sidebar: var(--color-canvas);
 		--shell-edge: #2a2f31;
 		--shell-strong: #d5dadb;
 		--shell-faint: #7d8588;
 		--shell-active: #1f2324;
+		--shell-count: #2c3133;
 		--shell-coral-tint: var(--color-accent-subtle);
+		/* The floating pill bar (Paper NV01/NV02). */
+		--tab-bg: #1f2324e6;
+		--tab-edge: #ffffff1f;
+		--tab-shadow: #ffffff0f 0px 1px 0px inset, #000000b3 0px 18px 40px -12px;
 
 		display: flex;
 		min-height: 100dvh;
@@ -1057,29 +924,33 @@
 
 	:global([data-theme='light']) .shell {
 		--shell-line: var(--color-border);
-		--shell-sidebar: var(--color-surface);
-		--shell-field: var(--color-raised);
 		--shell-edge: var(--color-border);
 		--shell-strong: var(--color-text);
 		--shell-faint: var(--color-muted);
 		--shell-active: var(--color-raised);
+		--shell-count: var(--color-raised);
 		--shell-coral-tint: var(--color-accent-subtle);
+		--tab-bg: color-mix(in oklab, var(--color-surface) 92%, transparent);
+		--tab-edge: var(--color-border);
+		--tab-shadow: #ffffffb3 0px 1px 0px inset, #2126281f 0px 18px 40px -12px;
 	}
 
 	@media (prefers-color-scheme: light) {
 		:global([data-theme='system']) .shell {
 			--shell-line: var(--color-border);
-			--shell-sidebar: var(--color-surface);
-			--shell-field: var(--color-raised);
 			--shell-edge: var(--color-border);
 			--shell-strong: var(--color-text);
 			--shell-faint: var(--color-muted);
 			--shell-active: var(--color-raised);
+			--shell-count: var(--color-raised);
 			--shell-coral-tint: var(--color-accent-subtle);
+			--tab-bg: color-mix(in oklab, var(--color-surface) 92%, transparent);
+			--tab-edge: var(--color-border);
+			--tab-shadow: #ffffffb3 0px 1px 0px inset, #2126281f 0px 18px 40px -12px;
 		}
 	}
 
-	/* ── Sidebar (desktop) ─────────────────────────────────────────── */
+	/* ── Sidebar (desktop), Paper NV03 ──────────────────────────────── */
 
 	.sidebar,
 	.topbar {
@@ -1089,14 +960,10 @@
 	.switcher-block {
 		display: flex;
 		flex-shrink: 0;
-		/* 6 + 52 + 5 + 1 px border = the header; whole pixels, no centring offsets. */
+		/* 7 + 48 + 8 + 1 px border = the header; whole pixels, no centring offsets. */
 		height: var(--shell-header);
-		padding: 6px 12px 5px;
+		padding: 7px 12px 8px;
 		border-bottom: 1px solid var(--shell-line);
-	}
-
-	.switcher-block .switcher {
-		height: 100%;
 	}
 
 	.switcher {
@@ -1105,15 +972,20 @@
 		flex: 1;
 		gap: 10px;
 		min-width: 0;
-		height: 52px;
-		padding: 0 8px 0 7px;
+		height: 48px;
+		padding: 0 8px 0 6px;
 		border: 1px solid var(--shell-edge);
-		border-radius: 14px;
+		border-radius: var(--radius-12);
 		background: var(--color-surface);
-		box-shadow: #ffffff0a 0px 1px 0px inset;
 		color: var(--color-text);
+		font: inherit;
 		text-align: left;
 		cursor: pointer;
+	}
+
+	.switcher > :global(svg) {
+		flex-shrink: 0;
+		color: var(--color-muted);
 	}
 
 	.brand-tile {
@@ -1121,11 +993,11 @@
 		align-items: center;
 		justify-content: center;
 		flex-shrink: 0;
-		width: 38px;
-		height: 38px;
+		width: 34px;
+		height: 34px;
 		border: 1px solid var(--color-accent-ring);
-		border-radius: 10px;
-		background: #2a1e1a;
+		border-radius: 9px;
+		background: var(--color-accent-subtle);
 	}
 
 	.brand-tile img {
@@ -1137,8 +1009,9 @@
 		border-color: transparent;
 		background: var(--color-accent);
 		color: var(--button-primary-ink);
-		font-size: 15px;
+		font-size: var(--text-14);
 		font-weight: var(--font-weight-bold);
+		line-height: 18px;
 	}
 
 	.brand-tile.icon {
@@ -1152,19 +1025,54 @@
 		object-fit: cover;
 	}
 
+	.ws-text {
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 1px;
+		min-width: 0;
+	}
+
+	.ws-name,
+	.ws-sub {
+		max-width: 100%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.ws-name {
+		font-size: var(--text-14);
+		font-weight: var(--font-weight-semibold);
+		line-height: 18px;
+	}
+
+	.ws-sub {
+		color: var(--color-muted);
+		font-size: var(--text-12);
+		line-height: var(--leading-16);
+	}
+
+	.side-search-wrap {
+		flex-shrink: 0;
+		padding: 14px 12px 6px;
+	}
+
 	.side-search {
 		display: flex;
 		align-items: center;
-		gap: 10px;
+		gap: 8px;
+		width: 100%;
 		height: 38px;
-		margin-bottom: 12px;
-		padding: 0 6px 0 12px;
+		padding: 0 10px;
 		border: 1px solid var(--shell-edge);
 		border-radius: 10px;
-		background: var(--shell-field);
+		background: transparent;
 		color: var(--color-muted);
 		font: inherit;
-		font-size: var(--text-14);
+		font-size: 13px;
+		line-height: 18px;
 		cursor: pointer;
 	}
 
@@ -1174,8 +1082,8 @@
 	}
 
 	.side-kbd {
-		padding: 2px 6px;
-		border: 1px solid var(--shell-edge);
+		padding: 1px 6px;
+		border: 1px solid var(--color-border);
 		border-radius: 6px;
 		color: var(--color-muted);
 		font-family: var(--font-sans);
@@ -1184,126 +1092,120 @@
 	}
 
 	.side-search:focus-visible,
-	.support-link:focus-visible {
+	.support-link:focus-visible,
+	.switcher:focus-visible,
+	.ws-button:focus-visible {
 		outline: 2px solid var(--focus-ring);
 		outline-offset: 2px;
-	}
-
-	.support-link {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		height: 40px;
-		padding: 0 14px;
-		border-radius: var(--radius-pill);
-		color: var(--shell-strong);
-		font-size: var(--text-14);
-		text-decoration: none;
-	}
-
-	.support-link[aria-current='page'] {
-		background: var(--shell-edge);
-	}
-
-	.ws-text {
-		display: flex;
-		flex: 1;
-		flex-direction: column;
-		align-items: flex-start;
-		gap: 3px;
-		min-width: 0;
-		overflow: clip;
-	}
-
-	.ws-name {
-		max-width: 100%;
-		overflow: hidden;
-		font-size: var(--text-14);
-		font-weight: var(--font-weight-semibold);
-		line-height: 18px;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	.ws-chip {
-		padding: 1px 7px;
-		border-radius: var(--radius-pill);
-		background: var(--color-raised);
-		color: var(--shell-strong);
-		font-size: 11px;
-		font-weight: var(--font-weight-medium);
-		line-height: 15px;
-	}
-
-	.chev-circle {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		flex-shrink: 0;
-		width: 28px;
-		height: 28px;
-		border-radius: var(--radius-pill);
-		background: var(--color-raised);
-		color: var(--shell-strong);
 	}
 
 	.side-nav {
 		display: flex;
 		flex: 1;
 		flex-direction: column;
+		gap: 14px;
+		min-height: 0;
+		padding: 8px 12px 16px;
+		overflow-y: auto;
+		scrollbar-width: thin;
+	}
+
+	.side-section {
+		display: flex;
+		flex-direction: column;
 		gap: 2px;
-		padding: 14px 12px;
+	}
+
+	.side-label {
+		padding: 0 10px 4px;
+		color: var(--shell-faint);
+		font-size: 11px;
+		font-weight: var(--font-weight-medium);
+		letter-spacing: 0.06em;
+		line-height: 14px;
+		text-transform: uppercase;
 	}
 
 	.side-item {
 		display: flex;
 		align-items: center;
-		gap: 12px;
-		height: 38px;
-		padding: 0 12px;
-		border-radius: 9px;
+		flex-shrink: 0;
+		gap: 10px;
+		height: 34px;
+		padding: 0 10px;
+		border-radius: 10px;
 		color: var(--shell-strong);
 		font-size: var(--text-14);
 		line-height: 18px;
 		text-decoration: none;
-	}
-
-	.side-item :global(svg) {
-		color: var(--color-muted);
-	}
-
-	/* Blueprint 23: the row answers the press itself, before the page loads. */
-	.side-item {
+		/* Blueprint 23: the row answers the press itself, before the page loads. */
 		-webkit-tap-highlight-color: transparent;
 	}
 
-	.side-item:active {
-		background: var(--shell-active);
+	.side-item.top {
+		height: 36px;
+	}
+
+	.side-icon {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+		width: 18px;
+		height: 18px;
+		color: var(--color-muted);
+	}
+
+	.side-text {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.side-count {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+		min-width: 20px;
+		height: 20px;
+		padding: 0 6px;
+		border-radius: var(--radius-pill);
+		background: var(--shell-count);
+		color: var(--color-text);
+		font-size: 11px;
+		font-weight: var(--font-weight-semibold);
+		line-height: 14px;
+	}
+
+	.side-count.accent {
+		background: var(--color-accent);
+		color: var(--button-primary-ink);
+	}
+
+	.side-item:hover {
+		background: color-mix(in oklab, var(--color-raised) 55%, transparent);
+	}
+
+	.side-item:active,
+	.side-item[aria-current='page'] {
+		background: var(--color-raised);
 	}
 
 	.side-item[aria-current='page'] {
-		background: var(--shell-active);
 		color: var(--color-text);
 		font-weight: var(--font-weight-medium);
 	}
 
-	.side-item[aria-current='page'] :global(svg) {
+	.side-item[aria-current='page'] .side-icon {
 		color: var(--color-accent);
 	}
 
-	.side-footer {
-		display: flex;
-		align-items: center;
-		justify-content: flex-end;
-		gap: 8px;
-		padding: 14px 16px;
-		border-top: 1px solid var(--shell-line);
-	}
-
-	.version {
-		color: var(--shell-faint);
-		font-size: var(--text-12);
-		line-height: var(--leading-16);
+	.side-item:focus-visible {
+		outline: 2px solid var(--focus-ring);
+		outline-offset: -2px;
 	}
 
 	/* ── Top bar (desktop) / app bar (mobile) ──────────────────────── */
@@ -1317,9 +1219,26 @@
 
 	.breadcrumb {
 		flex: 1;
-		color: var(--color-muted);
+		color: var(--shell-strong);
 		font-size: var(--text-14);
 		line-height: 18px;
+	}
+
+	.support-link {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		height: 40px;
+		color: var(--shell-strong);
+		font-size: var(--text-14);
+		line-height: 18px;
+		text-decoration: none;
+	}
+
+	.support-link[aria-current='page'] {
+		color: var(--color-text);
+		text-decoration: underline;
+		text-underline-offset: 6px;
 	}
 
 	:global(.bell),
@@ -1342,12 +1261,27 @@
 	}
 
 	:global(.avatar) {
+		overflow: hidden;
 		width: 36px;
 		height: 36px;
-		background: var(--shell-edge);
+		background: var(--color-raised);
 		color: var(--color-text);
+		text-decoration: none;
 	}
 
+	.avatar-photo {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.avatar-initials {
+		font-size: 13px;
+		font-weight: var(--font-weight-semibold);
+		line-height: var(--leading-16);
+	}
+
+	/* Paper NV01: the network's tile, its name and "role · scope". */
 	.appbar {
 		display: flex;
 		align-items: center;
@@ -1356,41 +1290,46 @@
 		padding: calc(4px + env(safe-area-inset-top)) 20px 12px;
 	}
 
-	.switcher.pill {
+	.ws-button {
+		display: flex;
+		align-items: center;
 		flex: 0 1 auto;
-		height: 48px;
-		padding: 0 12px 0 5px;
-		border-radius: var(--radius-pill);
+		gap: 10px;
+		min-width: 0;
+		min-height: var(--hit-min);
+		padding: 0;
+		border: 0;
+		border-radius: var(--radius-12);
+		background: transparent;
+		color: var(--color-text);
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
 	}
 
-	.switcher.pill .brand-tile {
-		border-radius: var(--radius-pill);
+	.ws-button .brand-tile {
+		width: 36px;
+		height: 36px;
+		border-radius: 10px;
 	}
 
-	.switcher.pill .brand-tile img {
-		width: 18px;
-		height: 18px;
+	.ws-button .brand-tile.initial {
+		font-size: 15px;
 	}
 
-	.switcher.pill .ws-text {
+	.ws-button .ws-text {
 		gap: 2px;
 	}
 
-	.switcher.pill .ws-chip {
-		padding: 0 6px;
-		font-size: 11px; /* slice 21: nothing below 11 px */
-		line-height: 14px;
-	}
-
-	.switcher.pill > :global(svg) {
-		flex-shrink: 0;
-		color: var(--shell-strong);
+	.ws-button .ws-name {
+		font-size: 15px;
 	}
 
 	.appbar-actions {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		flex-shrink: 0;
+		gap: 4px;
 	}
 
 	/* ── Content ───────────────────────────────────────────────────── */
@@ -1549,62 +1488,139 @@
 		letter-spacing: var(--tracking-label);
 	}
 
-	/* ── Floating tab bar (mobile) ─────────────────────────────────── */
+	/* ── Floating pill tab bar (mobile), Paper NV01/NV02 ──────────────── */
 
 	.tabbar {
 		position: fixed;
-		left: 16px;
-		right: 16px;
-		bottom: calc(24px + env(safe-area-inset-bottom));
+		right: 24px;
+		bottom: calc(28px + env(safe-area-inset-bottom));
+		left: 24px;
 		z-index: 3;
 		display: flex;
 		align-items: center;
-		justify-content: space-around;
-		height: 68px;
-		padding: 0 10px;
-		border: 1px solid #ffffff1f;
-		border-radius: var(--radius-pill);
-		background: color-mix(in oklab, var(--shell-active) 85%, transparent);
-		box-shadow:
-			#ffffff0f 0px 1px 0px inset,
-			#000000b3 0px 18px 40px -12px;
-		backdrop-filter: blur(20px);
+		justify-content: space-between;
+		max-width: 440px;
+		height: 64px;
+		margin-inline: auto;
+		padding: 0 6px;
+		border: 1px solid var(--tab-edge);
+		border-radius: 32px;
+		background: var(--tab-bg);
+		box-shadow: var(--tab-shadow);
+		backdrop-filter: blur(24px) saturate(160%);
 	}
 
-	:global([data-theme='light']) .tabbar {
-		border-color: var(--color-border);
-		box-shadow: #2126281f 0px 18px 40px -12px;
-	}
-
+	/* Inactive: the icon alone, in a 56 px slot (64 px with four tabs). */
 	.tab {
 		display: flex;
-		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		flex-shrink: 0;
-		gap: 3px;
-		width: 76px;
+		flex: 1 1 0;
+		gap: 0;
+		min-width: var(--hit-min);
+		max-width: 56px;
 		height: 52px;
-		border-radius: var(--radius-pill);
-		color: var(--color-muted);
-		font-size: 11px;
-		line-height: 14px;
+		padding: 0;
+		border-radius: 26px;
+		color: var(--shell-strong);
 		text-decoration: none;
+		-webkit-tap-highlight-color: transparent;
+		transition:
+			background-color 200ms ease,
+			color 200ms ease,
+			gap 260ms cubic-bezier(0.2, 0.8, 0.2, 1),
+			padding 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
 	}
 
-	.tab[aria-current='page'] {
-		background: var(--shell-coral-tint);
-		color: var(--color-accent);
+	.tabbar[data-tabs='4'] .tab {
+		max-width: 64px;
+	}
+
+	.tab-icon {
+		position: relative;
+		display: flex;
+		flex-shrink: 0;
+	}
+
+	/* The current tab grows into a filled pill with its name. */
+	.tab-label {
+		max-width: 0;
+		overflow: hidden;
+		opacity: 0;
+		font-size: var(--text-14);
 		font-weight: var(--font-weight-semibold);
+		line-height: 18px;
+		white-space: nowrap;
+		transition:
+			max-width 260ms cubic-bezier(0.2, 0.8, 0.2, 1),
+			opacity 160ms ease;
+	}
+
+	.tabbar .tab[aria-current='page'] {
+		flex: 0 0 auto;
+		gap: 8px;
+		min-width: 56px;
+		max-width: none;
+		padding: 0 18px 0 14px;
+		background: var(--color-accent);
+		color: var(--button-primary-ink);
+	}
+
+	.tab[aria-current='page'] .tab-label {
+		max-width: 120px;
+		opacity: 1;
 	}
 
 	/* Blueprint 23: pressed at once; the current state follows the tap. */
-	.tab {
-		-webkit-tap-highlight-color: transparent;
+	.tab:active:not([aria-current='page']) {
+		background: var(--shell-coral-tint);
 	}
 
-	.tab:active {
-		background: var(--shell-coral-tint);
+	.tab:focus-visible {
+		outline: 2px solid var(--focus-ring);
+		outline-offset: 2px;
+	}
+
+	.tab-dot {
+		position: absolute;
+		top: 0;
+		right: -5px;
+		width: 9px;
+		height: 9px;
+		border: 2px solid var(--shell-active);
+		border-radius: var(--radius-pill);
+		background: var(--color-accent);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.tab,
+		.tab-label {
+			transition: none;
+		}
+	}
+
+	/*
+	 * Narrow phones (P-06: checked at 320 px). Below 380 px the bar comes closer
+	 * to the edges; below 350 px five tabs leave no room for a label, so the
+	 * current one stays a filled pill with its icon (its name is still read out).
+	 */
+	@media (max-width: 379px) {
+		.tabbar {
+			right: 12px;
+			left: 12px;
+		}
+	}
+
+	@media (max-width: 349px) {
+		.tabbar[data-tabs='5'] .tab[aria-current='page'] {
+			gap: 0;
+			padding: 0;
+		}
+
+		.tabbar[data-tabs='5'] .tab[aria-current='page'] .tab-label {
+			max-width: 0;
+			opacity: 0;
+		}
 	}
 
 	/*
@@ -1679,8 +1695,8 @@
 
 	:global(.bell-dot) {
 		position: absolute;
-		top: 10px;
-		right: 11px;
+		top: 9px;
+		right: 10px;
 		width: 8px;
 		height: 8px;
 		border: 2px solid var(--color-canvas);
@@ -1999,19 +2015,25 @@
 			background: var(--shell-sidebar);
 		}
 
+		/* Paper NV03: 64 px, the same line as the switcher block. */
 		.topbar {
 			display: flex;
 			align-items: center;
-			gap: 8px;
+			gap: 20px;
 			flex-shrink: 0;
 			height: var(--shell-header);
-			padding: 0 28px 0 40px;
+			padding: 0 40px;
 			border-bottom: 1px solid var(--shell-line);
 		}
 
 		.topbar :global(.bell) {
-			width: 40px;
-			height: 40px;
+			width: 36px;
+			height: 36px;
+		}
+
+		.topbar :global(.bell-dot) {
+			top: 6px;
+			right: 7px;
 		}
 
 		.appbar,

@@ -240,6 +240,37 @@ export const LeadershipOverview = Schema.Struct({
 });
 export type LeadershipOverview = typeof LeadershipOverview.Type;
 
+/**
+ * Blueprint 25: "Offices this month" on the network home (Paper NV01/NV03).
+ * One row per office of the scope, counting its own members and the income
+ * recorded on its own segments this month (the network's time zone), one
+ * figure per currency and never a cross-currency total. Scope the viewer may
+ * not see is left out and counted in `excludedMembers` / `excluded`.
+ */
+export const LeadershipOffices = Schema.Struct({
+	scope: Schema.Struct({
+		kind: Schema.Literals(['office', 'network']),
+		officeId: Schema.NullOr(Uuid),
+		name: Schema.String
+	}),
+	period: Schema.Struct({ month: Schema.String, timeZone: Schema.String }),
+	currencies: Schema.Array(Currency),
+	offices: Schema.Array(
+		Schema.Struct({
+			officeId: Uuid,
+			name: Schema.String,
+			kind: Schema.Literals(['world_team', 'director', 'team_leader']),
+			parentOfficeId: Schema.NullOr(Uuid),
+			status: Schema.String,
+			members: Schema.Int,
+			income: Schema.Array(Schema.Struct({ currency: Currency, amount: Money })),
+			excludedMembers: Schema.Int
+		})
+	),
+	excluded: Schema.Struct({ offices: Schema.Int, members: Schema.Int })
+});
+export type LeadershipOffices = typeof LeadershipOffices.Type;
+
 /** GET /ledger/wallets (Blueprint 04): owners with at least one visible segment. */
 export const ManagedWalletPage = Schema.Struct({
 	items: Schema.Array(
@@ -312,6 +343,8 @@ export const LedgerRoutes = {
 	transaction: (id: string) => ({ method: 'GET', path: `/me/transactions/${id}` }) as const,
 	commandOutcome: { method: 'GET', path: '/me/command-outcome' },
 	overview: { method: 'GET', path: '/overview' },
+	// Blueprint 25: per-office members and income this month (X-Membership).
+	overviewOffices: { method: 'GET', path: '/overview/offices' },
 	managedWallets: { method: 'GET', path: '/wallets' },
 	managedWallet: (walletId: string) => ({ method: 'GET', path: `/wallets/${walletId}` }) as const,
 	managedActivity: (walletId: string) =>

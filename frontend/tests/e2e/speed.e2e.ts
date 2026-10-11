@@ -153,7 +153,7 @@ test('tap speed (Blueprint 23 B0)', async ({ browser }) => {
 				await page.waitForTimeout(300);
 			}
 		}
-		for (const href of ['/app', '/app/team', '/app/more']) {
+		for (const href of ['/app', '/app/members', '/app/more']) {
 			tabs.push(await tabFeedback(page, href));
 			await page.waitForTimeout(1500);
 		}

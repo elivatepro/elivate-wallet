@@ -252,6 +252,16 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
   **"native bank select" accepted deviation is withdrawn**. Desktop shows the same wheel as a
   centred dialog. iOS has no web vibration, so iPhones get the visual snap and tick only. The
   admin console keeps native selects.
+- **Navigation and role homes (2026-10-10, Blueprint 25; Paper "Navigation v5" NV01–NV03
+  approved):** the mobile tab bar is the Roudio "Fresh Direction" floating pill (icons only; the
+  current tab grows into a filled accent pill with its label). Tab sets: member Home · Activity ·
+  Withdraw · More; President Team Home · Approvals · People · Activity · More (leaders with a
+  wallet the same, Withdraw on Home and More); a dot on Approvals while something waits. The
+  desktop sidebar has sections (top, Approvals, Money, People, Workspace, My wallet for own-wallet
+  memberships), each item gated as before, the 64 px header line kept. A wallet-less leadership
+  Home (President Team, funds-not-managed director) is the network overview with "Offices this
+  month" (new read `api.leadership_offices`); leaders with a wallet get it as Team overview.
+  Open for owner: the President Team's Activity opens the audit log (no network money feed).
 - **Sequencing:** one slice at a time, each new slice in its own thread. Order: 4 → 5 → 8 →
   slice 9 follow-up (IP storage, signed-in password change, PIN-change email, sign-out
   choice after reset) → 6 → 7 → 10.

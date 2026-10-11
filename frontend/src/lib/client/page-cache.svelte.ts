@@ -61,6 +61,18 @@ export function invalidate(kinds: readonly CacheKind[], store = browserStore()):
 	for (const watcher of [...watchers]) if (kinds.includes(watcher.kind)) watcher.refetch();
 }
 
+/**
+ * Blueprint 25: runs `refetch` whenever a command invalidates one of `kinds`
+ * (the bell's task counts follow approvals this way). Returns the stop function.
+ */
+export function onInvalidate(kinds: readonly CacheKind[], refetch: () => void): () => void {
+	const added = kinds.map((kind) => ({ kind, refetch }));
+	for (const watcher of added) watchers.add(watcher);
+	return () => {
+		for (const watcher of added) watchers.delete(watcher);
+	};
+}
+
 /** Test seam: forget the memory store and every watcher. */
 export function resetPageCache(): void {
 	memory.clear();

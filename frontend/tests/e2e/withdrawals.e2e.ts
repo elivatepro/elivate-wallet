@@ -136,7 +136,7 @@ test('a pocket move is requested and approved', async ({ page }) => {
 	await shot(page, 'MV01-move-requested');
 
 	await asPresident(page, founder.email, 'Move Test Network');
-	await page.getByRole('link', { name: 'Transfers' }).first().click();
+	await page.getByRole('link', { name: 'Pocket moves' }).first().click();
 	const panel = page.getByRole('region', { name: /Pocket move PTR-/ });
 	await expect(panel.getByText('Point Value', { exact: true })).toBeVisible();
 	await panel.getByRole('button', { name: 'Approve & move' }).click();

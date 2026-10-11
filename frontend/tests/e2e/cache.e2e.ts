@@ -121,14 +121,16 @@ test('sign out, then another person signs in: no flash of the first person’s d
 		await page.getByRole('link', { name: 'Go to my wallet' }).click();
 	}
 	await expect(page).toHaveURL(/\/app$/);
-	// While /api/home is held back, the first person's money never shows.
+	// While /api/home is held back, the first person's money never shows (the
+	// founder's own network home shows the network's income, Blueprint 25).
 	for (let i = 0; i < 10; i += 1) {
-		await expect(page.getByText('₦1,000.00')).toHaveCount(0);
+		await expect(page.getByRole('region', { name: 'Balance' })).toHaveCount(0);
 		await expect(page.getByTestId('cache-note')).toHaveCount(0);
 		await page.waitForTimeout(200);
 	}
-	// Slice 21: the founder's President Team workspace holds no wallet.
-	await expect(page.getByRole('heading', { name: 'No wallet in this workspace' })).toBeVisible({
+	// The founder's President Team workspace holds no wallet: Home is the
+	// network overview (Blueprint 25).
+	await expect(page.getByRole('region', { name: 'Income recorded this month' })).toBeVisible({
 		timeout: 10_000
 	});
 });
@@ -239,15 +241,15 @@ test.describe('a tap answers at once (mobile)', () => {
 			await new Promise((resolve) => setTimeout(resolve, 2500));
 			await route.continue();
 		});
-		const team = page.locator('.tabbar a[href="/app/team"]');
-		await team.click();
-		await expect(team).toHaveAttribute('aria-current', 'page', { timeout: 500 });
-		await expect(page.locator('.tabbar a[href="/app"]')).not.toHaveAttribute(
+		const people = page.locator('.tabbar [data-tab="people"]');
+		await people.click();
+		await expect(people).toHaveAttribute('aria-current', 'page', { timeout: 500 });
+		await expect(page.locator('.tabbar [data-tab="home"]')).not.toHaveAttribute(
 			'aria-current',
 			'page'
 		);
 		await expect(page.getByTestId('page-frame')).toBeVisible({ timeout: 1000 });
-		await expect(page).toHaveURL(/\/app\/team$/, { timeout: 10_000 });
+		await expect(page).toHaveURL(/\/app\/members$/, { timeout: 10_000 });
 		await expect(page.getByTestId('page-frame')).toHaveCount(0);
 	});
 });

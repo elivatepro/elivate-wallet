@@ -175,7 +175,8 @@ test('a director whose funds are not managed: the switch, then the light setup',
 	await lightSetupWizard(page);
 	await page.getByRole('link', { name: 'Continue' }).click();
 	await expect(page).toHaveURL(/\/app$/);
-	await expect(page.getByRole('heading', { name: 'No wallet in this workspace' })).toBeVisible();
+	// Blueprint 25: a director without funds gets the network overview as Home.
+	await expect(page.getByRole('region', { name: 'Income recorded this month' })).toBeVisible();
 	const sidebar = page.getByRole('complementary', { name: 'Main' });
 	await expect(sidebar.getByRole('link', { name: 'Withdrawals' })).toHaveCount(0);
 	await expect(sidebar.getByRole('link', { name: 'Payout accounts' })).toHaveCount(0);

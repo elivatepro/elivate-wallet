@@ -2,6 +2,7 @@
 // (live), offline (showing labelled device-cache data, or nothing), or error.
 // Commands are never queued: `canAct` is false whenever the shell is offline.
 
+import { navModel } from '#lib/nav.js';
 import { Cause, Effect, Exit, Option } from 'effect';
 import type { SessionView } from '#lib/contract/app.js';
 import type { Workspace } from '#lib/contract/org.js';
@@ -28,6 +29,8 @@ export interface WorkspaceSummary {
 	readonly role: Workspace['role'];
 	/** Blueprint 17: the team theme, so an offline shell keeps the network's look. */
 	readonly theme?: Theme;
+	/** Blueprint 25: Home is the network overview (kept for offline). */
+	readonly networkHome?: boolean;
 }
 
 export type ShellState =
@@ -149,7 +152,13 @@ export class Shell {
 			tenantName: workspace.tenantName,
 			officeName: workspace.officeName,
 			role: workspace.role,
-			...(view.brand ? { theme: view.brand.theme } : {})
+			...(view.brand ? { theme: view.brand.theme } : {}),
+			networkHome: navModel({
+				permissions: view.capabilities?.permissions ?? [],
+				role: workspace.role,
+				billingOwner: false,
+				tasks: null
+			}).networkHome
 		};
 		const scope: CacheScope = { uid: view.state.uid, workspaceId: workspace.membershipId };
 		const store = browserStore();

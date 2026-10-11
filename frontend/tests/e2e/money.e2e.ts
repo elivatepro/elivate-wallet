@@ -118,9 +118,8 @@ test('the President sees the team overview and opens a member wallet', async ({ 
 	await openPresidentWorkspace(page);
 	await page.goto('/app/team');
 	await expect(page.getByRole('heading', { name: NETWORK })).toBeVisible();
-	await expect(
-		page.getByRole('region', { name: 'This month' }).getByText('₦3,500.00', { exact: true })
-	).toBeVisible();
+	// Blueprint 25: the team overview is the network overview.
+	await expect(page.getByTestId('network-income')).toHaveText('₦3,500.00');
 	await expectAccessible(page);
 
 	await page.goto('/app/wallets');

@@ -69,13 +69,18 @@ test('President Team: every Invite entry opens Invitations; no wallet modules', 
 	await page.setViewportSize(DESKTOP);
 	await signInPresident(page, president);
 
-	// No own wallet: no own-money entries anywhere.
+	// No own wallet: no own-money entries anywhere. Blueprint 25: Home is the
+	// network overview, and Activity is the network's audit log.
 	const sidebar = page.getByRole('complementary', { name: 'Main' });
 	await expect(sidebar.getByRole('link', { name: 'Invitations' })).toBeVisible();
-	for (const name of ['Payout accounts', 'Statements', 'Activity', 'Withdrawals']) {
+	for (const name of ['Payout accounts', 'Statements', 'Withdrawals']) {
 		await expect(sidebar.getByRole('link', { name, exact: true })).toHaveCount(0);
 	}
-	await expect(page.getByRole('heading', { name: 'No wallet in this workspace' })).toBeVisible();
+	await expect(sidebar.getByRole('link', { name: 'Activity', exact: true })).toHaveAttribute(
+		'href',
+		'/app/audit'
+	);
+	await expect(page.getByRole('region', { name: 'Income recorded this month' })).toBeVisible();
 
 	// The workspace switcher's divider sits on the top bar's bottom border, at every width.
 	for (const width of [1024, 1280, 1440, 1920]) {
@@ -97,7 +102,7 @@ test('President Team: every Invite entry opens Invitations; no wallet modules', 
 	await expectInvitations(page);
 
 	// Team overview's shortcut.
-	await sidebar.getByRole('link', { name: 'Home' }).click();
+	await sidebar.getByRole('link', { name: 'Network overview' }).click();
 	await page.goto('/app/team');
 	await page.getByRole('link', { name: /Invite a member/ }).click();
 	await expectInvitations(page);
@@ -140,7 +145,7 @@ test('President Team: every Invite entry opens Invitations; no wallet modules', 
 	// ... and so does one found by the page's own read after an in-app tap.
 	await page.setViewportSize(DESKTOP);
 	await page.goto('/app');
-	await expect(page.getByRole('heading', { name: 'No wallet in this workspace' })).toBeVisible();
+	await expect(page.getByRole('region', { name: 'Income recorded this month' })).toBeVisible();
 	lapse();
 	await page
 		.getByRole('complementary', { name: 'Main' })
