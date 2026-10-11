@@ -33,13 +33,14 @@ export const load: PageServerLoad = async (event) => {
 		step: stepNumber('profile', wizard.level),
 		total: stepTotal(wizard.level),
 		names: asksNames(light, profile.identity.status === 'verified'),
-		firstName: profile.firstName,
-		lastName: profile.lastName,
+		// The founder application's name and rank start the fields until saved.
+		firstName: profile.firstName ?? profile.suggested?.firstName ?? null,
+		lastName: profile.lastName ?? profile.suggested?.lastName ?? null,
 		hasPhoto: profile.hasPhoto,
 		photoUpdatedAt: profile.photoUpdatedAt,
 		phone: profile.phone,
 		phoneLocked: profile.phoneSource === 'nin',
-		rank: profile.rank
+		rank: profile.rank ?? profile.suggested?.rank ?? null
 	};
 };
 
