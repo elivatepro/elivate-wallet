@@ -30,7 +30,9 @@ const POLL_MS = 60_000;
 function read<S extends Schema.ConstraintDecoder<unknown>>(
 	path: string,
 	workspace: string,
-	schema: S
+	schema: S,
+	/** Slice 34: a silent poll (count, tasks); list loads show their errors. */
+	background = false
 ) {
 	return requestJson(
 		{
@@ -40,7 +42,7 @@ function read<S extends Schema.ConstraintDecoder<unknown>>(
 			route: `GET ${path.split('?')[0]}`,
 			headers: { 'x-ew-workspace': workspace },
 			timeoutMs: READ_TIMEOUT_MS,
-			background: true
+			background
 		},
 		schema
 	).pipe(
@@ -166,7 +168,7 @@ export class Bell {
 	async refreshCount(): Promise<void> {
 		const workspace = this.#workspace();
 		if (!workspace) return;
-		const exit = await Effect.runPromiseExit(read(BellRoutes.unread, workspace, UnreadCount));
+		const exit = await Effect.runPromiseExit(read(BellRoutes.unread, workspace, UnreadCount, true));
 		if (!Exit.isSuccess(exit)) return;
 		const changed = exit.value.unread !== this.unread;
 		this.unread = exit.value.unread;
@@ -182,7 +184,7 @@ export class Bell {
 		const workspace = this.#workspace();
 		if (!workspace) return;
 		const exit = await Effect.runPromiseExit(
-			read(`${BellRoutes.list}?view=unread&limit=1`, workspace, NotificationPage)
+			read(`${BellRoutes.list}?view=unread&limit=1`, workspace, NotificationPage, true)
 		);
 		if (Exit.isSuccess(exit) && this.#workspace() === workspace) {
 			this.tasks = countTasks(exit.value.actions);
