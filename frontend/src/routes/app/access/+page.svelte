@@ -20,7 +20,7 @@
 	import Plus from '@lucide/svelte/icons/plus';
 	import Search from '@lucide/svelte/icons/search';
 	import X from '@lucide/svelte/icons/x';
-	import { UID_PATTERN, type Role } from '#lib/contract/common.js';
+	import type { Role } from '#lib/contract/common.js';
 	import {
 		AccessView,
 		AppOrgRoutes,
@@ -47,6 +47,8 @@
 	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import OrgDialog from '#lib/ui/org/OrgDialog.svelte';
 	import OrgHero from '#lib/ui/org/OrgHero.svelte';
+	import PersonPicker from '#lib/ui/org/PersonPicker.svelte';
+	import { pickedUid, type Picked } from '#lib/person-picker.js';
 	import WheelPicker from '#lib/ui/WheelPicker.svelte';
 
 	type Tab = 'roles' | 'access' | 'reviewers';
@@ -180,12 +182,12 @@
 	// ── Cross-access (R03/R04) ──
 	const grant = new OrgCommand();
 	let grantOpen = $state(false);
-	let subjectUid = $state('');
+	let subject = $state<Picked | null>(null);
 	let grantPermissions = $state<string[]>([]);
 	let ruleEffect = $state<'allow' | 'deny'>('allow');
 	let scopeType = $state<'tenant' | 'office_subtree' | 'member'>('office_subtree');
 	let scopeOffice = $state('');
-	let scopeUid = $state('');
+	let scopeMember = $state<Picked | null>(null);
 	let startsOn = $state('');
 	let expiresOn = $state('');
 	/** Grantable: editable, office- or tenant-scoped (A-03); the backend re-checks. */
@@ -204,12 +206,12 @@
 
 	function openGrant() {
 		grant.reset('grant');
-		subjectUid = '';
+		subject = null;
 		grantPermissions = [];
 		ruleEffect = 'allow';
 		scopeType = 'office_subtree';
 		scopeOffice = view?.offices[0]?.id ?? '';
-		scopeUid = '';
+		scopeMember = null;
 		startsOn = today();
 		expiresOn = '';
 		notice = null;
@@ -217,12 +219,10 @@
 	}
 
 	function checkGrant(): string | null {
-		if (!UID_PATTERN.test(subjectUid.trim().toUpperCase())) return 'Enter the person’s UID (EW-…).';
+		if (!pickedUid(subject)) return 'Choose the person.';
 		if (grantPermissions.length === 0) return 'Add at least one permission.';
 		if (scopeType === 'office_subtree' && !scopeOffice) return 'Choose the office.';
-		if (scopeType === 'member' && !UID_PATTERN.test(scopeUid.trim().toUpperCase())) {
-			return 'Enter the member’s UID (EW-…).';
-		}
+		if (scopeType === 'member' && !pickedUid(scopeMember)) return 'Choose the member.';
 		if (ruleEffect === 'allow' && expiresOn && expiresOn <= (startsOn || today())) {
 			return 'The expiry must come after the start.';
 		}
@@ -230,7 +230,8 @@
 	}
 
 	async function submitGrant({ reason, pin }: { reason: string; pin: string | undefined }) {
-		if (!workspace) return;
+		const subjectUid = pickedUid(subject);
+		if (!workspace || !subjectUid) return;
 		const starts =
 			startsOn && startsOn > today() ? new Date(`${startsOn}T00:00:00`).toISOString() : null;
 		const expires =
@@ -240,19 +241,19 @@
 			effect: ruleEffect,
 			scopeType,
 			...(scopeType === 'office_subtree' ? { scopeOfficeId: scopeOffice } : {}),
-			...(scopeType === 'member' ? { scopeUid: scopeUid.trim().toUpperCase() } : {}),
+			...(scopeType === 'member' ? { scopeUid: pickedUid(scopeMember) } : {}),
 			...(starts ? { startsAt: starts } : {}),
 			...(expires ? { expiresAt: expires } : {})
 		}));
 		const ok = await grant.send(
 			AppOrgRoutes.access,
 			'POST',
-			{ subjectUid: subjectUid.trim().toUpperCase(), rules, reason, ...(pin ? { pin } : {}) },
+			{ subjectUid, rules, reason, ...(pin ? { pin } : {}) },
 			workspace.membershipId
 		);
 		if (ok) {
 			grantOpen = false;
-			notice = `Cross-access saved for ${subjectUid.trim().toUpperCase()}.`;
+			notice = `Cross-access saved for ${subject?.kind === 'person' ? (subject.name ?? subjectUid) : subjectUid}.`;
 			tab = 'access';
 			await load();
 		}
@@ -775,14 +776,11 @@
 	onConfirm={submitGrant}
 >
 	<div class="o-field">
-		<label for="grant-subject">Person (UID)</label>
-		<input
+		<label for="grant-subject">Person</label>
+		<PersonPicker
 			id="grant-subject"
-			class="o-input o-mono"
-			placeholder="EW-00000"
-			autocomplete="off"
-			autocapitalize="characters"
-			bind:value={subjectUid}
+			bind:value={subject}
+			networkName={workspace?.tenantName ?? null}
 		/>
 	</div>
 	<div class="o-field">
@@ -867,12 +865,11 @@
 		</div>
 	{:else if scopeType === 'member'}
 		<div class="o-field">
-			<label for="grant-member">Member (UID)</label>
-			<input
+			<label for="grant-member">Member</label>
+			<PersonPicker
 				id="grant-member"
-				class="o-input o-mono"
-				placeholder="EW-00000"
-				bind:value={scopeUid}
+				bind:value={scopeMember}
+				networkName={workspace?.tenantName ?? null}
 			/>
 		</div>
 	{/if}

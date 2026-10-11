@@ -7,7 +7,6 @@
 <script lang="ts">
 	import '#lib/ui/org/org.css';
 	import { getContext } from 'svelte';
-	import { UID_PATTERN } from '#lib/contract/common.js';
 	import { AppOrgRoutes, MemberRows, type MemberRow } from '#lib/contract/org-admin.js';
 	import { loadView, OrgCommand } from '#lib/client/org.svelte.js';
 	import { cachedPage } from '#lib/client/page-cache.svelte.js';
@@ -15,6 +14,8 @@
 	import { personName } from '#lib/org.js';
 	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import PinField from '#lib/ui/auth/PinField.svelte';
+	import PersonPicker from '#lib/ui/org/PersonPicker.svelte';
+	import { pickedUid, type Picked } from '#lib/person-picker.js';
 
 	const shell = getContext<Shell>('shell');
 	const workspace = $derived(shell.state.kind === 'ready' ? shell.state.view.workspace : null);
@@ -26,7 +27,7 @@
 	});
 	const items = $derived(view.data?.items ?? null);
 	const loadError = $derived(view.data ? null : view.error);
-	let uid = $state('');
+	let person = $state<Picked | null>(null);
 	let reason = $state('');
 	let removing = $state<MemberRow | null>(null);
 	let notice = $state<string | null>(null);
@@ -50,21 +51,22 @@
 				workspace.membershipId
 			));
 		} else {
-			if (!UID_PATTERN.test(uid.trim().toUpperCase())) {
-				command.error = 'Enter the person’s UID (EW-…).';
+			const memberUid = pickedUid(person);
+			if (!memberUid) {
+				command.error = 'Choose the person.';
 				return;
 			}
 			ok = !!(await command.send(
 				AppOrgRoutes.presidents,
 				'POST',
-				{ ...body, memberUid: uid.trim().toUpperCase() },
+				{ ...body, memberUid },
 				workspace.membershipId
 			));
 		}
 		if (ok) {
 			notice = removing ? 'Removed from the President Team.' : 'Added to the President Team.';
 			removing = null;
-			uid = '';
+			person = null;
 			reason = '';
 			await view.reload();
 		}
@@ -107,8 +109,8 @@
 		{#if command.error}<p class="o-field-error" role="alert">{command.error}</p>{/if}
 		{#if !removing}
 			<div class="o-field">
-				<label for="pt-uid">UID</label>
-				<input id="pt-uid" class="o-input o-mono" placeholder="EW-00000" bind:value={uid} />
+				<label for="pt-uid">Person</label>
+				<PersonPicker id="pt-uid" bind:value={person} networkName={workspace?.tenantName ?? null} />
 			</div>
 		{/if}
 		<div class="o-field">

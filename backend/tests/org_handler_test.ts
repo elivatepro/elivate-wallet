@@ -353,3 +353,23 @@ Deno.test("a blocked switch and the setup gate map to the envelope", async () =>
     assertEquals(json.error.details, details);
   }
 });
+
+// Blueprint 27: the person picker's search.
+Deno.test("find people: one call in the workspace; the query is checked first", async () => {
+  const { handler, calls } = setup();
+  const response = await handler(request("GET", "/people?q=fem"));
+  assertEquals(response.status, 200);
+  assertEquals(calls, [{
+    fn: "find_people",
+    args: {
+      p_user_id: actor.userId,
+      p_session_id: actor.sessionId,
+      p_membership_id: membershipId,
+      p_query: "fem",
+    },
+  }]);
+  for (const path of ["/people", "/people?q=f", "/people?q=%20%20", "/people?q=fem&x=1"]) {
+    assertEquals((await handler(request("GET", path))).status, 400);
+  }
+  assertEquals(calls.length, 1);
+});

@@ -30,13 +30,17 @@ export async function orgRead<A>(
 export function orgCommand<S extends Schema.ConstraintDecoder<{ pin?: string }>>(
 	event: RequestEvent,
 	schema: S,
-	route: (body: S['Type']) => EdgeRoute
+	route: (body: S['Type']) => EdgeRoute,
+	/** Blueprint 27: reshapes the body for another function (e.g. `invitations`). */
+	target?: { fn: 'invitations'; body: (body: S['Type']) => Record<string, unknown> }
 ): Promise<Response> {
 	return relayCommand(event, schema, (membershipId, body) =>
 		Effect.gen(function* () {
-			const rest: Record<string, unknown> = { ...(body as Record<string, unknown>) };
+			const rest: Record<string, unknown> = target
+				? target.body(body)
+				: { ...(body as Record<string, unknown>) };
 			delete rest.pin;
-			return yield* (yield* OrgAdminApi).command(route(body), rest, membershipId);
+			return yield* (yield* OrgAdminApi).command(route(body), rest, membershipId, target?.fn);
 		})
 	);
 }

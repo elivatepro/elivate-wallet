@@ -241,6 +241,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
         "role",
         "email",
         "reason",
+        "replacesMembershipId",
         "idempotencyKey",
       ]);
       const args = {
@@ -249,10 +250,43 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
         p_role: oneOf(v.text(body, "role", 30), "role", roles),
         p_email: email(body),
         p_reason: optionalReason(body),
+        // Blueprint 27: a leader invitation that replaces a current leader on accept.
+        p_replaces_membership_id: body.replacesMembershipId === undefined ||
+            body.replacesMembershipId === null
+          ? null
+          : v.uuid(body, "replacesMembershipId"),
         p_idempotency_key: v.idempotencyKey(body),
       };
       const link = await deps.issueToken();
       return call("create_invitation", {
+        ...args,
+        p_token_id: link.tokenId,
+        p_token_digest: link.digest,
+      });
+    }),
+
+    // Blueprint 27: a new office whose leader is invited by email (President
+    // Team; the reason is filled in by the backend).
+    route("POST", "/office", async (c) => {
+      const body = await v.readBody(c.request, [
+        "type",
+        "name",
+        "parentOfficeId",
+        "email",
+        "idempotencyKey",
+      ]);
+      const args = {
+        ...commandInWorkspace(c),
+        p_type: oneOf(v.text(body, "type", 20), "type", ["world_team", "director", "team_leader"]),
+        p_name: v.name(body),
+        p_parent_office_id: body.parentOfficeId === undefined || body.parentOfficeId === null
+          ? null
+          : v.uuid(body, "parentOfficeId"),
+        p_email: email(body),
+        p_idempotency_key: v.idempotencyKey(body),
+      };
+      const link = await deps.issueToken();
+      return call("create_office_inviting_leader", {
         ...args,
         p_token_id: link.tokenId,
         p_token_digest: link.digest,

@@ -60,11 +60,40 @@ test('President manages offices, a role permission and reads the audit log', asy
 	await create.getByLabel('Office name').fill('Lagos office');
 	await create.getByText('Team office', { exact: true }).click();
 	await pick(create.getByLabel('Parent office'), 'Org World Team');
-	await create.getByLabel('Team Leader UID').fill(uid);
+	// Blueprint 27: the person picker finds the leader by UID.
+	await create.getByLabel('Team Leader').fill(uid);
+	await create.getByRole('option', { name: new RegExp(uid) }).click();
+	await expect(create.getByTestId('picked')).toContainText(uid);
 	await create.getByLabel('Your PIN').fill(PIN);
 	await create.getByRole('button', { name: 'Create office' }).click();
 	await expect(page.getByText('Lagos office created.')).toBeVisible();
 	await expect(page.getByRole('heading', { name: '2 offices' })).toBeVisible();
+
+	// Blueprint 27 (Paper PP02/PP03): a leader with no account is invited by
+	// email; the office waits for its leader.
+	const newLeader = uniqueEmail('org-lead');
+	await page.getByRole('button', { name: 'New office' }).click();
+	const invite = page.getByRole('dialog', { name: 'New office' });
+	await invite.getByLabel('Office name').fill('Ibadan office');
+	await invite.getByText('Team office', { exact: true }).click();
+	await pick(invite.getByLabel('Parent office'), 'Org World Team');
+	await invite.getByLabel('Team Leader').fill(newLeader);
+	await invite.getByRole('option', { name: `Invite ${newLeader}` }).click();
+	await expect(invite.getByText('No account yet · we’ll invite them')).toBeVisible();
+	await invite.getByLabel('Your PIN').fill(PIN);
+	await invite.getByRole('button', { name: 'Create and invite' }).click();
+	await expect(
+		page.getByText(`Ibadan office created. ${newLeader} was invited to lead it.`)
+	).toBeVisible();
+	await page.getByRole('link', { name: /Ibadan office/ }).click();
+	await expect(page.getByRole('heading', { name: 'Ibadan office' })).toBeVisible();
+	const leaderCard = page.getByRole('region', { name: 'Team Leader' });
+	await expect(leaderCard.getByText('Waiting for its leader')).toBeVisible();
+	await expect(leaderCard.getByText(newLeader, { exact: false })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Resend invite' })).toBeVisible();
+	await expectAccessible(page);
+	await page.goto('/app/offices');
+	await expect(page.getByRole('heading', { name: '3 offices' })).toBeVisible();
 
 	// O07/O10: detail and rename.
 	await page.getByRole('link', { name: /Lagos office/ }).click();

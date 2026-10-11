@@ -68,7 +68,7 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
 
 - One slice at a time, in worktree `../elivate-wallet-worktrees/<nn-name>` from fresh
   `origin/main` (copy `backend/supabase/.temp` in). Blueprint `docs/blueprints/NN-*.md`;
-  migrations `20261009NNxxxx`, pgTAP `NN0_` (next: `27`/`270_`).
+  migrations `20261009NNxxxx`, pgTAP `NN0_` (next: `28`/`280_`).
 - Checks: `backend/scripts/verify-database.sh`, `deno task check`; frontend `pnpm check`,
   `pnpm lint`, `pnpm test:unit`, e2e via `frontend/scripts/e2e-local.sh` (fake Cloudflare into
   local Mailpit). The local stack is shared: hold the `/tmp/elivate-supabase.lock` directory
@@ -99,4 +99,6 @@ code preload of every screen, page swap. Slice 24 (Blueprint 24, frontend only):
 wheel picker, with search for long lists and banks, for every member-app dropdown. Slice 25
 (Blueprint 25): pill tab bar per role, sectioned sidebar, network home with "Offices this month"
 (`api.leadership_offices`). Slice 26 (owner fix, no blueprint): the setup profile step starts from the
-founder application's name and rank (`suggested` on the profile read). Next: set-based authorization reads.
+founder application's name and rank (`suggested` on the profile read). Slice 27 (Blueprint 27): one
+person picker (name, email or UID) on every person field, leaders invited by email (offices wait
+for their leader; replacements happen on accept). Next: set-based authorization reads.

@@ -403,6 +403,8 @@ export function describeOrgFailure(failure: ApiFailure | undefined): Outcome {
 			};
 		case 'last_president':
 			return { kind: 'message', text: 'The network keeps at least one President Team Member.' };
+		case 'invitation_exists':
+			return { kind: 'message', text: 'That email already has an open invitation here.' };
 		case 'membership_exists':
 			return { kind: 'message', text: 'That person already holds this role here.' };
 		case 'role_office_mismatch':

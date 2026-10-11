@@ -83,6 +83,7 @@ Invitation lifecycle is distinct from membership. An expired token cannot leave 
 
 **Owner decisions (2026-10-08):**
 - **Who may invite whom:** `member` invitations by any `invite_members` holder within their scope. Leader roles (`team_leader`, `director`, `world_team_member`) only into offices strictly **below** the inviter's own office, with reason and PIN; the President Team may invite leaders into any office. A President Team Member is never invited; they are added through W-05.
+- **Person picker and leaders by email (owner decision 2026-10-11, Blueprint 27):** forms that name a person (new office leader, change leader, access rules, President Team) take a name, an email or a UID. A name matches only the people the workspace can see in the network; a UID or a full email matches any account exactly. Only the leader forms invite an email with no account: New office creates the office waiting for its leader (reason filled in); Change leader keeps the current leader until the invitation is accepted, and the replacement happens then. A lapsed invitation leaves a waiting office waiting.
 - **Lifetime:** an invitation link lasts 7 days.
 - **Resend:** issues a fresh link; the old link stops working immediately and the 7 days restart. At most 5 reissues per invitation and 1 per minute. Expired or revoked invitations cannot be reissued.
 - **Revoke:** a reason (3–500 characters) is required.
@@ -116,7 +117,7 @@ Invitation lifecycle is distinct from membership. An expired token cannot leave 
 "Classification" means a membership's organizational role (Notion main spec: "Change member classifications"); there is no separate classification catalogue or permission. Because a membership has one fixed role, changing a role is carried out as a replacement (end the old membership, create the new one), never an in-place edit.
 
 **Owner decisions (2026-10-07):**
-- President Team Members create offices of every type in the app, including World Team offices. A leader is required when an office is created.
+- President Team Members create offices of every type in the app, including World Team offices. A leader is required when an office is created; since 2026-10-11 (Blueprint 27) they may be named by email and invited, and the office waits for its leader until they accept.
 - Changing an office's leader **replaces** the leader: the outgoing leader's leadership membership for that office ends, and the incoming leader receives a new active leadership membership for it (ending any membership they held in that same office). Other memberships, the wallet and all financial provenance are untouched. If the outgoing leader should stay in the network, that is a separate add-membership action.
 - A reason is mandatory to move, suspend or end a membership and to change a leader; it is recorded with actor and time.
 - Office money views and reports show the **total for the office and everything below it** (full descendant subtree), per currency, never mixing currencies.
@@ -124,7 +125,7 @@ Invitation lifecycle is distinct from membership. An expired token cannot leave 
 **Owner decisions (2026-10-08):**
 - Offices have no fixed chain. An office sits at the top of the tenant or under an office of a strictly higher kind (World Team > Director > Team Leader). A President Team Member can later place an office (with its subtree) under a new higher office, for example a World Team added above an existing Team Leader office. Reason and step-up required; money provenance is unchanged and subtree views follow the current tree.
 - Ordinary `member` memberships may sit in any office kind.
-- An office may have several leaders: every active membership holding the office kind's leader role is a leader, and an active office keeps at least one. Leaders can be added, or replaced one-for-one under the replacement rule above; the last leader cannot be ended or moved.
+- An office may have several leaders: every active membership holding the office kind's leader role is a leader, and an office that has had a leader keeps at least one (2026-10-11: an office still waiting for its invited leader has none yet). Leaders can be added, or replaced one-for-one under the replacement rule above; the last leader cannot be ended or moved.
 - Only President Team Members add or remove President Team Members, with reason and step-up; at least one always remains.
 - Moving, suspending and ending a membership require step-up (the PIN) in addition to the reason.
 - **Close office (owner decision 2026-10-08):** the President Team closes an office with a reason and step-up, only when it has no active members (its leaders aside), no open offices below it and no money held in it (posted or reserved, any currency). Memberships still on it (its leaders, suspended members) are archived (ended with the reason); pending invitations into it are revoked and reviewer assignments held through those memberships end. A closed office is read-only: no memberships, invitations or child offices can be added, and it shows why and when it closed.
