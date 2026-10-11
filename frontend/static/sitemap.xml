@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Slice 33: the public pages of app.elivatewallet.com. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+	<url><loc>https://app.elivatewallet.com/sign-in</loc></url>
+	<url><loc>https://app.elivatewallet.com/apply</loc></url>
+	<url><loc>https://app.elivatewallet.com/forgot-password</loc></url>
+</urlset>
