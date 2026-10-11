@@ -350,6 +350,7 @@ begin
       where office_id = invitation.office_id and user_id = p_user_id and status <> 'ended'
     loop
       perform org.end_membership(existing.id, invitation.reason, invitation.invited_by);
+      perform org.end_reviewer_for(existing.id, invitation.reason, invitation.invited_by, p_request_id);
     end loop;
   end if;
 
@@ -362,6 +363,7 @@ begin
     if outgoing.status <> 'ended' and outgoing.office_id = invitation.office_id and outgoing.role = invitation.role
        and outgoing.user_id <> p_user_id then
       perform org.end_membership(outgoing.id, invitation.reason, invitation.invited_by, 'replaced', created.id);
+      perform org.end_reviewer_for(outgoing.id, invitation.reason, invitation.invited_by, p_request_id);
       perform org.ensure_primary(invitation.tenant_id, outgoing.user_id);
       perform org.ensure_primary(invitation.tenant_id, p_user_id);
       perform audit.record_tenant(invitation.tenant_id, invitation.invited_by, 'office.leader_replaced', 'office',
