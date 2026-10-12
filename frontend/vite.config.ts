@@ -1,7 +1,18 @@
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vitest/config';
 import adapter from '@sveltejs/adapter-cloudflare';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { precachePlugin } from './scripts/precache-plugin.ts';
+
+// Blueprint 35: app.html's one inline script (the launch animation's
+// once-per-session switch) is allowed by its hash, taken from the file itself
+// so it can never drift. Inline, it costs no request on any page.
+const launchScript = /<script data-launch>([\s\S]*?)<\/script>/.exec(
+	readFileSync(new URL('./src/app.html', import.meta.url), 'utf8')
+)?.[1];
+if (launchScript === undefined) throw new Error('app.html: <script data-launch> not found');
+const launchHash = `sha256-${createHash('sha256').update(launchScript).digest('base64')}` as const;
 
 export default defineConfig({
 	plugins: [
@@ -20,7 +31,12 @@ export default defineConfig({
 					'default-src': ['self'],
 					// Cloudflare Turnstile on the auth forms (Blueprint 10). Chatwoot
 					// Cloud's support chat (Blueprint 17, W-21), loaded only on Start a chat.
-					'script-src': ['self', 'https://challenges.cloudflare.com', 'https://app.chatwoot.com'],
+					'script-src': [
+						'self',
+						launchHash,
+						'https://challenges.cloudflare.com',
+						'https://app.chatwoot.com'
+					],
 					'frame-src': ['https://challenges.cloudflare.com', 'https://app.chatwoot.com'],
 					'style-src': ['self', 'unsafe-inline'],
 					// blob: shows the chosen profile photo or logo before upload.

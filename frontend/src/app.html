@@ -149,9 +149,18 @@
 		<meta name="apple-mobile-web-app-title" content="Wallet" />
 		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 		<!-- Blueprint 35: launch animation (Paper "Install app v9" L02–L05). Installed app only,
-		     once per session (launch.js), never with reduced motion. It starts from the phone's
-		     own still launch screen: #111314 with the mark centred. -->
-		<script src="/launch.js"></script>
+		     once per session (the script below, allowed by its hash in vite.config.ts), never with
+		     reduced motion. It starts from the phone's own still launch screen: #111314 with the
+		     mark centred. -->
+		<script data-launch>
+			try {
+				if (sessionStorage.getItem('ew:launched'))
+					document.documentElement.classList.add('ew-launched');
+				else sessionStorage.setItem('ew:launched', '1');
+			} catch {
+				document.documentElement.classList.add('ew-launched');
+			}
+		</script>
 		<style>
 			.ew-launch {
 				display: none;

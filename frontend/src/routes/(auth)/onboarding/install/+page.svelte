@@ -28,7 +28,10 @@
 	let form: HTMLFormElement | undefined = $state();
 	/** The browser's own answer (an iPad says "Mac" to the server). */
 	let measured = $state<InstallDevice | null>(null);
-	/** The install prompt didn't come: this browser can't install (or already has). */
+	/**
+	 * The install prompt didn't come or was dismissed: this browser can't
+	 * install, already has, or won't offer it again on this page.
+	 */
 	let gaveUp = $state(false);
 	let prompting = $state(false);
 	let leaving = $state(false);
@@ -76,7 +79,7 @@
 		if (cannot) {
 			return {
 				title: desktop ? 'Install Elivate Wallet' : 'Put Elivate Wallet on your home screen',
-				lead: 'This browser can’t install it. Try Chrome or Edge, or continue for now.'
+				lead: 'Your browser isn’t offering to install it right now. Look for Install or Add to Home screen in its menu, or continue for now.'
 			};
 		}
 		if (device === 'ios') {
