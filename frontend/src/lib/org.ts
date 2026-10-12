@@ -235,7 +235,7 @@ export function searchPermissions(
 ) {
 	const words = query.toLowerCase().split(/\s+/).filter(Boolean);
 	const matches = (key: string) => {
-		const text = `${permissionLabel(key)} ${key.replaceAll('_', ' ')}`.toLowerCase();
+		const text = `${permissionLabel(key)} ${key} ${key.replaceAll('_', ' ')}`.toLowerCase();
 		return words.every((w) => text.includes(w));
 	};
 	return groups

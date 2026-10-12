@@ -173,6 +173,16 @@ test('President manages offices, a role permission and reads the audit log', asy
 	);
 	await page.getByRole('searchbox', { name: 'Search permissions' }).fill('zzz');
 	await expect(page.getByText('No permission matches “zzz”.')).toBeVisible();
+	// Phones: the assigned evidence row shows too, and the role chips stay.
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.getByRole('searchbox', { name: 'Search permissions' }).fill('financial evidence');
+	await expect(page.getByRole('button', { name: /^0 named/ })).toBeVisible();
+	await page.getByRole('searchbox', { name: 'Search permissions' }).fill('behalf');
+	await page.getByRole('button', { name: 'Director', exact: true }).click();
+	await expect(
+		page.getByRole('switch', { name: 'Withdraw on behalf for Director' })
+	).toHaveAttribute('aria-checked', 'false');
+	await page.setViewportSize({ width: 1280, height: 720 });
 	await expectAccessible(page);
 
 	// F05: the audit log shows what happened.

@@ -696,6 +696,17 @@
 						{/if}
 					</section>
 				{/each}
+				{#if searching && evidenceShown}
+					<section class="o-card">
+						<div class="m-row">
+							<span class="o-grow">{permissionLabel('review_financial_evidence')}</span>
+							<button type="button" class="named" onclick={() => (tab = 'reviewers')}
+								>{reviewerCount} named
+								<ChevronRight size={14} strokeWidth={1.8} aria-hidden="true" /></button
+							>
+						</div>
+					</section>
+				{/if}
 			</div>
 		{/if}
 
@@ -1090,6 +1101,21 @@
 		cursor: pointer;
 	}
 
+	.named {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		height: 28px;
+		padding: 0 12px;
+		border: 1px solid var(--color-accent-ring);
+		border-radius: var(--radius-pill);
+		background: var(--color-accent-subtle);
+		color: var(--o-coral-ink);
+		font: inherit;
+		font-size: 12px;
+		cursor: pointer;
+	}
+
 	.group:disabled,
 	.m-group:disabled {
 		cursor: default;
@@ -1455,21 +1481,6 @@
 			display: flex;
 			justify-content: flex-end;
 			width: calc(5 * 96px + 4 * 8px);
-		}
-
-		.named {
-			display: inline-flex;
-			align-items: center;
-			gap: 6px;
-			height: 28px;
-			padding: 0 12px;
-			border: 1px solid var(--color-accent-ring);
-			border-radius: var(--radius-pill);
-			background: var(--color-accent-subtle);
-			color: var(--o-coral-ink);
-			font: inherit;
-			font-size: 12px;
-			cursor: pointer;
 		}
 
 		.savebar {

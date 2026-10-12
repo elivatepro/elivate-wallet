@@ -197,6 +197,11 @@ describe('searchPermissions (Blueprint 37)', () => {
 			'review_identity'
 		]);
 	});
+	it('a pasted permission key matches', () => {
+		expect(searchPermissions(all, 'withdraw_on_behalf').flatMap((g) => g.keys)).toEqual([
+			'withdraw_on_behalf'
+		]);
+	});
 	it('an empty query keeps everything; no match keeps nothing', () => {
 		expect(searchPermissions(all, '').flatMap((g) => g.keys)).toEqual(all.flatMap((g) => g.keys));
 		expect(searchPermissions(all, 'zzz')).toEqual([]);
