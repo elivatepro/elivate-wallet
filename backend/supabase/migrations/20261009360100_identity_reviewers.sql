@@ -106,6 +106,60 @@ begin
 end;
 $$;
 
+-- ── Bell tasks for reviewers who gain the permission ──────────────────────
+
+-- One review's task to everyone who may decide it (same item and dedupe key as
+-- Blueprint 13, so offering it again is a no-op for people who already have it).
+create function notify.offer_nin_review(p_review identity.nin_reviews)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  holder uuid;
+  base jsonb;
+begin
+  base := jsonb_build_object('member', notify.full_name(p_review.user_id),
+    'office', coalesce(notify.office((select office_id from org.memberships where id = p_review.membership_id)),
+      notify.network(p_review.tenant_id)),
+    'path', '/app/reviews');
+  for holder in
+    select distinct m.user_id from org.memberships m
+    where m.tenant_id = p_review.tenant_id and m.status = 'active' and identity.can_review(m, p_review)
+  loop
+    perform notify.emit(holder, p_review.tenant_id, 'task.nin_review', 'nin_review', p_review.id, base,
+      'nin_review.requested:' || p_review.id::text);
+  end loop;
+end;
+$$;
+
+create or replace function notify.on_nin_review()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  perform notify.offer_nin_review(new);
+  return null;
+end;
+$$;
+
+-- After a role switch or a Cross-access grant: the waiting reviews reach the
+-- people who can now decide them.
+create function notify.offer_pending_nin_reviews(p_tenant_id uuid)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  review identity.nin_reviews;
+begin
+  for review in select * from identity.nin_reviews where tenant_id = p_tenant_id and status = 'pending' loop
+    perform notify.offer_nin_review(review);
+  end loop;
+end;
+$$;
+
 -- ── Role permissions: the locked cell ─────────────────────────────────────
 
 create or replace function api.list_role_permissions(p_user_id uuid, p_session_id uuid, p_membership_id uuid)
@@ -191,6 +245,9 @@ begin
   set allowed = p_allowed, updated_by = p_user_id, updated_at = now()
   where tenant_id = workspace.tenant_id and role = p_role::org.role and permission_key = p_permission_key;
   perform org.bump_authz_version(workspace.tenant_id);
+  if p_permission_key = 'review_identity' and p_allowed then
+    perform notify.offer_pending_nin_reviews(workspace.tenant_id);
+  end if;
   perform audit.record_tenant(workspace.tenant_id, p_user_id, 'role_permission.changed', 'role_permission',
     p_role || ':' || p_permission_key, clean_reason,
     jsonb_build_object('allowed', previous), jsonb_build_object('allowed', p_allowed), p_request_id);
@@ -336,6 +393,10 @@ begin
   from jsonb_array_elements(parsed) r;
 
   perform org.bump_authz_version(workspace.tenant_id);
+  if exists (select 1 from jsonb_array_elements(parsed) r
+             where r->>'permission' = 'review_identity' and r->>'effect' = 'allow') then
+    perform notify.offer_pending_nin_reviews(workspace.tenant_id);
+  end if;
   perform audit.record_tenant(workspace.tenant_id, p_user_id, 'access.assigned', 'access_assignment', assignment_id::text,
     clean_reason, p_safe_after => jsonb_build_object('rules', jsonb_array_length(parsed)), p_request_id => p_request_id);
 
@@ -344,5 +405,77 @@ begin
 end;
 $$;
 
+-- As in Blueprint 16, plus: only the President Team revokes identity review rules.
+create or replace function api.revoke_access_assignment(
+  p_user_id uuid,
+  p_session_id uuid,
+  p_membership_id uuid,
+  p_assignment_id uuid,
+  p_reason text,
+  p_idempotency_key text,
+  p_request_id text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  workspace org.memberships;
+  assignment authz.access_assignments;
+  clean_reason text;
+  request jsonb;
+  replayed jsonb;
+begin
+  perform org.require_writer(p_user_id, p_session_id, true);
+  workspace := org.change_workspace(p_user_id, p_membership_id);
+  perform org.require_active_tenant(workspace.tenant_id);
+  select * into assignment from authz.access_assignments where id = p_assignment_id and tenant_id = workspace.tenant_id;
+  if assignment.id is null then
+    perform identity.fail('not_found');
+  end if;
+  if assignment.subject_user_id = p_user_id then
+    perform identity.fail('self_target_forbidden');
+  end if;
+  -- Checked against the person revoking, not the original creator.
+  if not authz.covers_assignment(p_user_id, assignment.id, workspace.id) then
+    perform identity.fail('scope_exceeds_authority');
+  end if;
+  -- Blueprint 36: identity review rules (grants or denies) are the President Team's.
+  if workspace.role <> 'president_team_member' and exists (
+    select 1 from authz.access_rules where assignment_id = assignment.id and permission_key = 'review_identity'
+  ) then
+    perform identity.fail('permission_not_grantable',
+      jsonb_build_object('permission', 'review_identity', 'reason', 'president_only'));
+  end if;
+  clean_reason := identity.require_reason(p_reason);
+
+  request := jsonb_build_object('assignmentId', assignment.id, 'reason', clean_reason);
+  replayed := identity.replay(p_user_id, p_idempotency_key, 'revoke_access_assignment', request);
+  if replayed is not null then
+    return replayed;
+  end if;
+
+  select * into assignment from authz.access_assignments where id = assignment.id for update;
+  if assignment.revoked_at is not null then
+    return identity.store_result(p_user_id, p_idempotency_key, 'revoke_access_assignment', request,
+      jsonb_build_object('assignmentId', assignment.id, 'changed', false));
+  end if;
+
+  update authz.access_assignments
+  set revoked_at = now(), revoked_by = p_user_id, revoke_reason = clean_reason
+  where id = assignment.id;
+  update authz.access_rules set revoked_at = now() where assignment_id = assignment.id and revoked_at is null;
+  perform org.bump_authz_version(workspace.tenant_id);
+  perform audit.record_tenant(workspace.tenant_id, p_user_id, 'access.revoked', 'access_assignment', assignment.id::text,
+    clean_reason, p_request_id => p_request_id);
+
+  return identity.store_result(p_user_id, p_idempotency_key, 'revoke_access_assignment', request,
+    jsonb_build_object('assignmentId', assignment.id, 'changed', true));
+end;
+$$;
+
 revoke all on function authz.locked_cell(org.role, text) from public, anon, authenticated;
 revoke all on function identity.reviews_identities(org.memberships) from public, anon, authenticated;
+revoke all on function notify.offer_nin_review(identity.nin_reviews) from public, anon, authenticated;
+revoke all on function notify.offer_pending_nin_reviews(uuid) from public, anon, authenticated;

@@ -5,7 +5,7 @@
 begin;
 set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
-select plan(22);
+select plan(26);
 
 create function pg_temp.u(n int) returns uuid language sql immutable as
   $$ select ('10000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
@@ -86,10 +86,12 @@ select is((select (e->>'editable')::boolean from jsonb_array_elements(
   where e->>'permission' = 'review_identity' and e->>'role' = 'world_team_member'), true,
   'the World Team cell is switchable');
 
--- ── Switched on for Team Leaders (7) ──
+-- ── Switched on for Team Leaders (8) ──
 select throws_ok($$ select pg_temp.sees(4, pg_temp.m(4, pg_temp.id('T'))) $$, 'P0001', 'authorization_denied',
   'a Team Leader cannot review by default');
 select lives_ok($$ select pg_temp.switch('team_leader', true) $$, 'the President Team switches it on for Team Leaders');
+select is((select count(*)::int from notify.items where user_id = pg_temp.u(4) and kind = 'task.nin_review'
+  and subject_id = pg_temp.id('r5')), 1, 'the waiting review reaches the Team Leader''s bell');
 select is(pg_temp.sees(4, pg_temp.m(4, pg_temp.id('T'))), 1, 'the Team Leader sees their office''s review only');
 select ok((api.my_capabilities(pg_temp.u(4), pg_temp.s(4), pg_temp.m(4, pg_temp.id('T')))->'permissions') ? 'review_identity',
   'the Team Leader''s capabilities include it (the nav shows Identity reviews)');
@@ -106,7 +108,7 @@ select lives_ok($$ select pg_temp.switch('world_team_member', false) $$, 'the Wo
 select throws_ok($$ select pg_temp.sees(7, pg_temp.m(7, pg_temp.id('W2'))) $$, 'P0001', 'authorization_denied',
   'the World Team no longer reviews');
 
--- ── Cross-access (5) ──
+-- ── Cross-access (6) ──
 select throws_ok($$ select api.create_access_assignment(pg_temp.u(3), pg_temp.s(3), pg_temp.m(3, pg_temp.id('D')),
   pg_temp.uid(4), jsonb_build_array(jsonb_build_object('permission', 'review_identity', 'effect', 'allow',
     'scopeType', 'office_subtree', 'scopeOfficeId', pg_temp.id('T'))), 'Cover reviews', pg_temp.k()) $$,
@@ -115,6 +117,8 @@ select lives_ok($$ select api.create_access_assignment(pg_temp.u(1), pg_temp.s(1
   jsonb_build_array(jsonb_build_object('permission', 'review_identity', 'effect', 'allow', 'scopeType', 'tenant')),
   'Covers identity reviews network-wide', pg_temp.k()) $$, 'the President Team gives it to one Director');
 select is(pg_temp.sees(3, pg_temp.m(3, pg_temp.id('D'))), 1, 'that Director sees the review in another World Team');
+select is((select count(*)::int from notify.items where user_id = pg_temp.u(3) and kind = 'task.nin_review'
+  and subject_id = pg_temp.id('r6')), 1, 'and gets its bell task');
 select is(api.decide_nin_review(pg_temp.u(3), pg_temp.s(3), pg_temp.m(3, pg_temp.id('D')), pg_temp.id('r6'),
   'reject', 'Name unreadable', pg_temp.k())->>'status', 'rejected', 'and decides it');
 select is(pg_temp.sees(1, pg_temp.m(1)), 0, 'nothing left for the President Team');
@@ -124,6 +128,16 @@ do $$ begin perform api.add_membership(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1),
 insert into ids select 'r3', pg_temp.request(3, pg_temp.id('T'));
 select is(pg_temp.sees(3, pg_temp.m(3, pg_temp.id('D'))), 0, 'a reviewer never sees their own review');
 select is(pg_temp.sees(4, pg_temp.m(4, pg_temp.id('T'))), 1, 'their Team Leader does');
+
+-- ── Only the President Team revokes identity review rules (2) ──
+insert into ids select 'deny4', (api.create_access_assignment(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1), pg_temp.uid(4),
+  jsonb_build_array(jsonb_build_object('permission', 'review_identity', 'effect', 'deny',
+    'scopeType', 'office_subtree', 'scopeOfficeId', pg_temp.id('T'))), 'Related to the team', pg_temp.k())->>'assignmentId')::uuid;
+select throws_ok($$ select api.revoke_access_assignment(pg_temp.u(3), pg_temp.s(3), pg_temp.m(3, pg_temp.id('D')),
+  pg_temp.id('deny4'), 'Lift it', pg_temp.k()) $$, 'P0001', 'permission_not_grantable',
+  'a Director cannot lift the President''s identity review deny');
+select lives_ok($$ select api.revoke_access_assignment(pg_temp.u(1), pg_temp.s(1), pg_temp.m(1),
+  pg_temp.id('deny4'), 'Lift it', pg_temp.k()) $$, 'the President Team can');
 
 select * from finish();
 rollback;

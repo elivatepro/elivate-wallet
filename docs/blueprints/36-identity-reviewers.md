@@ -31,6 +31,11 @@ group, and one more permission in the Cross-access picker (R03/R04). Migration
   (`permission_not_grantable`, `president_only`), because Directors and the World Team hold
   `manage_access_rules` for their offices. The Directors' and World Team's picker leaves it out
   (it sits in its own "Identity" group).
+- **Revoking** a Cross-access assignment that holds a `review_identity` rule (grant or deny) is
+  President Team only too, so a Director cannot lift the President's deny.
+- **Bell:** switching the permission on for a role, or granting it through Cross-access, offers the
+  waiting reviews to the new reviewers (`notify.offer_pending_nin_reviews`; same dedupe key as the
+  original task, so nobody gets it twice).
 - **Navigation:** "Identity reviews" follows the `review_identity` capability (role defaults
   stand in before the capabilities load or offline).
 - A network awaiting payment no longer reviews identities (the resolver denies every permission
