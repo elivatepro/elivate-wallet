@@ -15,7 +15,8 @@ import {
 	inviteMember,
 	pick,
 	setJoinPassword,
-	uniqueEmail
+	uniqueEmail,
+	skipInstall
 } from './helpers';
 
 const PASSWORD = 'correct-horse-battery';
@@ -123,6 +124,7 @@ test('Profile & security: change PIN, devices and profile edit', async ({ page, 
 	await page.getByLabel('Account number').fill('0123456789');
 	await page.getByRole('button', { name: 'Check account' }).click();
 	await page.getByRole('button', { name: 'Save account' }).click();
+	await skipInstall(page);
 	await page.getByRole('link', { name: 'Go to my wallet' }).click();
 	await expect(page).toHaveURL(/\/app$/);
 

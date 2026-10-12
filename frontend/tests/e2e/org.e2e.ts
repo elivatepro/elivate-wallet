@@ -13,7 +13,8 @@ import {
 	inviteMember,
 	pick,
 	uidOf,
-	uniqueEmail
+	uniqueEmail,
+	skipInstall
 } from './helpers';
 
 const PASSWORD = 'correct-horse-battery';
@@ -34,6 +35,7 @@ async function signInAsPresident(page: Page, email: string, network: string) {
 	if (page.url().includes('/onboarding')) {
 		await page.getByRole('link', { name: 'Let’s begin' }).click();
 		await completeIdentityAndProfile(page);
+		await skipInstall(page);
 		await page.getByRole('link', { name: 'Go to my wallet' }).click();
 	}
 	await page.goto('/workspaces?switch');

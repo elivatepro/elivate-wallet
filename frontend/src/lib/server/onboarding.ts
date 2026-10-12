@@ -1,5 +1,6 @@
 // First-use wizard (W-02 order 2026-10-08; Paper "Onboarding — Invited member"):
-// welcome → PIN → NIN → details → profile + rank → bank account → all set.
+// welcome → PIN → NIN → details → profile + rank → bank account → install
+// the app (Blueprint 35) → all set.
 // Blueprint 22: setup differs by role, and the backend decides the step. The
 // security state carries `setup` (identity.setup_state): the light setup
 // (President Team, directors whose funds are not managed) is PIN → name,
@@ -28,6 +29,11 @@ export const ONBOARDING_COOKIE = 'ew_onb';
 /** Blueprint 22: the page the gate interrupted, opened once setup is done. */
 export const ONBOARDING_NEXT_COOKIE = 'ew_onb_next';
 export const ONBOARDING_PATH = '/onboarding';
+/**
+ * Blueprint 35: the install step was handled (installed, already running as
+ * the app, or put off). Browser only: the backend never waits on it.
+ */
+export const ONBOARDING_INSTALL_COOKIE = 'ew_onb_install';
 
 export type { Step } from '#lib/onboarding-steps.js';
 export { stepNumber, stepTotal } from '#lib/onboarding-steps.js';
@@ -70,6 +76,17 @@ export function readNext(cookies: Cookies): string | null {
 export function clearOnboarding(cookies: Cookies) {
 	cookies.delete(ONBOARDING_COOKIE, { path: '/' });
 	cookies.delete(ONBOARDING_NEXT_COOKIE, { path: ONBOARDING_PATH });
+	cookies.delete(ONBOARDING_INSTALL_COOKIE, { path: ONBOARDING_PATH });
+}
+
+export function markInstallHandled(cookies: Cookies, secure: boolean) {
+	cookies.set(ONBOARDING_INSTALL_COOKIE, '1', {
+		path: ONBOARDING_PATH,
+		httpOnly: true,
+		secure,
+		sameSite: 'lax',
+		maxAge: 60 * 60 * 24
+	});
 }
 
 export interface Wizard {
@@ -82,6 +99,8 @@ export interface Wizard {
 	readonly level: SetupLevel;
 	/** The membership the bank step uses (the backend's choice). */
 	readonly walletMembershipId: string | null;
+	/** Blueprint 35: the install step was installed or put off. */
+	readonly installHandled: boolean;
 }
 
 let bindings: Promise<{ readonly PHOTOS?: PhotoBucket }> | null = null;
@@ -183,13 +202,19 @@ export async function loadWizard(event: RequestEvent): Promise<Wizard> {
 		profile,
 		membershipId: await membershipFor(event, session, state),
 		level: state.setup?.level ?? 'wallet',
-		walletMembershipId: state.setup?.walletMembershipId ?? null
+		walletMembershipId: state.setup?.walletMembershipId ?? null,
+		installHandled: event.cookies.get(ONBOARDING_INSTALL_COOKIE) === '1'
 	};
 }
 
 /** Where the person is; `null` once everything is done (see nextStepFor). */
 export function nextStep(wizard: Wizard): Step | null {
-	return nextStepFor(wizard.state.gate, wizard.state.setup, wizard.profile !== null);
+	return nextStepFor(
+		wizard.state.gate,
+		wizard.state.setup,
+		wizard.profile !== null,
+		wizard.installHandled
+	);
 }
 
 /** Sends a page to the step the person belongs on, unless it is one of `allowed`. */

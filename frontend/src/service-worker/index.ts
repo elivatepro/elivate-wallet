@@ -35,6 +35,8 @@ const neededOffline = (path: string) =>
 	// Slice 21: the sign-in pages' AVIF/WebP variants; the app's heroes use the JPEG.
 	!/^\/auth-bg\/mobile-[a-z]+\.(avif|webp)$/.test(path) &&
 	!path.startsWith('/email/') &&
+	// Blueprint 35: iOS reads its launch images once, when the app is added.
+	!path.startsWith('/splash/') &&
 	(!path.startsWith('/root/') || SHELL_POSES.some((pose) => path.startsWith(`/root/${pose}`)));
 // Blueprint 20 B8: the shell's chunks only (scripts/precache-plugin.ts); all of
 // them if the list is missing.

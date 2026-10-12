@@ -35,6 +35,10 @@
 /icons/*
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
 
+# Blueprint 35: iOS launch images.
+/splash/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
 # Slice 21: email images, fetched by mail clients and image proxies. They
 # rarely change (mail proxies keep their own copy anyway): 30 days fresh.
 /email/*

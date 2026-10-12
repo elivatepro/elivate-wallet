@@ -5,9 +5,13 @@
 	import '#lib/ui/base.css';
 	// Blueprint 20 B8: the same hashed file the @font-face above uses, preloaded.
 	import lexendLatin from '@fontsource-variable/lexend/files/lexend-latin-wght-normal.woff2?url';
+	import { listenForInstallPrompt } from '#lib/client/install-prompt.svelte.js';
 	import type { LayoutProps } from './$types';
 
 	let { children }: LayoutProps = $props();
+
+	// Blueprint 35: catch Chromium's install prompt as early as the app runs.
+	if (typeof window !== 'undefined') listenForInstallPrompt();
 
 	// Blueprint 20 B8: the Wallet registers the service worker (Kit's own
 	// registration is off). The Admin site never does, and drops one an older

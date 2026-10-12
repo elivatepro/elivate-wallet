@@ -114,8 +114,10 @@ only): email Root poses and hero grain about 70% lighter. Slice 32 (Blueprint 32
 layout, one `DatePicker` for every member-app date (Paper "Date picker v8"). Slice 33: site details
 (description, Open Graph / X preview `static/og.jpg` from Paper "Website" → OG — App preview,
 favicon.ico, robots + sitemap, security.txt, manifest details). Slice 34 (Blueprint 34): the app's own
-Chatwoot inbox ("Elivate Wallet — App"), support sees name, email and account context, topic first. Slice 36
-(Blueprint 36): identity (NIN) review is the `review_identity` permission (President Team locked on,
-World Team switchable, other roles switched on for their office and below; Cross-access from the
-President Team only).
+Chatwoot inbox ("Elivate Wallet — App"), support sees name, email and account context, topic first.
+Slice 35 (Blueprint 35, frontend only): install the app as the last onboarding step, "Wallet"
+under the icon, launch animation and iOS launch images.
+Slice 36 (Blueprint 36): identity (NIN) review is the `review_identity` permission (President Team
+locked on, World Team switchable, other roles switched on for their office and below; Cross-access
+from the President Team only).
 Next: set-based authorization reads.

@@ -49,12 +49,262 @@
 		<link rel="icon" href="/icons/mark.svg" type="image/svg+xml" />
 		<link rel="icon" href="/icons/favicon-32.png" type="image/png" sizes="32x32" />
 		<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+		<!-- Blueprint 35: iPhone/iPad launch images (scripts/make-splash.ts). -->
+		<link
+			rel="apple-touch-startup-image"
+			href="/splash/apple-1320x2868.png"
+			media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+		/>
+		<link
+			rel="apple-touch-startup-image"
+			href="/splash/apple-1290x2796.png"
+			media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+		/>
+		<link
+			rel="apple-touch-startup-image"
+			href="/splash/apple-1284x2778.png"
+			media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+		/>
+		<link
+			rel="apple-touch-startup-image"
+			href="/splash/apple-1260x2736.png"
+			media="(device-width: 420px) and (device-height: 912px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+		/>
+		<link
+			rel="apple-touch-startup-image"
+			href="/splash/apple-1242x2688.png"
+			media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+		/>
+		<link
+			rel="apple-touch-startup-image"
+			href="/splash/apple-828x1792.png"
+			media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+		/>
+		<link
+			rel="apple-touch-startup-image"
+			href="/splash/apple-1206x2622.png"
+			media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+		/>
+		<link
+			rel="apple-touch-startup-image"
+			href="/splash/apple-1179x2556.png"
+			media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+		/>
+		<link
+			rel="apple-touch-startup-image"
+			href="/splash/apple-1170x2532.png"
+			media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+		/>
+		<link
+			rel="apple-touch-startup-image"
+			href="/splash/apple-1125x2436.png"
+			media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+		/>
+		<link
+			rel="apple-touch-startup-image"
+			href="/splash/apple-750x1334.png"
+			media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+		/>
+		<link
+			rel="apple-touch-startup-image"
+			href="/splash/apple-2064x2752.png"
+			media="(device-width: 1032px) and (device-height: 1376px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+		/>
+		<link
+			rel="apple-touch-startup-image"
+			href="/splash/apple-2048x2732.png"
+			media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+		/>
+		<link
+			rel="apple-touch-startup-image"
+			href="/splash/apple-1668x2420.png"
+			media="(device-width: 834px) and (device-height: 1210px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+		/>
+		<link
+			rel="apple-touch-startup-image"
+			href="/splash/apple-1668x2388.png"
+			media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+		/>
+		<link
+			rel="apple-touch-startup-image"
+			href="/splash/apple-1640x2360.png"
+			media="(device-width: 820px) and (device-height: 1180px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+		/>
+		<link
+			rel="apple-touch-startup-image"
+			href="/splash/apple-1488x2266.png"
+			media="(device-width: 744px) and (device-height: 1133px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+		/>
+		<link
+			rel="apple-touch-startup-image"
+			href="/splash/apple-1620x2160.png"
+			media="(device-width: 810px) and (device-height: 1080px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+		/>
+		<link
+			rel="apple-touch-startup-image"
+			href="/splash/apple-1536x2048.png"
+			media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
+		/>
 		<meta name="apple-mobile-web-app-capable" content="yes" />
-		<meta name="apple-mobile-web-app-title" content="Elivate" />
+		<meta name="apple-mobile-web-app-title" content="Wallet" />
 		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+		<!-- Blueprint 35: launch animation (Paper "Install app v9" L02–L05). Installed app only,
+		     once per session (the script below, allowed by its hash in vite.config.ts), never with
+		     reduced motion. It starts from the phone's own still launch screen: #111314 with the
+		     mark centred. -->
+		<script data-launch>
+			try {
+				if (sessionStorage.getItem('ew:launched'))
+					document.documentElement.classList.add('ew-launched');
+				else sessionStorage.setItem('ew:launched', '1');
+			} catch {
+				document.documentElement.classList.add('ew-launched');
+			}
+		</script>
+		<style>
+			.ew-launch {
+				display: none;
+			}
+			@media (display-mode: standalone) and (prefers-reduced-motion: no-preference) {
+				html:not(.ew-launched) .ew-launch {
+					position: fixed;
+					inset: 0;
+					z-index: 2147483647;
+					display: flex;
+					align-items: center;
+					justify-content: center;
+					background: #111314;
+					pointer-events: none;
+					animation: ew-launch-out 1200ms ease-in forwards;
+				}
+			}
+			.ew-launch-bloom {
+				position: absolute;
+				width: 600px;
+				height: 600px;
+				border-radius: 50%;
+				background: radial-gradient(closest-side, #ff7f4f4d 0%, #ff7f4f14 40%, #ff7f4f00 70%);
+				opacity: 0;
+				animation: ew-launch-bloom 1200ms ease-out forwards;
+			}
+			.ew-launch-ring {
+				position: absolute;
+				width: 220px;
+				height: 220px;
+				border: 1.5px solid #ff7f4f66;
+				border-radius: 50%;
+				opacity: 0;
+				animation: ew-launch-ring 900ms cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+			}
+			.ew-launch-mark {
+				position: relative;
+				width: 140px;
+				height: 140px;
+				animation: ew-launch-mark 1200ms cubic-bezier(0.3, 0.7, 0.2, 1) forwards;
+			}
+			.ew-launch-word {
+				position: absolute;
+				top: calc(50% + 34px);
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				gap: 6px;
+				opacity: 0;
+				animation: ew-launch-word 1200ms cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+			}
+			.ew-launch-name {
+				color: #f2f4f4;
+				font:
+					700 32px/36px 'Lexend Variable',
+					'Lexend',
+					system-ui,
+					sans-serif;
+				letter-spacing: -0.035em;
+			}
+			.ew-launch-by {
+				color: #a9b0b3;
+				font:
+					400 12px/16px 'IBM Plex Mono',
+					ui-monospace,
+					monospace;
+				letter-spacing: 0.14em;
+			}
+			@keyframes ew-launch-mark {
+				0% {
+					transform: none;
+				}
+				30% {
+					transform: scale(1.1) rotate(-6deg);
+				}
+				65%,
+				100% {
+					transform: translateY(-36px) scale(0.74);
+				}
+			}
+			@keyframes ew-launch-bloom {
+				0% {
+					opacity: 0;
+					transform: scale(0.6);
+				}
+				30% {
+					opacity: 1;
+					transform: scale(1);
+				}
+				70%,
+				100% {
+					opacity: 0.5;
+					transform: scale(1.05);
+				}
+			}
+			@keyframes ew-launch-ring {
+				0% {
+					opacity: 0;
+					transform: scale(0.64);
+				}
+				35% {
+					opacity: 1;
+				}
+				100% {
+					opacity: 0;
+					transform: scale(1.5);
+				}
+			}
+			@keyframes ew-launch-word {
+				0%,
+				35% {
+					opacity: 0;
+					transform: translateY(12px);
+				}
+				65%,
+				100% {
+					opacity: 1;
+					transform: none;
+				}
+			}
+			@keyframes ew-launch-out {
+				0%,
+				82% {
+					opacity: 1;
+					visibility: visible;
+				}
+				100% {
+					opacity: 0;
+					visibility: hidden;
+				}
+			}
+		</style>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">
+		<div class="ew-launch" aria-hidden="true">
+			<div class="ew-launch-bloom"></div>
+			<div class="ew-launch-ring"></div>
+			<img class="ew-launch-mark" src="/icons/mark.svg" alt="" width="140" height="140" />
+			<div class="ew-launch-word">
+				<span class="ew-launch-name">Wallet</span>
+				<span class="ew-launch-by">BY ELIVATE</span>
+			</div>
+		</div>
 		<div style="display: contents">%sveltekit.body%</div>
 	</body>
 </html>

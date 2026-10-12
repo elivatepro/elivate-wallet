@@ -12,7 +12,8 @@ import {
 	humanReady,
 	recordIncome,
 	uniqueEmail,
-	walletPeople
+	walletPeople,
+	skipInstall
 } from './helpers';
 
 const { PASSWORD, PIN, memberWithAccount, signInAs, asPresident } = walletPeople;
@@ -118,6 +119,7 @@ test('sign out, then another person signs in: no flash of the first person’s d
 	) {
 		await page.getByRole('link', { name: 'Let’s begin' }).click();
 		await completeIdentityAndProfile(page);
+		await skipInstall(page);
 		await page.getByRole('link', { name: 'Go to my wallet' }).click();
 	}
 	await expect(page).toHaveURL(/\/app$/);

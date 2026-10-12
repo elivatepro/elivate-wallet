@@ -12,7 +12,8 @@ import {
 	inviteMember,
 	pick,
 	setJoinPassword,
-	uniqueEmail
+	uniqueEmail,
+	skipInstall
 } from './helpers';
 
 const PASSWORD = 'correct-horse-battery';
@@ -60,6 +61,7 @@ test('payout accounts: list, add a second (cooling off), refuse a mismatch, remo
 	await page.getByLabel('Account number').fill('0123456789');
 	await page.getByRole('button', { name: 'Check account' }).click();
 	await page.getByRole('button', { name: 'Save account' }).click();
+	await skipInstall(page);
 	await page.getByRole('link', { name: 'Go to my wallet' }).click();
 	await expect(page).toHaveURL(/\/app$/);
 
@@ -123,6 +125,7 @@ test('invitations: a leader sees, resends and revokes an invitation', async ({ p
 	if (page.url().includes('/onboarding')) {
 		await page.getByRole('link', { name: 'Let’s begin' }).click();
 		await completeIdentityAndProfile(page);
+		await skipInstall(page);
 		await page.getByRole('link', { name: 'Go to my wallet' }).click();
 	}
 	await page.goto('/workspaces?switch');

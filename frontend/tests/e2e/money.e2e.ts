@@ -14,7 +14,8 @@ import {
 	inviteMember,
 	pick,
 	recordIncome,
-	uniqueEmail
+	uniqueEmail,
+	skipInstall
 } from './helpers';
 
 const PASSWORD = 'correct-horse-battery';
@@ -43,6 +44,7 @@ async function openPresidentWorkspace(page: Page) {
 	if (page.url().includes('/onboarding')) {
 		await page.getByRole('link', { name: 'Let’s begin' }).click();
 		await completeIdentityAndProfile(page);
+		await skipInstall(page);
 		await page.getByRole('link', { name: 'Go to my wallet' }).click();
 	}
 	await page.goto('/workspaces?switch');
@@ -68,6 +70,7 @@ test('a member searches and filters activity and opens a transaction', async ({ 
 	await page.getByLabel('Account number').fill('0123456789');
 	await page.getByRole('button', { name: 'Check account' }).click();
 	await page.getByRole('button', { name: 'Save account' }).click();
+	await skipInstall(page);
 	await page.getByRole('link', { name: 'Go to my wallet' }).click();
 
 	await recordIncome(founder, member, '1000.00');

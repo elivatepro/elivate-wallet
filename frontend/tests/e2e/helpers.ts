@@ -422,12 +422,24 @@ async function chooseNextRank(page: Page) {
 }
 
 /**
+ * Blueprint 35: the wizard's last step asks to install the app; tests put it
+ * off. A browser with no install prompt offers "Continue" instead.
+ */
+export async function skipInstall(page: Page) {
+	await expect(page).toHaveURL(/\/onboarding\/install$/);
+	await page
+		.getByRole('button', { name: 'Not now' })
+		.or(page.getByRole('button', { name: 'Continue' }))
+		.click();
+}
+
+/**
  * Blueprint 22: the light wizard's profile step (name, photo, rank; no phone),
  * through to "You're all set".
  */
 export async function lightSetupWizard(page: Page) {
 	await expect(page).toHaveURL(/\/onboarding\/profile$/);
-	await expect(page.getByText('2 / 2')).toBeVisible();
+	await expect(page.getByText('2 / 3')).toBeVisible();
 	await expect(page.getByLabel('Phone number')).toHaveCount(0);
 	await page.getByLabel('First name').fill('Bola');
 	await page.getByLabel('Last name').fill('Ige');
@@ -436,6 +448,7 @@ export async function lightSetupWizard(page: Page) {
 		.setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: TINY_PNG });
 	await chooseNextRank(page);
 	await page.getByRole('button', { name: 'Continue' }).click();
+	await skipInstall(page);
 	await expect(page.getByRole('heading', { name: /You’re all set/ })).toBeVisible();
 }
 
@@ -601,6 +614,7 @@ async function joinAsNewMember(page: Page, joinPath: string, email: string) {
 	await page.getByLabel('Account number').fill('0123456789');
 	await page.getByRole('button', { name: 'Check account' }).click();
 	await page.getByRole('button', { name: 'Save account' }).click();
+	await skipInstall(page);
 	await page.getByRole('link', { name: 'Go to my wallet' }).click();
 	await expect(page).toHaveURL(/\/app$/);
 }
@@ -622,6 +636,7 @@ async function asPresident(page: Page, email: string, network: string) {
 	if (page.url().includes('/onboarding')) {
 		await page.getByRole('link', { name: 'Let’s begin' }).click();
 		await completeIdentityAndProfile(page);
+		await skipInstall(page);
 		await page.getByRole('link', { name: 'Go to my wallet' }).click();
 	}
 	await page.goto('/workspaces?switch');

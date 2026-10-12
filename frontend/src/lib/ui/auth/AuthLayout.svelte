@@ -46,7 +46,9 @@
 			<div class="panel">
 				{@render children()}
 			</div>
-			{#if stage.pose}
+			{#if stage.art}
+				<div class="stage" aria-hidden="true">{@render stage.art()}</div>
+			{:else if stage.pose}
 				<div class="stage" data-size={stage.size}>
 					<RootImage
 						pose={stage.pose}
