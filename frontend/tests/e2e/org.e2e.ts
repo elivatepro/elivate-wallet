@@ -140,6 +140,12 @@ test('President manages offices, a role permission and reads the audit log', asy
 	await expect(page.getByRole('heading', { name: 'Who can do what' })).toBeVisible();
 	await page.getByRole('switch', { name: 'Withdraw on behalf for Team Leader' }).click();
 	await expect(page.getByText('1 unsaved change')).toBeVisible();
+	// Blueprint 36: identity review is switched per role; the President Team's cell is locked on.
+	await expect(
+		page.getByRole('switch', { name: 'Review & approve identity for President Team' })
+	).toHaveCount(0);
+	await page.getByRole('switch', { name: 'Review & approve identity for Team Leader' }).click();
+	await expect(page.getByText('2 unsaved changes')).toBeVisible();
 	await page.getByRole('button', { name: 'Save changes' }).click();
 	const save = page.getByRole('dialog', { name: 'Save role permissions?' });
 	await save.getByLabel('Reason').fill('Team Leaders cover withdrawals on behalf');
@@ -149,13 +155,16 @@ test('President manages offices, a role permission and reads the audit log', asy
 	await expect(
 		page.getByRole('switch', { name: 'Withdraw on behalf for Team Leader' })
 	).toHaveAttribute('aria-checked', 'true');
+	await expect(
+		page.getByRole('switch', { name: 'Review & approve identity for Team Leader' })
+	).toHaveAttribute('aria-checked', 'true');
 	await expectAccessible(page);
 
 	// F05: the audit log shows what happened.
 	await page.goto('/app/audit');
 	await expect(page.getByRole('button', { name: /Closed an office/ })).toBeVisible();
 	await expect(page.getByRole('button', { name: /Created an office/ }).first()).toBeVisible();
-	await expect(page.getByRole('button', { name: /Allowed a role permission/ })).toBeVisible();
+	await expect(page.getByRole('button', { name: /Allowed a role permission/ })).toHaveCount(2);
 	await expectAccessible(page);
 });
 

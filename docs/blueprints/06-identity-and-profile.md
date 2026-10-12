@@ -24,7 +24,7 @@ Status: **owner instructed "build everything now" (2026-10-08)**; decisions belo
 | Q1 | NIN provider | The one the earlier Wallet by Elivate used: **NUBAN KYC data API** (`GET {NUBAN_KYC_BASE_URL}/api/nin-data?nin_no=…`, `Authorization: Bearer NUBAN_KYC_API_KEY`). |
 | Q2 | Failed checks before review | **2.** |
 | Q3 | NIN already verified on another account | **Block.** |
-| Q4 | Who reviews | **President Team, World Team, or an Elivate admin.** |
+| Q4 | Who reviews | **President Team, World Team, or an Elivate admin.** Superseded 2026-10-12 (Blueprint 36): whoever holds `review_identity`; same defaults, and the President Team can switch it on for other roles or give it to one person. |
 | Q5 | Photo storage | **Cloudflare R2**, private. |
 
 ## Part B — Build spec

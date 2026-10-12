@@ -148,6 +148,8 @@ export const PERMISSION_LABELS: Record<string, string> = {
 	// Blueprint 17 keys (slice 21: they showed as raw keys).
 	manage_team_settings: 'Team settings & branding',
 	request_restore: 'Request a restore',
+	// Blueprint 36: NIN reviews, switched per role by the President Team.
+	review_identity: 'Review & approve identity',
 	review_financial_evidence: 'Review financial evidence'
 };
 
@@ -191,6 +193,9 @@ export const PERMISSION_GROUPS: ReadonlyArray<{ title: string; keys: readonly st
 			'manage_access_rules'
 		]
 	},
+	// Blueprint 36: its own group, so the Cross-access list of a Director or
+	// World Team leaves it out (only the President Team hands it out).
+	{ title: 'Identity', keys: ['review_identity'] },
 	{
 		title: 'Governance',
 		keys: [

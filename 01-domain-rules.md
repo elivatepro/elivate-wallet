@@ -113,6 +113,7 @@ Defaults seed a new tenant's exact-role policies atomically. They are not role-r
 | `manage_allocation` | 0 | 0 | 0 | 0 | 1 | yes | no | tenant | no |
 | `manage_team_settings` | 0 | 0 | 0 | 0 | 1 | yes | no | tenant | no |
 | `request_restore` | 0 | 0 | 0 | 1 | 1 | yes | no | tenant | no |
+| `review_identity` | 0 | 0 | 0 | 1 | 1† | no | yes† | office | no |
 | `review_financial_evidence` | 0 | 0 | 0 | 0 | 1* | no | yes* | assignment | no |
 
 Special interpretation:
@@ -120,6 +121,7 @@ Special interpretation:
 - Self-service (own-wallet) rows never come from a director membership whose funds are not managed (owner decision 2026-10-10, Blueprint 22); every other director permission is unchanged.
 - `withdraw_on_behalf` is an optional tenant capability. President decides which roles/users receive it; listed W/P defaults do not substitute for the approved operational policy.
 - `review_financial_evidence`: the matrix lists P as default, but actual review authority/routing is the President-controlled specific-person reviewer assignment. No presidency, role choice, generic routing list or financial-operation permission substitutes for current designated assignment. Self-review is forbidden. Do not create independently administered routing and review-authority systems.
+- `review_identity` (owner decision 2026-10-12, Blueprint 36): NIN review authority. The President Team's cell is locked on; the World Team's is on by default and switchable; any other role may be switched on (its office and below). †Only the President Team gives it through Cross-access (Directors and the World Team cannot, though they hold `manage_access_rules`). Never one's own review; Elivate admins still review through the admin console.
 - Office-scoped defaults still use tenant-wide President scope where applicable and the target-based resolver. “Own wallet=no” is the leadership self-target guard, not a denial of separately eligible self-service.
 - Workspace-request approval requires an explicit trusted capability; this source matrix does not settle its wire key. Use reviewed existing contracts or U-04/U-09 rather than inventing a catalog entry.
 - `manage_team_settings` (owner decision 2026-10-10, Blueprint 17): team settings and branding (D-11, W-20), their revisions and restore, and the Team Backup Vault (back up, download). Protected and President-only; the PIN is needed to save, to restore a revision and to download a backup.

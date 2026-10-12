@@ -138,6 +138,10 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
 - **Default permissions:** new networks keep the A-03 defaults (conversion also on for Team
   Leader, Director and World Team; adjustments also on for World Team); Presidents can change
   them in the role editor.
+- **Identity review (2026-10-12, Blueprint 36):** NIN reviews follow the new `review_identity`
+  permission. President Team locked on, World Team on but switchable, any other role can be
+  switched on (its office and below) in Role permissions; only the President Team gives it to one
+  person through Cross-access.
 - **Evidence reviewers:** a role change ends the reviewer assignment; the President re-adds it.
 - **Prod (2026-10-09):** "push to prod" means dev plus the live Worker; production stays
   off-limits.
