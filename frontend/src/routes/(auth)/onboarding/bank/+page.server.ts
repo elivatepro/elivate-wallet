@@ -126,7 +126,7 @@ export const actions: Actions = {
 				return yield* (yield* PayoutApi).confirm(membershipId, { lookupId, idempotencyKey });
 			})
 		);
-		if (Exit.isSuccess(exit)) redirect(303, '/onboarding/done');
+		if (Exit.isSuccess(exit)) redirect(303, '/onboarding/continue');
 		const failure = failureOf(exit);
 		if (isBackendError(failure, 'payout_lookup_expired')) {
 			return fail(409, { message: 'That check expired. Look the account up again.' });

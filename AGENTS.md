@@ -115,4 +115,6 @@ layout, one `DatePicker` for every member-app date (Paper "Date picker v8"). Sli
 (description, Open Graph / X preview `static/og.jpg` from Paper "Website" → OG — App preview,
 favicon.ico, robots + sitemap, security.txt, manifest details). Slice 34 (Blueprint 34): the app's own
 Chatwoot inbox ("Elivate Wallet — App"), support sees name, email and account context, topic first.
+Slice 35 (Blueprint 35, frontend only): install the app as the last onboarding step, "Wallet"
+under the icon, launch animation and iOS launch images.
 Next: set-based authorization reads.

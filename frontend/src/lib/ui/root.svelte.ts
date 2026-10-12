@@ -1,7 +1,7 @@
 // Root mascot poses exported 1×/2× WebP from Paper "App — Screens v3" (owner
 // approved 2026-10-08; existing poses only). Files live in static/root/.
 
-import { getContext, onDestroy, setContext } from 'svelte';
+import { getContext, onDestroy, setContext, type Snippet } from 'svelte';
 
 export type RootPose =
 	| 'confirm-email'
@@ -279,6 +279,8 @@ export const rootSrcset = (pose: RootPose) => `/root/${pose}.webp 390w, /root/${
 export class RootStage {
 	pose: RootPose | null = $state(null);
 	size: RootSize = $state('lg');
+	/** Blueprint 35: a page's own picture in Root's place (no pose to repeat). */
+	art: Snippet | null = $state(null);
 	owner: symbol | null = null;
 }
 
@@ -302,6 +304,7 @@ export function useRoot(
 	const currentSize = typeof size === 'function' ? size : () => size;
 	const owner = Symbol('root-owner');
 	stage.owner = owner;
+	stage.art = null;
 	stage.pose = currentPose();
 	stage.size = currentSize();
 	// Pages whose state changes after a form post (e.g. G06 → G07) pass getters.
@@ -316,5 +319,20 @@ export function useRoot(
 		if (stage.owner !== owner) return;
 		stage.owner = null;
 		stage.pose = null;
+	});
+}
+
+/** Like useRoot, but the stage shows the page's own picture instead of a pose. */
+export function useStageArt(art: Snippet): void {
+	const stage = getContext<RootStage | undefined>(KEY);
+	if (!stage) return;
+	const owner = Symbol('root-owner');
+	stage.owner = owner;
+	stage.pose = null;
+	stage.art = art;
+	onDestroy(() => {
+		if (stage.owner !== owner) return;
+		stage.owner = null;
+		stage.art = null;
 	});
 }

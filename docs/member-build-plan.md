@@ -283,6 +283,11 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
   billing), device, app build, the screen they came from and the last error (code and request
   ID). A topic is picked before chatting and labels the conversation. Still never money, bank
   details, evidence, PINs or tokens. Supersedes "UID, network name and screen only" (W-21).
+- **Install the app (2026-10-12, Blueprint 35):** installing is the last onboarding step for
+  everyone (wallet 5 steps, light 3), before "All set", per Paper "Install app v9" IA01–IA03.
+  "Not now" is allowed and the backend never waits on it. The home-screen label is **Wallet**
+  (`short_name`, Apple title); the full name stays "Elivate Wallet". The installed app opens with
+  a short launch animation (L02–L05), once per app session, never with reduced motion.
 - **Sequencing:** one slice at a time, each new slice in its own thread. Order: 4 → 5 → 8 →
   slice 9 follow-up (IP storage, signed-in password change, PIN-change email, sign-out
   choice after reset) → 6 → 7 → 10.

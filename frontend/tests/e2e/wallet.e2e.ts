@@ -13,7 +13,8 @@ import {
 	pick,
 	recordIncome,
 	setJoinPassword,
-	uniqueEmail
+	uniqueEmail,
+	skipInstall
 } from './helpers';
 
 const PASSWORD = 'correct-horse-battery';
@@ -57,6 +58,7 @@ test('member Home shows the posted income split across pockets', async ({ page }
 	await page.getByLabel('Account number').fill('0123456789');
 	await page.getByRole('button', { name: 'Check account' }).click();
 	await page.getByRole('button', { name: 'Save account' }).click();
+	await skipInstall(page);
 	await page.getByRole('link', { name: 'Go to my wallet' }).click();
 	await expect(page).toHaveURL(/\/app$/);
 	await expect(page.getByRole('heading', { name: 'No money in yet' })).toBeVisible();
@@ -89,6 +91,7 @@ test('President edits the split with reason and PIN (L01/L02)', async ({ page })
 	if (page.url().includes('/onboarding')) {
 		await page.getByRole('link', { name: 'Let’s begin' }).click();
 		await completeIdentityAndProfile(page);
+		await skipInstall(page);
 		await page.getByRole('link', { name: 'Go to my wallet' }).click();
 	}
 	await page.goto('/workspaces?switch');
@@ -132,6 +135,7 @@ test('a failed NIN goes to leader review; the President approves it', async ({ p
 	if (page.url().includes('/onboarding')) {
 		await page.getByRole('link', { name: 'Let’s begin' }).click();
 		await completeIdentityAndProfile(page);
+		await skipInstall(page);
 		await page.getByRole('link', { name: 'Go to my wallet' }).click();
 	}
 	await page.goto('/workspaces?switch');
