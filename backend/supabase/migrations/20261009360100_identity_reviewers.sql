@@ -110,7 +110,11 @@ $$;
 
 -- One review's task to everyone who may decide it (same item and dedupe key as
 -- Blueprint 13, so offering it again is a no-op for people who already have it).
-create function notify.offer_nin_review(p_review identity.nin_reviews)
+create function notify.offer_nin_review(
+  p_review identity.nin_reviews,
+  p_only_user_id uuid default null,
+  p_only_role org.role default null
+)
 returns void
 language plpgsql
 set search_path = ''
@@ -125,7 +129,10 @@ begin
     'path', '/app/reviews');
   for holder in
     select distinct m.user_id from org.memberships m
-    where m.tenant_id = p_review.tenant_id and m.status = 'active' and identity.can_review(m, p_review)
+    where m.tenant_id = p_review.tenant_id and m.status = 'active'
+      and (p_only_user_id is null or m.user_id = p_only_user_id)
+      and (p_only_role is null or m.role = p_only_role)
+      and identity.can_review(m, p_review)
   loop
     perform notify.emit(holder, p_review.tenant_id, 'task.nin_review', 'nin_review', p_review.id, base,
       'nin_review.requested:' || p_review.id::text);
@@ -145,8 +152,12 @@ end;
 $$;
 
 -- After a role switch or a Cross-access grant: the waiting reviews reach the
--- people who can now decide them.
-create function notify.offer_pending_nin_reviews(p_tenant_id uuid)
+-- people who can now decide them (only that role's members, or that person).
+create function notify.offer_pending_nin_reviews(
+  p_tenant_id uuid,
+  p_only_user_id uuid default null,
+  p_only_role org.role default null
+)
 returns void
 language plpgsql
 set search_path = ''
@@ -155,7 +166,7 @@ declare
   review identity.nin_reviews;
 begin
   for review in select * from identity.nin_reviews where tenant_id = p_tenant_id and status = 'pending' loop
-    perform notify.offer_nin_review(review);
+    perform notify.offer_nin_review(review, p_only_user_id, p_only_role);
   end loop;
 end;
 $$;
@@ -246,7 +257,7 @@ begin
   where tenant_id = workspace.tenant_id and role = p_role::org.role and permission_key = p_permission_key;
   perform org.bump_authz_version(workspace.tenant_id);
   if p_permission_key = 'review_identity' and p_allowed then
-    perform notify.offer_pending_nin_reviews(workspace.tenant_id);
+    perform notify.offer_pending_nin_reviews(workspace.tenant_id, null, p_role::org.role);
   end if;
   perform audit.record_tenant(workspace.tenant_id, p_user_id, 'role_permission.changed', 'role_permission',
     p_role || ':' || p_permission_key, clean_reason,
@@ -395,7 +406,7 @@ begin
   perform org.bump_authz_version(workspace.tenant_id);
   if exists (select 1 from jsonb_array_elements(parsed) r
              where r->>'permission' = 'review_identity' and r->>'effect' = 'allow') then
-    perform notify.offer_pending_nin_reviews(workspace.tenant_id);
+    perform notify.offer_pending_nin_reviews(workspace.tenant_id, subject_user_id);
   end if;
   perform audit.record_tenant(workspace.tenant_id, p_user_id, 'access.assigned', 'access_assignment', assignment_id::text,
     clean_reason, p_safe_after => jsonb_build_object('rules', jsonb_array_length(parsed)), p_request_id => p_request_id);
@@ -477,5 +488,5 @@ $$;
 
 revoke all on function authz.locked_cell(org.role, text) from public, anon, authenticated;
 revoke all on function identity.reviews_identities(org.memberships) from public, anon, authenticated;
-revoke all on function notify.offer_nin_review(identity.nin_reviews) from public, anon, authenticated;
-revoke all on function notify.offer_pending_nin_reviews(uuid) from public, anon, authenticated;
+revoke all on function notify.offer_nin_review(identity.nin_reviews, uuid, org.role) from public, anon, authenticated;
+revoke all on function notify.offer_pending_nin_reviews(uuid, uuid, org.role) from public, anon, authenticated;
