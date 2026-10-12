@@ -3,28 +3,34 @@
 
 import type { Gate, Setup, SetupLevel } from '#lib/contract/security.js';
 
-export type Step = 'pin' | 'identity' | 'details' | 'profile' | 'bank' | 'done';
+export type Step = 'pin' | 'identity' | 'details' | 'profile' | 'bank' | 'install' | 'done';
 
-/** "Step n / 4" (wallet: PIN 1, identity 2, profile 3, bank 4) or "n / 2" (light: PIN 1, profile 2). */
+/**
+ * "Step n / 5" (wallet: PIN 1, identity 2, profile 3, bank 4, install 5) or
+ * "n / 3" (light: PIN 1, profile 2, install 3). Blueprint 35: installing the
+ * app is the last step for everyone.
+ */
 export function stepNumber(step: Step, level: SetupLevel): number {
-	if (level !== 'wallet') return step === 'pin' ? 1 : 2;
-	return { pin: 1, identity: 2, details: 2, profile: 3, bank: 4, done: 4 }[step];
+	if (level !== 'wallet') return step === 'pin' ? 1 : step === 'install' || step === 'done' ? 3 : 2;
+	return { pin: 1, identity: 2, details: 2, profile: 3, bank: 4, install: 5, done: 5 }[step];
 }
 
-export const stepTotal = (level: SetupLevel): number => (level === 'wallet' ? 4 : 2);
+export const stepTotal = (level: SetupLevel): number => (level === 'wallet' ? 5 : 3);
 
 /**
  * Where the person is; `null` once everything is done. The backend's setup
  * state decides (it also refuses every other call until then), so a missing
  * answer never counts as "done": at `profile_required` without a step the
- * profile step is asked for.
+ * profile step is asked for. Once the backend is satisfied, the install step
+ * (Blueprint 35, browser only) comes next until it is installed or put off.
  */
 export function nextStepFor(
 	gate: Gate,
 	setup: Setup | undefined,
-	hasProfile: boolean
+	hasProfile: boolean,
+	installHandled = false
 ): Step | null {
 	if (gate === 'pin_setup_required' || !hasProfile) return 'pin';
-	if (gate === 'ready') return null;
+	if (gate === 'ready') return installHandled ? null : 'install';
 	return setup?.next ?? 'profile';
 }

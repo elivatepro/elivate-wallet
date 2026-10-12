@@ -77,7 +77,8 @@ test('new person: join link → verify email → password → accept → PIN →
 	await expectAccessible(page);
 	await page.getByRole('button', { name: 'Accept invitation' }).click();
 
-	// 5. The first-use wizard (W-02): welcome → PIN → NIN → details → profile → bank → all set.
+	// 5. The first-use wizard (W-02): welcome → PIN → NIN → details → profile → bank → install
+	// (Blueprint 35) → all set.
 	await expect(page).toHaveURL(/\/onboarding$/);
 	await expect(page.getByRole('heading', { name: 'Welcome to Harbor Test Network' })).toBeVisible();
 	await expect(page.getByText('Member', { exact: true })).toBeVisible();
@@ -138,6 +139,20 @@ test('new person: join link → verify email → password → accept → PIN →
 	await expect(page.getByText('Matches your verified name')).toBeVisible();
 	await expectAccessible(page);
 	await page.getByRole('button', { name: 'Save account' }).click();
+
+	// Blueprint 35: install the app, the last step for everyone (5 / 5).
+	await expect(page.getByText('5 / 5')).toBeVisible();
+	await expect(page.getByRole('heading', { name: /Elivate Wallet/ })).toBeVisible();
+	await expectAccessible(page);
+	// Chromium's install prompt (a stand-in event): accepting it moves on.
+	await page.evaluate(() => {
+		const offer = Object.assign(new Event('beforeinstallprompt', { cancelable: true }), {
+			prompt: async () => undefined,
+			userChoice: Promise.resolve({ outcome: 'accepted' })
+		});
+		dispatchEvent(offer);
+	});
+	await page.getByRole('button', { name: 'Install the app' }).click();
 
 	await expect(page.getByRole('heading', { name: 'You’re all set, Ada' })).toBeVisible();
 	await expect(page.getByText('Test Bank •• 6789')).toBeVisible();

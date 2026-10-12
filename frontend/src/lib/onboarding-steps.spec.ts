@@ -9,15 +9,17 @@ const setup = (level: Setup['level'], next: Setup['next']): Setup => ({
 });
 
 describe('wizard steps by role (Blueprint 22)', () => {
-	it('numbers the light setup as two steps and the wallet setup as four', () => {
-		expect(stepTotal('light')).toBe(2);
-		expect(stepTotal('wallet')).toBe(4);
-		expect([stepNumber('pin', 'light'), stepNumber('profile', 'light')]).toEqual([1, 2]);
+	it('numbers the light setup as three steps and the wallet setup as five', () => {
+		expect(stepTotal('light')).toBe(3);
+		expect(stepTotal('wallet')).toBe(5);
 		expect(
-			(['pin', 'identity', 'details', 'profile', 'bank'] as const).map((s) =>
+			(['pin', 'profile', 'install', 'done'] as const).map((s) => stepNumber(s, 'light'))
+		).toEqual([1, 2, 3, 3]);
+		expect(
+			(['pin', 'identity', 'details', 'profile', 'bank', 'install', 'done'] as const).map((s) =>
 				stepNumber(s, 'wallet')
 			)
-		).toEqual([1, 2, 2, 3, 4]);
+		).toEqual([1, 2, 2, 3, 4, 5, 5]);
 	});
 
 	it('starts with the PIN', () => {
@@ -31,9 +33,15 @@ describe('wizard steps by role (Blueprint 22)', () => {
 		expect(nextStepFor('profile_required', setup('wallet', 'bank'), true)).toBe('bank');
 	});
 
-	it('is done only when the gate is ready', () => {
-		expect(nextStepFor('ready', setup('wallet', null), true)).toBeNull();
-		expect(nextStepFor('ready', undefined, true)).toBeNull();
+	it('asks to install the app once the gate is ready (Blueprint 35)', () => {
+		expect(nextStepFor('ready', setup('wallet', null), true)).toBe('install');
+		expect(nextStepFor('ready', setup('light', null), true)).toBe('install');
+		expect(nextStepFor('profile_required', setup('wallet', 'bank'), true, true)).toBe('bank');
+	});
+
+	it('is done only when the gate is ready and the install step was handled', () => {
+		expect(nextStepFor('ready', setup('wallet', null), true, true)).toBeNull();
+		expect(nextStepFor('ready', undefined, true, true)).toBeNull();
 	});
 
 	it('fails closed when the gate holds but no step came back', () => {

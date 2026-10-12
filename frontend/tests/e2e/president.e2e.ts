@@ -12,7 +12,8 @@ import {
 	inviteMember,
 	localSql,
 	uniqueEmail,
-	walletPeople
+	walletPeople,
+	skipInstall
 } from './helpers';
 
 const { PASSWORD, PIN, signInAs } = walletPeople;
@@ -27,6 +28,7 @@ async function signInPresident(page: Page, email: string) {
 	if (page.url().includes('/onboarding')) {
 		await page.getByRole('link', { name: 'Let’s begin' }).click();
 		await completeIdentityAndProfile(page);
+		await skipInstall(page);
 		await expect(page.getByRole('link', { name: 'Go to my wallet' })).toBeVisible();
 		await page.getByRole('link', { name: 'Go to my wallet' }).click();
 	}

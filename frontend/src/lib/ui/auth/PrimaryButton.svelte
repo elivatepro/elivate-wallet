@@ -1,5 +1,9 @@
-<!-- Coral gradient pill with the dark arrow chip (Authentication v2). Submit or link. -->
+<!--
+	Coral gradient pill with the dark arrow chip (Authentication v2). Submit,
+	link, or (with onclick) a plain button. Blueprint 35: the chip icon can change.
+-->
 <script lang="ts">
+	import type { Component } from 'svelte';
 	import ArrowRight from '@lucide/svelte/icons/arrow-right';
 
 	let {
@@ -8,7 +12,9 @@
 		busy = false,
 		disabled = false,
 		name,
-		value
+		value,
+		icon: Icon = ArrowRight,
+		onclick
 	}: {
 		label: string;
 		href?: string;
@@ -16,25 +22,28 @@
 		disabled?: boolean;
 		name?: string;
 		value?: string;
+		icon?: Component<{ size?: number; strokeWidth?: number }>;
+		onclick?: () => void;
 	} = $props();
 </script>
 
 {#if href}
 	<a class="primary" {href}>
 		<span>{label}</span>
-		<span class="chip" aria-hidden="true"><ArrowRight size={18} strokeWidth={2} /></span>
+		<span class="chip" aria-hidden="true"><Icon size={18} strokeWidth={2} /></span>
 	</a>
 {:else}
 	<button
 		class="primary"
-		type="submit"
+		type={onclick ? 'button' : 'submit'}
+		{onclick}
 		{name}
 		{value}
 		disabled={disabled || busy}
 		aria-busy={busy ? 'true' : undefined}
 	>
 		<span>{label}</span>
-		<span class="chip" aria-hidden="true"><ArrowRight size={18} strokeWidth={2} /></span>
+		<span class="chip" aria-hidden="true"><Icon size={18} strokeWidth={2} /></span>
 	</button>
 {/if}
 
