@@ -3,7 +3,9 @@
 	fixed roles; protected rows locked; changes saved together with a reason
 	and the PIN), R03/R04 new cross-access rule (specific permissions for one
 	person: grant or deny, scope, start, optional expiry, reason) and R05/R06
-	evidence reviewers (specific people; never their own operations). The
+	evidence reviewers (specific people; never their own operations). Blueprint
+	37: a Search tab filters the same permission rows by name (Paper "Access
+	search v10" AS01/AS02), switches and save bar included. The
 	cross-access list itself is not drawn yet (minimal list, W-06 field set).
 	Conversion and adjustment authority sit in the Money group (owner decision
 	2026-10-08) and are switched per role here.
@@ -12,7 +14,7 @@
 	import DatePicker from '#lib/ui/DatePicker.svelte';
 	import '#lib/ui/org/org.css';
 	import { getContext, untrack } from 'svelte';
-	import { SvelteMap } from 'svelte/reactivity';
+	import { MediaQuery, SvelteMap } from 'svelte/reactivity';
 	import Ban from '@lucide/svelte/icons/ban';
 	import Check from '@lucide/svelte/icons/check';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
@@ -37,6 +39,7 @@
 	import {
 		groupPermissions,
 		initials,
+		searchPermissions,
 		PERMISSION_GROUPS,
 		PERMISSION_SCOPE,
 		permissionLabel,
@@ -52,7 +55,7 @@
 	import { pickedUid, type Picked } from '#lib/person-picker.js';
 	import WheelPicker from '#lib/ui/WheelPicker.svelte';
 
-	type Tab = 'roles' | 'access' | 'reviewers';
+	type Tab = 'roles' | 'access' | 'reviewers' | 'search';
 
 	const shell = getContext<Shell>('shell');
 	const workspace = $derived(shell.state.kind === 'ready' ? shell.state.view.workspace : null);
@@ -79,13 +82,13 @@
 		if (started) return;
 		started = true;
 		const asked = new URL(window.location.href).searchParams.get('tab');
-		if (asked === 'access' || asked === 'reviewers') tab = asked;
+		if (asked === 'access' || asked === 'reviewers' || asked === 'search') tab = asked;
 	});
 	$effect(() => {
 		const shown = view;
 		if (!shown || shown.rolePermissions) return;
 		untrack(() => {
-			if (tab === 'roles') tab = shown.assignments ? 'access' : 'reviewers';
+			if (tab === 'roles' || tab === 'search') tab = shown.assignments ? 'access' : 'reviewers';
 		});
 	});
 
@@ -142,6 +145,30 @@
 	const groupLocked = (keys: readonly string[]) =>
 		keys.filter((k) => !view?.rolePermissions?.find((r) => r.permission === k)?.editable).length;
 	let mobileRole = $state<Role>('team_leader');
+
+	// ── Search (Blueprint 37): the same rows, filtered by name ──
+	let query = $state('');
+	let queryInput = $state<HTMLInputElement | null>(null);
+	const searching = $derived(tab === 'search');
+	/** Paper AS02: phones keep the short hero title. */
+	const wide = new MediaQuery('(min-width: 1024px)');
+	const found = $derived(searchPermissions(catalogue.groups, query));
+	const evidenceShown = $derived(
+		!searching ||
+			searchPermissions([{ title: '', keys: ['review_financial_evidence'] }], query).length > 0
+	);
+	const shownGroups = $derived(
+		searching ? found : catalogue.groups.map((g) => ({ ...g, total: g.keys.length }))
+	);
+	const foundCount = $derived(
+		found.reduce((n, g) => n + g.keys.length, 0) + (searching && evidenceShown ? 1 : 0)
+	);
+	const foundLine = $derived(`${foundCount} ${foundCount === 1 ? 'permission' : 'permissions'}`);
+	/** Search results always show their rows; the Roles tab keeps its folding. */
+	const opened = (title: string) => searching || isOpen(title);
+	$effect(() => {
+		if (searching) queryInput?.focus();
+	});
 
 	const pendingSummary = $derived.by(() => {
 		const first = [...pending.keys()][0];
@@ -390,18 +417,26 @@
 
 	const reviewerCount = $derived(view?.reviewers?.length ?? 0);
 	const heroTitle = $derived(
-		tab === 'reviewers'
-			? `${reviewerCount} named ${reviewerCount === 1 ? 'reviewer' : 'reviewers'}`
-			: tab === 'access'
-				? 'Cross-access'
-				: 'Who can do what'
+		tab === 'search'
+			? wide.current
+				? 'Find a permission'
+				: 'Search'
+			: tab === 'reviewers'
+				? `${reviewerCount} named ${reviewerCount === 1 ? 'reviewer' : 'reviewers'}`
+				: tab === 'access'
+					? 'Cross-access'
+					: 'Who can do what'
 	);
 	const heroLine = $derived(
-		tab === 'reviewers'
-			? 'Only they clear or reject financial evidence'
-			: tab === 'access'
-				? 'Specific permissions, not a role'
-				: '5 fixed roles · locked rows are protected'
+		tab === 'search'
+			? wide.current
+				? 'Type part of its name · switch it right here'
+				: 'Find a permission'
+			: tab === 'reviewers'
+				? 'Only they clear or reject financial evidence'
+				: tab === 'access'
+					? 'Specific permissions, not a role'
+					: '5 fixed roles · locked rows are protected'
 	);
 </script>
 
@@ -475,13 +510,24 @@
 					></button
 				>
 			{/if}
+			{#if view?.rolePermissions}
+				<button
+					type="button"
+					class="o-tab search-tab"
+					aria-pressed={tab === 'search'}
+					aria-label="Search permissions"
+					onclick={() => (tab = 'search')}
+					><Search size={15} strokeWidth={2} aria-hidden="true" /><span class="o-wide">Search</span
+					></button
+				>
+			{/if}
 		</div>
 		<span class="spacer o-wide"></span>
 		{#if tab === 'reviewers'}
 			<span class="legend o-wide"
 				><Ban size={14} strokeWidth={1.8} aria-hidden="true" />Never reviews their own</span
 			>
-		{:else if tab === 'roles'}
+		{:else if tab === 'roles' || tab === 'search'}
 			<span class="legend o-wide"
 				><Lock size={13} strokeWidth={1.8} aria-hidden="true" />Protected
 				<span class="switch demo" aria-hidden="true"><span class="knob"></span></span
@@ -509,106 +555,160 @@
 			<p>{loadError ?? 'We couldn’t load this.'}</p>
 			<button type="button" class="o-ghost" onclick={load}>Try again</button>
 		</div>
-	{:else if tab === 'roles' && view.rolePermissions}
-		<!-- Desktop matrix (R01) -->
-		<section class="o-card matrix o-wide-block" aria-label="Role permissions">
-			<div class="o-cols">
-				<span class="o-grow">Permission</span>
-				<span class="c-scope">Scope</span>
-				{#each ROLE_ORDER as role (role)}<span class="c-role">{ROLE_COLUMN[role]}</span>{/each}
-			</div>
-			{#each catalogue.groups as group (group.title)}
-				{@const locked = groupLocked(group.keys)}
-				<button
-					type="button"
-					class="group"
-					aria-expanded={isOpen(group.title)}
-					onclick={() => groupOpen.set(group.title, !isOpen(group.title))}
-				>
-					<span class="group-title">{group.title}</span>
-					<span class="o-sub">{group.keys.length}{locked ? ` · ${locked} protected` : ''}</span>
-					<span class="spacer"></span>
-					{#if isOpen(group.title)}<ChevronDown
-							size={16}
-							strokeWidth={1.5}
-							aria-hidden="true"
-						/>{:else}<ChevronRight size={16} strokeWidth={1.5} aria-hidden="true" />{/if}
-				</button>
-				{#if isOpen(group.title)}
-					{#each group.keys as key (key)}
-						<div
-							class="perm-row"
-							class:dirty={ROLE_ORDER.some((r) => pending.has(cellKey(r, key)))}
-						>
-							<span class="o-grow perm-name" class:muted={groupLocked([key]) > 0}
-								>{permissionLabel(key)}</span
-							>
-							<span class="c-scope o-sub">{scopeLabel(key)}</span>
-							{#each ROLE_ORDER as role (role)}
-								<span class="c-role">{@render toggleCell(role, key)}</span>
-							{/each}
-						</div>
-					{/each}
+	{:else if (tab === 'roles' || tab === 'search') && view.rolePermissions}
+		{#if searching}
+			<label class="o-search finder">
+				<Search size={18} strokeWidth={2} aria-hidden="true" />
+				<span class="visually-hidden">Search permissions</span>
+				<input
+					type="search"
+					placeholder="Search permissions"
+					autocomplete="off"
+					enterkeyhint="search"
+					bind:value={query}
+					bind:this={queryInput}
+				/>
+				{#if query}
+					<span class="o-sub o-wide found">{foundLine}</span>
+					<button
+						type="button"
+						class="clear"
+						aria-label="Clear search"
+						onclick={() => {
+							query = '';
+							queryInput?.focus();
+						}}><X size={14} strokeWidth={2} aria-hidden="true" /></button
+					>
 				{/if}
-			{/each}
-			<div class="perm-row">
-				<span class="o-grow perm-name">{permissionLabel('review_financial_evidence')}</span>
-				<span class="c-scope o-sub">Assigned</span>
-				<span class="assigned">
-					<button type="button" class="named" onclick={() => (tab = 'reviewers')}
-						>{reviewerCount} named {reviewerCount === 1 ? 'reviewer' : 'reviewers'}
-						<ChevronRight size={14} strokeWidth={1.8} aria-hidden="true" /></button
-					>
-				</span>
-			</div>
-		</section>
+			</label>
+			<p class="visually-hidden" role="status">{query ? `${foundLine} match` : ''}</p>
+			{#if query}<p class="o-sub o-narrow found-line">{foundLine} match</p>{/if}
+		{/if}
 
-		<!-- Mobile: one role at a time (R02) -->
-		<div class="o-narrow-block mobile-roles">
-			<div class="chips" role="group" aria-label="Role">
-				{#each ROLE_ORDER as role (role)}
+		{#if searching && foundCount === 0}
+			<p class="o-card o-empty">No permission matches “{query.trim()}”.</p>
+		{:else}
+			<!-- Desktop matrix (R01) -->
+			<section class="o-card matrix o-wide-block" aria-label="Role permissions">
+				<div class="o-cols">
+					<span class="o-grow">Permission</span>
+					<span class="c-scope">Scope</span>
+					{#each ROLE_ORDER as role (role)}<span class="c-role">{ROLE_COLUMN[role]}</span>{/each}
+				</div>
+				{#each shownGroups as group (group.title)}
+					{@const locked = groupLocked(group.keys)}
 					<button
 						type="button"
-						class="chip"
-						aria-pressed={mobileRole === role}
-						onclick={() => (mobileRole = role)}>{ROLE_LABELS[role]}</button
-					>
-				{/each}
-			</div>
-			{#each catalogue.groups as group (group.title)}
-				{@const locked = groupLocked(group.keys)}
-				<section class="o-card">
-					<button
-						type="button"
-						class="m-group"
-						aria-expanded={isOpen(group.title) && group.title !== 'Own wallet'}
+						class="group"
+						aria-expanded={opened(group.title)}
+						disabled={searching}
 						onclick={() => groupOpen.set(group.title, !isOpen(group.title))}
 					>
-						<span class="o-stack o-grow">
-							<span class="group-title">{group.title}</span>
-							<span class="o-sub"
-								>{groupOn(group.keys, mobileRole)} of {group.keys.length} on{locked
-									? ` · ${locked} locked`
-									: ''}</span
-							>
-						</span>
-						{#if isOpen(group.title)}<ChevronDown
+						<span class="group-title">{group.title}</span>
+						<span class="o-sub"
+							>{searching
+								? `${group.keys.length} of ${group.total} match`
+								: group.keys.length}{locked ? ` · ${locked} protected` : ''}</span
+						>
+						<span class="spacer"></span>
+						{#if opened(group.title)}<ChevronDown
 								size={16}
 								strokeWidth={1.5}
 								aria-hidden="true"
 							/>{:else}<ChevronRight size={16} strokeWidth={1.5} aria-hidden="true" />{/if}
 					</button>
-					{#if isOpen(group.title)}
+					{#if opened(group.title)}
 						{#each group.keys as key (key)}
-							<div class="m-row" class:dirty={pending.has(cellKey(mobileRole, key))}>
-								<span class="o-grow">{permissionLabel(key)}</span>
-								{@render toggleCell(mobileRole, key)}
+							<div
+								class="perm-row"
+								class:dirty={ROLE_ORDER.some((r) => pending.has(cellKey(r, key)))}
+							>
+								<span class="o-grow perm-name" class:muted={groupLocked([key]) > 0}
+									>{permissionLabel(key)}</span
+								>
+								<span class="c-scope o-sub">{scopeLabel(key)}</span>
+								{#each ROLE_ORDER as role (role)}
+									<span class="c-role">{@render toggleCell(role, key)}</span>
+								{/each}
 							</div>
 						{/each}
 					{/if}
-				</section>
-			{/each}
-		</div>
+				{/each}
+				{#if evidenceShown}
+					<div class="perm-row">
+						<span class="o-grow perm-name">{permissionLabel('review_financial_evidence')}</span>
+						<span class="c-scope o-sub">Assigned</span>
+						<span class="assigned">
+							<button type="button" class="named" onclick={() => (tab = 'reviewers')}
+								>{reviewerCount} named {reviewerCount === 1 ? 'reviewer' : 'reviewers'}
+								<ChevronRight size={14} strokeWidth={1.8} aria-hidden="true" /></button
+							>
+						</span>
+					</div>
+				{/if}
+			</section>
+
+			<!-- Mobile: one role at a time (R02) -->
+			<div class="o-narrow-block mobile-roles">
+				<div class="chips" role="group" aria-label="Role">
+					{#each ROLE_ORDER as role (role)}
+						<button
+							type="button"
+							class="chip"
+							aria-pressed={mobileRole === role}
+							onclick={() => (mobileRole = role)}>{ROLE_LABELS[role]}</button
+						>
+					{/each}
+				</div>
+				{#each shownGroups as group (group.title)}
+					{@const locked = groupLocked(group.keys)}
+					<section class="o-card">
+						<button
+							type="button"
+							class="m-group"
+							aria-expanded={opened(group.title) && (searching || group.title !== 'Own wallet')}
+							disabled={searching}
+							onclick={() => groupOpen.set(group.title, !isOpen(group.title))}
+						>
+							<span class="o-stack o-grow">
+								<span class="group-title">{group.title}</span>
+								<span class="o-sub"
+									>{searching
+										? `${group.keys.length} match`
+										: `${groupOn(group.keys, mobileRole)} of ${group.keys.length} on`}{locked
+										? ` · ${locked} locked`
+										: ''}</span
+								>
+							</span>
+							{#if opened(group.title)}<ChevronDown
+									size={16}
+									strokeWidth={1.5}
+									aria-hidden="true"
+								/>{:else}<ChevronRight size={16} strokeWidth={1.5} aria-hidden="true" />{/if}
+						</button>
+						{#if opened(group.title)}
+							{#each group.keys as key (key)}
+								<div class="m-row" class:dirty={pending.has(cellKey(mobileRole, key))}>
+									<span class="o-grow">{permissionLabel(key)}</span>
+									{@render toggleCell(mobileRole, key)}
+								</div>
+							{/each}
+						{/if}
+					</section>
+				{/each}
+				{#if searching && evidenceShown}
+					<section class="o-card">
+						<div class="m-row">
+							<span class="o-grow">{permissionLabel('review_financial_evidence')}</span>
+							<button type="button" class="named" onclick={() => (tab = 'reviewers')}
+								>{reviewerCount} named
+								<ChevronRight size={14} strokeWidth={1.8} aria-hidden="true" /></button
+							>
+						</div>
+					</section>
+				{/if}
+			</div>
+		{/if}
 
 		{#if pending.size > 0}
 			<div class="savebar" role="region" aria-label="Unsaved changes">
@@ -956,6 +1056,69 @@
 
 	.presidents {
 		font-size: 13px;
+	}
+
+	.search-tab {
+		flex: 0 0 48px;
+		gap: 6px;
+	}
+
+	.finder {
+		flex: 0 0 auto;
+		height: 52px;
+	}
+
+	.finder input::-webkit-search-cancel-button {
+		display: none;
+		appearance: none;
+	}
+
+	.finder input {
+		font-size: var(--text-16);
+	}
+
+	.found {
+		flex-shrink: 0;
+		white-space: nowrap;
+	}
+
+	.found-line {
+		margin: -4px 4px 0;
+		font-size: 13px;
+	}
+
+	.clear {
+		display: flex;
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: center;
+		width: 28px;
+		height: 28px;
+		border: 0;
+		border-radius: var(--radius-pill);
+		background: var(--o-selected);
+		color: var(--color-text);
+		cursor: pointer;
+	}
+
+	.named {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		height: 28px;
+		padding: 0 12px;
+		border: 1px solid var(--color-accent-ring);
+		border-radius: var(--radius-pill);
+		background: var(--color-accent-subtle);
+		color: var(--o-coral-ink);
+		font: inherit;
+		font-size: 12px;
+		cursor: pointer;
+	}
+
+	.group:disabled,
+	.m-group:disabled {
+		cursor: default;
 	}
 
 	.o-wide-block {
@@ -1318,21 +1481,6 @@
 			display: flex;
 			justify-content: flex-end;
 			width: calc(5 * 96px + 4 * 8px);
-		}
-
-		.named {
-			display: inline-flex;
-			align-items: center;
-			gap: 6px;
-			height: 28px;
-			padding: 0 12px;
-			border: 1px solid var(--color-accent-ring);
-			border-radius: var(--radius-pill);
-			background: var(--color-accent-subtle);
-			color: var(--o-coral-ink);
-			font: inherit;
-			font-size: 12px;
-			cursor: pointer;
 		}
 
 		.savebar {

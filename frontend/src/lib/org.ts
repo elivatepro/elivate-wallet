@@ -224,6 +224,25 @@ export function groupPermissions(keys: ReadonlyArray<string>) {
 	})).filter((g) => g.keys.length > 0);
 }
 
+/**
+ * Blueprint 37: the Access Search tab. Keeps the permissions whose label (or
+ * key) holds every word typed, case-insensitive, in their groups; empty groups
+ * drop out. An empty query keeps everything.
+ */
+export function searchPermissions(
+	groups: ReadonlyArray<{ title: string; keys: readonly string[] }>,
+	query: string
+) {
+	const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+	const matches = (key: string) => {
+		const text = `${permissionLabel(key)} ${key} ${key.replaceAll('_', ' ')}`.toLowerCase();
+		return words.every((w) => text.includes(w));
+	};
+	return groups
+		.map((g) => ({ title: g.title, total: g.keys.length, keys: g.keys.filter(matches) }))
+		.filter((g) => g.keys.length > 0);
+}
+
 export const PERMISSION_SCOPE: Record<string, string> = {
 	self: 'Self',
 	office: 'Office',

@@ -70,7 +70,7 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
 
 - One slice at a time, in worktree `../elivate-wallet-worktrees/<nn-name>` from fresh
   `origin/main` (copy `backend/supabase/.temp` in). Blueprint `docs/blueprints/NN-*.md`;
-  migrations `20261009NNxxxx`, pgTAP `NN0_` (next: `37`/`370_`).
+  migrations `20261009NNxxxx`, pgTAP `NN0_` (next: `38`/`380_`).
 - Checks: `backend/scripts/verify-database.sh`, `deno task check`; frontend `pnpm check`,
   `pnpm lint`, `pnpm test:unit`, e2e via `frontend/scripts/e2e-local.sh` (fake Cloudflare into
   local Mailpit). The local stack is shared: hold the `/tmp/elivate-supabase.lock` directory
@@ -119,5 +119,6 @@ Slice 35 (Blueprint 35, frontend only): install the app as the last onboarding s
 under the icon, launch animation and iOS launch images.
 Slice 36 (Blueprint 36): identity (NIN) review is the `review_identity` permission (President Team
 locked on, World Team switchable, other roles switched on for their office and below; Cross-access
-from the President Team only).
+from the President Team only). Slice 37 (Blueprint 37, frontend only): a Search tab in Roles &
+access filters the permission rows by name.
 Next: set-based authorization reads.
