@@ -11,7 +11,9 @@ import {
 	keepsKey,
 	officeCountLine,
 	officeSubline,
-	officeTree
+	officeTree,
+	PERMISSION_GROUPS,
+	searchPermissions
 } from './org';
 
 const office = (
@@ -174,5 +176,29 @@ describe('funds not managed (Blueprint 22)', () => {
 			} as never);
 		expect(refused('wallet_not_empty').kind).toBe('message');
 		expect(refused('wallet_not_empty')).toMatchObject({ text: expect.stringContaining('money') });
+	});
+});
+
+describe('searchPermissions (Blueprint 37)', () => {
+	const all = PERMISSION_GROUPS;
+	it('keeps matching permissions in their groups', () => {
+		expect(searchPermissions(all, 'withdraw')).toEqual([
+			{ title: 'Own wallet', total: 6, keys: ['initiate_own_withdrawal'] },
+			{ title: 'Money', total: 9, keys: ['approve_withdrawal', 'withdraw_on_behalf'] }
+		]);
+	});
+	it('needs every word, in any order and case', () => {
+		expect(searchPermissions(all, '  BEHALF withdraw ').flatMap((g) => g.keys)).toEqual([
+			'withdraw_on_behalf'
+		]);
+	});
+	it('matches the label as shown', () => {
+		expect(searchPermissions(all, 'approve identity').flatMap((g) => g.keys)).toEqual([
+			'review_identity'
+		]);
+	});
+	it('an empty query keeps everything; no match keeps nothing', () => {
+		expect(searchPermissions(all, '').flatMap((g) => g.keys)).toEqual(all.flatMap((g) => g.keys));
+		expect(searchPermissions(all, 'zzz')).toEqual([]);
 	});
 });

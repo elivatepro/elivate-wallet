@@ -160,6 +160,21 @@ test('President manages offices, a role permission and reads the audit log', asy
 	).toHaveAttribute('aria-checked', 'true');
 	await expectAccessible(page);
 
+	// Blueprint 37: Search filters the same permission rows by name.
+	await page.getByRole('button', { name: 'Search permissions' }).click();
+	await expect(page.getByRole('heading', { name: 'Find a permission' })).toBeVisible();
+	await page.getByRole('searchbox', { name: 'Search permissions' }).fill('behalf');
+	await expect(
+		page.getByRole('switch', { name: 'Withdraw on behalf for Team Leader' })
+	).toHaveAttribute('aria-checked', 'true');
+	await expect(page.getByRole('switch', { name: 'Record income for Team Leader' })).toHaveCount(0);
+	await expect(page.getByRole('status').filter({ hasText: 'permissions match' })).toHaveText(
+		'2 permissions match'
+	);
+	await page.getByRole('searchbox', { name: 'Search permissions' }).fill('zzz');
+	await expect(page.getByText('No permission matches “zzz”.')).toBeVisible();
+	await expectAccessible(page);
+
 	// F05: the audit log shows what happened.
 	await page.goto('/app/audit');
 	await expect(page.getByRole('button', { name: /Closed an office/ })).toBeVisible();
