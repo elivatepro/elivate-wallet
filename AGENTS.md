@@ -70,7 +70,7 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
 
 - One slice at a time, in worktree `../elivate-wallet-worktrees/<nn-name>` from fresh
   `origin/main` (copy `backend/supabase/.temp` in). Blueprint `docs/blueprints/NN-*.md`;
-  migrations `20261009NNxxxx`, pgTAP `NN0_` (next: `28`/`280_`).
+  migrations `20261009NNxxxx`, pgTAP `NN0_` (next: `37`/`370_`).
 - Checks: `backend/scripts/verify-database.sh`, `deno task check`; frontend `pnpm check`,
   `pnpm lint`, `pnpm test:unit`, e2e via `frontend/scripts/e2e-local.sh` (fake Cloudflare into
   local Mailpit). The local stack is shared: hold the `/tmp/elivate-supabase.lock` directory
@@ -114,5 +114,8 @@ only): email Root poses and hero grain about 70% lighter. Slice 32 (Blueprint 32
 layout, one `DatePicker` for every member-app date (Paper "Date picker v8"). Slice 33: site details
 (description, Open Graph / X preview `static/og.jpg` from Paper "Website" → OG — App preview,
 favicon.ico, robots + sitemap, security.txt, manifest details). Slice 34 (Blueprint 34): the app's own
-Chatwoot inbox ("Elivate Wallet — App"), support sees name, email and account context, topic first.
+Chatwoot inbox ("Elivate Wallet — App"), support sees name, email and account context, topic first. Slice 36
+(Blueprint 36): identity (NIN) review is the `review_identity` permission (President Team locked on,
+World Team switchable, other roles switched on for their office and below; Cross-access from the
+President Team only).
 Next: set-based authorization reads.

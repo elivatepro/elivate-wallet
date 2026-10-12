@@ -144,8 +144,11 @@ export function navModel(input: NavInput): NavModel {
 	const leader = can('view_managed_wallets') || can('view_scoped_financial_reports');
 	const leads = president || can('manage_members') || can('view_managed_wallets');
 	const reports = can('view_scoped_financial_reports') || can('export_scoped_reports');
-	/** Blueprint 06 Q4: NIN reviews (the backend re-checks each review). */
-	const reviewer = president || role === 'world_team_member';
+	/**
+	 * Blueprint 36: NIN reviews follow `review_identity` (the backend re-checks
+	 * each review). Before it loads (or offline) Blueprint 06's defaults stand in.
+	 */
+	const reviewer = permissions ? can('review_identity') : president || role === 'world_team_member';
 	const billing = can('manage_subscription') || input.billingOwner;
 	const settings = can('manage_team_settings') || can('request_restore');
 	/** Slice 28: Offices is for the President Team and World Team only. */

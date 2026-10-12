@@ -33,7 +33,8 @@ const WORLD_TEAM = [
 	'move_membership',
 	'suspend_membership',
 	'end_membership',
-	'request_restore'
+	'request_restore',
+	'review_identity'
 ];
 const PRESIDENT = [
 	...LEAD,
@@ -50,6 +51,7 @@ const PRESIDENT = [
 	'manage_allocation',
 	'manage_team_settings',
 	'request_restore',
+	'review_identity',
 	'review_financial_evidence'
 ];
 /** Blueprint 22: a director whose funds are not managed keeps every director authority. */
@@ -248,6 +250,24 @@ describe('sidebar sections (owner decision 2)', () => {
 		const settings = m.sections.flatMap((s) => s.items).find((i) => i.id === 'settings');
 		expect(settings?.href).toBe('/app/settings/backups');
 		expect(isCurrent(settings!, '/app/settings/backups/restore')).toBe(true);
+	});
+
+	it('Blueprint 36: Identity reviews follow review_identity, not the role', () => {
+		const reviews = (permissions: string[] | null, role: NavInput['role']) =>
+			hrefs(model({ permissions, role })).includes('/app/reviews');
+		expect(reviews([...TEAM_LEADER, 'review_identity'], 'team_leader')).toBe(true);
+		expect(reviews(TEAM_LEADER, 'team_leader')).toBe(false);
+		expect(reviews(DIRECTOR, 'director')).toBe(false);
+		// The President Team switched it off for the World Team.
+		expect(
+			reviews(
+				WORLD_TEAM.filter((k) => k !== 'review_identity'),
+				'world_team_member'
+			)
+		).toBe(false);
+		// Before the permissions load, Blueprint 06's defaults stand in.
+		expect(reviews(null, 'world_team_member')).toBe(true);
+		expect(reviews(null, 'team_leader')).toBe(false);
 	});
 
 	it('Billing for the Billing Owner without manage_subscription', () => {

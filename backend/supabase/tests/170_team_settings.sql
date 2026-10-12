@@ -66,7 +66,7 @@ do $$ begin
 end $$;
 
 -- ── Catalogue (5) ──
-select is((select count(*)::int from authz.permission_catalog), 34, 'A-03 now has 34 rows');
+select is((select count(*)::int from authz.permission_catalog), 35, 'A-03 has 35 rows (Blueprint 36 added review_identity)');
 select is((select protected::text || '/' || grantable::text || '/' || scope from authz.permission_catalog
   where key = 'manage_team_settings'), 'true/false/tenant', 'manage_team_settings is protected and not grantable');
 select is((select string_agg(role::text, ',' order by role) from authz.default_role_permissions

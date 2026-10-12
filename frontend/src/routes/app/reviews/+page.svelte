@@ -1,7 +1,9 @@
 <!--
 	NIN reviews (Blueprint 06 Q4): people in this network whose NIN check
-	failed and who asked for a leader to confirm their legal name. President
-	Team sees the whole network; World Team the offices at and below theirs.
+	failed and who asked for a leader to confirm their legal name. Blueprint 36:
+	whoever holds `review_identity` (President Team always; World Team and any
+	role the President Team switches on, for their office and below; one person
+	through Cross-access).
 	Approving locks the typed name as leader-confirmed (never "provider
 	verified"). Reason + PIN for both decisions. No Paper composition yet: list
 	card style shared with the other app lists.
@@ -46,7 +48,7 @@
 		return {
 			ok: false,
 			text: denied
-				? 'Only the President Team and World Team review NINs.'
+				? 'You don’t review identities in this network.'
 				: 'We couldn’t load the reviews.',
 			status: failure?._tag === 'BackendError' ? failure.status : null
 		};
