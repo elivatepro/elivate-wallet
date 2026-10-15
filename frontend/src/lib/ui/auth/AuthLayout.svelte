@@ -7,6 +7,7 @@
 -->
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { navigating, page } from '$app/state';
 	import type { Theme } from '#lib/theme.js';
 	import ThemeSwitch from '#lib/ui/ThemeSwitch.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
@@ -28,6 +29,22 @@
 	} = $props();
 
 	const stage = provideRootStage();
+
+	/**
+	 * Blueprint 41: a step still loading after 150 ms dims the panel a little
+	 * (the tapped button or link spins, root layout), so a slow step is never
+	 * a dead tap. Not for form posts, whose buttons say they are working.
+	 */
+	let slowNav = $state(false);
+	$effect(() => {
+		const to = navigating.to?.url.pathname;
+		if (!to || to === page.url.pathname || navigating.type === 'form') return;
+		const timer = setTimeout(() => (slowNav = true), 150);
+		return () => {
+			clearTimeout(timer);
+			slowNav = false;
+		};
+	});
 </script>
 
 <div class="auth">
@@ -43,7 +60,7 @@
 			<ThemeSwitch {theme} />
 		</header>
 		<main class="content">
-			<div class="panel">
+			<div class="panel" class:waiting={slowNav} aria-busy={slowNav ? 'true' : undefined}>
 				{@render children()}
 			</div>
 			{#if stage.art}
@@ -155,6 +172,12 @@
 		width: 100%;
 		max-width: 460px;
 		margin-inline: auto;
+	}
+
+	.panel.waiting {
+		opacity: 0.6;
+		transition: opacity 160ms ease;
+		cursor: progress;
 	}
 
 	/* Gate screens with Root (Paper "App — Screens v3" G01–G12). */

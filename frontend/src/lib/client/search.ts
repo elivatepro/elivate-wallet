@@ -69,6 +69,28 @@ export const GROUP_LABELS: Record<GroupKey, string> = {
 	pages: 'Pages'
 };
 
+/**
+ * Blueprint 41: where a search stands. "idle" covers the debounce: the last
+ * results stay on screen while typing, and only a request in flight is
+ * "loading" (so nothing flickers on every keystroke).
+ */
+export type SearchPhase = 'idle' | 'loading' | 'ready' | 'error' | 'offline';
+
+export type SearchNote = 'offline' | 'error' | 'searching' | 'empty' | null;
+
+/**
+ * The one note above the results. "Searching…" only while a request runs
+ * and nothing is shown yet; "No matches" for the last answer that came back.
+ */
+export function searchNote(phase: SearchPhase, results: SearchResults | null): SearchNote {
+	if (phase === 'offline') return 'offline';
+	if (phase === 'error') return 'error';
+	if (!results) return phase === 'loading' ? 'searching' : null;
+	return results.people.length + results.offices.length + results.records.length === 0
+		? 'empty'
+		: null;
+}
+
 /** The trimmed query when it may be sent, otherwise null. */
 export function searchableQuery(raw: string): string | null {
 	const q = raw.trim();

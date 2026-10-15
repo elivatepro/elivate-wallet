@@ -10,6 +10,7 @@
 	import { enterMovesOn } from '#lib/ui/enter-moves-on.js';
 	import type { Snippet } from 'svelte';
 	import { Dialog } from 'bits-ui';
+	import { busyLabel } from '#lib/ui/busy-label.js';
 	import PinField from '#lib/ui/auth/PinField.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
 	import type { RootPose } from '#lib/ui/root.svelte.js';
@@ -127,9 +128,12 @@
 							>{cancelLabel}</Dialog.Close
 						>{/if}
 					<button class="org-go" data-tone={tone} type="submit" disabled={busy} aria-busy={busy}>
-						<span class="o-wide">{confirmLabel}</span><span class="o-narrow"
-							>{mobileConfirmLabel ?? confirmLabel}</span
-						>
+						<!-- Blueprint 41: working shows a spinner and says so. -->
+						{#if busy}<span class="ew-spinner" aria-hidden="true"></span>{busyLabel(
+								confirmLabel
+							)}{:else}<span class="o-wide">{confirmLabel}</span><span class="o-narrow"
+								>{mobileConfirmLabel ?? confirmLabel}</span
+							>{/if}
 					</button>
 				</div>
 			</form>
@@ -238,6 +242,7 @@
 		flex: 1;
 		align-items: center;
 		justify-content: center;
+		gap: 8px;
 		height: 52px;
 		padding: 0 22px;
 		border-radius: var(--radius-pill);
@@ -270,8 +275,12 @@
 		color: var(--color-danger);
 	}
 
-	.org-go:disabled {
+	.org-go:disabled:not([aria-busy='true']) {
 		opacity: var(--opacity-disabled);
+	}
+
+	.org-go[aria-busy='true'] {
+		cursor: progress;
 	}
 
 	@media (min-width: 1024px) {

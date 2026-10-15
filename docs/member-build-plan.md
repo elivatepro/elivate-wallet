@@ -310,6 +310,11 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
   opens only once it is valid. Approvers see it in the queue and detail; the member on their own
   withdrawal and in Activity's transaction detail; the M02 and M03 emails quote it (the one
   exception to "no reasons in emails"). Never in statements or reports. Older withdrawals: none.
+- **Mobile polish (2026-10-15, Blueprint 41):** on phones the More page's Appearance row is a
+  **Dark mode switch** (on = the dark theme on screen, "System" resolved; a tap sets Dark or
+  Light); the desktop account menu keeps Light / Dark / System. Loading feedback is "spin +
+  outlines": a slow tap spins on the tapped item, slow pages show content-shaped outlines, no
+  top progress bar. The Withdrawals banner is 200 px on phones with a 120 px Root.
 - **Sequencing:** one slice at a time, each new slice in its own thread. Order: 4 → 5 → 8 →
   slice 9 follow-up (IP storage, signed-in password change, PIN-change email, sign-out
   choice after reset) → 6 → 7 → 10.

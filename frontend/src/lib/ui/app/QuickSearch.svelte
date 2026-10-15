@@ -7,8 +7,12 @@
 	email and phone arrive masked; amounts follow "Hide amounts".
 	Modal (Bits UI Dialog): focus is trapped in the field and returns to the
 	trigger. The field is a combobox driving a listbox via aria-activedescendant.
+	Blueprint 41 (phones): the sheet follows the visible viewport above the
+	keyboard, the last results stay while typing (no flicker), touch never moves
+	the highlight, and opening a result closes without returning focus.
 -->
 <script lang="ts">
+	import { tick, untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { Dialog } from 'bits-ui';
 	import { Effect, Exit } from 'effect';
@@ -34,13 +38,16 @@
 		recordAmount,
 		recordDetail,
 		searchableQuery,
+		searchNote,
 		searchPath,
 		statusTone,
 		humanize,
 		MAX_QUERY,
 		type SearchItem,
-		type SearchPage
+		type SearchPage,
+		type SearchPhase
 	} from '#lib/client/search.js';
+	import { isKeyboardProxy, keyboardOwner, releaseKeyboard } from '#lib/client/keyboard-proxy.js';
 	import { initials } from '#lib/activity.js';
 	import { formatMoney, hiddenMoney } from '#lib/money.js';
 	import RootImage from '#lib/ui/RootImage.svelte';
@@ -60,11 +67,9 @@
 		onclose?: () => void;
 	} = $props();
 
-	type Phase = 'idle' | 'loading' | 'ready' | 'error' | 'offline';
-
 	let query = $state('');
 	let results = $state<SearchResults | null>(null);
-	let phase = $state<Phase>('idle');
+	let phase = $state<SearchPhase>('idle');
 	let attempt = $state(0);
 	let online = $state(true);
 	let wide = $state(true);
@@ -72,6 +77,16 @@
 	let keyed = $state(false);
 	let activeId = $state<string | null>(null);
 	let input: HTMLInputElement | undefined = $state();
+	/** Closing because a result was opened: no focus return (no scroll jump or keyboard flash). */
+	let leaving = false;
+	/** Where focus returns on Cancel / Escape (the trigger), if anywhere. */
+	let returnTo: HTMLElement | null = null;
+	/** Phones: the visible viewport (above the keyboard), from visualViewport. */
+	let viewTop = $state(0);
+	let viewHeight = $state<number | null>(null);
+	const keyboardUp = $derived(
+		viewHeight !== null && (window.innerHeight - viewHeight > 120 || viewHeight < 600)
+	);
 
 	const q = $derived(searchableQuery(query));
 	const pageMatches = $derived(q ? matchPages(pages, q) : []);
@@ -83,11 +98,7 @@
 		return i < 0 ? 0 : i;
 	});
 	const active = $derived(activeIndex >= 0 ? items[activeIndex] : undefined);
-	const remoteEmpty = $derived(
-		phase === 'ready' &&
-			!!results &&
-			results.people.length + results.offices.length + results.records.length === 0
-	);
+	const note = $derived(searchNote(phase, results));
 	const optionId = (item: SearchItem) => `qs-opt-${item.id}`;
 
 	$effect(() => {
@@ -116,9 +127,33 @@
 		activeId = null;
 		keyed = false;
 		phase = 'idle';
+		leaving = false;
+	});
+
+	// Blueprint 41: on phones the sheet is the visible viewport, so the results
+	// and the field stay above the on-screen keyboard (iOS keeps the layout
+	// viewport the same size and only shrinks the visual one).
+	$effect(() => {
+		const vv = window.visualViewport;
+		if (!open || wide || !vv) return;
+		const fit = () => {
+			viewTop = Math.max(0, Math.round(vv.offsetTop));
+			viewHeight = Math.round(vv.height);
+		};
+		fit();
+		vv.addEventListener('resize', fit);
+		vv.addEventListener('scroll', fit);
+		return () => {
+			vv.removeEventListener('resize', fit);
+			vv.removeEventListener('scroll', fit);
+			viewTop = 0;
+			viewHeight = null;
+		};
 	});
 
 	// Debounced read; a newer query (or closing) cancels the one in flight.
+	// Blueprint 41: the last results stay on screen while typing; "loading"
+	// starts only once the request goes out.
 	$effect(() => {
 		const current = q;
 		void attempt;
@@ -131,9 +166,13 @@
 			phase = 'offline';
 			return;
 		}
-		phase = 'loading';
+		untrack(() => {
+			// An aborted request's "loading" ends here; the next one starts it again.
+			if (phase === 'error' || phase === 'offline' || phase === 'loading') phase = 'idle';
+		});
 		const controller = new AbortController();
 		const timer = setTimeout(() => {
+			phase = 'loading';
 			void Effect.runPromiseExit(
 				getJson(searchPath(current), SearchResults, controller.signal)
 			).then((exit) => {
@@ -153,14 +192,16 @@
 		};
 	});
 
-	$effect(() => {
-		if (!active) return;
-		document.getElementById(optionId(active))?.scrollIntoView({ block: 'nearest' });
-	});
-
 	function close() {
 		open = false;
 		onclose?.();
+	}
+
+	/** Closing to open a result: the keyboard goes down first, focus stays put. */
+	function leave() {
+		leaving = true;
+		input?.blur();
+		close();
 	}
 
 	function openItem(item: SearchItem, newTab: boolean) {
@@ -168,7 +209,7 @@
 			window.open(item.href, '_blank', 'noopener');
 			return;
 		}
-		close();
+		leave();
 		void goto(item.href);
 	}
 
@@ -177,7 +218,14 @@
 			event.preventDefault();
 			keyed = true;
 			const next = moveIndex(activeIndex, event.key === 'ArrowDown' ? 1 : -1, items.length);
-			activeId = items[next]?.id ?? null;
+			const item = items[next];
+			activeId = item?.id ?? null;
+			// Blueprint 41: the list scrolls only for the keyboard (never while typing or touching).
+			if (item) {
+				void tick().then(() =>
+					document.getElementById(optionId(item))?.scrollIntoView({ block: 'nearest' })
+				);
+			}
 		} else if (event.key === 'Enter' && !event.isComposing && active) {
 			event.preventDefault();
 			openItem(active, isNewTabModifier(event, mac));
@@ -187,7 +235,7 @@
 	function onRowClick(event: MouseEvent) {
 		// Modified clicks open a new tab or window natively; keep the palette.
 		if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
-		close();
+		leave();
 	}
 
 	const money = (amount: string, currency: 'NGN' | 'USD', signed: boolean) =>
@@ -195,9 +243,9 @@
 
 	const statusText = $derived.by(() => {
 		if (!q) return '';
-		if (phase === 'offline') return 'You’re offline.';
-		if (phase === 'error') return 'Couldn’t search. Try again.';
-		if (phase === 'loading') return 'Searching…';
+		if (note === 'offline') return 'You’re offline.';
+		if (note === 'error') return 'Couldn’t search. Try again.';
+		if (note === 'searching') return 'Searching…';
 		if (items.length === 0) return `No matches for “${q}”.`;
 		return `${items.length} ${items.length === 1 ? 'result' : 'results'}.`;
 	});
@@ -214,9 +262,27 @@
 		<Dialog.Content
 			class="qs-dialog"
 			aria-label="Quick search"
+			style={viewHeight === null
+				? undefined
+				: `--qs-top: ${viewTop}px; --qs-height: ${viewHeight}px`}
 			onOpenAutoFocus={(event) => {
 				event.preventDefault();
-				input?.focus();
+				const before = document.activeElement;
+				returnTo = isKeyboardProxy(before)
+					? keyboardOwner()
+					: before instanceof HTMLElement
+						? before
+						: null;
+				input?.focus({ preventScroll: true });
+				releaseKeyboard();
+			}}
+			onCloseAutoFocus={(event) => {
+				// Blueprint 41: no focus return when a result opened (the page is
+				// changing) and none to the stand-in field; else the trigger, unscrolled.
+				event.preventDefault();
+				releaseKeyboard();
+				if (!leaving && returnTo?.isConnected) returnTo.focus({ preventScroll: true });
+				returnTo = null;
 			}}
 		>
 			<Dialog.Title class="visually-hidden">Quick search</Dialog.Title>
@@ -274,16 +340,16 @@
 				{#if !q}
 					{#if wide}<p class="note">Search by name, UID or reference</p>{/if}
 				{:else}
-					{#if phase === 'offline'}
+					{#if note === 'offline'}
 						<p class="note">You’re offline. Pages still open below.</p>
-					{:else if phase === 'error'}
+					{:else if note === 'error'}
 						<p class="note">
 							Couldn’t search. Try again.
 							<button class="retry" type="button" onclick={() => attempt++}>Try again</button>
 						</p>
-					{:else if phase === 'loading' && !results}
+					{:else if note === 'searching'}
 						<p class="note" aria-hidden="true">Searching…</p>
-					{:else if remoteEmpty && items.length === 0}
+					{:else if note === 'empty' && items.length === 0}
 						<p class="note">
 							No matches for “{q}”.<span class="note-sub"
 								>Try a name, a UID like EW-40117 or a full reference.</span
@@ -316,7 +382,10 @@
 										tabindex="-1"
 										href={item.href}
 										onclick={onRowClick}
-										onpointermove={() => (activeId = item.id)}
+										onpointermove={(event) => {
+											// Blueprint 41: a mouse moves the highlight; a finger scrolling never does.
+											if (event.pointerType === 'mouse') activeId = item.id;
+										}}
 									>
 										{#if item.kind === 'person'}
 											{@const p = item.person}
@@ -413,7 +482,8 @@
 					<span class="spacer"></span>
 					<RootImage pose="quick-search" class="root-crop" sizes="60px" eager />
 				</div>
-			{:else}
+			{:else if !keyboardUp}
+				<!-- Blueprint 41: the decorative hint only while the keyboard is down. -->
 				<div class="mobile-hint">
 					<RootImage pose="quick-search" class="root-full" sizes="84px" eager />
 					<p>Search by name, UID or reference</p>
@@ -462,10 +532,11 @@
 		background: #08090a9e;
 	}
 
-	/* K02: full-screen sheet. */
+	/* K02: full-screen sheet; Blueprint 41: the visible viewport, above the keyboard. */
 	:global(.qs-dialog) {
 		position: fixed;
-		inset: 0;
+		inset: var(--qs-top, 0px) 0 auto;
+		height: var(--qs-height, 100%);
 		z-index: 61;
 		display: flex;
 		flex-direction: column;
@@ -608,8 +679,14 @@
 		cursor: pointer;
 	}
 
+	/* Blueprint 41: only a slow answer dims the last results (fast ones never flicker). */
+	[role='listbox'] {
+		transition: opacity 120ms ease;
+	}
+
 	[role='listbox'].stale {
 		opacity: 0.7;
+		transition-delay: 300ms;
 	}
 
 	.group {
@@ -830,6 +907,7 @@
 		:global(.qs-dialog) {
 			/* Slice 21: centred with auto margins, not translate(-50%) (blurry text). */
 			inset: 96px 0 auto;
+			height: auto;
 			width: min(640px, calc(100vw - 32px));
 			max-height: calc(100dvh - 192px);
 			margin-inline: auto;

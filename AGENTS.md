@@ -126,4 +126,7 @@ and use limit, PIN; anyone with it signs up with their own email and joins at on
 (owner ask, frontend only, Paper TL07/TL08): the Invitations page shows the office's team link.
 Slice 40 (Blueprint 40, Paper WR01/WR02): every withdrawal asks for a reason (3–500 characters),
 shown to approvers, the member, Activity and the M02/M03 emails; never in statements or reports.
+Slice 41 (Blueprint 41, frontend only): mobile polish (the current tab scrolls to top, quick search
+above the keyboard, Home activity rows open the detail, a shorter Withdrawals banner, a Dark mode
+switch on More, pressed states, tapped-item spinners and content-shaped outlines).
 Next: set-based authorization reads.

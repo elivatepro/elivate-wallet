@@ -10,6 +10,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { Dialog } from 'bits-ui';
+	import { busyLabel } from '#lib/ui/busy-label.js';
 	import RootImage from '#lib/ui/RootImage.svelte';
 	import type { RootPose } from '#lib/ui/root.svelte.js';
 
@@ -172,7 +173,11 @@
 						data-tone={tone}
 						type="submit"
 						disabled={busy}
-						aria-busy={busy ? 'true' : undefined}>{confirmLabel}</button
+						aria-busy={busy ? 'true' : undefined}
+						><!-- Blueprint 41: working shows a spinner and says so. -->{#if busy}<span
+								class="ew-spinner"
+								aria-hidden="true"
+							></span>{busyLabel(confirmLabel)}{:else}{confirmLabel}{/if}</button
 					>
 				</div>
 			</form>
@@ -391,6 +396,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		gap: 8px;
 		height: 52px;
 		border-radius: var(--radius-pill);
 		font: inherit;
@@ -432,9 +438,13 @@
 		background: color-mix(in oklab, var(--color-danger) 12%, transparent);
 	}
 
-	.rd-go:disabled {
+	.rd-go:disabled:not([aria-busy='true']) {
 		opacity: var(--opacity-disabled);
 		cursor: not-allowed;
+	}
+
+	.rd-go[aria-busy='true'] {
+		cursor: progress;
 	}
 
 	/* Desktop: 520 px modal with the felt header. */

@@ -344,3 +344,25 @@ export function currentTab(tabs: readonly NavTab[], path: string): string | null
 	if (found) return found.id;
 	return path.startsWith('/app') ? 'more' : null;
 }
+
+/**
+ * Blueprint 41: a tap on a tab or sidebar item that would only open the page
+ * already on screen (same path, same query). The shell keeps the page and
+ * scrolls it to the top instead of reloading it (no flash of the tab bar).
+ */
+export function sameDestination(
+	href: string,
+	current: Pick<URL, 'href' | 'origin' | 'pathname' | 'search'>
+): boolean {
+	const target = new URL(href, current.href);
+	return (
+		target.origin === current.origin &&
+		target.pathname === current.pathname &&
+		target.search === current.search
+	);
+}
+
+/** Only a plain primary click or tap may be kept on the page (modified clicks open tabs). */
+export const plainClick = (
+	event: Pick<MouseEvent, 'button' | 'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey'>
+) => event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;

@@ -552,9 +552,23 @@
 	font-size: var(--text-14);
 }
 
-.mm-btn:disabled {
+.mm-btn:disabled:not([aria-busy='true']) {
 	cursor: default;
 	opacity: var(--opacity-disabled);
+}
+
+/* Blueprint 41: a working command keeps its colour and shows a spinner. */
+.mm-btn[aria-busy='true'] {
+	cursor: progress;
+}
+
+/* Blueprint 41: list rows answer the press at once. */
+.mm-row {
+	-webkit-tap-highlight-color: transparent;
+}
+
+.mm-row:active:not(:disabled) {
+	background: color-mix(in oklab, var(--color-text) 6%, transparent);
 }
 
 /* ── Forms (M06, B05, T03 record payout) ── */

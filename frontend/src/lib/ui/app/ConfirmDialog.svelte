@@ -7,6 +7,7 @@
 <script lang="ts">
 	import { Dialog } from 'bits-ui';
 	import PinField from '#lib/ui/auth/PinField.svelte';
+	import { busyLabel } from '#lib/ui/busy-label.js';
 
 	let {
 		open = $bindable(false),
@@ -98,7 +99,10 @@
 						disabled={busy}
 						aria-busy={busy}
 					>
-						{confirmLabel}
+						<!-- Blueprint 41: working shows a spinner and says so. -->
+						{#if busy}<span class="ew-spinner" aria-hidden="true"></span>{busyLabel(
+								confirmLabel
+							)}{:else}{confirmLabel}{/if}
 					</button>
 				</div>
 			</form>
@@ -223,6 +227,10 @@
 	}
 
 	.confirm-go {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
 		border: 0;
 		background: var(--button-primary-bg);
 		box-shadow: var(--auth-button-shadow);
@@ -235,7 +243,11 @@
 		color: #fff;
 	}
 
-	.confirm-go:disabled {
+	.confirm-go:disabled:not([aria-busy='true']) {
 		opacity: var(--opacity-disabled);
+	}
+
+	.confirm-go[aria-busy='true'] {
+		cursor: progress;
 	}
 </style>

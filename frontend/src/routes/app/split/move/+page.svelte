@@ -380,7 +380,12 @@
 								disabled={!shell.canAct ||
 									shell.paused('transfers') ||
 									attempt.state.kind === 'sending'}
-								onclick={submit}>Send request</button
+								aria-busy={attempt.state.kind === 'sending'}
+								onclick={submit}
+								><!-- Blueprint 41: working shows a spinner and says so. -->{#if attempt.state.kind === 'sending'}<span
+										class="ew-spinner"
+										aria-hidden="true"
+									></span>Sending…{:else}Send request{/if}</button
 							>
 						</div>
 					{/if}

@@ -2,6 +2,8 @@
 	Root hero card, Paper "App — Screens v3" H02/H03/H09: coral felt background,
 	left shade, grain, Root bottom-right, title + one line. Mobile 300 px tall,
 	desktop 220 px. The card stays dark in both themes (brand surface).
+	Blueprint 41: `short` (Withdrawals) is 200 px on phones with a 120 px Root;
+	desktop is unchanged.
 -->
 <script lang="ts">
 	import type { Snippet } from 'svelte';
@@ -16,6 +18,7 @@
 		children,
 		compact = false,
 		card = false,
+		short = false,
 		headingLevel = 1
 	}: {
 		pose: RootPose;
@@ -29,14 +32,21 @@
 		compact?: boolean;
 		/** Queue cards under a list (Paper v1 C01/C05/C07/C09, v2 W05): 260 px, 24 px title. */
 		card?: boolean;
+		/** Blueprint 41 (owner 2026-10-15): a 200 px banner on phones, Root 120 px wide. */
+		short?: boolean;
 		headingLevel?: 1 | 2;
 	} = $props();
 </script>
 
-<section class="hero" class:compact class:card>
+<section class="hero" class:compact class:card class:short>
 	<div class="shade" aria-hidden="true"></div>
 	<div class="grain" aria-hidden="true"></div>
-	<RootImage {pose} class="hero-root" sizes="(min-width: 1024px) 178px, 170px" eager />
+	<RootImage
+		{pose}
+		class="hero-root"
+		sizes={short ? '(min-width: 1024px) 178px, 120px' : '(min-width: 1024px) 178px, 170px'}
+		eager
+	/>
 	<div class="text">
 		{#if kicker}<p class="kicker">{kicker}</p>{/if}
 		<svelte:element this={`h${headingLevel}`} class="title" tabindex="-1">{title}</svelte:element>
@@ -104,6 +114,18 @@
 		height: 200px;
 	}
 
+	.hero.short {
+		height: 200px;
+		padding: 18px;
+	}
+
+	.hero.short :global(.hero-root) {
+		right: 8px;
+		bottom: -8px;
+		width: 120px;
+		height: 161px;
+	}
+
 	.text {
 		position: relative;
 		display: flex;
@@ -111,6 +133,12 @@
 		gap: 6px;
 		width: 176px;
 		max-width: 200px;
+	}
+
+	/* The smaller Root leaves the title and chips more room. */
+	.hero.short .text {
+		width: auto;
+		max-width: calc(100% - 104px);
 	}
 
 	.title {
@@ -130,7 +158,8 @@
 	}
 
 	@media (min-width: 1024px) {
-		.hero {
+		.hero,
+		.hero.short {
 			height: 220px;
 			padding: 32px;
 			border-radius: var(--radius-24);
@@ -146,14 +175,16 @@
 		}
 
 		.hero :global(.hero-root),
-		.hero.compact :global(.hero-root) {
+		.hero.compact :global(.hero-root),
+		.hero.short :global(.hero-root) {
 			right: 72px;
 			bottom: -12px;
 			width: 178px;
 			height: 232px;
 		}
 
-		.text {
+		.text,
+		.hero.short .text {
 			gap: 8px;
 			width: auto;
 			max-width: none;

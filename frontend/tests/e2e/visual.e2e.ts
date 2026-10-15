@@ -4,7 +4,7 @@
 // and name on one left edge. Local stack only, synthetic data.
 
 import { expect, test } from './fixtures';
-import { createConfirmedAccount, recordIncome, uniqueEmail, walletPeople } from './helpers';
+import { createConfirmedAccount, recordIncome, shot, uniqueEmail, walletPeople } from './helpers';
 
 const { PASSWORD, PIN, memberWithAccount, signInAs, asPresident } = walletPeople;
 const NETWORK = 'Visual Test Network';
@@ -101,4 +101,60 @@ test('phone: the header has the name only, the chips no rail, the banner one edg
 	const hero = (await page.locator('section.hero').boundingBox())!;
 	expect(a.y).toBeGreaterThanOrEqual(hero.y);
 	await expect(avatar.locator('img')).toHaveCount(0);
+});
+
+// Blueprint 41 (owner 2026-10-15): mobile polish on a 390 px phone.
+test('phone: the current tab stays, Home rows open, Dark mode switch, short banner', async ({
+	page
+}) => {
+	await signInAs(page, member);
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto('/app');
+	const row = page.locator('a.tx').first();
+	await expect(row).toBeVisible();
+	await shot(page, '41-home');
+
+	// Tapping the current tab keeps the page (no reload) and scrolls it to the top.
+	await page.evaluate(() => {
+		(window as Window & { kept?: boolean }).kept = true;
+		window.scrollTo(0, 200);
+	});
+	await page.locator('.tabbar a[aria-current="page"]').click();
+	await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+	expect(await page.evaluate(() => (window as Window & { kept?: boolean }).kept)).toBe(true);
+	await expect(page).toHaveURL(/\/app$/);
+
+	// A Recent activity row opens its transaction; Back returns Home.
+	await row.click();
+	await expect(page).toHaveURL(/\/app\/activity\?tx=/);
+	await expect(page.getByText('25.00').first()).toBeVisible();
+	await shot(page, '41-detail');
+	await page.goBack();
+	await expect(page).toHaveURL(/\/app$/);
+
+	// More: one Dark mode switch, on for the dark theme; off chooses Light.
+	await page.goto('/app/more');
+	const dark = page.getByRole('switch', { name: 'Dark mode' });
+	await expect(dark).toBeChecked();
+	await dark.click();
+	await expect(dark).not.toBeChecked();
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+	await shot(page, '41-more-light');
+	await dark.click();
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+	await shot(page, '41-more');
+
+	// Quick search opens as a sheet with its field focused.
+	await page.getByRole('button', { name: 'Quick search…' }).click();
+	await expect(page.getByRole('combobox')).toBeFocused();
+	await page.getByRole('combobox').fill('wi');
+	await expect(page.getByRole('option', { name: /Withdrawals/ })).toBeVisible();
+	await shot(page, '41-search');
+	await page.getByRole('button', { name: 'Cancel' }).click();
+
+	// Withdrawals: the banner is about 200 px on phones.
+	await page.goto('/app/withdrawals');
+	const banner = (await page.locator('section.hero').boundingBox())!;
+	expect(Math.round(banner.height)).toBeLessThanOrEqual(202);
+	await shot(page, '41-withdrawals');
 });

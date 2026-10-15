@@ -43,7 +43,13 @@
 		aria-busy={busy ? 'true' : undefined}
 	>
 		<span>{label}</span>
-		<span class="chip" aria-hidden="true"><Icon size={18} strokeWidth={2} /></span>
+		<!-- Blueprint 41: working, the chip spins. -->
+		<span class="chip" aria-hidden="true"
+			>{#if busy}<span class="ew-spinner"></span>{:else}<Icon
+					size={18}
+					strokeWidth={2}
+				/>{/if}</span
+		>
 	</button>
 {/if}
 
@@ -68,7 +74,7 @@
 		cursor: pointer;
 	}
 
-	.primary:disabled {
+	.primary:disabled:not([aria-busy='true']) {
 		opacity: var(--opacity-disabled);
 		cursor: not-allowed;
 	}

@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { countTasks, currentTab, isCurrent, MAX_TABS, navModel, type NavInput } from '#lib/nav.js';
+import {
+	countTasks,
+	currentTab,
+	isCurrent,
+	MAX_TABS,
+	navModel,
+	plainClick,
+	sameDestination,
+	type NavInput
+} from '#lib/nav.js';
 
 // A-03 defaults per role (Blueprint 25 derives tabs and sections from them).
 const OWN = [
@@ -315,5 +324,27 @@ describe('bell tasks', () => {
 				{ kind: 'income_posted' }
 			])
 		).toEqual({ withdrawals: 2, payouts: 2, transfers: 1, evidence: 2, identity: 1 });
+	});
+});
+
+describe('a tap on the page already open (Blueprint 41)', () => {
+	const here = (href: string) => new URL(href, 'https://app.example.test');
+
+	it('is the same destination only for the same path and query', () => {
+		expect(sameDestination('/app', here('/app'))).toBe(true);
+		expect(sameDestination('/app/activity', here('/app/activity'))).toBe(true);
+		expect(sameDestination('/app/activity', here('/app/activity?tx=abc'))).toBe(false);
+		expect(sameDestination('/app/members', here('/app/members/abc'))).toBe(false);
+		expect(sameDestination('/app', here('/app/wallet'))).toBe(false);
+		expect(sameDestination('/app/queue?withdrawal=1', here('/app/queue?withdrawal=1'))).toBe(true);
+		expect(sameDestination('https://elsewhere.test/app', here('/app'))).toBe(false);
+	});
+
+	it('keeps only plain primary clicks', () => {
+		const click = { button: 0, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false };
+		expect(plainClick(click)).toBe(true);
+		expect(plainClick({ ...click, metaKey: true })).toBe(false);
+		expect(plainClick({ ...click, ctrlKey: true })).toBe(false);
+		expect(plainClick({ ...click, button: 1 })).toBe(false);
 	});
 });

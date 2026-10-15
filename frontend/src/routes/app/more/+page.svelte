@@ -17,12 +17,11 @@
 	import UserRound from '@lucide/svelte/icons/user-round';
 	import UserCog from '@lucide/svelte/icons/user-cog';
 	import { goto } from '$app/navigation';
-	import { THEME_LABELS, type Appearance } from '#lib/client/appearance.svelte.js';
+	import type { Appearance } from '#lib/client/appearance.svelte.js';
 	import { profilePhotoSrc } from '#lib/client/photo.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { ROLE_LABELS } from '#lib/labels.js';
 	import type { NavModel } from '#lib/nav.js';
-	import { THEMES } from '#lib/theme.js';
 	import NavIcon from '#lib/ui/app/NavIcon.svelte';
 
 	const shell = getContext<Shell>('shell');
@@ -55,11 +54,6 @@
 	const scopeLine = $derived(
 		summary ? `${ROLE_LABELS[summary.role]} · ${summary.officeName ?? 'whole network'}` : ''
 	);
-
-	function nextTheme() {
-		const next = THEMES[(THEMES.indexOf(appearance.theme) + 1) % THEMES.length] ?? 'dark';
-		appearance.set(next);
-	}
 </script>
 
 <svelte:head><title>More · Elivate Wallet</title></svelte:head>
@@ -137,12 +131,19 @@
 			<span class="label">Support</span>
 			<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
 		</a>
-		<button type="button" class="row" onclick={nextTheme}>
+		<!-- Blueprint 41 (owner 2026-10-15): one switch; on shows the dark theme on screen
+		     (System resolved), and a tap chooses Dark or Light. Desktop keeps three segments. -->
+		<label class="row">
 			<Moon size={20} strokeWidth={1.8} aria-hidden="true" />
-			<span class="label">Appearance</span>
-			<span class="value">{THEME_LABELS[appearance.theme]}</span>
-			<ChevronRight size={16} strokeWidth={2} class="chev" aria-hidden="true" />
-		</button>
+			<span class="label">Dark mode</span>
+			<input
+				type="checkbox"
+				class="switch"
+				role="switch"
+				checked={appearance.shown === 'dark'}
+				onchange={(event) => appearance.set(event.currentTarget.checked ? 'dark' : 'light')}
+			/>
+		</label>
 		<label class="row">
 			<EyeOff size={20} strokeWidth={1.8} aria-hidden="true" />
 			<span class="label">Hide amounts</span>
@@ -403,12 +404,6 @@
 
 	.label {
 		flex: 1;
-	}
-
-	.value {
-		color: var(--color-muted);
-		font-size: 13px;
-		line-height: var(--leading-16);
 	}
 
 	.row :global(.chev) {
