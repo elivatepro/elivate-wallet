@@ -6,7 +6,7 @@
 begin;
 set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
-select plan(26);
+select plan(28);
 
 create function pg_temp.u(n int) returns uuid language sql immutable as
   $$ select ('10000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
@@ -196,6 +196,14 @@ select is(api.my_transaction(pg_temp.u(4), pg_temp.s(4),
   'School fees for the term', 'Activity''s transaction detail shows the reason');
 select is((select reason from finance.withdrawals where id = pg_temp.id('w1')), 'School fees for the term',
   'completion leaves it as placed');
+
+-- ── Backups (2) ──
+select is((select s.data->>'reason' from backups.snapshot((select tenant_id from finance.withdrawals
+    where id = pg_temp.id('w1'))) s where s.section = 'withdrawals' and s.data->>'id' = pg_temp.id('w1')::text),
+  'School fees for the term', 'a backup carries the reason');
+select ok(not (select s.data ? 'reason' from backups.snapshot((select tenant_id from finance.withdrawals
+    where id = pg_temp.id('w0'))) s where s.section = 'withdrawals' and s.data->>'id' = pg_temp.id('w0')::text),
+  'a withdrawal without one backs up exactly as before');
 
 select * from finish();
 rollback;

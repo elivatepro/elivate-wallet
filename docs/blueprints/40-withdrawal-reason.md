@@ -65,7 +65,9 @@ shapes, while the old ones refuse an email carrying `reason`. The `ledger` funct
 migration go out back to back (the old route calls the dropped signature, the new one the new
 signature), then the Worker; new withdrawals fail only in that short gap.
 
+### Backups
+`backups.snapshot` carries `reason` on a withdrawal only when it is set, so archives made before
+this slice still compare equal in restore review (F-03).
+
 ### Not in this slice
-- Backups (`backups.contents`) do not yet carry `withdrawals.reason`; a restore would bring the
-  withdrawal back without its note.
 - Approved / not approved / cancelled / paid emails do not repeat the reason.

@@ -526,3 +526,213 @@ revoke all on function api.request_withdrawal(uuid, uuid, uuid, uuid, text, uuid
   from public, anon, authenticated;
 grant execute on function api.request_withdrawal(uuid, uuid, uuid, uuid, text, uuid, text, text, text)
   to service_role;
+
+-- Backups carry the reason (F-03). Only when it is set, so archives made before this
+-- slice still compare equal in restore review.
+create or replace function backups.snapshot(p_tenant_id uuid)
+returns table (section text, data jsonb)
+language sql
+stable
+set search_path = ''
+as $$
+  with people as (
+    select distinct m.user_id from org.memberships m where m.tenant_id = p_tenant_id
+  ),
+  tx as (
+    select t.* from ledger.transactions t where t.tenant_id = p_tenant_id
+  ),
+  acct as (
+    select a.* from ledger.accounts a where a.tenant_id = p_tenant_id
+  ),
+  wd as (
+    select w.* from finance.withdrawals w where w.tenant_id = p_tenant_id
+  ),
+  po as (
+    select p.* from finance.payouts p join wd on wd.id = p.withdrawal_id
+  )
+  select s.section, s.data from (
+    select 1 as o, 'network'::text, jsonb_build_object('id', t.id, 'name', t.name, 'shortName', t.short_name,
+      'status', t.status, 'createdAt', t.created_at, 'activatedAt', t.activated_at,
+      'activationSource', t.activation_source) || jsonb_build_object('settings', org.brand_json(t.id) - 'tenantId'),
+      t.id::text as k
+    from org.tenants t where t.id = p_tenant_id
+    union all
+    select 2, 'settings_revisions', backups.pick(to_jsonb(r), array['revision', 'name', 'short_name', 'theme',
+      'slogan', 'support_name', 'support_email', 'support_phone', 'help_url', 'locale', 'time_zone', 'changed',
+      'restored_from', 'actor_user_id', 'created_at']) || jsonb_build_object('has_logo', r.logo_key is not null),
+      lpad(r.revision::text, 10, '0')
+    from org.tenant_setting_revisions r where r.tenant_id = p_tenant_id
+    union all
+    select 3, 'offices', backups.pick(to_jsonb(o), array['id', 'parent_office_id', 'office_type', 'name', 'status',
+      'created_by', 'created_at']), o.created_at::text || o.id::text
+    from org.offices o where o.tenant_id = p_tenant_id
+    union all
+    select 4, 'office_moves', backups.pick(to_jsonb(x), array['id', 'office_id', 'from_parent_id', 'to_parent_id',
+      'reason', 'actor_user_id', 'at']), x.at::text || x.id::text
+    from org.office_moves x where x.tenant_id = p_tenant_id
+    union all
+    select 5, 'people', jsonb_build_object('user_id', a.user_id, 'uid', a.uid, 'status', a.status,
+      'display_name', pr.display_name, 'first_name', pr.first_name, 'last_name', pr.last_name, 'email', u.email,
+      'phone', pr.phone, 'rank', pr.rank, 'created_at', a.created_at), a.uid
+    from people p
+    join identity.accounts a on a.user_id = p.user_id
+    left join identity.profiles pr on pr.user_id = p.user_id
+    left join auth.users u on u.id = p.user_id
+    union all
+    select 6, 'memberships', backups.pick(to_jsonb(m), array['id', 'office_id', 'user_id', 'role', 'is_primary',
+      'status', 'started_at', 'ended_at', 'ended_reason', 'replaced_by_id', 'created_by']),
+      m.started_at::text || m.id::text
+    from org.memberships m where m.tenant_id = p_tenant_id
+    union all
+    select 7, 'membership_events', backups.pick(to_jsonb(x), array['id', 'membership_id', 'action', 'from_status',
+      'to_status', 'reason', 'actor_user_id', 'at']), x.at::text || x.id::text
+    from org.membership_events x where x.tenant_id = p_tenant_id
+    union all
+    select 8, 'invitations', backups.pick(to_jsonb(i), array['id', 'reference', 'office_id', 'role', 'email',
+      'status', 'expires_at', 'invited_by', 'reason', 'created_at', 'accepted_at', 'accepted_user_id',
+      'accepted_membership_id', 'revoked_at', 'revoked_by', 'revoke_reason']), i.created_at::text || i.id::text
+    from org.invitations i where i.tenant_id = p_tenant_id
+    union all
+    select 9, 'invitation_events', backups.pick(to_jsonb(x), array['id', 'invitation_id', 'action', 'actor_user_id',
+      'reason', 'at']), x.at::text || x.id::text
+    from org.invitation_events x where x.tenant_id = p_tenant_id
+    union all
+    select 10, 'role_permissions', backups.pick(to_jsonb(x), array['role', 'permission_key', 'allowed', 'updated_by',
+      'updated_at']), x.role::text || x.permission_key
+    from authz.role_permissions x where x.tenant_id = p_tenant_id
+    union all
+    select 11, 'access_assignments', backups.pick(to_jsonb(x), array['id', 'subject_user_id', 'created_by', 'reason',
+      'created_at', 'revoked_at', 'revoked_by', 'revoke_reason']), x.created_at::text || x.id::text
+    from authz.access_assignments x where x.tenant_id = p_tenant_id
+    union all
+    select 12, 'access_rules', backups.pick(to_jsonb(x), array['id', 'assignment_id', 'subject_user_id',
+      'permission_key', 'effect', 'scope_type', 'scope_office_id', 'scope_user_id', 'starts_at', 'expires_at',
+      'revoked_at']), x.id::text
+    from authz.access_rules x where x.tenant_id = p_tenant_id
+    union all
+    select 13, 'reviewer_assignments', backups.pick(to_jsonb(x), array['id', 'membership_id', 'assigned_by', 'reason',
+      'assigned_at', 'ended_at', 'ended_by', 'end_reason']), x.assigned_at::text || x.id::text
+    from authz.reviewer_assignments x where x.tenant_id = p_tenant_id
+    union all
+    select 14, 'pockets', backups.pick(to_jsonb(x), array['id', 'kind', 'name', 'sort_order', 'status', 'created_by',
+      'created_at', 'retired_at']), x.created_at::text || x.id::text
+    from ledger.pockets x where x.tenant_id = p_tenant_id
+    union all
+    select 15, 'allocation_policies', backups.pick(to_jsonb(x), array['id', 'version', 'source', 'reason',
+      'created_by', 'created_at']) || jsonb_build_object('lines', (
+        select coalesce(jsonb_agg(backups.pick(to_jsonb(l), array['pocket_id', 'name', 'sort_order', 'basis_points'])
+          order by l.sort_order), '[]'::jsonb)
+        from ledger.allocation_policy_lines l where l.policy_id = x.id)),
+      lpad(x.version::text, 10, '0')
+    from ledger.allocation_policies x where x.tenant_id = p_tenant_id
+    union all
+    select 16, 'ledger_accounts', backups.pick(to_jsonb(x), array['id', 'class', 'currency', 'wallet_id',
+      'membership_id', 'office_id', 'owner_user_id', 'pocket_id', 'system_key', 'created_at']),
+      x.created_at::text || x.id::text
+    from acct x
+    union all
+    select 17, 'balances', backups.pick(to_jsonb(x), array['account_id', 'currency', 'posted', 'reserved', 'version',
+      'updated_at']), x.account_id::text
+    from ledger.balances x where x.tenant_id = p_tenant_id
+    union all
+    select 18, 'transactions', backups.pick(to_jsonb(x), array['id', 'reference', 'type', 'office_id',
+      'membership_id', 'wallet_id', 'owner_user_id', 'actor_user_id', 'posted_at', 'metadata']),
+      x.posted_at::text || x.id::text
+    from tx x
+    union all
+    select 19, 'postings', jsonb_build_object('transaction_id', j.transaction_id, 'entry_no', j.entry_no,
+      'currency', j.currency, 'line_no', p.line_no, 'account_id', p.account_id, 'amount', p.amount),
+      j.transaction_id::text || lpad(j.entry_no::text, 6, '0') || lpad(p.line_no::text, 6, '0')
+    from tx join ledger.journals j on j.transaction_id = tx.id join ledger.postings p on p.journal_id = j.id
+    union all
+    select 20, 'reservations', backups.pick(to_jsonb(x), array['id', 'account_id', 'amount', 'purpose',
+      'source_type', 'source_id', 'status', 'consumed_amount', 'consumed_by_transaction_id', 'release_reason',
+      'actor_user_id', 'created_at', 'settled_at']), x.created_at::text || x.id::text
+    from ledger.reservations x join acct on acct.id = x.account_id
+    union all
+    select 21, 'income_records', backups.pick(to_jsonb(x), array['id', 'reference', 'office_id', 'membership_id',
+      'wallet_id', 'owner_user_id', 'currency', 'amount', 'source', 'received_on', 'provider_reference', 'notes',
+      'fee_amount', 'fee_currency', 'policy_id', 'transaction_id', 'recorded_by', 'recorded_at']) || jsonb_build_object(
+        'allocations', (select coalesce(jsonb_agg(backups.pick(to_jsonb(l), array['pocket_id', 'pocket_name',
+          'sort_order', 'basis_points', 'amount', 'account_id']) order by l.sort_order), '[]'::jsonb)
+          from finance.income_allocations l where l.income_id = x.id)),
+      x.recorded_at::text || x.id::text
+    from finance.income_records x where x.tenant_id = p_tenant_id
+    union all
+    select 22, 'entries', backups.pick(to_jsonb(x), array['id', 'reference', 'kind', 'office_id', 'membership_id',
+      'wallet_id', 'owner_user_id', 'currency', 'amount', 'direction', 'pocket_id', 'account_id', 'reservation_id',
+      'destination_currency', 'destination_amount', 'quoted_rate', 'provider', 'observed_at', 'external_reference',
+      'reason', 'notes', 'withdrawal_id', 'policy_id', 'status', 'submitted_by', 'reviewer_user_id',
+      'reviewer_membership_id', 'review_reason', 'decided_at', 'transaction_id', 'created_at']) || jsonb_build_object(
+        'lines', (select coalesce(jsonb_agg(backups.pick(to_jsonb(l), array['pocket_id', 'pocket_name', 'sort_order',
+          'basis_points', 'amount', 'account_id']) order by l.sort_order), '[]'::jsonb)
+          from finance.entry_lines l where l.entry_id = x.id)),
+      x.created_at::text || x.id::text
+    from finance.entries x where x.tenant_id = p_tenant_id
+    union all
+    select 23, 'pocket_transfers', backups.pick(to_jsonb(x), array['id', 'reference', 'office_id', 'membership_id',
+      'wallet_id', 'owner_user_id', 'currency', 'source_account_id', 'destination_account_id', 'source_pocket_id',
+      'destination_pocket_id', 'amount', 'reservation_id', 'requested_by', 'status', 'decided_by', 'decided_at',
+      'decision_reason', 'transaction_id', 'created_at']), x.created_at::text || x.id::text
+    from finance.pocket_transfers x where x.tenant_id = p_tenant_id
+    union all
+    select 24, 'reversals', backups.pick(to_jsonb(x), array['id', 'reference', 'original_transaction_id',
+      'transaction_id', 'category', 'note', 'reversed_by', 'created_at']), x.created_at::text || x.id::text
+    from finance.reversals x where x.tenant_id = p_tenant_id
+    union all
+    select 25, 'withdrawals', backups.pick(to_jsonb(x), array['id', 'reference', 'office_id', 'membership_id',
+      'wallet_id', 'owner_user_id', 'account_id', 'pocket_id', 'currency', 'amount', 'payout_account_id', 'bank_code',
+      'bank_name', 'account_last4', 'account_name', 'requested_by', 'status', 'reservation_id', 'approved_by',
+      'approved_at', 'decided_by', 'decided_at', 'decision_reason', 'completed_at', 'transaction_id', 'created_at'])
+      || case when x.reason is null then '{}'::jsonb else jsonb_build_object('reason', x.reason) end,
+      x.created_at::text || x.id::text
+    from wd x
+    union all
+    select 26, 'payouts', backups.pick(to_jsonb(x), array['id', 'withdrawal_id', 'attempt_no', 'status', 'revision',
+      'submitted_by', 'created_at', 'settled_at']), x.created_at::text || x.id::text
+    from po x
+    union all
+    select 27, 'payout_revisions', backups.pick(to_jsonb(x), array['id', 'payout_id', 'revision', 'amount',
+      'fee_amount', 'paid_on', 'bank_reference', 'notes', 'evidence_id', 'submitted_by', 'created_at']),
+      x.created_at::text || x.id::text
+    from finance.payout_revisions x join po on po.id = x.payout_id
+    union all
+    select 28, 'payout_checks', backups.pick(to_jsonb(x), array['id', 'payout_id', 'revision_id', 'status', 'cycle',
+      'outcome', 'reasons', 'model', 'policy_version', 'created_at', 'finished_at']), x.created_at::text || x.id::text
+    from finance.payout_checks x join po on po.id = x.payout_id
+    union all
+    select 29, 'payout_reviews', backups.pick(to_jsonb(x), array['payout_id', 'reviewer_user_id',
+      'reviewer_membership_id', 'decision', 'reason', 'decided_at']), x.decided_at::text || x.payout_id::text
+    from finance.payout_reviews x join po on po.id = x.payout_id
+    union all
+    select 30, 'evidence', backups.pick(to_jsonb(x), array['id', 'purpose', 'uploaded_by', 'target_membership_id',
+      'declared_name', 'size', 'sha256', 'mime', 'status', 'attached_type', 'attached_id', 'created_at',
+      'finalized_at', 'settled_at']), x.created_at::text || x.id::text
+    from evidence.files x where x.tenant_id = p_tenant_id
+    union all
+    select 31, 'subscription', jsonb_build_object('status', s.status, 'kind', s.kind, 'plan', p.key,
+      'period_start', s.period_start, 'period_end', s.period_end, 'paused_at', s.paused_at, 'auto_renew', s.auto_renew,
+      'next_plan', np.key, 'created_at', s.created_at, 'updated_at', s.updated_at), s.tenant_id::text
+    from billing.subscriptions s join billing.plans p on p.id = s.plan_id
+    left join billing.plans np on np.id = s.next_plan_id
+    where s.tenant_id = p_tenant_id
+    union all
+    select 32, 'billing_periods', backups.pick(to_jsonb(x), array['id', 'kind', 'plan_id', 'starts_at', 'ends_at',
+      'payment_id', 'actor_user_id', 'reason', 'created_at']), x.created_at::text || x.id::text
+    from billing.periods x where x.tenant_id = p_tenant_id
+    union all
+    select 33, 'billing_payments', backups.pick(to_jsonb(x), array['id', 'reference', 'purpose', 'plan_id',
+      'from_plan_id', 'amount', 'currency', 'days_left', 'status', 'applied', 'needs_review', 'initiated_by',
+      'covers_from', 'covers_to', 'paid_at', 'created_at']), x.created_at::text || x.id::text
+    from billing.payments x where x.tenant_id = p_tenant_id
+    union all
+    select 34, 'billing_owners', backups.pick(to_jsonb(x), array['id', 'user_id', 'membership_id', 'assigned_by',
+      'assigned_at', 'ended_at', 'ended_by']), x.assigned_at::text || x.id::text
+    from billing.owners x where x.tenant_id = p_tenant_id
+    union all
+    select 35, 'audit', backups.pick(to_jsonb(x), array['id', 'at', 'actor_user_id', 'action', 'target_type',
+      'target_id', 'reason', 'safe_before', 'safe_after']), x.at::text || lpad(x.id::text, 20, '0')
+    from audit.tenant_events x where x.tenant_id = p_tenant_id
+  ) s (o, section, data, k)
+  order by o, k;
+$$;
