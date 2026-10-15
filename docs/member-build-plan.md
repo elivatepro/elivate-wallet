@@ -304,6 +304,12 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
   the Invitations page shows a team link card for the leader's own office (or their only office):
   live link, joined count, end date, Copy (Share on touch screens) and Manage; otherwise why the
   last one stopped and "Make a team link". Manage and Make open the Invite dialog on Team link.
+- **Withdrawal reason (2026-10-15, Blueprint 40; Paper "Withdrawal reason v12" WR01/WR02):**
+  every withdrawal request carries a required free-text reason (3–500 characters after trimming,
+  no preset choices), from the member or the leader placing it on their behalf. The PIN sheet
+  opens only once it is valid. Approvers see it in the queue and detail; the member on their own
+  withdrawal and in Activity's transaction detail; the M02 and M03 emails quote it (the one
+  exception to "no reasons in emails"). Never in statements or reports. Older withdrawals: none.
 - **Mobile polish (2026-10-15, Blueprint 41):** on phones the More page's Appearance row is a
   **Dark mode switch** (on = the dark theme on screen, "System" resolved; a tap sets Dark or
   Light); the desktop account menu keeps Light / Dark / System. Loading feedback is "spin +

@@ -83,14 +83,28 @@ test('Withdraw on a phone (Paper M09/M10): the keypad, then review, then the PIN
 	await page.getByRole('button', { name: 'Continue' }).click();
 	await expect(page.getByText('2 / 3')).toBeVisible();
 	const review = page.getByRole('region', { name: 'Review your withdrawal' });
-	await expect(review.getByText('₦1,500.00')).toBeVisible();
-	await review.getByRole('button', { name: 'Submit request' }).click();
+	await expect(review.getByText('₦1,500.00').first()).toBeVisible();
+	// Blueprint 40 (Paper WR01): no PIN sheet until the note says what it is for.
+	const note = review.getByLabel('What’s this withdrawal for?');
+	await review.getByRole('button', { name: 'Enter PIN to submit' }).click();
+	await expect(
+		review.getByText('Say what this withdrawal is for (at least 3 characters).')
+	).toBeVisible();
+	await expect(note).toBeFocused();
+	await expect(page.getByRole('dialog', { name: 'Enter your transaction PIN' })).toHaveCount(0);
+	// Enter in the note is a new line, never a submit.
+	await note.pressSequentially('School fees');
+	await note.press('Enter');
+	await expect(page.getByRole('dialog', { name: 'Enter your transaction PIN' })).toHaveCount(0);
+	await review.getByRole('button', { name: 'Enter PIN to submit' }).click();
 	await expect(page.getByRole('dialog', { name: 'Enter your transaction PIN' })).toBeVisible();
 	await page.keyboard.press('Escape');
 
-	// Back to the amount keeps it.
+	// Back to the amount keeps it, and the note.
 	await page.getByRole('button', { name: 'Back to amount' }).click();
 	await expect(page.locator('.big-amount')).toHaveText(/₦1,500$/);
+	await page.getByRole('button', { name: 'Continue' }).click();
+	await expect(review.getByLabel('What’s this withdrawal for?')).toHaveValue('School fees\n');
 });
 
 test('Withdraw on desktop: Enter after the amount closes the keyboard, no errors', async ({

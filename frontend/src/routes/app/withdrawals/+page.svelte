@@ -217,6 +217,8 @@
 						<div class="mm-names wide">
 							<span class="mm-name">{destinationTitle(w)}</span>
 							<span class="mm-sub">{memberLine(w)}</span>
+							<!-- Blueprint 40: what it is for, as written (none before it was asked). -->
+							{#if w.reason}<span class="mm-sub for">“{w.reason}”</span>{/if}
 							<span class="mobile-only"><Pill {...stage} /></span>
 						</div>
 						<span class="from mm-muted">{w.pocket.name}</span>
@@ -271,6 +273,12 @@
 						<dt>Requested</dt>
 						<dd>{target ? when(target.createdAt) : ''}</dd>
 					</div>
+					{#if target?.reason}
+						<div>
+							<dt>For</dt>
+							<dd class="for">{target.reason}</dd>
+						</div>
+					{/if}
 					<div>
 						<dt>Reference</dt>
 						<dd class="mm-ref">{target?.reference}</dd>
@@ -282,6 +290,14 @@
 {/if}
 
 <style>
+	.mm-sub.for {
+		color: color-mix(in oklab, var(--color-text) 85%, transparent);
+	}
+
+	dd.for {
+		overflow-wrap: anywhere;
+	}
+
 	.hero-chips {
 		display: flex;
 		flex-wrap: wrap;

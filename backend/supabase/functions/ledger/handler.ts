@@ -772,6 +772,7 @@ export function createHandler(
         "accountId",
         "amount",
         "payoutAccountId",
+        "reason",
         "idempotencyKey",
       ]);
       return call("request_withdrawal", {
@@ -779,6 +780,8 @@ export function createHandler(
         p_account_id: v.uuid(body, "accountId"),
         p_amount: v.decimal(body, "amount"),
         p_payout_account_id: v.uuid(body, "payoutAccountId"),
+        // Blueprint 40: what the withdrawal is for (3–500 characters).
+        p_reason: v.reason(body),
         p_idempotency_key: v.idempotencyKey(body),
       });
     }),

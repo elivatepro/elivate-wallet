@@ -70,7 +70,7 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
 
 - One slice at a time, in worktree `../elivate-wallet-worktrees/<nn-name>` from fresh
   `origin/main` (copy `backend/supabase/.temp` in). Blueprint `docs/blueprints/NN-*.md`;
-  migrations `20261009NNxxxx`, pgTAP `NN0_` (next: `39`/`390_`).
+  migrations `20261009NNxxxx`, pgTAP `NN0_` (next: `41`/`410_`).
 - Checks: `backend/scripts/verify-database.sh`, `deno task check`; frontend `pnpm check`,
   `pnpm lint`, `pnpm test:unit`, e2e via `frontend/scripts/e2e-local.sh` (fake Cloudflare into
   local Mailpit). The local stack is shared: hold the `/tmp/elivate-supabase.lock` directory
@@ -124,6 +124,8 @@ access filters the permission rows by name.
 Slice 38 (Blueprint 38): team invite links (one open link per office, Member role, chosen expiry
 and use limit, PIN; anyone with it signs up with their own email and joins at once). Slice 39
 (owner ask, frontend only, Paper TL07/TL08): the Invitations page shows the office's team link.
+Slice 40 (Blueprint 40, Paper WR01/WR02): every withdrawal asks for a reason (3–500 characters),
+shown to approvers, the member, Activity and the M02/M03 emails; never in statements or reports.
 Slice 41 (Blueprint 41, frontend only): mobile polish (the current tab scrolls to top, quick search
 above the keyboard, Home activity rows open the detail, a shorter Withdrawals banner, a Dark mode
 switch on More, pressed states, tapped-item spinners and content-shaped outlines).

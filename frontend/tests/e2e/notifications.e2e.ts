@@ -38,6 +38,7 @@ test('money events reach the bell and the mail catcher; tasks clear when done', 
 	await page.getByRole('radio', { name: /Point Value/ }).click();
 	await page.getByLabel('Amount').fill('48000');
 	await page.getByRole('button', { name: 'Continue to review' }).click();
+	await page.getByLabel('What’s this withdrawal for?').fill('Rent for the new shop');
 	await page.getByRole('button', { name: 'Submit request' }).click();
 	const pin = page.getByRole('dialog', { name: 'Enter your transaction PIN' });
 	await pin.getByLabel('Your PIN').fill(PIN);
@@ -97,10 +98,13 @@ test('money events reach the bell and the mail catcher; tasks clear when done', 
 	expect(submitted.HTML).toContain('support@elivatewallet.com');
 	expect(submitted.HTML).toContain('Bell Test Network');
 	expect(submitted.HTML).not.toContain('0123456789');
+	// Blueprint 40: M02 and M03 quote what it is for.
+	expect(submitted.HTML).toContain('“Rent for the new shop”');
 	const income = await mailFor(member, /^Income is in your pockets$/);
 	expect(income.HTML).toContain('₦180,000.00');
 	const awaiting = await mailFor(founder.email, /^A withdrawal needs your approval$/);
 	expect(awaiting.HTML).toContain('/app/queue?withdrawal=');
+	expect(awaiting.HTML).toContain('“Rent for the new shop”');
 	expect(awaiting.HTML).not.toMatch(/0123456789|6789/);
 
 	// President, desktop NB01: the task under Needs your action.

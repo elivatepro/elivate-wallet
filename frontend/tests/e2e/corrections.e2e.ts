@@ -160,6 +160,7 @@ test('money comes back from a payout, and an income is reversed', async ({ page 
 	await page.getByRole('radio', { name: /Point Value/ }).click();
 	await page.getByLabel('Amount').fill('1500');
 	await page.getByRole('button', { name: 'Continue to review' }).click();
+	await page.getByLabel('What’s this withdrawal for?').fill('Stock for the shop');
 	await page.getByRole('button', { name: 'Submit request' }).click();
 	const wdPin = page.getByRole('dialog', { name: 'Enter your transaction PIN' });
 	await wdPin.getByLabel('Your PIN').fill(PIN);

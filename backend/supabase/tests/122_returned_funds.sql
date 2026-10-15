@@ -165,7 +165,7 @@ insert into payout.banks (provider, code, name, active) values ('paystack', '058
 insert into ids select 'A4', pg_temp.add_account(4, '058', '0123456789', 'ADA OBI');
 -- Member 4 withdraws ₦2,000 from Point Value; ₦1,950 is sent with a ₦50 fee.
 insert into ids select 'w', (api.request_withdrawal(pg_temp.u(4), pg_temp.s(4), pg_temp.ws(4), pg_temp.seg(4),
-  '2000.00', pg_temp.id('A4'), pg_temp.k())->>'withdrawalId')::uuid;
+  '2000.00', pg_temp.id('A4'), 'Monthly upkeep', pg_temp.k())->>'withdrawalId')::uuid;
 do $$
 declare
   key text := pg_temp.k();

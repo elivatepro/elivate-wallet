@@ -67,11 +67,13 @@ Deno.test("request withdrawal passes exact strings in the workspace", async () =
     accountId: withdrawalId,
     amount: "2500.00",
     payoutAccountId: evidenceId,
+    reason: "School fees for the term",
     idempotencyKey: key,
   }));
   assertEquals(response.status, 200);
   assertEquals(calls[0]?.fn, "request_withdrawal");
   assertEquals(calls[0]?.args.p_amount, "2500.00");
+  assertEquals(calls[0]?.args.p_reason, "School fees for the term");
   assertEquals(calls[0]?.args.p_membership_id, membershipId);
   assertEquals(typeof calls[0]?.args.p_request_id, "string");
 });
@@ -83,9 +85,28 @@ Deno.test("withdrawal amounts must be decimal strings", async () => {
       accountId: withdrawalId,
       amount,
       payoutAccountId: evidenceId,
+      reason: "School fees for the term",
       idempotencyKey: key,
     }));
     assertEquals(response.status, 400);
+  }
+  assertEquals(calls.length, 0);
+});
+
+Deno.test("a withdrawal needs a reason of 3–500 characters (Blueprint 40)", async () => {
+  const { handler, calls } = setup();
+  for (const reason of [undefined, null, 42, "", "  ab  ", "x".repeat(501)]) {
+    const response = await handler(request("POST", "/me/withdrawals", {
+      accountId: withdrawalId,
+      amount: "2500.00",
+      payoutAccountId: evidenceId,
+      ...(reason === undefined ? {} : { reason }),
+      idempotencyKey: key,
+    }));
+    assertEquals(response.status, 400);
+    const body = await response.json();
+    assertEquals(body.error.code, "validation_error");
+    assertEquals(body.error.details.field, "reason");
   }
   assertEquals(calls.length, 0);
 });
