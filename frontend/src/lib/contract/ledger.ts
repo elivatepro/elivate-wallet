@@ -143,6 +143,15 @@ export const TransactionDetail = Schema.Struct({
 			)
 		})
 	),
+	/** Blueprint 40: what a withdrawal was for (null before it was asked). */
+	withdrawal: Schema.optionalKey(
+		Schema.NullOr(
+			Schema.Struct({
+				withdrawalId: Uuid,
+				reason: Schema.optionalKey(Schema.NullOr(Schema.String))
+			})
+		)
+	),
 	/** Blueprint 12: the conversion / adjustment / returned-funds facts. */
 	entry: Schema.optionalKey(
 		Schema.NullOr(

@@ -380,6 +380,32 @@ Deno.test("M03 names the member and office; M12 signs debits; M16 shows what arr
   assert(m16.html.includes("Ifeoma O. converted ₦180,000.00 to US dollars."));
 });
 
+Deno.test("M02 and M03 quote the withdrawal's reason; older events render without it", () => {
+  const reason = "School fees <for> the term\nand books";
+  const m02 = renderEmail("money.withdrawal_submitted", 1, { ...money, reason }, { appUrl });
+  assert(m02.html.includes(">Reason<"));
+  assert(m02.html.includes("“School fees &lt;for&gt; the term<br>and books”"));
+  assert(m02.text.includes("Reason: “School fees <for> the term\nand books”"));
+  const m03 = renderEmail("money.withdrawal_awaiting_approval", 1, { ...samples[2]![1], reason }, {
+    appUrl,
+  });
+  assert(m03.html.includes("“School fees &lt;for&gt; the term<br>and books”"));
+  const old = renderEmail("money.withdrawal_submitted", 1, money, { appUrl });
+  assert(!old.html.includes(">Reason<"));
+  assertThrows(
+    () =>
+      renderEmail("money.withdrawal_submitted", 1, { ...money, reason: "x".repeat(501) }, {
+        appUrl,
+      }),
+    TemplateError,
+  );
+  assertThrows(
+    () =>
+      renderEmail("money.withdrawal_approved", 1, { ...money, reason: "School fees" }, { appUrl }),
+    TemplateError,
+  );
+});
+
 Deno.test("M09 and M18 use the right noun per kind", () => {
   const review = (subject: string) =>
     renderEmail("money.evidence_review_assigned", 1, { ...money, subject, path: "/app/evidence" }, {

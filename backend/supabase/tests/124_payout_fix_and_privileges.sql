@@ -173,7 +173,7 @@ begin
 end $$;
 
 insert into ids select 'w', (api.request_withdrawal(pg_temp.u(4), pg_temp.s(4), pg_temp.ws(4), pg_temp.seg(4),
-  '2000.00', pg_temp.id('A4'), pg_temp.k())->>'withdrawalId')::uuid;
+  '2000.00', pg_temp.id('A4'), 'Monthly upkeep', pg_temp.k())->>'withdrawalId')::uuid;
 do $$
 declare
   key text := 'k-pay-000000000001';

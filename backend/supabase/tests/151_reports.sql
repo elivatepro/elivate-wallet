@@ -151,11 +151,11 @@ end $$;
 insert into payout.banks (provider, code, name, active) values ('paystack', '058', 'Guaranty Trust Bank', true);
 insert into ids select 'A4', pg_temp.add_account(4, '058', '0123456789', 'ADA OBI');
 insert into ids select 'w1', (api.request_withdrawal(pg_temp.u(4), pg_temp.s(4), pg_temp.ws(4), pg_temp.seg(4), '1000.00',
-  pg_temp.id('A4'), pg_temp.k())->>'withdrawalId')::uuid;
+  pg_temp.id('A4'), 'Monthly upkeep', pg_temp.k())->>'withdrawalId')::uuid;
 insert into ids select 'w2', (api.request_withdrawal(pg_temp.u(4), pg_temp.s(4), pg_temp.ws(4), pg_temp.seg(4), '700.00',
-  pg_temp.id('A4'), pg_temp.k())->>'withdrawalId')::uuid;
+  pg_temp.id('A4'), 'Monthly upkeep', pg_temp.k())->>'withdrawalId')::uuid;
 insert into ids select 'w3', (api.request_withdrawal(pg_temp.u(4), pg_temp.s(4), pg_temp.ws(4), pg_temp.seg(4), '300.00',
-  pg_temp.id('A4'), pg_temp.k())->>'withdrawalId')::uuid;
+  pg_temp.id('A4'), 'Monthly upkeep', pg_temp.k())->>'withdrawalId')::uuid;
 do $$ begin
   perform api.approve_withdrawal(pg_temp.u(3), pg_temp.s(3), pg_temp.ws(3), pg_temp.id('w1'), pg_temp.k());
   perform api.reject_withdrawal(pg_temp.u(3), pg_temp.s(3), pg_temp.ws(3), pg_temp.id('w2'), 'Wrong pocket', pg_temp.k());

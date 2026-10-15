@@ -45,6 +45,19 @@ test('a withdrawal is requested, approved, paid out and verified', async ({ page
 	await page.getByRole('button', { name: 'Continue to review' }).click();
 	await expect(page.getByRole('heading', { name: 'Review your withdrawal' })).toBeVisible();
 	await expectAccessible(page);
+	// Blueprint 40: the reason is required; the button stays tappable and points at the field.
+	const reason = page.getByLabel('What’s this withdrawal for?');
+	await page.getByRole('button', { name: 'Submit request' }).click();
+	await expect(
+		page.getByText('Say what this withdrawal is for (at least 3 characters).')
+	).toBeVisible();
+	await expect(reason).toBeFocused();
+	await expect(page.getByRole('dialog', { name: 'Enter your transaction PIN' })).toHaveCount(0);
+	await reason.fill('School fees for the second term');
+	// Going back to the amount keeps the note.
+	await page.getByRole('button', { name: 'Edit amount' }).click();
+	await page.getByRole('button', { name: 'Continue to review' }).click();
+	await expect(reason).toHaveValue('School fees for the second term');
 	await page.getByRole('button', { name: 'Submit request' }).click();
 	const pin = page.getByRole('dialog', { name: 'Enter your transaction PIN' });
 	await pin.getByLabel('Your PIN').fill(PIN);
@@ -54,12 +67,15 @@ test('a withdrawal is requested, approved, paid out and verified', async ({ page
 	await page.getByRole('link', { name: 'Track this withdrawal' }).click();
 	await expect(page.getByRole('heading', { name: '₦1,500.00' })).toBeVisible();
 	await expect(page.getByText('Requested').first()).toBeVisible();
+	await expect(page.getByText('“School fees for the second term”')).toBeVisible();
 
 	// President: C01 approve → U01 reveal (PIN) → U02 record → C05 checking.
 	await asPresident(page, founder.email, 'Withdraw Test Network');
 	await page.getByRole('link', { name: 'Withdrawal queue' }).first().click();
 	const panel = page.getByRole('region', { name: /Withdrawal WDR-/ });
 	await expect(panel.getByText('₦1,500.00').first()).toBeVisible();
+	// Blueprint 40 (Paper WR02): the approver sees what it is for.
+	await expect(panel.getByText('“School fees for the second term”')).toBeVisible();
 	await expectAccessible(page);
 	await panel.getByRole('button', { name: 'Approve' }).click();
 	await expect(page.getByText(/^Approved\./)).toBeVisible();

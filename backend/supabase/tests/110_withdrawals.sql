@@ -58,7 +58,7 @@ create function pg_temp.avail(n int) returns numeric language sql stable as
   $$ select posted - reserved from ledger.balances where account_id = pg_temp.seg(n) $$;
 create function pg_temp.wd(n int, p_amount text, p_key text default null) returns jsonb language sql volatile as $$
   select api.request_withdrawal(pg_temp.u(n), pg_temp.s(n), pg_temp.ws(n), pg_temp.seg(4), p_amount,
-    pg_temp.id('A4'), coalesce(p_key, pg_temp.k()))
+    pg_temp.id('A4'), 'Monthly upkeep', coalesce(p_key, pg_temp.k()))
 $$;
 create function pg_temp.payout_receipt(n int, p_withdrawal uuid, p_key text) returns uuid language plpgsql as $$
 declare
@@ -165,7 +165,7 @@ select throws_ok($$ select pg_temp.wd(4, '2500.01') $$, 'P0001', 'insufficient_f
 select throws_ok($$ select pg_temp.wd(3, '10.00') $$, 'P0001', 'authorization_denied',
   'a Team Leader cannot withdraw on behalf by default');
 select throws_ok($$ select api.request_withdrawal(pg_temp.u(8), pg_temp.s(8), pg_temp.ws(8), pg_temp.seg(4), '10.00',
-  pg_temp.id('A4'), pg_temp.k()) $$, 'P0001', 'not_found', 'nothing across networks');
+  pg_temp.id('A4'), 'Monthly upkeep', pg_temp.k()) $$, 'P0001', 'not_found', 'nothing across networks');
 select is((pg_temp.wd(1, '100.00')->>'onBehalf')::boolean, true, 'the President may withdraw on behalf');
 
 -- ── Approve / reject / cancel (12) ──

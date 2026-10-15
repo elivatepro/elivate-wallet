@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Withdrawal } from '#lib/contract/withdrawals.js';
+import { Exit, Schema } from 'effect';
+import { RequestWithdrawalCommand, Withdrawal } from '#lib/contract/withdrawals.js';
 import {
 	calendarDate,
 	debited,
@@ -85,5 +86,30 @@ describe('money and dates', () => {
 
 	it('never shifts a calendar date', () => {
 		expect(calendarDate('2026-10-05')).toBe('5 Oct 2026');
+	});
+});
+
+describe('the withdrawal reason (Blueprint 40)', () => {
+	const body = {
+		accountId: '00000000-0000-4000-8000-000000000001',
+		amount: '2500.00',
+		payoutAccountId: '00000000-0000-4000-8000-000000000002',
+		idempotencyKey: 'k-0000000000000001'
+	};
+	const decode = (value: unknown) =>
+		Exit.isSuccess(Schema.decodeUnknownExit(RequestWithdrawalCommand)(value));
+
+	it('is required, 3–500 characters, in the request body', () => {
+		expect(decode({ ...body, reason: 'School fees' })).toBe(true);
+		expect(decode(body)).toBe(false);
+		expect(decode({ ...body, reason: 'ab' })).toBe(false);
+		expect(decode({ ...body, reason: 'x'.repeat(501) })).toBe(false);
+	});
+
+	it('is optional and nullable on reads (older withdrawals have none)', () => {
+		const reasonOf = Schema.decodeUnknownSync(Schema.Struct({ reason: Withdrawal.fields.reason }));
+		expect(reasonOf({ reason: 'School fees' })).toEqual({ reason: 'School fees' });
+		expect(reasonOf({ reason: null })).toEqual({ reason: null });
+		expect(reasonOf({})).toEqual({});
 	});
 });

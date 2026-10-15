@@ -82,6 +82,11 @@ export interface EmailLayout {
   readonly root: RootPose;
   readonly headline: string;
   readonly line: string;
+  /**
+   * A quoted note under the line (Blueprint 40: the withdrawal's reason):
+   * a mono uppercase label and the person's own words, in quotes.
+   */
+  readonly note?: { readonly label: string; readonly text: string };
   /** Omitted for code emails (Auth reauthentication). */
   readonly button?: { readonly label: string; readonly url: string };
   /** Small print in the footer (expiry, "if this wasn't you"). */
@@ -115,12 +120,14 @@ a.ew-button{mso-padding-alt:0}
 .ew-faint{color:#7D868A!important}
 .ew-rule{border-top-color:#FFFFFF14!important}
 .ew-tile{background:#F2F4F4!important;color:#111314!important}
+.ew-note{background:#111314!important;border-color:#2A2F31!important}
 }
 [data-ogsc] .ew-canvas{background:#111314!important}
 [data-ogsc] .ew-card{background:#1A1D1E!important;border-color:#2A2F31!important}
 [data-ogsc] .ew-text{color:#F2F4F4!important}
 [data-ogsc] .ew-muted{color:#A9B0B3!important}
 [data-ogsc] .ew-faint{color:#7D868A!important}
+[data-ogsc] .ew-note{background:#111314!important;border-color:#2A2F31!important}
 @media (max-width:480px){
 .ew-outer{padding:12px!important}
 .ew-pad{padding-left:20px!important;padding-right:20px!important}
@@ -170,6 +177,18 @@ export function renderLayout(input: EmailLayout): string {
     ? `<div style="padding-top:6px;word-break:normal;overflow-wrap:anywhere;font-family:${mono};font-size:13px;line-height:16px;color:#A9B0B3;">${
       escapeHtml(input.reference)
     }</div>`
+    : "";
+  const note = input.note
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0${
+      input.button ? " 0 24px" : ""
+    };border-collapse:separate;"><tr><td class="ew-note" style="padding:14px 16px;background:#F7F6F3;border:1px solid #E6E9EA;border-radius:12px;">
+<div class="ew-faint" style="font-family:${mono};font-size:12px;line-height:16px;letter-spacing:0.06em;text-transform:uppercase;color:#8A9396;padding-bottom:6px;">${
+      escapeHtml(input.note.label)
+    }</div>
+<div class="ew-text" style="overflow-wrap:anywhere;word-break:break-word;font-family:${font};font-size:15px;line-height:22px;color:#212628;">“${
+      escapeHtml(input.note.text).replace(/\r?\n/g, "<br>")
+    }”</div>
+</td></tr></table>`
     : "";
   const brandFooter = input.brand === "elivate"
     ? "Wallet by Elivate"
@@ -230,11 +249,11 @@ ${sender(input.brand, base)}
     escapeHtml(input.headline)
   }</h1>
 <p class="ew-muted" style="margin:0${
-    input.button ? " 0 24px" : ""
+    input.note ? " 0 16px" : input.button ? " 0 24px" : ""
   };font-family:${font};font-size:16px;line-height:24px;color:#5E686B;">${
     escapeHtml(input.line)
   }</p>
-${button}
+${note}${button}
 </td></tr>
 <tr><td class="ew-pad ew-rule" style="padding:20px 32px 24px;border-top:1px solid #E6E9EA;">
 ${footnote}${support}<div class="ew-faint" style="font-family:${font};font-size:13px;line-height:20px;color:#8A9396;">${

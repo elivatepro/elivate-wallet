@@ -5,9 +5,10 @@
 
 	NGN only: pick a pocket with money available, an amount up to what it has
 	available (requests already open are reserved), and a usable payout
-	account (verified, not cooling off, name not mismatched). Submitting needs
-	a fresh PIN and reserves the amount at once; the posted balance changes
-	only once the payout receipt is verified.
+	account (verified, not cooling off, name not mismatched), and what it is
+	for (Blueprint 40, Paper WR01: a required note of 3–500 characters).
+	Submitting needs a fresh PIN and reserves the amount at once; the posted
+	balance changes only once the payout receipt is verified.
 -->
 <script lang="ts">
 	import { enterMovesOn } from '#lib/ui/enter-moves-on.js';
@@ -62,6 +63,10 @@
 	let pinError = $state<string | null>(null);
 	let dialogError = $state<string | null>(null);
 	let chooseAccount = $state(false);
+	// Blueprint 40: kept in page state, so going back to the amount keeps it.
+	let reason = $state('');
+	let reasonError = $state<string | null>(null);
+	let reasonField = $state<HTMLTextAreaElement | null>(null);
 
 	const attempt = new CommandAttempt({
 		command: 'request_withdrawal',
@@ -167,7 +172,21 @@
 		if (validate()) step = 'review';
 	}
 
+	/** The note's problem, if any (same rule as the server: 3–500 characters after trimming). */
+	function reasonProblem(text: string): string | null {
+		const length = [...text.trim()].length;
+		if (length < 3) return 'Say what this withdrawal is for (at least 3 characters).';
+		if (length > 500) return 'Keep it to 500 characters.';
+		return null;
+	}
+
 	function openPin() {
+		// The button stays tappable: an invalid note is shown and focused, never silently blocked.
+		reasonError = reasonProblem(reason);
+		if (reasonError) {
+			reasonField?.focus();
+			return;
+		}
 		pinError = null;
 		dialogError = null;
 		pinOpen = true;
@@ -182,7 +201,12 @@
 			? await attempt.resend({ ...(pin ? { pin } : {}) })
 			: await attempt.send(
 					shell.state.view.workspace.membershipId,
-					{ accountId: source.accountId, amount, payoutAccountId: account.payoutAccountId },
+					{
+						accountId: source.accountId,
+						amount,
+						payoutAccountId: account.payoutAccountId,
+						reason: reason.trim()
+					},
 					{ ...(pin ? { pin } : {}), summary }
 				);
 		if (state.kind === 'done') {
@@ -236,6 +260,7 @@
 		return `₦${grouped}${cents !== undefined ? `.${cents}` : ''}`;
 	});
 
+	const reasonLength = $derived([...reason.trim()].length);
 	const reservedAfter = $derived(source && amount ? sumMoney([source.reserved, amount]) : null);
 	const availableAfter = $derived(
 		source && amount ? sumMoney([source.available, `-${amount}`]) : null
@@ -263,6 +288,39 @@
 		<h1 tabindex="-1">{title}</h1>
 		<span class="nav-step">{n} / 3</span>
 	</header>
+{/snippet}
+
+<!-- Blueprint 40, Paper WR01: what the withdrawal is for (required). -->
+{#snippet reasonBlock()}
+	<div class="reason">
+		<div class="reason-head">
+			<label class="reason-label" for="wd-reason">What’s this withdrawal for?</label>
+			<span class="reason-req">Required</span>
+		</div>
+		<textarea
+			id="wd-reason"
+			class="reason-field"
+			bind:this={reasonField}
+			bind:value={reason}
+			rows="2"
+			maxlength="600"
+			autocomplete="off"
+			placeholder="For example, school fees for the second term"
+			aria-invalid={reasonError ? 'true' : undefined}
+			aria-describedby="wd-reason-hint"
+			oninput={() => {
+				if (reasonError) reasonError = reasonProblem(reason);
+			}}></textarea>
+		{#if reasonError}
+			<p class="mm-error" id="wd-reason-hint" role="alert">{reasonError}</p>
+		{:else}
+			<p class="reason-hint" id="wd-reason-hint">
+				Your leader sees this when they approve it.{reasonLength > 450
+					? ` ${500 - reasonLength} characters left.`
+					: ''}
+			</p>
+		{/if}
+	</div>
 {/snippet}
 
 {#if recovering}
@@ -601,6 +659,24 @@
 								<dd>{account.accountName}</dd>
 							</div>
 						</dl>
+						{@render reasonBlock()}
+						<section class="m10-rows after" aria-labelledby="wd-after">
+							<h2 class="m10-label" id="wd-after">After you submit</h2>
+							<dl>
+								<div>
+									<dt>Reserved</dt>
+									<dd class="held">+{formatMoney(amount, 'NGN')}</dd>
+								</div>
+								<div>
+									<dt>Available to withdraw</dt>
+									<dd>{formatMoney(availableAfter ?? '0', 'NGN')}</dd>
+								</div>
+								<div>
+									<dt>Posted balance</dt>
+									<dd>Unchanged until payout</dd>
+								</div>
+							</dl>
+						</section>
 						{#if dialogError && !pinOpen}<p class="mm-error center" role="alert">
 								{dialogError}
 							</p>{/if}
@@ -611,7 +687,7 @@
 								disabled={!shell.canAct ||
 									shell.paused('withdrawals') ||
 									attempt.state.kind === 'sending'}
-								onclick={openPin}>Submit request</button
+								onclick={openPin}>Enter PIN to submit</button
 							>
 						</div>
 					</section>
@@ -635,6 +711,7 @@
 								<dd>{source.office.name} leadership</dd>
 							</div>
 						</dl>
+						{@render reasonBlock()}
 						<div class="mm-field">
 							<span class="mm-label">After you submit</span>
 							<dl class="rows">
@@ -1197,6 +1274,92 @@
 
 	.m10-foot .continue {
 		margin: 0 0 34px;
+	}
+
+	/* ── Blueprint 40, Paper WR01: the reason note ── */
+	.reason {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.m10 .reason {
+		padding-top: 4px;
+	}
+
+	.reason-head {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 12px;
+	}
+
+	.reason-label {
+		color: var(--color-text);
+		font-size: var(--text-14);
+		font-weight: var(--font-weight-medium);
+		line-height: 20px;
+	}
+
+	.reason-req,
+	.reason-hint {
+		color: var(--color-muted);
+		font-size: var(--text-12);
+		line-height: 16px;
+	}
+
+	.reason-field {
+		width: 100%;
+		min-height: 84px;
+		padding: 14px 16px;
+		border: 1.5px solid var(--color-border);
+		border-radius: 14px;
+		background: var(--color-surface);
+		color: var(--color-text);
+		font: inherit;
+		/* 16px so iOS does not zoom into the field. */
+		font-size: var(--text-16);
+		line-height: 22px;
+		resize: vertical;
+	}
+
+	.reason-field::placeholder {
+		color: color-mix(in oklab, var(--color-text) 40%, transparent);
+	}
+
+	.reason-field:focus {
+		border-color: var(--color-accent);
+		outline: none;
+	}
+
+	.reason-field[aria-invalid='true'] {
+		border-color: var(--color-danger);
+	}
+
+	.m10-label {
+		margin: 0;
+		color: var(--color-muted);
+		font-family: var(--font-mono);
+		font-size: var(--text-12);
+		font-weight: normal;
+		letter-spacing: 0.08em;
+		line-height: 16px;
+		text-transform: uppercase;
+	}
+
+	.m10-rows.after dl {
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
+		margin: 0;
+	}
+
+	.m10-rows.after dt {
+		color: color-mix(in oklab, var(--color-text) 85%, transparent);
+	}
+
+	.m10-rows dd.held {
+		color: var(--color-warning);
 	}
 
 	@keyframes blink {

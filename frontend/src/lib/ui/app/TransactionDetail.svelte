@@ -166,6 +166,12 @@
 				</dd>
 			</div>
 		{/if}
+		{#if detail.withdrawal?.reason}
+			<div class="row">
+				<dt>Reason</dt>
+				<dd>{detail.withdrawal.reason}</dd>
+			</div>
+		{/if}
 		{#if detail.entry?.reason}
 			<div class="row">
 				<dt>Reason</dt>

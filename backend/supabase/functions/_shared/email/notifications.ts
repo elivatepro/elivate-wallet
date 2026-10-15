@@ -5,6 +5,8 @@
 // settings and backups. Money emails show the exact
 // amount and the public reference only
 // (P-06): never balances, account digits, bank details, reasons or evidence.
+// One exception (Blueprint 40, owner decision 2026-10-15): M02 and M03 quote
+// what the withdrawal is for, in the words of whoever placed it.
 // Buttons open the in-app path carried by the event, from an allow-list.
 
 import { renderLayout, type RootPose, type StatusTone, supportEmail } from "./layout.ts";
@@ -123,6 +125,7 @@ interface Spec {
   readonly root: RootPose;
   readonly headline: string;
   readonly line: string;
+  readonly note?: { readonly label: string; readonly text: string };
   readonly button: string;
 }
 
@@ -140,6 +143,7 @@ function build(spec: Spec, params: Params, context: RenderContext): RenderedEmai
     root: spec.root,
     headline: spec.headline,
     line: spec.line,
+    ...(spec.note ? { note: spec.note } : {}),
     button: { label: spec.button, url },
     assetBase: `${origin}/email`,
   });
@@ -148,6 +152,7 @@ function build(spec: Spec, params: Params, context: RenderContext): RenderedEmai
     "",
     spec.line,
     "",
+    ...(spec.note ? [`${spec.note.label}: “${spec.note.text}”`, ""] : []),
     ...(spec.reference ? [spec.reference, ""] : []),
     `${spec.button}: ${url}`,
     "",
@@ -158,6 +163,12 @@ function build(spec: Spec, params: Params, context: RenderContext): RenderedEmai
 }
 
 type Renderer = (params: Params, context: RenderContext) => RenderedEmail;
+
+/** Blueprint 40: what the withdrawal is for (3–500 characters; optional for older events). */
+function reasonNote(params: Params): Spec["note"] {
+  const text = optional(params, "reason", 500);
+  return text === undefined ? undefined : { label: "Reason", text: text.trim() };
+}
 
 const money = ["network", "amount", "currency", "reference", "path"] as const;
 
@@ -300,19 +311,32 @@ export const notificationRenderers: Readonly<Record<string, Renderer>> = {
     button: "View income",
   }),
   // M02
-  "money.withdrawal_submitted": simple({
-    subject: "Withdrawal requested",
-    chip: "Withdrawal",
-    status: { label: "Submitted", tone: "muted" },
-    root: "withdrawal-submitted",
-    headline: "Withdrawal requested.",
-    line: "We’ll email you when your Team Leader reviews it.",
-    button: "View request",
-  }),
+  "money.withdrawal_submitted": (params, context) => {
+    onlyParams(params, [...money, "reason"]);
+    const note = reasonNote(params);
+    return build(
+      {
+        network: param(params, "network", 100),
+        subject: "Withdrawal requested",
+        chip: "Withdrawal",
+        status: { label: "Submitted", tone: "muted" },
+        display: amountOf(params),
+        reference: reference(params),
+        root: "withdrawal-submitted",
+        headline: "Withdrawal requested.",
+        line: "We’ll email you when your Team Leader reviews it.",
+        ...(note ? { note } : {}),
+        button: "View request",
+      },
+      params,
+      context,
+    );
+  },
   // M03
   "money.withdrawal_awaiting_approval": (params, context) => {
-    onlyParams(params, [...money, "member", "office"]);
+    onlyParams(params, [...money, "member", "office", "reason"]);
     const member = param(params, "member", nameMax);
+    const note = reasonNote(params);
     return build(
       {
         network: param(params, "network", 100),
@@ -323,6 +347,7 @@ export const notificationRenderers: Readonly<Record<string, Renderer>> = {
         root: "withdrawal-awaiting",
         headline: "A withdrawal needs your approval.",
         line: `${member} requested a payout from ${param(params, "office", 100)}.`,
+        ...(note ? { note } : {}),
         button: "Review request",
       },
       params,
