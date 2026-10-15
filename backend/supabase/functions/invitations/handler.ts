@@ -17,7 +17,7 @@ import {
   success,
 } from "../_shared/http.ts";
 import * as v from "../_shared/validate.ts";
-import { tokenDigest, tokenPattern } from "../_shared/invite_token.ts";
+import { normalizeTeamCode, teamLink, tokenDigest, tokenPattern } from "../_shared/invite_token.ts";
 import { sameSecret } from "../_shared/secret.ts";
 
 export interface Actor {
@@ -51,6 +51,13 @@ export interface Deps {
    * it lands on the network (`join`) or founder (`founder`) invitation page.
    */
   sendSignInLink(email: string, page: "join" | "founder"): Promise<void>;
+  /** Team link codes (Blueprint 38): a fresh code, or the code of a stored token id. */
+  readonly teamCodes: {
+    issue(): Promise<{ readonly tokenId: string; readonly digest: string }>;
+    code(tokenId: string): Promise<string>;
+  };
+  /** Base of the links shown to leaders (`APP_ORIGIN`). */
+  readonly appOrigin: string;
   log(entry: LogEntry): void;
   readonly allowedOrigins: readonly string[];
   /** Shared with the Wallet server only; required for the public application. */
@@ -184,6 +191,22 @@ function optionalReason(body: v.Body): string | null {
   return body.reason === undefined || body.reason === null ? null : v.reason(body);
 }
 
+function teamCode(body: v.Body): string {
+  const code = typeof body.code === "string" ? normalizeTeamCode(body.code) : null;
+  if (!code) throw new ApiError("validation_error", { field: "code" });
+  return code;
+}
+
+/** `null` (no end / no limit) or one of the offered values (Blueprint 38 decision 3). */
+function choice(body: v.Body, field: string, allowed: readonly number[]): number | null {
+  const value = body[field];
+  if (value === null) return null;
+  if (typeof value !== "number" || !allowed.includes(value)) {
+    throw new ApiError("validation_error", { field });
+  }
+  return value;
+}
+
 export function createHandler(deps: Deps): (request: Request) => Promise<Response> {
   async function call(fn: string, args: Record<string, unknown>): Promise<unknown> {
     const { data, error } = await deps.rpc(fn, args);
@@ -197,6 +220,16 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       throw new Error(`rpc ${fn} returned an unexpected result`);
     }
     return data;
+  }
+
+  /** A stored team link with its `/j/<code>` link in place of the token id. */
+  async function withUrl(raw: unknown): Promise<Record<string, unknown>> {
+    if (typeof raw !== "object" || raw === null) throw new Error("unexpected team link");
+    const { tokenId, ...link } = raw as Record<string, unknown>;
+    if (typeof tokenId !== "string" || !uuidPattern.test(tokenId)) {
+      throw new Error("unexpected team link");
+    }
+    return { ...link, url: teamLink(deps.appOrigin, await deps.teamCodes.code(tokenId)) };
   }
 
   const signedIn = (c: Context): Actor => {
@@ -315,6 +348,76 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
         p_invitation_id: c.params.id,
         p_reason: v.reason(body),
         p_idempotency_key: v.idempotencyKey(body),
+      });
+    }),
+
+    // ── Team links (Blueprint 38) ──
+
+    route("GET", "/team-link", async (c) => {
+      onlyQuery(c.query, ["officeId"]);
+      const officeId = queryUuid(c.query, "officeId");
+      if (officeId === null) throw new ApiError("validation_error", { field: "officeId" });
+      const result = await call("team_link", {
+        ...actorArgs(c),
+        p_membership_id: workspace(c.request),
+        p_office_id: officeId,
+      }) as { link?: unknown };
+      return { link: result.link == null ? null : await withUrl(result.link) };
+    }),
+
+    route("POST", "/team-link", async (c) => {
+      const body = await v.readBody(c.request, ["officeId", "days", "maxUses", "idempotencyKey"]);
+      const args = {
+        ...commandInWorkspace(c),
+        p_office_id: v.uuid(body, "officeId"),
+        p_days: choice(body, "days", [1, 7, 30]),
+        p_max_uses: choice(body, "maxUses", [10, 50]),
+        p_idempotency_key: v.idempotencyKey(body),
+      };
+      const link = await deps.teamCodes.issue();
+      return withUrl(
+        await call("create_team_link", {
+          ...args,
+          p_token_id: link.tokenId,
+          p_token_digest: link.digest,
+        }),
+      );
+    }),
+
+    route("POST", "/team-link/:id/turn-off", async (c) => {
+      const body = await v.readBody(c.request, ["idempotencyKey"]);
+      return call("turn_off_team_link", {
+        ...commandInWorkspace(c),
+        p_team_link_id: c.params.id,
+        p_idempotency_key: v.idempotencyKey(body),
+      });
+    }),
+
+    route("POST", "/team-link/preview", async (c) => {
+      const code = teamCode(await v.readBody(c.request, ["code"]));
+      const result = await call("team_link_preview", {
+        p_token_digest: await tokenDigest(code),
+      }) as { networkName?: unknown; officeName?: unknown; invitedBy?: unknown };
+      if (
+        typeof result.networkName !== "string" || typeof result.officeName !== "string" ||
+        (result.invitedBy !== null && typeof result.invitedBy !== "string")
+      ) {
+        throw new Error("preview returned an unexpected result");
+      }
+      return {
+        networkName: result.networkName,
+        officeName: result.officeName,
+        invitedBy: result.invitedBy,
+      };
+    }, true),
+
+    route("POST", "/team-link/join", async (c) => {
+      const body = await v.readBody(c.request, ["code", "idempotencyKey"]);
+      return call("join_team_link", {
+        ...actorArgs(c),
+        p_token_digest: await tokenDigest(teamCode(body)),
+        p_idempotency_key: v.idempotencyKey(body),
+        p_request_id: c.requestId,
       });
     }),
 

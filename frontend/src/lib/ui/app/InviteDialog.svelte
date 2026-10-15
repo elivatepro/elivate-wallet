@@ -3,7 +3,8 @@
 	invitations go straight out; a leader role also asks for a reason and the
 	PIN (step-up, A-05). Same modal recipe as ConfirmDialog (bottom sheet on
 	mobile, centred card on desktop). The backend decides authority; the role
-	choice here is only what it can accept.
+	choice here is only what it can accept. Blueprint 38 (Paper TL01/TL01d):
+	a By email / Team link switch; the team link tab is TeamLinkPanel.
 -->
 <script lang="ts">
 	import { enterMovesOn } from '#lib/ui/enter-moves-on.js';
@@ -16,6 +17,7 @@
 	import PinField from '#lib/ui/auth/PinField.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
 	import WheelPicker from '#lib/ui/WheelPicker.svelte';
+	import TeamLinkPanel from './TeamLinkPanel.svelte';
 
 	let {
 		open = $bindable(false),
@@ -25,6 +27,8 @@
 		error = null,
 		pinError = null,
 		askPin = false,
+		membershipId = null,
+		canAct = true,
 		onSubmit
 	}: {
 		open?: boolean;
@@ -35,6 +39,9 @@
 		pinError?: string | null;
 		/** Set after step_up_required so a member invitation can be confirmed too. */
 		askPin?: boolean;
+		/** The selected workspace; with it the dialog offers team links (Blueprint 38). */
+		membershipId?: string | null;
+		canAct?: boolean;
 		onSubmit: (input: {
 			email: string;
 			officeId: string;
@@ -49,6 +56,9 @@
 	let role = $state<Role>('member');
 	let reason = $state('');
 	let fieldError = $state<{ field: 'email' | 'reason'; text: string } | null>(null);
+	let tab = $state<'email' | 'link'>('email');
+	/** Team link offices: only where a Member can be invited (every listed office). */
+	let linkOfficeId = $state('');
 
 	const office = $derived(offices.find((o) => o.officeId === officeId) ?? offices[0]);
 	const roles = $derived(office ? inviteRoles(workspace, office) : (['member'] as Role[]));
@@ -61,6 +71,11 @@
 	$effect(() => {
 		if (open) fieldError = null;
 	});
+	$effect(() => {
+		if (!offices.some((o) => o.officeId === linkOfficeId))
+			linkOfficeId = offices[0]?.officeId ?? '';
+	});
+	const linkOffice = $derived(offices.find((o) => o.officeId === linkOfficeId) ?? offices[0]);
 	$effect(() => {
 		if (!offices.some((o) => o.officeId === officeId)) officeId = offices[0]?.officeId ?? '';
 	});
@@ -98,93 +113,121 @@
 	<Dialog.Portal>
 		<Dialog.Overlay class="confirm-overlay" />
 		<Dialog.Content class="confirm-dialog">
-			<form onsubmit={submit} novalidate {@attach enterMovesOn}>
-				<!-- Paper C13/C14: the grainy band with Root holding the invitation. -->
-				<header class="stage">
-					<span class="shade" aria-hidden="true"></span>
+			<!-- Paper C13/C14: the grainy band with Root holding the invitation;
+			     TL01: Root holding the door for a team link. -->
+			<header class="stage">
+				<span class="shade" aria-hidden="true"></span>
+				{#if tab === 'link'}
+					<RootImage pose="team-link" class="stage-root" sizes="124px" eager />
+				{:else}
 					<RootImage pose="invite-member" class="stage-root" sizes="118px" eager />
-					<Dialog.Title class="stage-title">Invite a member</Dialog.Title>
-					{#if office}
-						<p class="stage-sub">Joins {office.name} {joinsAs}</p>
-					{/if}
-				</header>
-				<div class="body">
-					{#if error}<p class="error" role="alert">{error}</p>{/if}
+				{/if}
+				<Dialog.Title class="stage-title">Invite a member</Dialog.Title>
+				{#if tab === 'link' && linkOffice}
+					<p class="stage-sub">Joins {linkOffice.name} as a Member</p>
+				{:else if office}
+					<p class="stage-sub">Joins {office.name} {joinsAs}</p>
+				{/if}
+			</header>
+			{#if membershipId}
+				<div class="tabs" role="tablist" aria-label="How to invite">
+					<button
+						type="button"
+						role="tab"
+						aria-selected={tab === 'email'}
+						onclick={() => (tab = 'email')}>By email</button
+					>
+					<button
+						type="button"
+						role="tab"
+						aria-selected={tab === 'link'}
+						onclick={() => (tab = 'link')}>Team link</button
+					>
+				</div>
+			{/if}
+			{#if tab === 'link' && membershipId}
+				<TeamLinkPanel {offices} bind:officeId={linkOfficeId} {membershipId} {canAct} />
+			{:else}
+				<form onsubmit={submit} novalidate {@attach enterMovesOn}>
+					<div class="body" class:tabbed={!!membershipId}>
+						{#if error}<p class="error" role="alert">{error}</p>{/if}
 
-					<label class="label" for="invite-email">Email address</label>
-					<input
-						id="invite-email"
-						class="input"
-						type="email"
-						inputmode="email"
-						autocomplete="off"
-						autocapitalize="off"
-						spellcheck="false"
-						maxlength="254"
-						bind:value={email}
-						aria-invalid={fieldError?.field === 'email' ? 'true' : undefined}
-						aria-describedby={fieldError?.field === 'email' ? 'invite-email-error' : undefined}
-					/>
-					{#if fieldError?.field === 'email'}
-						<p class="field-error" id="invite-email-error">{fieldError.text}</p>
-					{/if}
-
-					{#if offices.length > 1}
-						<label class="label" for="invite-office">Office</label>
-						<div class="pick">
-							<WheelPicker
-								id="invite-office"
-								label="Office"
-								options={offices.map((o) => ({ value: o.officeId, label: o.name }))}
-								value={officeId}
-								onchange={(id) => (officeId = id)}
-							/>
-						</div>
-					{:else if office}
-						<p class="label">Office</p>
-						<p class="fixed">{office.name}</p>
-					{/if}
-
-					{#if roles.length > 1}
-						<fieldset class="roles">
-							<legend class="label">Role</legend>
-							<div class="segmented">
-								{#each roles as r (r)}
-									<label class="segment">
-										<input type="radio" name="role" value={r} bind:group={role} />
-										<span>{ROLE_LABELS[r]}</span>
-									</label>
-								{/each}
-							</div>
-						</fieldset>
-					{/if}
-
-					{#if leader}
-						<label class="label" for="invite-reason">Reason</label>
-						<textarea
-							id="invite-reason"
+						<label class="label" for="invite-email">Email address</label>
+						<input
+							id="invite-email"
 							class="input"
-							rows="2"
-							maxlength="500"
-							bind:value={reason}
-							aria-invalid={fieldError?.field === 'reason' ? 'true' : undefined}
-							aria-describedby={fieldError?.field === 'reason' ? 'invite-reason-error' : undefined}
-						></textarea>
-						{#if fieldError?.field === 'reason'}
-							<p class="field-error" id="invite-reason-error">{fieldError.text}</p>
+							type="email"
+							inputmode="email"
+							autocomplete="off"
+							autocapitalize="off"
+							spellcheck="false"
+							maxlength="254"
+							bind:value={email}
+							aria-invalid={fieldError?.field === 'email' ? 'true' : undefined}
+							aria-describedby={fieldError?.field === 'email' ? 'invite-email-error' : undefined}
+						/>
+						{#if fieldError?.field === 'email'}
+							<p class="field-error" id="invite-email-error">{fieldError.text}</p>
 						{/if}
-					{/if}
-					{#if (leader || askPin) && open}
-						<PinField id="invite-pin" name="pin" label="Your PIN" error={pinError} />
-					{/if}
-				</div>
-				<div class="actions">
-					<Dialog.Close class="confirm-cancel" type="button">Cancel</Dialog.Close>
-					<button class="go" type="submit" disabled={busy || !office} aria-busy={busy}>
-						Send invitation
-					</button>
-				</div>
-			</form>
+
+						{#if offices.length > 1}
+							<label class="label" for="invite-office">Office</label>
+							<div class="pick">
+								<WheelPicker
+									id="invite-office"
+									label="Office"
+									options={offices.map((o) => ({ value: o.officeId, label: o.name }))}
+									value={officeId}
+									onchange={(id) => (officeId = id)}
+								/>
+							</div>
+						{:else if office}
+							<p class="label">Office</p>
+							<p class="fixed">{office.name}</p>
+						{/if}
+
+						{#if roles.length > 1}
+							<fieldset class="roles">
+								<legend class="label">Role</legend>
+								<div class="segmented">
+									{#each roles as r (r)}
+										<label class="segment">
+											<input type="radio" name="role" value={r} bind:group={role} />
+											<span>{ROLE_LABELS[r]}</span>
+										</label>
+									{/each}
+								</div>
+							</fieldset>
+						{/if}
+
+						{#if leader}
+							<label class="label" for="invite-reason">Reason</label>
+							<textarea
+								id="invite-reason"
+								class="input"
+								rows="2"
+								maxlength="500"
+								bind:value={reason}
+								aria-invalid={fieldError?.field === 'reason' ? 'true' : undefined}
+								aria-describedby={fieldError?.field === 'reason'
+									? 'invite-reason-error'
+									: undefined}></textarea>
+							{#if fieldError?.field === 'reason'}
+								<p class="field-error" id="invite-reason-error">{fieldError.text}</p>
+							{/if}
+						{/if}
+						{#if (leader || askPin) && open}
+							<PinField id="invite-pin" name="pin" label="Your PIN" error={pinError} />
+						{/if}
+					</div>
+					<div class="actions">
+						<Dialog.Close class="confirm-cancel" type="button">Cancel</Dialog.Close>
+						<button class="go" type="submit" disabled={busy || !office} aria-busy={busy}>
+							Send invitation
+						</button>
+					</div>
+				</form>
+			{/if}
 		</Dialog.Content>
 	</Dialog.Portal>
 </Dialog.Root>
@@ -247,6 +290,51 @@
 		max-height: min(70dvh, 640px);
 		overflow-y: auto;
 		padding: 28px;
+	}
+
+	.body.tabbed {
+		padding-top: 8px;
+		/* Blueprint 38: the tabs add a row; header, tabs and actions stay on screen. */
+		max-height: max(160px, calc(100dvh - 330px - env(safe-area-inset-bottom)));
+	}
+
+	@media (min-width: 1024px) {
+		.body.tabbed {
+			max-height: max(160px, min(640px, calc(100dvh - 500px)));
+		}
+	}
+
+	.tabs {
+		display: flex;
+		gap: 4px;
+		margin: 24px 28px 8px;
+		padding: 4px;
+		border-radius: var(--radius-pill);
+		border: 1px solid color-mix(in oklab, var(--color-text) 10%, transparent);
+		background: color-mix(in oklab, var(--color-canvas) 60%, transparent);
+	}
+
+	.tabs button {
+		flex: 1;
+		height: 36px;
+		border: 0;
+		border-radius: var(--radius-pill);
+		background: transparent;
+		color: var(--color-muted);
+		font: inherit;
+		font-size: var(--text-14);
+		font-weight: var(--font-weight-medium);
+		cursor: pointer;
+	}
+
+	.tabs button[aria-selected='true'] {
+		background: var(--color-raised);
+		color: var(--color-text);
+	}
+
+	.tabs button:focus-visible {
+		outline: 2px solid var(--focus-ring);
+		outline-offset: 1px;
 	}
 
 	.error {

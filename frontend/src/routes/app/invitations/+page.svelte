@@ -582,6 +582,8 @@
 			error={inviteError}
 			pinError={invitePinError}
 			askPin={inviteAskPin}
+			membershipId={workspace.membershipId}
+			canAct={shell.canAct}
 			onSubmit={invite}
 		/>
 	{/key}

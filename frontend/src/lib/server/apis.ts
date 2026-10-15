@@ -23,6 +23,17 @@ import {
 	RevokedInvitation,
 	RevokeInvitationRequest,
 	VerificationSent,
+	CreatedTeamLink,
+	CreateTeamLinkRequest,
+	JoinedTeam,
+	JoinTeamLinkRequest,
+	TeamCodeRequest,
+	TeamLinkDays,
+	TeamLinkPreview,
+	TeamLinkRead,
+	TeamLinkUses,
+	TurnedOffTeamLink,
+	TurnOffTeamLinkRequest,
 	type InvitationStatus,
 	type MyInvitation
 } from '#lib/contract/invitations.js';
@@ -304,6 +315,32 @@ export interface InvitationsApiShape {
 		invitationId: string,
 		input: { reason: string; idempotencyKey: string }
 	) => Effect.Effect<RevokedInvitation, EdgeFailure>;
+	/** Blueprint 38: the office's team link (null when there is none). */
+	readonly teamLink: (
+		membershipId: string,
+		officeId: string
+	) => Effect.Effect<TeamLinkRead, EdgeFailure>;
+	readonly createTeamLink: (
+		membershipId: string,
+		input: {
+			readonly officeId: string;
+			readonly days: number | null;
+			readonly maxUses: number | null;
+			readonly idempotencyKey: string;
+		}
+	) => Effect.Effect<CreatedTeamLink, EdgeFailure>;
+	readonly turnOffTeamLink: (
+		membershipId: string,
+		teamLinkId: string,
+		input: { idempotencyKey: string }
+	) => Effect.Effect<TurnedOffTeamLink, EdgeFailure>;
+	/** Public (no session): who invites, to which network and office. */
+	readonly teamLinkPreview: (code: string) => Effect.Effect<TeamLinkPreview, EdgeFailure>;
+	/** Never retried: the caller keeps the idempotency key and resubmits (W-00). */
+	readonly joinTeamLink: (input: {
+		code: string;
+		idempotencyKey: string;
+	}) => Effect.Effect<JoinedTeam, EdgeFailure>;
 }
 
 /**
@@ -331,6 +368,9 @@ const tokenBody = (token: string) =>
 	Schema.decodeUnknownEffect(InvitationTokenRequest)({ token }).pipe(
 		Effect.mapError(() => localValidation('token'))
 	);
+
+const teamLinkIdOk = (id: string) =>
+	Schema.is(Uuid)(id) ? Effect.succeed(id) : Effect.fail(localValidation('teamLinkId'));
 
 export class InvitationsApi extends Context.Service<InvitationsApi, InvitationsApiShape>()(
 	'InvitationsApi'
@@ -433,6 +473,68 @@ export const InvitationsApiLive = Layer.effect(
 							},
 							RevokedInvitation
 						)
+					)
+				),
+			teamLink: (membershipId, officeId) =>
+				Schema.is(Uuid)(officeId)
+					? edge
+							.call(
+								{
+									fn: 'invitations',
+									route: InvitationRoutes.teamLink,
+									membershipId,
+									query: { officeId }
+								},
+								TeamLinkRead
+							)
+							.pipe(Effect.retry(readPolicy))
+					: Effect.fail(localValidation('officeId')),
+			createTeamLink: (membershipId, input) =>
+				decodeBody(CreateTeamLinkRequest, input, [
+					['officeId', Schema.is(Uuid)],
+					['days', Schema.is(TeamLinkDays)],
+					['maxUses', Schema.is(TeamLinkUses)],
+					['idempotencyKey', isKey]
+				]).pipe(
+					Effect.flatMap((body) =>
+						edge.call(
+							{ fn: 'invitations', route: InvitationRoutes.createTeamLink, body, membershipId },
+							CreatedTeamLink
+						)
+					)
+				),
+			turnOffTeamLink: (membershipId, teamLinkId, input) =>
+				teamLinkIdOk(teamLinkId).pipe(
+					Effect.andThen(decodeBody(TurnOffTeamLinkRequest, input, [['idempotencyKey', isKey]])),
+					Effect.flatMap((body) =>
+						edge.call(
+							{
+								fn: 'invitations',
+								route: InvitationRoutes.turnOffTeamLink(teamLinkId),
+								body,
+								membershipId
+							},
+							TurnedOffTeamLink
+						)
+					)
+				),
+			teamLinkPreview: (code) =>
+				Schema.decodeUnknownEffect(TeamCodeRequest)({ code }).pipe(
+					Effect.mapError(() => localValidation('code')),
+					Effect.flatMap((body) =>
+						edge.call(
+							{ fn: 'invitations', route: InvitationRoutes.teamLinkPreview, body },
+							TeamLinkPreview
+						)
+					)
+				),
+			joinTeamLink: (input) =>
+				decodeBody(JoinTeamLinkRequest, input, [
+					['code', Schema.is(TeamCodeRequest.fields.code)],
+					['idempotencyKey', isKey]
+				]).pipe(
+					Effect.flatMap((body) =>
+						edge.call({ fn: 'invitations', route: InvitationRoutes.joinTeamLink, body }, JoinedTeam)
 					)
 				)
 		};

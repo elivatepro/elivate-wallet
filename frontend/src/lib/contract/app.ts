@@ -12,7 +12,13 @@ import {
 	Pocket,
 	WalletNetwork
 } from './ledger';
-import { IdempotencyKey, InvitationPage, InvitationStatus } from './invitations';
+import {
+	IdempotencyKey,
+	InvitationPage,
+	InvitationStatus,
+	TeamLinkDays,
+	TeamLinkUses
+} from './invitations';
 import { IsoDateTime, OfficeType, Person, PIN_PATTERN, Role, Uuid } from './common';
 import { Brand } from './settings';
 import { ACCOUNT_NUMBER_PATTERN, Bank, PayoutAccount } from './payout';
@@ -182,6 +188,23 @@ export const RevokeCommand = Schema.Struct({
 });
 export type RevokeCommand = typeof RevokeCommand.Type;
 
+/** POST /api/team-link (TL01): replaces the office's link; PIN when asked (Blueprint 38). */
+export const CreateTeamLinkCommand = Schema.Struct({
+	officeId: Uuid,
+	days: TeamLinkDays,
+	maxUses: TeamLinkUses,
+	pin: OptionalPin,
+	idempotencyKey: IdempotencyKey
+});
+export type CreateTeamLinkCommand = typeof CreateTeamLinkCommand.Type;
+
+/** POST /api/team-link/:id/turn-off (TL02 "Turn off"); PIN when asked. */
+export const TurnOffTeamLinkCommand = Schema.Struct({
+	pin: OptionalPin,
+	idempotencyKey: IdempotencyKey
+});
+export type TurnOffTeamLinkCommand = typeof TurnOffTeamLinkCommand.Type;
+
 export const AppRoutes = {
 	split: { method: 'GET', path: '/api/split' },
 	saveSplit: { method: 'PUT', path: '/api/split' },
@@ -196,7 +219,12 @@ export const AppRoutes = {
 	reissueInvitation: (id: string) =>
 		({ method: 'POST', path: `/api/invitations/${id}/reissue` }) as const,
 	revokeInvitation: (id: string) =>
-		({ method: 'POST', path: `/api/invitations/${id}/revoke` }) as const
+		({ method: 'POST', path: `/api/invitations/${id}/revoke` }) as const,
+	teamLink: (officeId: string) =>
+		({ method: 'GET', path: `/api/team-link?officeId=${officeId}` }) as const,
+	createTeamLink: { method: 'POST', path: '/api/team-link' },
+	turnOffTeamLink: (id: string) =>
+		({ method: 'POST', path: `/api/team-link/${id}/turn-off` }) as const
 } as const;
 
 /** Same-origin per-account commands; the id is the account's UUID, never its number. */

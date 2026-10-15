@@ -58,6 +58,8 @@ export type RootPose =
 	| 'pin-unlock'
 	// Paper "App — Screens v1" C13/C14 (Root · Invitation, Slice 29).
 	| 'invite-member'
+	// Paper "Team links v11" TL01/TL02 (Root · Holding the door, Blueprint 38).
+	| 'team-link'
 	| 'dialog-replace'
 	| 'dialog-remove'
 	| 'dialog-sign-out'
@@ -203,6 +205,7 @@ export const ROOT_HEIGHTS: Record<RootPose, number> = {
 	'account-pin-change': 525,
 	'pin-unlock': 525,
 	'invite-member': 525,
+	'team-link': 525,
 	// Paper "App — Screens v4" Z04–Z07 dialogs (reused poses, flagged on the layers):
 	// relay baton (B01), coin back in slot (W03), sleep mask (X05), name badge (R05).
 	'dialog-replace': 525,

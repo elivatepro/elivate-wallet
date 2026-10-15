@@ -2,7 +2,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import { Effect, Exit } from 'effect';
 import { SecurityApi } from '#lib/server/apis.js';
 import { authFailureFrom } from '#lib/server/auth.js';
-import { clearWorkspace, readJoinToken } from '#lib/server/cookies.js';
+import { clearWorkspace, readJoinToken, readTeamCode } from '#lib/server/cookies.js';
 import { failureOf, redirectForFailure } from '#lib/server/flow.js';
 import { runApi } from '#lib/server/request.js';
 import { gatePath, withNext } from '#lib/gate.js';
@@ -87,6 +87,8 @@ export const actions: Actions = {
 		if (Exit.isFailure(exit)) redirectForFailure(failureOf(exit));
 		// An invitation link opened in this browser continues after sign-in (W-02 step 5).
 		if (readJoinToken(event.cookies)) redirect(303, '/join');
+		// ... and so does a team link (Blueprint 38).
+		if (readTeamCode(event.cookies)) redirect(303, '/team-join');
 		// Slice 21: back to the app page that needed a sign-in, once through the gates.
 		redirect(303, gatePath(exit.value.gate, event.url.searchParams.get('next')));
 	}

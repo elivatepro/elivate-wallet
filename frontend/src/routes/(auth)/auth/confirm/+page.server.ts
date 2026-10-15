@@ -10,7 +10,8 @@ import {
 	markJoinPasswordNeeded,
 	markRecovery,
 	readFounderToken,
-	readJoinToken
+	readJoinToken,
+	readTeamCode
 } from '#lib/server/cookies.js';
 import { recordSignIn } from '#lib/server/sign-ins.js';
 import type { SignInMethod } from '#lib/contract/security.js';
@@ -42,7 +43,7 @@ export const load: PageServerLoad = ({ url, cookies }) => {
 	return {
 		tokenHash: link.tokenHash,
 		type: link.type,
-		joining: !!readJoinToken(cookies) || !!readFounderToken(cookies)
+		joining: !!readJoinToken(cookies) || !!readFounderToken(cookies) || !!readTeamCode(cookies)
 	};
 };
 
@@ -80,6 +81,8 @@ export const actions: Actions = {
 			if (link.type === 'signup') markFounderPasswordNeeded(cookies, locals.secureCookies);
 			redirect(303, '/founder');
 		}
+		// ... and for a team link (Blueprint 38): the sign-up form set the password.
+		if (readTeamCode(cookies)) redirect(303, '/team-join');
 		// PIN reset links (Magic Link template) continue to the new-PIN form;
 		// sign-up confirmations continue through the gate (normally PIN setup).
 		redirect(303, link.type === 'magiclink' ? '/pin/reset' : '/workspaces');

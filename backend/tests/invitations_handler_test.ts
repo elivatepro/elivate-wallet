@@ -6,7 +6,12 @@ import {
   type LogEntry,
   type RpcResult,
 } from "../supabase/functions/invitations/handler.ts";
-import { tokenDigest } from "../supabase/functions/_shared/invite_token.ts";
+import {
+  createTeamLinkCodes,
+  normalizeTeamCode,
+  teamCodePattern,
+  tokenDigest,
+} from "../supabase/functions/_shared/invite_token.ts";
 
 const actor: Actor = {
   userId: "00000000-0000-0000-0000-0000000000a1",
@@ -18,6 +23,7 @@ const invitationId = "00000000-0000-0000-0000-0000000000d1";
 const key = "key-0000000000000001";
 const token = "A".repeat(43);
 const serverSecret = "app-server-secret-value";
+const teamCode = "7K3M9QP2AB";
 const issued = { tokenId: "00000000-0000-0000-0000-0000000000e1", digest: "f".repeat(64) };
 
 function setup(rpcResult: RpcResult = { data: { ok: true }, error: null }) {
@@ -35,6 +41,11 @@ function setup(rpcResult: RpcResult = { data: { ok: true }, error: null }) {
       signIns.push(page === "join" ? email : `${page}:${email}`);
       return Promise.resolve();
     },
+    teamCodes: {
+      issue: () => Promise.resolve(issued),
+      code: (tokenId) => Promise.resolve(tokenId === issued.tokenId ? teamCode : "WRONGCODE0"),
+    },
+    appOrigin: "https://app.elivatewallet.com/",
     log: (entry) => logs.push(entry),
     allowedOrigins: ["https://app.elivatewallet.com"],
     appServerSecret: serverSecret,
@@ -373,4 +384,135 @@ Deno.test("create office inviting its leader: a server-made link, no reason from
     assertEquals((await handler(request("POST", "/office", body))).status, 400);
   }
   assertEquals(calls.length, 1);
+});
+
+// ── Team links (Blueprint 38) ──
+
+const teamLinkId = "00000000-0000-0000-0000-0000000000f1";
+const storedLink = {
+  teamLinkId,
+  reference: "LNK-7K3M-9QP2",
+  tokenId: issued.tokenId,
+  officeId,
+  expiresAt: null,
+  maxUses: 50,
+  uses: 12,
+  createdAt: "2026-10-15T09:00:00Z",
+  createdBy: { uid: "EW-10001", name: "Tolu Bakare" },
+  state: "live",
+};
+
+Deno.test("team link codes: 10 Crockford characters, stable per token id, distinct ids differ", async () => {
+  const codes = await createTeamLinkCodes("ab".repeat(32));
+  const first = await codes.code(issued.tokenId);
+  assert(teamCodePattern.test(first));
+  assertEquals(await codes.code(issued.tokenId), first);
+  assert((await codes.code(invitationId)) !== first);
+  const fresh = await codes.issue();
+  assertEquals(fresh.digest, await tokenDigest(await codes.code(fresh.tokenId)));
+  assertEquals(normalizeTeamCode(" 7k3m9qp2ab "), "7K3M9QP2AB");
+  assertEquals(normalizeTeamCode("7K3M9QP2AU"), null);
+  assertEquals(normalizeTeamCode("7K3M9QP2A"), null);
+});
+
+Deno.test("team link create: server-made code, the link instead of the token id", async () => {
+  const { handler, calls } = setup({ data: { ...storedLink, replaced: true }, error: null });
+  const response = await handler(
+    request("POST", "/team-link", { officeId, days: null, maxUses: 50, idempotencyKey: key }),
+  );
+  assertEquals(response.status, 200);
+  assertEquals(calls[0]?.fn, "create_team_link");
+  assertEquals(calls[0]?.args, {
+    p_user_id: actor.userId,
+    p_session_id: actor.sessionId,
+    p_membership_id: membershipId,
+    p_request_id: calls[0]?.args.p_request_id,
+    p_office_id: officeId,
+    p_days: null,
+    p_max_uses: 50,
+    p_idempotency_key: key,
+    p_token_id: issued.tokenId,
+    p_token_digest: issued.digest,
+  });
+  const { data } = await response.json();
+  assertEquals(data.url, `https://app.elivatewallet.com/j/${teamCode}`);
+  assertEquals("tokenId" in data, false);
+  assertEquals(data.replaced, true);
+});
+
+Deno.test("team link create: only the offered limits", async () => {
+  const { handler, calls } = setup();
+  for (
+    const body of [
+      { officeId, days: 3, maxUses: null, idempotencyKey: key },
+      { officeId, days: "7", maxUses: null, idempotencyKey: key },
+      { officeId, days: 7, maxUses: 5, idempotencyKey: key },
+      { officeId, maxUses: null, idempotencyKey: key },
+      { officeId, days: 7, maxUses: null, idempotencyKey: key, role: "director" },
+    ]
+  ) {
+    const response = await handler(request("POST", "/team-link", body));
+    assertEquals(response.status, 400);
+    assertEquals((await response.json()).error.code, "validation_error");
+  }
+  assertEquals(calls.length, 0);
+});
+
+Deno.test("team link read: the office from the query; no link is null", async () => {
+  const { handler, calls } = setup({ data: { link: storedLink }, error: null });
+  const response = await handler(request("GET", `/team-link?officeId=${officeId}`));
+  assertEquals(calls[0]?.args.p_office_id, officeId);
+  const { data } = await response.json();
+  assertEquals(data.link.url, `https://app.elivatewallet.com/j/${teamCode}`);
+  assertEquals(data.link.uses, 12);
+
+  const none = setup({ data: { link: null }, error: null });
+  const empty = await none.handler(request("GET", `/team-link?officeId=${officeId}`));
+  assertEquals((await empty.json()).data, { link: null });
+  const missing = await none.handler(request("GET", "/team-link"));
+  assertEquals((await missing.json()).error.code, "validation_error");
+});
+
+Deno.test("team link turn off: id from the path", async () => {
+  const { handler, calls } = setup();
+  await handler(request("POST", `/team-link/${teamLinkId}/turn-off`, { idempotencyKey: key }));
+  assertEquals(calls[0]?.fn, "turn_off_team_link");
+  assertEquals(calls[0]?.args.p_team_link_id, teamLinkId);
+});
+
+Deno.test("team link preview: public, digest of the upper-cased code", async () => {
+  const { handler, calls } = setup({
+    data: { networkName: "Unity Network", officeName: "Lagos office", invitedBy: null },
+    error: null,
+  });
+  const response = await handler(
+    request("POST", "/team-link/preview", { code: teamCode.toLowerCase() }, {}),
+  );
+  assertEquals(response.status, 200);
+  assertEquals(calls[0]?.args, { p_token_digest: await tokenDigest(teamCode) });
+  assertEquals((await response.json()).data, {
+    networkName: "Unity Network",
+    officeName: "Lagos office",
+    invitedBy: null,
+  });
+  const bad = await handler(request("POST", "/team-link/preview", { code: "short" }, {}));
+  assertEquals((await bad.json()).error.code, "validation_error");
+});
+
+Deno.test("team link join: needs a session; unavailable links map through", async () => {
+  const { handler, calls } = setup({
+    data: null,
+    error: { message: "invitation_unavailable" },
+  });
+  const anonymous = await handler(
+    request("POST", "/team-link/join", { code: teamCode, idempotencyKey: key }, {}),
+  );
+  assertEquals(anonymous.status, 401);
+  assertEquals(calls.length, 0);
+  const response = await handler(
+    request("POST", "/team-link/join", { code: teamCode, idempotencyKey: key }),
+  );
+  assertEquals((await response.json()).error.code, "invitation_unavailable");
+  assertEquals(calls[0]?.fn, "join_team_link");
+  assertEquals(calls[0]?.args.p_token_digest, await tokenDigest(teamCode));
 });

@@ -5,7 +5,16 @@
 <script lang="ts">
 	import { purgeAllDeviceData } from '#lib/client/device-cache.js';
 
-	let { label = 'Back to sign in', tight = false }: { label?: string; tight?: boolean } = $props();
+	let {
+		label = 'Back to sign in',
+		tight = false,
+		next
+	}: {
+		label?: string;
+		tight?: boolean;
+		/** Where to land after signing out (only paths sign-out allows). */
+		next?: '/team-join';
+	} = $props();
 </script>
 
 <form
@@ -15,6 +24,7 @@
 	class:tight
 	onsubmit={() => purgeAllDeviceData()}
 >
+	{#if next}<input type="hidden" name="next" value={next} />{/if}
 	<button type="submit">{label}</button>
 </form>
 

@@ -8,5 +8,7 @@ Disallow: /app/
 Disallow: /api/
 Disallow: /admin
 Disallow: /internal/
+Disallow: /j/
+Disallow: /team-join
 
 Sitemap: https://app.elivatewallet.com/sitemap.xml
