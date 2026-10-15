@@ -266,8 +266,8 @@
 				<ul class="activity">
 					{#each activity as item (item.transactionId + item.currency)}
 						{@const credit = !item.amount.startsWith('-')}
-						<li class="tx">
-							<span class="tx-icon" class:credit aria-hidden="true">
+						{#snippet row()}
+							<span class="tx-icon" class:credit aria-hidden="true" data-pending-slot>
 								{#if credit}<ArrowDown size={16} strokeWidth={1.8} />{:else}<ArrowUp
 										size={16}
 										strokeWidth={1.8}
@@ -279,6 +279,16 @@
 							</span>
 							<span class="tx-status">Posted</span>
 							<span class="tx-amount" class:credit>{money(item.amount, true)}</span>
+						{/snippet}
+						<li>
+							<!-- Blueprint 41: a row opens its transaction (Activity's ?tx= detail). -->
+							{#if canActivity}
+								<a class="tx" href="/app/activity?tx={encodeURIComponent(item.transactionId)}"
+									>{@render row()}</a
+								>
+							{:else}
+								<div class="tx">{@render row()}</div>
+							{/if}
 						</li>
 					{/each}
 				</ul>
@@ -377,8 +387,42 @@
 	}
 
 	.pocket + .pocket,
-	.tx + .tx {
+	li + li > .tx {
 		border-top: 1px solid color-mix(in oklab, var(--color-text) 6%, transparent);
+	}
+
+	/* Blueprint 41: the row is the link; pressed at once, rounded with its card. */
+	a.tx {
+		color: inherit;
+		text-decoration: none;
+		-webkit-tap-highlight-color: transparent;
+	}
+
+	a.tx:active {
+		background: color-mix(in oklab, var(--color-text) 6%, transparent);
+	}
+
+	li:first-child > a.tx {
+		border-radius: var(--radius-16) var(--radius-16) 0 0;
+	}
+
+	li:last-child > a.tx {
+		border-radius: 0 0 var(--radius-16) var(--radius-16);
+	}
+
+	li:only-child > a.tx {
+		border-radius: var(--radius-16);
+	}
+
+	@media (hover: hover) {
+		a.tx:hover {
+			background: color-mix(in oklab, var(--color-text) 4%, transparent);
+		}
+	}
+
+	/* Home's quick actions answer the press too (base.css presses them in). */
+	.action:active {
+		background: color-mix(in oklab, var(--color-text) 6%, transparent);
 	}
 
 	.dot-tile {

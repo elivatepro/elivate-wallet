@@ -13,6 +13,7 @@ import {
 	recordAmount,
 	recordHref,
 	searchableQuery,
+	searchNote,
 	searchPath
 } from './search.js';
 
@@ -219,5 +220,28 @@ describe('quick search text', () => {
 	it('signs withdrawals negative', () => {
 		expect(recordAmount(record())).toEqual({ amount: '-48000.00', signed: true });
 		expect(recordAmount(record({ kind: 'transaction', amount: undefined }))).toBeNull();
+	});
+});
+
+describe('search note (Blueprint 41)', () => {
+	const none: SearchResults = { query: 'tu', people: [], offices: [], records: [] };
+	const some: SearchResults = { query: 'tu', people: [person()], offices: [], records: [] };
+
+	it('says "Searching…" only while a request runs and nothing is shown', () => {
+		expect(searchNote('loading', null)).toBe('searching');
+		expect(searchNote('loading', some)).toBe(null);
+		expect(searchNote('idle', null)).toBe(null);
+	});
+
+	it('keeps "No matches" steady while the next request runs', () => {
+		expect(searchNote('ready', none)).toBe('empty');
+		expect(searchNote('idle', none)).toBe('empty');
+		expect(searchNote('loading', none)).toBe('empty');
+		expect(searchNote('ready', some)).toBe(null);
+	});
+
+	it('offline and errors win', () => {
+		expect(searchNote('offline', some)).toBe('offline');
+		expect(searchNote('error', null)).toBe('error');
 	});
 });

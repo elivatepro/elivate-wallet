@@ -509,6 +509,26 @@
 	)}
 {/snippet}
 
+{#snippet detailOutline(variant: 'page' | 'panel')}
+	<!-- Blueprint 41: the detail's outline (amount, title, facts) while it loads. -->
+	<div class="detail-outline {variant}" aria-busy="true">
+		<p class="visually-hidden" role="status">Loading transaction</p>
+		<div class="do-top" aria-hidden="true">
+			<span class="ew-skel do-tile"></span>
+			<span class="ew-skel do-amount"></span>
+			<span class="ew-skel do-line"></span>
+		</div>
+		<ul class="do-facts" aria-hidden="true">
+			{#each [44, 58, 36, 50, 40] as width, i (i)}
+				<li>
+					<span class="ew-skel do-label"></span>
+					<span class="ew-skel do-value" style:width="{width}%"></span>
+				</li>
+			{/each}
+		</ul>
+	</div>
+{/snippet}
+
 {#if !wide && selected}
 	<CacheNote savedAt={detailSavedAt} online={shell.online} failed={detailFailed} />
 	{#if detail}
@@ -524,7 +544,7 @@
 		<p class="notice" role="alert">{detailError}</p>
 		<button type="button" class="more" onclick={() => select(null)}>Back to activity</button>
 	{:else}
-		<div class="skeleton" aria-hidden="true"></div>
+		{@render detailOutline('page')}
 	{/if}
 {:else}
 	<div class="activity">
@@ -655,7 +675,7 @@
 											aria-current={selected === item.transactionId ? 'true' : undefined}
 											onclick={() => select(item.transactionId)}
 										>
-											<span class="tile" class:credit aria-hidden="true">
+											<span class="tile" class:credit aria-hidden="true" data-pending-slot>
 												{#if credit}<ArrowDown size={16} strokeWidth={2} />{:else}<ArrowUp
 														size={16}
 														strokeWidth={2}
@@ -713,7 +733,7 @@
 				{:else if detailError}
 					<aside class="panel-note" role="alert">{detailError}</aside>
 				{:else}
-					<div class="panel-skeleton" aria-hidden="true"></div>
+					{@render detailOutline('panel')}
 				{/if}
 			{/if}
 		</div>
@@ -1432,7 +1452,76 @@
 		background: var(--color-surface);
 	}
 
-	.panel-skeleton,
+	/* Blueprint 41: the transaction detail's outline (page on phones, panel on desktop). */
+	.detail-outline {
+		display: flex;
+		flex-direction: column;
+		gap: 20px;
+		padding: 24px 20px;
+		border-radius: var(--radius-16);
+		background: var(--color-surface);
+	}
+
+	.detail-outline.panel {
+		flex-shrink: 0;
+		width: 380px;
+		min-height: 320px;
+	}
+
+	.do-top {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 12px;
+		padding: 8px 0 4px;
+	}
+
+	.do-tile {
+		width: 48px;
+		height: 48px;
+		border-radius: var(--radius-pill);
+	}
+
+	.do-amount {
+		width: 58%;
+		height: 34px;
+		border-radius: var(--radius-8);
+	}
+
+	.do-line {
+		width: 36%;
+		height: 12px;
+		border-radius: var(--radius-pill);
+	}
+
+	.do-facts {
+		display: flex;
+		flex-direction: column;
+	}
+
+	.do-facts li {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+		padding: 14px 0;
+	}
+
+	.do-facts li + li {
+		border-top: 1px solid color-mix(in oklab, var(--color-text) 6%, transparent);
+	}
+
+	.do-label {
+		width: 24%;
+		height: 10px;
+		border-radius: var(--radius-pill);
+	}
+
+	.do-value {
+		height: 12px;
+		border-radius: var(--radius-pill);
+	}
+
 	.panel-note {
 		flex-shrink: 0;
 		width: 380px;

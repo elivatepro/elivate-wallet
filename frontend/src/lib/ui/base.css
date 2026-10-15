@@ -68,11 +68,160 @@ input {
 	border: 0;
 }
 
+/*
+ * Blueprint 41: every button and tile answers the press at once. Zero
+ * specificity (pseudo-classes included), so a component's own :active look,
+ * or a transform it uses for placement, still wins. Buttons and
+ * button-styled links press in a little (transform: no layout shift; not
+ * the field-like triggers of pickers and menus, [aria-haspopup]); list
+ * rows darken instead (a shrinking row would leave its card's edges).
+ */
+:where(button, [role='button']) {
+	-webkit-tap-highlight-color: transparent;
+}
+
+:where(
+	button:not([class*='row'], [role='option'], [aria-haspopup]),
+	[role='button']:not([class*='row'], [aria-haspopup]),
+	a:is(
+		.mm-btn,
+		.action,
+		.primary,
+		.secondary,
+		.ghost,
+		.btn,
+		.go,
+		.hero-cta,
+		.hero-chip,
+		.o-primary,
+		.o-ghost,
+		.s-primary,
+		.s-ghost,
+		.state-primary,
+		.state-ghost,
+		.out-primary,
+		.out-ghost,
+		.ex-action,
+		.w-action
+	)
+):where(:active:not(:disabled, [aria-disabled='true'])) {
+	transform: scale(0.98);
+	filter: brightness(0.92);
+}
+
+:where(a[href], button):where([class*='row']:active:not(:disabled)) {
+	background-color: color-mix(in oklab, var(--color-text) 6%, transparent);
+}
+
+/* The press eases in and lets go at once (the element is back in place for
+   whatever opens under it). */
+@media (prefers-reduced-motion: no-preference) {
+	:where(button, [role='button'], a[href]):where(:active) {
+		transition-property: transform, filter, background-color;
+		transition-duration: 90ms;
+		transition-timing-function: ease-out;
+	}
+}
+
+/*
+ * Blueprint 41: the tapped element's spinner while its navigation is slow
+ * (#lib/client/pending-tap.ts places it). Accent on the page; the text
+ * colour on filled buttons and the current tab.
+ */
+[data-pending] {
+	cursor: progress;
+}
+
+[data-pending-hidden],
+[data-pending-in] > :not(.ew-pending) {
+	visibility: hidden;
+}
+
+.ew-pending,
+.ew-spinner {
+	display: inline-block;
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	border: 2px solid color-mix(in oklab, currentColor 22%, transparent);
+	border-top-color: currentColor;
+	border-radius: 50%;
+	animation: ew-spin 700ms linear infinite;
+}
+
+.ew-pending {
+	position: absolute;
+	z-index: 1;
+	color: var(--color-accent-text);
+	pointer-events: none;
+}
+
+.ew-pending.centred {
+	inset: 0;
+	margin: auto;
+}
+
+:is(.primary, .mm-btn.primary, [aria-current='page'], [aria-selected='true'], .go) .ew-pending {
+	color: inherit;
+}
+
+@keyframes ew-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+/*
+ * Blueprint 41: content-shaped outlines (skeletons) while a page or a detail
+ * is on its way: quiet blocks on the page's surfaces with a soft sweep of
+ * light; still under reduced motion.
+ */
+.ew-skel {
+	position: relative;
+	overflow: hidden;
+	border-radius: var(--radius-12);
+	background: var(--color-raised);
+}
+
+.ew-skel::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(
+		100deg,
+		transparent 20%,
+		color-mix(in oklab, var(--color-text) 7%, transparent) 50%,
+		transparent 80%
+	);
+	transform: translateX(-100%);
+	animation: ew-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes ew-shimmer {
+	to {
+		transform: translateX(100%);
+	}
+}
+
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,
 	*::after {
 		animation-duration: 0.01ms !important;
 		transition-duration: 0.01ms !important;
+	}
+}
+
+/* Reduced motion: the spinner turns slowly instead of not at all (it still means
+   "working"); the outlines stay still. */
+@media (prefers-reduced-motion: reduce) {
+	.ew-skel::after {
+		animation: none;
+		display: none;
+	}
+
+	.ew-pending,
+	.ew-spinner {
+		animation-duration: 1.6s !important;
 	}
 }

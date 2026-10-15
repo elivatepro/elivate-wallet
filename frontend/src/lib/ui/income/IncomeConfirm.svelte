@@ -6,6 +6,7 @@
 -->
 <script lang="ts">
 	import { Dialog } from 'bits-ui';
+	import { busyLabel } from '#lib/ui/busy-label.js';
 	import PinField from '#lib/ui/auth/PinField.svelte';
 
 	let {
@@ -72,7 +73,12 @@
 				</div>
 				<div class="actions">
 					<Dialog.Close class="income-cancel" type="button" disabled={busy}>Cancel</Dialog.Close>
-					<button class="go" type="submit" disabled={busy} aria-busy={busy}>{confirmLabel}</button>
+					<button class="go" type="submit" disabled={busy} aria-busy={busy}
+						><!-- Blueprint 41: working shows a spinner and says so. -->{#if busy}<span
+								class="ew-spinner"
+								aria-hidden="true"
+							></span>{busyLabel(confirmLabel)}{:else}{confirmLabel}{/if}</button
+					>
 				</div>
 			</form>
 		</Dialog.Content>
@@ -207,6 +213,10 @@
 	}
 
 	.go {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
 		border: 0;
 		background: var(--button-primary-bg);
 		box-shadow: var(--button-primary-glow) 0px 12px 32px -8px;
@@ -214,7 +224,7 @@
 		font-weight: var(--font-weight-semibold);
 	}
 
-	.go:disabled,
+	.go:disabled:not([aria-busy='true']),
 	:global(.income-cancel:disabled) {
 		opacity: var(--opacity-disabled);
 		cursor: not-allowed;

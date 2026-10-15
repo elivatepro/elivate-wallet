@@ -153,8 +153,10 @@
 	<NoAccess lead={loadError ?? undefined} />
 {:else}
 	<div class="mm-page">
+		<!-- Blueprint 41: a shorter banner on phones (owner 2026-10-15). -->
 		<RootHero
 			pose="withdrawals"
+			short
 			kicker="Reserved for open withdrawals"
 			title={page ? formatMoney(page.reserved, 'NGN') : '—'}
 		>
@@ -282,7 +284,8 @@
 <style>
 	.hero-chips {
 		display: flex;
-		gap: 10px;
+		flex-wrap: wrap;
+		gap: 8px 10px;
 		margin-top: 8px;
 	}
 

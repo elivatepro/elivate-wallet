@@ -124,4 +124,7 @@ access filters the permission rows by name.
 Slice 38 (Blueprint 38): team invite links (one open link per office, Member role, chosen expiry
 and use limit, PIN; anyone with it signs up with their own email and joins at once). Slice 39
 (owner ask, frontend only, Paper TL07/TL08): the Invitations page shows the office's team link.
+Slice 41 (Blueprint 41, frontend only): mobile polish (the current tab scrolls to top, quick search
+above the keyboard, Home activity rows open the detail, a shorter Withdrawals banner, a Dark mode
+switch on More, pressed states, tapped-item spinners and content-shaped outlines).
 Next: set-based authorization reads.

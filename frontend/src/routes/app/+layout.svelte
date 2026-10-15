@@ -54,7 +54,15 @@
 	import { purgeAllDeviceData, staleLabel } from '#lib/client/device-cache.js';
 	import { profilePhotoSrc } from '#lib/client/photo.js';
 	import { ownWalletBlocked, type OwnWalletPermission } from '#lib/own-wallet.js';
-	import { currentTab, isCurrent, navModel, type NavModel } from '#lib/nav.js';
+	import {
+		currentTab,
+		isCurrent,
+		navModel,
+		plainClick,
+		sameDestination,
+		type NavModel
+	} from '#lib/nav.js';
+	import { holdKeyboard } from '#lib/client/keyboard-proxy.js';
 	import NavIcon from '#lib/ui/app/NavIcon.svelte';
 	import { Shell } from '#lib/client/shell.svelte.js';
 	import { pinLock } from '#lib/client/pin-lock.svelte.js';
@@ -113,13 +121,14 @@
 	setContext('signOut', signOut);
 
 	onMount(() => {
-		appearance.start();
+		const stopAppearance = appearance.start();
 		// Slice 28: a PIN owed locks in place; the idle check asks the server.
 		const stopLock = pinLock.start(() => void shell.load());
 		const stopShell = shell.start();
 		// Slice 34: the last error, for support chat context.
 		const stopErrors = watchErrors(() => page.route.id);
 		return () => {
+			stopAppearance();
 			stopLock();
 			stopShell();
 			stopErrors();
@@ -321,6 +330,7 @@
 	 */
 	let slowNav = $state(false);
 	$effect(() => {
+		// Same-page query changes (a row's ?tx=) keep the page: the tapped row spins.
 		const to = navigating.to?.url.pathname;
 		if (!to || to === path || !to.startsWith('/app') || navigating.type === 'form') return;
 		const timer = setTimeout(() => (slowNav = true), 80);
@@ -329,6 +339,20 @@
 			slowNav = false;
 		};
 	});
+	/**
+	 * Blueprint 41: a tap on the tab (or sidebar item) of the page already on
+	 * screen would reload it (SvelteKit treats a same-URL link as a refresh:
+	 * scroll reset and re-render, and iOS drops the bar's blur for a frame).
+	 * It scrolls the page back to the top instead.
+	 */
+	function stayHere(event: MouseEvent, href: string) {
+		if (event.defaultPrevented || !plainClick(event) || navigating.to) return;
+		if (!sameDestination(href, page.url)) return;
+		event.preventDefault();
+		const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		window.scrollTo({ top: 0, behavior: reduce ? 'instant' : 'smooth' });
+	}
+
 	/**
 	 * A short page swap (≤ 200 ms) where the browser has view transitions and
 	 * motion is welcome. It starts only once the new page is ready (onNavigate
@@ -375,8 +399,26 @@
 	);
 
 	let searchOpen = $state(false);
-	/** Blueprint 25: More opens quick search on phones (the app bar has no search button). */
-	setContext('openSearch', () => (searchOpen = true));
+	/**
+	 * Blueprint 25: More opens quick search on phones (the app bar has no search
+	 * button). Blueprint 41: called inside the tap, so a touch device's keyboard
+	 * opens with it (#lib/client/keyboard-proxy.ts).
+	 */
+	setContext('openSearch', () => {
+		if (window.matchMedia('(pointer: coarse)').matches) holdKeyboard();
+		searchOpen = true;
+	});
+	/**
+	 * Blueprint 41: quick search stays mounted (and open) once the workspace has
+	 * loaded, through a retry or a moment offline; it reads the last permissions.
+	 */
+	let searchReady = $state(false);
+	let searchPermissions = $state.raw<readonly string[]>([]);
+	$effect(() => {
+		if (shell.state.kind !== 'ready') return;
+		searchReady = true;
+		searchPermissions = shell.state.view.capabilities?.permissions ?? [];
+	});
 	/** Blueprint 25: More shows the same network tile as the bars. */
 	setContext('brandTile', () => brandTile);
 	function onKeydown(event: KeyboardEvent) {
@@ -620,6 +662,7 @@
 								class:top={section.id === 'top'}
 								href={item.href}
 								aria-current={isCurrent(item, navPath) ? 'page' : undefined}
+								onclick={(event) => stayHere(event, item.href)}
 							>
 								<span class="side-icon"><NavIcon name={item.icon} /></span>
 								<span class="side-text">{item.label}</span>
@@ -912,8 +955,9 @@
 							href={tab.href}
 							data-tab={tab.id}
 							aria-current={current ? 'page' : undefined}
+							onclick={(event) => stayHere(event, tab.href)}
 						>
-							<span class="tab-icon">
+							<span class="tab-icon" data-pending-slot>
 								<NavIcon name={tab.icon} size={22} strokeWidth={current ? 2 : 1.8} />
 								{#if tab.dot && !current}<span class="tab-dot" aria-hidden="true"></span>{/if}
 							</span>
@@ -929,12 +973,12 @@
 
 <InstallHint />
 
-{#if shell.state.kind === 'ready' && !pinLock.locked}
+{#if searchReady && !pinLock.locked}
 	<QuickSearch
 		bind:open={searchOpen}
 		pages={searchPages}
 		hideAmounts={shell.hideAmounts}
-		permissions={shell.state.view.capabilities?.permissions ?? []}
+		permissions={searchPermissions}
 	/>
 {/if}
 
@@ -1672,6 +1716,28 @@
 	 */
 	:global(html[data-page-swap]) .content {
 		view-transition-name: ew-page;
+	}
+
+	/*
+	 * Blueprint 41: the tab bar is its own layer above the page during a swap,
+	 * so the fading page never paints over it; it shows its new state at once
+	 * (the current pill still grows by its own transition).
+	 */
+	:global(html[data-page-swap]) .tabbar {
+		view-transition-name: ew-tabs;
+	}
+
+	:global(::view-transition-group(ew-tabs)) {
+		z-index: 1;
+		animation: none;
+	}
+
+	:global(::view-transition-old(ew-tabs)) {
+		display: none;
+	}
+
+	:global(::view-transition-new(ew-tabs)) {
+		animation: none;
 	}
 
 	:global(::view-transition-old(root)),
