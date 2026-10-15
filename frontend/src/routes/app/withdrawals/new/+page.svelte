@@ -73,6 +73,8 @@
 		path: WithdrawalAppRoutes.mine,
 		method: 'POST',
 		schema: Withdrawal,
+		// Blueprint 40: an attempt kept from before the reason can't go again as it was.
+		resendable: (body) => typeof body['reason'] === 'string',
 		scope: () =>
 			shell.state.kind === 'ready'
 				? { uid: shell.state.view.state.uid, workspaceId: shell.state.view.workspace.membershipId }
@@ -176,7 +178,7 @@
 	function reasonProblem(text: string): string | null {
 		const length = [...text.trim()].length;
 		if (length < 3) return 'Say what this withdrawal is for (at least 3 characters).';
-		if (length > 500) return 'Keep it to 500 characters.';
+		if (length > 500) return `Keep it to 500 characters (${length - 500} over).`;
 		return null;
 	}
 
@@ -309,13 +311,14 @@
 			aria-invalid={reasonError ? 'true' : undefined}
 			aria-describedby="wd-reason-hint"
 			oninput={() => {
-				if (reasonError) reasonError = reasonProblem(reason);
+				// Too long shows at once; too short waits for submit.
+				if (reasonError || [...reason.trim()].length > 500) reasonError = reasonProblem(reason);
 			}}></textarea>
 		{#if reasonError}
 			<p class="mm-error" id="wd-reason-hint" role="alert">{reasonError}</p>
 		{:else}
 			<p class="reason-hint" id="wd-reason-hint">
-				Your leader sees this when they approve it.{reasonLength > 450
+				Your leader sees this when they approve it.{reasonLength > 450 && reasonLength <= 500
 					? ` ${500 - reasonLength} characters left.`
 					: ''}
 			</p>

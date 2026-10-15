@@ -380,6 +380,12 @@ Deno.test("M03 names the member and office; M12 signs debits; M16 shows what arr
   assert(m16.html.includes("Ifeoma O. converted ₦180,000.00 to US dollars."));
 });
 
+Deno.test("a reason counts characters as the API does (500 with an emoji still sends)", () => {
+  const reason = "x".repeat(499) + "\u{1F393}";
+  const m02 = renderEmail("money.withdrawal_submitted", 1, { ...money, reason }, { appUrl });
+  assert(m02.text.includes("\u{1F393}"));
+});
+
 Deno.test("M02 and M03 quote the withdrawal's reason; older events render without it", () => {
   const reason = "School fees <for> the term\nand books";
   const m02 = renderEmail("money.withdrawal_submitted", 1, { ...money, reason }, { appUrl });

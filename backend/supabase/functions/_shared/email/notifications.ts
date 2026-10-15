@@ -166,8 +166,13 @@ type Renderer = (params: Params, context: RenderContext) => RenderedEmail;
 
 /** Blueprint 40: what the withdrawal is for (3–500 characters; optional for older events). */
 function reasonNote(params: Params): Spec["note"] {
-  const text = optional(params, "reason", 500);
-  return text === undefined ? undefined : { label: "Reason", text: text.trim() };
+  const value = params["reason"];
+  if (value === undefined) return undefined;
+  // Characters as the API and database count them, not UTF-16 units.
+  if (typeof value !== "string") throw new TemplateError("template.param_invalid");
+  const length = [...value.replace(/^ +| +$/g, "")].length;
+  if (length < 3 || length > 500) throw new TemplateError("template.param_invalid");
+  return { label: "Reason", text: value.trim() };
 }
 
 const money = ["network", "amount", "currency", "reference", "path"] as const;

@@ -73,6 +73,11 @@ export interface CommandAttemptOptions<S extends Schema.ConstraintDecoder<unknow
 	/** False for forms whose body must not be stored (e.g. a full account number). */
 	readonly persistBody?: boolean;
 	/**
+	 * False when a kept body no longer meets the command's contract (e.g. saved
+	 * before a new required field): nothing committed means start again, not resend.
+	 */
+	readonly resendable?: (body: Readonly<Record<string, unknown>>) => boolean;
+	/**
 	 * Blueprint 20 B6: cached reads a success makes stale (cleared, then
 	 * refetched where shown). Defaults to the command's list (#lib/client/invalidation).
 	 */
@@ -197,7 +202,15 @@ export class CommandAttempt<
 			this.state = { kind: 'unknown', attempt };
 			return this.state;
 		}
-		const resolution = resolveOutcome(exit.value, attempt, this.#now());
+		let resolution = resolveOutcome(exit.value, attempt, this.#now());
+		if (
+			resolution.kind === 'not_committed' &&
+			resolution.canResend &&
+			this.#body &&
+			this.#o.resendable?.(this.#body) === false
+		) {
+			resolution = { kind: 'not_committed', canResend: false };
+		}
 		if (resolution.kind === 'committed' && this.#body) {
 			// Same-key replay returns the stored result under current authority.
 			this.#replaying = true;
