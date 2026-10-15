@@ -120,7 +120,8 @@ function clear() {
 }
 
 /**
- * A navigation started (call when `navigating.to` appears). The element that
+ * A navigation started (call when `navigating.to` appears), or a read a tap
+ * started on the same page (e.g. Activity's transaction detail). The element that
  * was just tapped shows the spinner if the navigation is still running after
  * PENDING_DELAY_MS. The returned function ends it (completed or cancelled).
  */

@@ -53,6 +53,7 @@
 	import RootImage from '#lib/ui/RootImage.svelte';
 	import TransactionDetailView from '#lib/ui/app/TransactionDetail.svelte';
 	import WheelPicker from '#lib/ui/WheelPicker.svelte';
+	import { navigationStarted } from '#lib/client/pending-tap.js';
 
 	let {
 		wallet = null,
@@ -359,7 +360,10 @@
 		const current = new AbortController();
 		const path = `/api/activity/${encodeURIComponent(id)}${wallet ? `?wallet=${wallet}` : ''}`;
 		const ticket = read?.begin() ?? null;
+		// Blueprint 41: with no saved copy, the tapped row spins while the detail loads.
+		const settle = untrack(() => detail) === null ? navigationStarted() : () => undefined;
 		void Effect.runPromiseExit(getJson(path, DetailSchema, current.signal)).then((exit) => {
+			settle();
 			if (current.signal.aborted) return;
 			if (Exit.isSuccess(exit)) {
 				// Another tab switched workspace while this ran: not ours to show.
@@ -382,7 +386,10 @@
 						: 'We couldn’t load this transaction.';
 			}
 		});
-		return () => current.abort();
+		return () => {
+			settle();
+			current.abort();
+		};
 	});
 	$effect(() => {
 		const read = detailRead;

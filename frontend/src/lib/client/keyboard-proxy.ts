@@ -7,10 +7,13 @@
 
 let proxy: HTMLInputElement | null = null;
 let timer: ReturnType<typeof setTimeout> | undefined;
+let owner: HTMLElement | null = null;
 
 /** Call synchronously in the tap handler that opens a field-first view. */
 export function holdKeyboard(): void {
 	releaseKeyboard();
+	const before = document.activeElement;
+	owner = before instanceof HTMLElement && before !== document.body ? before : null;
 	const field = document.createElement('input');
 	field.type = 'text';
 	field.tabIndex = -1;
@@ -34,3 +37,6 @@ export function releaseKeyboard(): void {
 
 /** Was focus parked on the stand-in (so there is no trigger to return to)? */
 export const isKeyboardProxy = (element: Element | null) => !!element && element === proxy;
+
+/** What had the focus before the stand-in took it (the trigger to return to). */
+export const keyboardOwner = (): HTMLElement | null => owner;

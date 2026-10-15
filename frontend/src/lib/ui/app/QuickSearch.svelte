@@ -47,7 +47,7 @@
 		type SearchPage,
 		type SearchPhase
 	} from '#lib/client/search.js';
-	import { isKeyboardProxy, releaseKeyboard } from '#lib/client/keyboard-proxy.js';
+	import { isKeyboardProxy, keyboardOwner, releaseKeyboard } from '#lib/client/keyboard-proxy.js';
 	import { initials } from '#lib/activity.js';
 	import { formatMoney, hiddenMoney } from '#lib/money.js';
 	import RootImage from '#lib/ui/RootImage.svelte';
@@ -167,7 +167,8 @@
 			return;
 		}
 		untrack(() => {
-			if (phase === 'error' || phase === 'offline') phase = 'idle';
+			// An aborted request's "loading" ends here; the next one starts it again.
+			if (phase === 'error' || phase === 'offline' || phase === 'loading') phase = 'idle';
 		});
 		const controller = new AbortController();
 		const timer = setTimeout(() => {
@@ -267,7 +268,11 @@
 			onOpenAutoFocus={(event) => {
 				event.preventDefault();
 				const before = document.activeElement;
-				returnTo = before instanceof HTMLElement && !isKeyboardProxy(before) ? before : null;
+				returnTo = isKeyboardProxy(before)
+					? keyboardOwner()
+					: before instanceof HTMLElement
+						? before
+						: null;
 				input?.focus({ preventScroll: true });
 				releaseKeyboard();
 			}}
