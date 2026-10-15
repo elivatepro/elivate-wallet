@@ -128,11 +128,15 @@ function clear() {
 export function navigationStarted(): () => void {
 	const tap = tapped;
 	if (!tap || !tapStarted(tap.at, performance.now())) return () => undefined;
+	let mine: typeof marked = null;
 	const timer = setTimeout(() => {
-		if (tap.element.isConnected) mark(tap.element);
+		if (!tap.element.isConnected) return;
+		mark(tap.element);
+		mine = marked;
 	}, PENDING_DELAY_MS);
 	return () => {
 		clearTimeout(timer);
-		clear();
+		// Only its own spinner: a later tap's feedback stays.
+		if (mine && marked === mine) clear();
 	};
 }
