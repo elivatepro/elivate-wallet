@@ -29,6 +29,8 @@
 		askPin = false,
 		membershipId = null,
 		canAct = true,
+		tab = $bindable('email'),
+		linkOfficeId = $bindable(''),
 		onSubmit
 	}: {
 		open?: boolean;
@@ -42,6 +44,10 @@
 		/** The selected workspace; with it the dialog offers team links (Blueprint 38). */
 		membershipId?: string | null;
 		canAct?: boolean;
+		/** Which tab shows; the Invitations page's team link card opens "Team link" (Slice 39). */
+		tab?: 'email' | 'link';
+		/** The office the Team link tab shows. */
+		linkOfficeId?: string;
 		onSubmit: (input: {
 			email: string;
 			officeId: string;
@@ -56,9 +62,6 @@
 	let role = $state<Role>('member');
 	let reason = $state('');
 	let fieldError = $state<{ field: 'email' | 'reason'; text: string } | null>(null);
-	let tab = $state<'email' | 'link'>('email');
-	/** Team link offices: only where a Member can be invited (every listed office). */
-	let linkOfficeId = $state('');
 
 	const office = $derived(offices.find((o) => o.officeId === officeId) ?? offices[0]);
 	const roles = $derived(office ? inviteRoles(workspace, office) : (['member'] as Role[]));
