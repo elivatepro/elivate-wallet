@@ -125,6 +125,8 @@ const WithdrawalFields = {
 	member: Person,
 	requestedBy: Person,
 	onBehalf: Schema.Boolean,
+	/** Blueprint 40: what it is for; null on withdrawals placed before it was asked. */
+	reason: Schema.optionalKey(Schema.NullOr(Schema.String)),
 	destination: Schema.Struct({
 		payoutAccountId: Uuid,
 		bankName: Schema.NullOr(Schema.String),
@@ -310,6 +312,8 @@ export const RequestWithdrawalInput = Schema.Struct({
 	accountId: Uuid,
 	amount: Money,
 	payoutAccountId: Uuid,
+	/** Blueprint 40: required, 3–500 characters after trimming. */
+	reason: Reason,
 	idempotencyKey: IdempotencyKey
 });
 export const RequestWithdrawalCommand = Schema.Struct({

@@ -9,7 +9,11 @@ import { MemoryStore } from './device-cache';
 type Sent = { body: Record<string, unknown> };
 const scope = { uid: 'EW-48213', workspaceId: 'ws-1' };
 
-function harness(replies: Array<'ok' | 'timeout' | BackendError>, outcomes: CommandOutcome[]) {
+function harness(
+	replies: Array<'ok' | 'timeout' | BackendError>,
+	outcomes: CommandOutcome[],
+	resendable?: (body: Readonly<Record<string, unknown>>) => boolean
+) {
 	const sent: Sent[] = [];
 	const store = new MemoryStore();
 	const attempt = new CommandAttempt({
@@ -19,6 +23,7 @@ function harness(replies: Array<'ok' | 'timeout' | BackendError>, outcomes: Comm
 		schema: {} as never,
 		scope: () => scope,
 		store,
+		...(resendable ? { resendable } : {}),
 		send: (_p, _m, body) => {
 			sent.push({ body: body as Record<string, unknown> });
 			const reply = replies.shift() ?? 'ok';
@@ -90,6 +95,23 @@ describe('CommandAttempt', () => {
 		expect(sent).toHaveLength(1);
 		expect((await attempt.resend()).kind).toBe('done');
 		expect(sent[1]?.body).toEqual({ amount: '1.00', idempotencyKey: key });
+	});
+
+	it('a kept body that no longer fits the contract starts again instead of resending', async () => {
+		const { attempt, sent } = harness(
+			['timeout'],
+			[{ status: 'not_found', command: null }],
+			(body) => typeof body['reason'] === 'string'
+		);
+		const state = await attempt.send('ws-1', { amount: '1.00' });
+		expect(state).toMatchObject({
+			kind: 'resolved',
+			resolution: { kind: 'not_committed', canResend: false }
+		});
+		expect(attempt.blocked).toBe(false);
+		attempt.reset();
+		expect(attempt.state.kind).toBe('idle');
+		expect(sent).toHaveLength(1);
 	});
 
 	it('when the lookup itself fails the outcome stays unknown', async () => {

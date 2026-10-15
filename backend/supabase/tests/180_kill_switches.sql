@@ -64,7 +64,7 @@ create function pg_temp.acct(n int, p_name text) returns uuid language sql stabl
 $$;
 create function pg_temp.wd(p_amount text, p_key text default null) returns jsonb language sql volatile as $$
   select api.request_withdrawal(pg_temp.u(4), pg_temp.s(4), pg_temp.ws(4), pg_temp.acct(4, 'Point Value'), p_amount,
-    pg_temp.id('A4'), coalesce(p_key, pg_temp.k()))
+    pg_temp.id('A4'), 'Monthly upkeep', coalesce(p_key, pg_temp.k()))
 $$;
 create function pg_temp.payout_receipt(n int, p_withdrawal uuid, p_key text) returns uuid language plpgsql as $$
 declare

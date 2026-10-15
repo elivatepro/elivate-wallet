@@ -113,7 +113,7 @@ on conflict (user_id) do update set first_name = excluded.first_name, last_name 
 insert into payout.banks (provider, code, name, active) values ('paystack', '058', 'Guaranty Trust Bank', true);
 insert into ids select 'A4', pg_temp.add_account(4, '058', '0123456789', 'ADAEZE NWOSU');
 insert into ids select 'w', (api.request_withdrawal(pg_temp.u(4), pg_temp.s(4), pg_temp.ws(4), pg_temp.seg(4), '500.00',
-  pg_temp.id('A4'), pg_temp.k())->>'withdrawalId')::uuid;
+  pg_temp.id('A4'), 'Monthly upkeep', pg_temp.k())->>'withdrawalId')::uuid;
 create temp table refs as select
   (select reference from finance.withdrawals where id = pg_temp.id('w')) as wdr,
   (select reference from ledger.transactions where owner_user_id = pg_temp.u(4) and type = 'income') as inc;

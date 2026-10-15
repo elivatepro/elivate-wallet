@@ -82,7 +82,7 @@ create function pg_temp.seg(n int, p_pocket text default 'Point Value') returns 
 $$;
 create function pg_temp.wd(n int, p_amount text) returns jsonb language sql volatile as $$
   select api.request_withdrawal(pg_temp.u(n), pg_temp.s(n), pg_temp.ws(n), pg_temp.seg(4), p_amount,
-    pg_temp.id('A4'), pg_temp.k())
+    pg_temp.id('A4'), 'Monthly upkeep', pg_temp.k())
 $$;
 create function pg_temp.payout_receipt(n int, p_withdrawal uuid, p_key text) returns uuid language plpgsql as $$
 declare

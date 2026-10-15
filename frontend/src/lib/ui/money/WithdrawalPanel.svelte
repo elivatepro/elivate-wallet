@@ -582,6 +582,19 @@
 		</div>
 	{/if}
 
+	<!-- Blueprint 40, Paper WR02: what the withdrawal is for (none before it was asked). -->
+	{#if w.reason}
+		<div class="mm-section">
+			<span class="mm-label">Reason</span>
+			<p class="reason-quote">“{w.reason}”</p>
+			<p class="reason-meta">
+				{w.onBehalf
+					? `Written by ${w.requestedBy?.name ?? w.requestedBy?.uid ?? 'a leader'} · `
+					: ''}Requested {ago(w.createdAt)}
+			</p>
+		</div>
+	{/if}
+
 	{#if shown && mode === 'view' && rev}
 		{#if shown.status === 'correction_required' || shown.status === 'needs_review' || shown.status === 'rejected'}
 			<div class="mm-section">
@@ -963,6 +976,23 @@
 />
 
 <style>
+	/* Blueprint 40, Paper WR02. */
+	.reason-quote {
+		margin: 0;
+		color: var(--color-text);
+		font-size: var(--text-16);
+		line-height: 24px;
+		overflow-wrap: anywhere;
+		white-space: pre-line;
+	}
+
+	.reason-meta {
+		margin: 0;
+		color: var(--color-muted);
+		font-size: var(--text-12);
+		line-height: 16px;
+	}
+
 	.grow {
 		flex: 1;
 	}
