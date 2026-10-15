@@ -10,7 +10,12 @@ import { pathForGateCode, safeAppNext } from '#lib/gate.js';
 import { isSelectable } from '#lib/contract/org.js';
 import { InvitationsApi } from '#lib/server/apis.js';
 import type { VerifiedSession } from '#lib/server/auth.js';
-import { readFounderToken, readJoinToken, readWorkspace } from '#lib/server/cookies.js';
+import {
+	readFounderToken,
+	readJoinToken,
+	readWorkspace,
+	readTeamCode
+} from '#lib/server/cookies.js';
 import { expectGate, failureOf, isBackendError, redirectForFailure } from '#lib/server/flow.js';
 import { writeOnboardingMembership } from '#lib/server/onboarding.js';
 import { runApi } from '#lib/server/request.js';
@@ -47,6 +52,8 @@ export const load: PageServerLoad = async (event) => {
 	if (readJoinToken(event.cookies)) redirect(303, '/join');
 	// ... and so does a founder invitation link (Blueprint 19).
 	if (readFounderToken(event.cookies)) redirect(303, '/founder');
+	// ... and so does a team link (Blueprint 38).
+	if (readTeamCode(event.cookies)) redirect(303, '/team-join');
 	const { session, state } = await expectGate(event, 'ready');
 	const [workspaces, invitations] = await Promise.all([
 		listWorkspaces(event, session),

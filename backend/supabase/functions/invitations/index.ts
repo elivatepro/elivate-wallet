@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { createInviteTokens } from "../_shared/invite_token.ts";
+import { createInviteTokens, createTeamLinkCodes } from "../_shared/invite_token.ts";
 import { type Actor, createHandler } from "./handler.ts";
 
 function env(name: string): string {
@@ -13,6 +13,7 @@ const options = { auth: { persistSession: false, autoRefreshToken: false } };
 const service = createClient(url, env("SUPABASE_SERVICE_ROLE_KEY"), options);
 const publicClient = createClient(url, env("SUPABASE_ANON_KEY"), options);
 const tokens = await createInviteTokens(env("INVITATION_TOKEN_SECRET"));
+const teamCodes = await createTeamLinkCodes(env("INVITATION_TOKEN_SECRET"));
 // Auth's sign-in email lands on the invitation page; it carries no token.
 const appOrigin = env("APP_ORIGIN").replace(/\/+$/, "");
 
@@ -41,6 +42,8 @@ const handler = createHandler({
     });
     if (sent.error) throw new Error("sign-in email not sent");
   },
+  teamCodes,
+  appOrigin,
   log: (entry) => console.log(JSON.stringify(entry)),
   allowedOrigins: (Deno.env.get("CORS_ORIGINS") ?? "").split(",").map((o) => o.trim()).filter(
     Boolean,

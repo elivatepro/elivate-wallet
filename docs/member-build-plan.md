@@ -280,7 +280,8 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
   submits a form. Enter moves to the next field and the last one closes the keyboard; only the
   PIN submits on Enter. Withdraw on phones follows Paper M09/M10 (full-screen, keypad); Invite
   follows C13/C14 (Root band). Paper's invite "Full name" and "Copy invite link" are not built
-  (no backend name; links never reach the page).
+  (no backend name; emailed invitation links never reach the page; team links, Blueprint 38, are
+  shown to leaders on purpose).
 - **Support chat with context (2026-10-11, Blueprint 34):** the app has its own Chatwoot inbox
   ("Elivate Wallet — App", identity validation required, Mon–Fri 9–5 Lagos). Support sees the
   name, account email, role, office, network (name, ID, status), plan (when the person can read
@@ -292,6 +293,14 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
   "Not now" is allowed and the backend never waits on it. The home-screen label is **Wallet**
   (`short_name`, Apple title); the full name stays "Elivate Wallet". The installed app opens with
   a short launch animation (L02–L05), once per app session, never with reduced motion.
+- **Team invite links (2026-10-15, Blueprint 38; Paper "Team links v11"):** the Invite dialog has
+  a By email / Team link switch. One open link per office (`/j/<code>`, `LNK`), made by any
+  `invite_members` holder, Member role only; works for 1, 7 or 30 days or no end (default 7) and
+  for 10, 50 or unlimited people (default unlimited); creating, replacing and turning off need the
+  PIN. Anyone with the link signs up or signs in with their own email and joins at once (seat cap
+  applies; already in the network is refused), then onboards as usual. The join page names the
+  inviter, office and network. A link also stops when its creator can no longer invite there.
+  Root · Holding the door is adopted as the Team link pose.
 - **Sequencing:** one slice at a time, each new slice in its own thread. Order: 4 → 5 → 8 →
   slice 9 follow-up (IP storage, signed-in password change, PIN-change email, sign-out
   choice after reset) → 6 → 7 → 10.

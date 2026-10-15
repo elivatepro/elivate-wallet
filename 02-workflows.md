@@ -49,7 +49,7 @@ Common acceptance: no duplicate dispatch from reactivity, accessible busy/field/
 
 ## W-02 — Invitation-bound account completion
 
-**Entry:** A pending invitation link with server-stored intended email, role and office. A token is not authentication.
+**Entry:** A pending invitation link with server-stored intended email, role and office. A token is not authentication. **Exception (owner decision 2026-10-15, Blueprint 38):** a team link (W-03) is bound to an office and the Member role, not to an email; the person signs up or signs in with their own email, which must be confirmed before joining.
 
 **Journey:**
 1. A narrow token-digest preview validates pending/unexpired invitation plus active network/office and returns only the bound email.
@@ -89,6 +89,7 @@ Invitation lifecycle is distinct from membership. An expired token cannot leave 
 - **Revoke:** a reason (3–500 characters) is required.
 - **Inviter loses their role:** pending invitations stay. Acceptance re-checks that the office is still active and the role still fits it.
 - **Joining:** through the emailed link, or from an in-app "Invitations for you" list shown to a signed-in person whose verified email matches the invitation.
+- **Team links (owner decisions 2026-10-15, Blueprint 38):** any `invite_members` holder may make one open link per office (`/j/<code>`, reference `LNK`), which only ever adds the Member role. The leader picks how long it works (1, 7 or 30 days, or no end) and how many people can join (10, 50 or no limit); creating, replacing and turning it off need the PIN, and a new link replaces the office's old one at once. Anyone who opens it signs up (or signs in) with their own confirmed email and joins at once, with no approval step; the seat cap applies and someone already in the network is refused. The join page names the inviter, office and network. A link stops when it expires, fills, is replaced or turned off, the office closes, the network is not active, or its creator no longer holds `invite_members` over the office; every such link gets the same "unavailable" answer.
 
 **Acceptance:** No unrelated presidency can invite into selected tenant. Concurrent acceptance/use-limit/capacity races cannot duplicate a membership or exceed seats. Repeated invitation actions follow their stable command contract; failure messages distinguish authorization from duplicate/conflict. Development three-identity restrictions are not copied into production.
 

@@ -3,7 +3,7 @@
 
 import type { Cookies } from '@sveltejs/kit';
 import { UUID_PATTERN } from '#lib/contract/common.js';
-import { INVITATION_TOKEN_PATTERN } from '#lib/contract/invitations.js';
+import { INVITATION_TOKEN_PATTERN, TEAM_CODE_PATTERN } from '#lib/contract/invitations.js';
 import { parseTheme, type Theme } from '#lib/theme.js';
 import { clearWho } from './who';
 
@@ -11,6 +11,7 @@ export const WORKSPACE_COOKIE = 'ew_ws';
 export const THEME_COOKIE = 'ew_theme';
 export const JOIN_COOKIE = 'ew_join';
 export const JOIN_PASSWORD_COOKIE = 'ew_join_pw';
+export const TEAM_COOKIE = 'ew_team';
 
 const base = (secure: boolean) => ({ path: '/', sameSite: 'lax' as const, secure });
 
@@ -67,6 +68,24 @@ export function writeJoinToken(cookies: Cookies, token: string, secure: boolean)
 export function clearJoin(cookies: Cookies): void {
 	cookies.delete(JOIN_COOKIE, { path: '/' });
 	cookies.delete(JOIN_PASSWORD_COOKIE, { path: '/' });
+}
+
+// Team link (Blueprint 38): `/j/<code>` moves the code here, HttpOnly, and
+// redirects to the clean `/team-join`, so the code survives the sign-up email
+// round trip in this browser. Not authentication: joining still needs a
+// verified session. Like the join cookie it outlives sign-out on purpose.
+
+export function readTeamCode(cookies: Cookies): string | null {
+	const value = cookies.get(TEAM_COOKIE);
+	return value && TEAM_CODE_PATTERN.test(value) ? value : null;
+}
+
+export function writeTeamCode(cookies: Cookies, code: string, secure: boolean): void {
+	cookies.set(TEAM_COOKIE, code, { ...base(secure), httpOnly: true, maxAge: JOIN_MAX_AGE });
+}
+
+export function clearTeamCode(cookies: Cookies): void {
+	cookies.delete(TEAM_COOKIE, { path: '/' });
 }
 
 /**

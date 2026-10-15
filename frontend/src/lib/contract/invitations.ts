@@ -140,6 +140,103 @@ export const RevokedInvitation = Schema.Struct({
 });
 export type RevokedInvitation = typeof RevokedInvitation.Type;
 
+// ── Team links (Blueprint 38): one open link per office ──
+
+/** `/j/<code>`: 10 Crockford Base32 characters (_shared/invite_token.ts teamCodePattern). */
+export const TEAM_CODE_PATTERN = /^[0-9A-HJKMNP-TV-Z]{10}$/;
+export const TeamCode = Schema.String.check(Schema.isPattern(TEAM_CODE_PATTERN));
+
+/** Upper-cases a code from a URL; null when it cannot be one. */
+export const normalizeTeamCode = (value: string): string | null => {
+	const code = value.trim().toUpperCase();
+	return TEAM_CODE_PATTERN.test(code) ? code : null;
+};
+
+/** Offered limits (owner decision 3); null is "no end" / "no limit". */
+export const TEAM_LINK_DAYS = [1, 7, 30] as const;
+export const TEAM_LINK_USES = [10, 50] as const;
+export const TeamLinkDays = Schema.NullOr(Schema.Literals(TEAM_LINK_DAYS));
+export const TeamLinkUses = Schema.NullOr(Schema.Literals(TEAM_LINK_USES));
+
+/** Why the office's link does not work right now, or `live`. */
+export const TeamLinkState = Schema.Literals([
+	'live',
+	'expired',
+	'full',
+	'creator_left',
+	'office_closed',
+	'network_inactive'
+]);
+export type TeamLinkState = typeof TeamLinkState.Type;
+
+export const TeamLink = Schema.Struct({
+	teamLinkId: Uuid,
+	reference: Schema.String,
+	url: Schema.String,
+	officeId: Uuid,
+	expiresAt: Schema.NullOr(IsoDateTime),
+	maxUses: Schema.NullOr(Schema.Int),
+	uses: Schema.Int,
+	createdAt: IsoDateTime,
+	createdBy: Person,
+	state: TeamLinkState
+});
+export type TeamLink = typeof TeamLink.Type;
+
+/** GET /team-link?officeId=: the office's active link, if any. */
+export const TeamLinkRead = Schema.Struct({ link: Schema.NullOr(TeamLink) });
+export type TeamLinkRead = typeof TeamLinkRead.Type;
+
+/** POST /team-link (PIN): replaces the office's active link. */
+export const CreateTeamLinkRequest = Schema.Struct({
+	officeId: Uuid,
+	days: TeamLinkDays,
+	maxUses: TeamLinkUses,
+	idempotencyKey: IdempotencyKey
+});
+export type CreateTeamLinkRequest = typeof CreateTeamLinkRequest.Type;
+
+export const CreatedTeamLink = Schema.Struct({
+	...TeamLink.fields,
+	replaced: Schema.Boolean
+});
+export type CreatedTeamLink = typeof CreatedTeamLink.Type;
+
+/** POST /team-link/:id/turn-off (PIN). */
+export const TurnOffTeamLinkRequest = Schema.Struct({ idempotencyKey: IdempotencyKey });
+
+export const TurnedOffTeamLink = Schema.Struct({
+	teamLinkId: Uuid,
+	status: Schema.String,
+	/** false when it had already ended. */
+	changed: Schema.Boolean
+});
+export type TurnedOffTeamLink = typeof TurnedOffTeamLink.Type;
+
+/** POST /team-link/preview (no session): the join page's heading (owner decision 8). */
+export const TeamLinkPreview = Schema.Struct({
+	networkName: Schema.String,
+	officeName: Schema.String,
+	invitedBy: Schema.NullOr(Schema.String)
+});
+export type TeamLinkPreview = typeof TeamLinkPreview.Type;
+
+export const TeamCodeRequest = Schema.Struct({ code: TeamCode });
+
+export const JoinTeamLinkRequest = Schema.Struct({
+	code: TeamCode,
+	idempotencyKey: IdempotencyKey
+});
+
+export const JoinedTeam = Schema.Struct({
+	membershipId: Uuid,
+	tenantId: Uuid,
+	officeId: Uuid,
+	role: Role,
+	isPrimary: Schema.Boolean
+});
+export type JoinedTeam = typeof JoinedTeam.Type;
+
 export const InvitationRoutes = {
 	mine: { method: 'GET', path: '/mine' },
 	accept: { method: 'POST', path: '/accept' },
@@ -149,5 +246,11 @@ export const InvitationRoutes = {
 	create: { method: 'POST', path: '/' },
 	reissue: (invitationId: string) =>
 		({ method: 'POST', path: `/${invitationId}/reissue` }) as const,
-	revoke: (invitationId: string) => ({ method: 'POST', path: `/${invitationId}/revoke` }) as const
+	revoke: (invitationId: string) => ({ method: 'POST', path: `/${invitationId}/revoke` }) as const,
+	teamLink: { method: 'GET', path: '/team-link' },
+	createTeamLink: { method: 'POST', path: '/team-link' },
+	turnOffTeamLink: (teamLinkId: string) =>
+		({ method: 'POST', path: `/team-link/${teamLinkId}/turn-off` }) as const,
+	teamLinkPreview: { method: 'POST', path: '/team-link/preview' },
+	joinTeamLink: { method: 'POST', path: '/team-link/join' }
 } as const;

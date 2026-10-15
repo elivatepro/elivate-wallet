@@ -58,6 +58,64 @@ export async function createInviteTokens(secretHex: string): Promise<InviteToken
   };
 }
 
+// Team link codes (Blueprint 38 B1): the same scheme with its own label, cut to
+// 10 Crockford Base32 characters (50 bits) so the link stays short to share.
+
+const crockford = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+/** A team link code as it appears in `/j/<code>`, upper case. */
+export const teamCodePattern = /^[0-9A-HJKMNP-TV-Z]{10}$/;
+
+/** Upper-cases a typed or pasted code; null when it cannot be one. */
+export function normalizeTeamCode(value: string): string | null {
+  const code = value.trim().toUpperCase();
+  return teamCodePattern.test(code) ? code : null;
+}
+
+export interface TeamLinkCodes {
+  /** Rebuilds the code for a token id. */
+  code(tokenId: string): Promise<string>;
+  /** Draws a fresh token id and returns it with the digest to store. */
+  issue(): Promise<{ readonly tokenId: string; readonly digest: string }>;
+}
+
+export async function createTeamLinkCodes(secretHex: string): Promise<TeamLinkCodes> {
+  if (!/^[0-9a-f]{64}$/i.test(secretHex)) {
+    throw new Error("INVITATION_TOKEN_SECRET must be 32 bytes as 64 hex characters");
+  }
+  const key = await crypto.subtle.importKey(
+    "raw",
+    hexToBytes(secretHex),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const code = async (tokenId: string) => {
+    const mac = new Uint8Array(
+      await crypto.subtle.sign("HMAC", key, encoder.encode(`team:v1:${tokenId}`)),
+    );
+    // 5 bits per character from the first 50 bits of the MAC.
+    let bits = 0n;
+    for (const byte of mac.subarray(0, 7)) bits = (bits << 8n) | BigInt(byte);
+    bits >>= 6n;
+    let out = "";
+    for (let i = 9; i >= 0; i--) out += crockford[Number((bits >> BigInt(i * 5)) & 31n)];
+    return out;
+  };
+  return {
+    code,
+    async issue() {
+      const tokenId = crypto.randomUUID();
+      return { tokenId, digest: await tokenDigest(await code(tokenId)) };
+    },
+  };
+}
+
+/** Team link: `/j/<code>` (Blueprint 38 B1). */
+export function teamLink(appOrigin: string, code: string): string {
+  return `${appOrigin.replace(/\/+$/, "")}/j/${code}`;
+}
+
 /**
  * Invitation link: `/join` for a network, `/founder` for a founder invitation
  * (Blueprint 19). The token travels in the fragment, so it never reaches
