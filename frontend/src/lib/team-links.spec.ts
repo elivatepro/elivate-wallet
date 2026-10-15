@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BackendError, type ErrorCode } from '#lib/contract/errors.js';
 import { normalizeTeamCode } from '#lib/contract/invitations.js';
 import {
+	cardSummary,
 	daysValue,
 	describeTeamLinkFailure,
 	displayUrl,
@@ -46,6 +47,12 @@ describe('team link labels', () => {
 	it('says when it stops', () => {
 		expect(stopsLabel(null)).toBe('No end');
 		expect(stopsLabel('2026-10-22T10:00:00Z', 'Africa/Lagos')).toBe('22 Oct');
+	});
+	it('sums up the card on phones', () => {
+		expect(
+			cardSummary({ uses: 12, maxUses: 50, expiresAt: '2026-10-22T10:00:00Z' }, 'Africa/Lagos')
+		).toBe('12 of 50 joined · stops 22 Oct');
+		expect(cardSummary({ uses: 3, maxUses: null, expiresAt: null })).toBe('3 joined · no end date');
 	});
 	it('names the inviter when known', () => {
 		expect(invitedLine({ invitedBy: 'Tolu Bakare', networkName: 'Unity Network' })).toBe(

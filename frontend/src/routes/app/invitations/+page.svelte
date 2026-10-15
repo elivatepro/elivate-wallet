@@ -53,6 +53,7 @@
 	import ConfirmDialog from '#lib/ui/app/ConfirmDialog.svelte';
 	import InviteDialog from '#lib/ui/app/InviteDialog.svelte';
 	import SeatLimitDialog from '#lib/ui/app/SeatLimitDialog.svelte';
+	import TeamLinkCard from '#lib/ui/app/TeamLinkCard.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
 
 	const shell = getContext<Shell>('shell');
@@ -250,12 +251,41 @@
 				shell.state.view.capabilities?.billingOwner === true)
 	);
 
-	function openInvite() {
+	function openInvite(tab: 'email' | 'link' = 'email') {
 		inviteError = null;
 		invitePinError = null;
 		notice = null;
+		inviteTab = tab;
 		inviteOpen = true;
 	}
+
+	// ── Team link card (Slice 39; Paper TL07/TL08): the link of the leader's own
+	// office (or the only office they can invite into). Manage opens the dialog
+	// on its Team link tab; closing the dialog reads the link again.
+	let inviteTab = $state<'email' | 'link'>('email');
+	let inviteLinkOffice = $state('');
+	let cardRefresh = $state(0);
+	let dialogWasOpen = false;
+	const cardOffice = $derived(
+		offices && workspace
+			? (offices.find((o) => o.officeId === workspace.officeId) ??
+					(offices.length === 1 ? offices[0] : null))
+			: null
+	);
+
+	function manageLink() {
+		if (!cardOffice) return;
+		inviteLinkOffice = cardOffice.officeId;
+		openInvite('link');
+	}
+
+	$effect(() => {
+		if (inviteOpen) dialogWasOpen = true;
+		else if (dialogWasOpen) {
+			dialogWasOpen = false;
+			cardRefresh += 1;
+		}
+	});
 
 	/**
 	 * Slice 28: "Invite a member" elsewhere links here with ?invite: the form is
@@ -363,7 +393,7 @@
 			<p class="hero-line">Each link lasts 7 days.</p>
 		</div>
 		{#if canInvite}
-			<button type="button" class="invite" disabled={!shell.canAct} onclick={openInvite}>
+			<button type="button" class="invite" disabled={!shell.canAct} onclick={() => openInvite()}>
 				<Plus size={18} strokeWidth={2.2} aria-hidden="true" />Invite a member
 			</button>
 		{:else if noOffices === 'none' && president}
@@ -372,6 +402,15 @@
 			</a>
 		{/if}
 	</section>
+
+	{#if cardOffice && canInvite}
+		<TeamLinkCard
+			office={cardOffice}
+			refresh={cardRefresh}
+			canAct={shell.canAct}
+			onManage={manageLink}
+		/>
+	{/if}
 
 	{#if noOffices}
 		<p class="hint" role="status">
@@ -583,6 +622,8 @@
 			pinError={invitePinError}
 			askPin={inviteAskPin}
 			membershipId={workspace.membershipId}
+			bind:tab={inviteTab}
+			bind:linkOfficeId={inviteLinkOffice}
 			canAct={shell.canAct}
 			onSubmit={invite}
 		/>

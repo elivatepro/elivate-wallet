@@ -89,13 +89,29 @@ test('a newcomer opens the link, signs up and joins as a Member', async ({ brows
 
 test('the leader sees the join and turns the link off', async ({ page, browser }) => {
 	await asPresident(page, founder.email, NETWORK);
-	const dialog = await openTeamLink(page);
+	// Slice 39 (Paper TL07d): the Invitations page shows the live link and its count.
+	await page.goto('/app/invitations');
+	const card = page.getByRole('region', { name: /^Team link/ });
+	await expect(card.getByText('Live')).toBeVisible();
+	await expect(card.getByText('1 of 10', { exact: true })).toBeVisible();
+	await expect(card.getByText(linkPath)).toBeVisible();
+	await expectAccessible(page);
+	// Manage opens the Invite dialog on its Team link tab.
+	await card.getByRole('button', { name: 'Manage' }).click();
+	const dialog = page.getByRole('dialog', { name: 'Invite a member' });
+	await expect(dialog.getByRole('tab', { name: 'Team link' })).toHaveAttribute(
+		'aria-selected',
+		'true'
+	);
 	await expect(dialog.getByText('1 of 10')).toBeVisible();
 
 	await dialog.getByRole('button', { name: 'Turn off' }).click();
 	await dialog.getByLabel('Your PIN').fill(PIN);
 	await dialog.getByRole('button', { name: 'Turn off link' }).click();
 	await expect(dialog.getByRole('button', { name: 'Create link' })).toBeVisible();
+	// Paper TL08: closing the dialog leaves the card offering a new link.
+	await page.keyboard.press('Escape');
+	await expect(card.getByRole('button', { name: 'Make a team link' })).toBeVisible();
 
 	// Anyone who opens it now gets the one "unavailable" answer.
 	const context = await browser.newContext();

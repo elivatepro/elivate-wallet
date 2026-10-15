@@ -122,5 +122,6 @@ locked on, World Team switchable, other roles switched on for their office and b
 from the President Team only). Slice 37 (Blueprint 37, frontend only): a Search tab in Roles &
 access filters the permission rows by name.
 Slice 38 (Blueprint 38): team invite links (one open link per office, Member role, chosen expiry
-and use limit, PIN; anyone with it signs up with their own email and joins at once).
+and use limit, PIN; anyone with it signs up with their own email and joins at once). Slice 39
+(owner ask, frontend only, Paper TL07/TL08): the Invitations page shows the office's team link.
 Next: set-based authorization reads.

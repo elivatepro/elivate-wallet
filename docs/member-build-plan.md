@@ -300,7 +300,10 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
   PIN. Anyone with the link signs up or signs in with their own email and joins at once (seat cap
   applies; already in the network is refused), then onboards as usual. The join page names the
   inviter, office and network. A link also stops when its creator can no longer invite there.
-  Root · Holding the door is adopted as the Team link pose.
+  Root · Holding the door is adopted as the Team link pose. Slice 39 (2026-10-15, Paper TL07/TL08):
+  the Invitations page shows a team link card for the leader's own office (or their only office):
+  live link, joined count, end date, Copy (Share on touch screens) and Manage; otherwise why the
+  last one stopped and "Make a team link". Manage and Make open the Invite dialog on Team link.
 - **Sequencing:** one slice at a time, each new slice in its own thread. Order: 4 → 5 → 8 →
   slice 9 follow-up (IP storage, signed-in password change, PIN-change email, sign-out
   choice after reset) → 6 → 7 → 10.

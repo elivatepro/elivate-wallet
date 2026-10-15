@@ -40,6 +40,15 @@ export const joinedLabel = (link: Pick<TeamLink, 'uses' | 'maxUses'>) =>
 export const stopsLabel = (expiresAt: string | null, timeZone?: string) =>
 	expiresAt === null ? 'No end' : shortDate(expiresAt, timeZone);
 
+/** The card's line on phones (TL07): "12 of 50 joined · stops 22 Oct". */
+export const cardSummary = (
+	link: Pick<TeamLink, 'uses' | 'maxUses' | 'expiresAt'>,
+	timeZone?: string
+) =>
+	`${joinedLabel(link)} joined · ${
+		link.expiresAt === null ? 'no end date' : `stops ${shortDate(link.expiresAt, timeZone)}`
+	}`;
+
 /** Why the office's link stopped, shown above a fresh form. */
 export const STOPPED_TEXT: Record<Exclude<TeamLinkState, 'live'>, string> = {
 	expired: 'Your last link expired. Make a new one to keep inviting.',
