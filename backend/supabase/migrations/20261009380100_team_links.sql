@@ -234,6 +234,10 @@ begin
     return replayed;
   end if;
 
+  -- The office row serialises creation, so two leaders making the office's
+  -- first link (or one after it was turned off) never collide (lock order:
+  -- office → link).
+  perform 1 from org.offices where id = office.id for no key update;
   select * into previous from org.team_links where office_id = office.id and status = 'active' for update;
   if previous.id is not null then
     update org.team_links set status = 'replaced', ended_at = now(), ended_by = p_user_id where id = previous.id;

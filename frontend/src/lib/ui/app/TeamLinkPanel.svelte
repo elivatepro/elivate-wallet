@@ -155,6 +155,11 @@
 			busy = false;
 			if (Exit.isSuccess(exit)) {
 				createKey = newKey();
+				// The office changed meanwhile: show that office's own link.
+				if (exit.value.officeId !== office?.officeId) {
+					if (office) void load(office.officeId);
+					return;
+				}
 				link = exit.value;
 				confirming = null;
 				mode = 'live';
@@ -220,6 +225,7 @@
 					label="Office"
 					options={offices.map((o) => ({ value: o.officeId, label: o.name }))}
 					value={officeId}
+					disabled={busy}
 					onchange={(id) => (officeId = id)}
 				/>
 			</div>
