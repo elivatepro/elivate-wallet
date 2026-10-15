@@ -52,9 +52,13 @@
 			getJson(AppRoutes.teamLink(officeId).path, TeamLinkRead)
 		);
 		if (officeId !== office.officeId) return;
-		// A failed read keeps what was shown; the card is a shortcut, not the source.
-		if (Exit.isSuccess(exit)) link = exit.value.link;
-		loaded = true;
+		// A failed read keeps what was shown, and a card never shown stays hidden:
+		// "no link yet" must not stand in for "couldn't read it". The dialog's Team
+		// link tab is still there.
+		if (Exit.isSuccess(exit)) {
+			link = exit.value.link;
+			loaded = true;
+		}
 	}
 
 	$effect(() => {
