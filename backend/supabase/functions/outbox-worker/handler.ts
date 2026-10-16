@@ -84,8 +84,13 @@ interface Claimed {
   readonly tokenId: string | null;
 }
 
-/** Blueprint 42: a push goes to each device at once, each bounded by 10 s. */
+/**
+ * Blueprint 42: a batch's pushes go out together (each device bounded by the
+ * transport's 10 s), and the push pass has its own budget, so a slow push
+ * service never starves the email pass.
+ */
 const pushBatchSize = 5;
+const pushBudgetMs = 15_000;
 const pushTtlSeconds = 12 * 60 * 60;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -279,10 +284,11 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
     return typeof status === "string" ? status : "unknown";
   }
 
-  async function pushPass(push: PushSetup, requestId: string, started: number) {
+  async function pushPass(push: PushSetup, requestId: string) {
+    const started = Date.now();
     const counts: Record<string, number> = {};
     let claimed = 0;
-    for (let batch = 0; batch < maxBatches && Date.now() - started < timeBudgetMs; batch++) {
+    for (let batch = 0; batch < maxBatches && Date.now() - started < pushBudgetMs; batch++) {
       const items = parsePushClaimed(
         await call("push_claim", {
           p_worker_id: deps.workerId,
@@ -291,10 +297,8 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
         }),
       );
       claimed += items.length;
-      for (const item of items) {
-        const status = await pushOne(item, push, requestId);
-        counts[status] = (counts[status] ?? 0) + 1;
-      }
+      const statuses = await Promise.all(items.map((item) => pushOne(item, push, requestId)));
+      for (const status of statuses) counts[status] = (counts[status] ?? 0) + 1;
       if (items.length < pushBatchSize) break;
     }
     return { configured: true, claimed, results: counts };
@@ -328,7 +332,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
 
       const maintenance = await call("outbox_run_maintenance", {});
       const push = deps.push
-        ? await pushPass(deps.push, requestId, started)
+        ? await pushPass(deps.push, requestId)
         : { configured: false, claimed: 0 };
       if (!deps.email) {
         const message = "email provider not configured";
@@ -339,9 +343,15 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
         );
       }
 
+      // The email pass keeps its whole budget whatever the push pass took.
+      const emailStarted = Date.now();
       const counts: Record<string, number> = {};
       let claimed = 0;
-      for (let batch = 0; batch < maxBatches && Date.now() - started < timeBudgetMs; batch++) {
+      for (
+        let batch = 0;
+        batch < maxBatches && Date.now() - emailStarted < timeBudgetMs;
+        batch++
+      ) {
         const items = parseClaimed(
           await call("outbox_claim", {
             p_worker_id: deps.workerId,

@@ -227,7 +227,8 @@ $$;
 -- ── Sending (B3) ───────────────────────────────────────────────────────────
 
 -- Leases up to p_batch_size due jobs. Each comes with the item's kind, the
--- params the wording needs and the person's live devices. A done task, an
+-- params the wording needs and the person's live devices. A done task, a task
+-- the person can no longer do (the bell's own check, notify.can_act), an
 -- account that isn't active, an item older than the push TTL or no device
 -- left is `skipped` instead of returned. An expired lease is recorded and
 -- retried (Topic makes a repeat replace the shown notification).
@@ -291,6 +292,12 @@ begin
     skip := case
       when item.task and (item.resolved_at is not null or not notify.task_open(item.kind, item.subject_id))
         then 'resolved'
+      -- Same rule as the bell: an approver who lost the role gets nothing.
+      when item.task and not exists (
+          select 1 from org.memberships m
+          where m.user_id = item.user_id and m.tenant_id = item.tenant_id and m.status = 'active'
+            and notify.can_act(item, m))
+        then 'not_allowed'
       when (select a.status from identity.accounts a where a.user_id = item.user_id)
         in ('suspended', 'deactivated') then 'account_inactive'
       -- Same as the push TTL (12 h): an old item is no news.

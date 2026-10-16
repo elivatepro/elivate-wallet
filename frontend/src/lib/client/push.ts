@@ -113,12 +113,21 @@ export interface DevicePush {
 	readonly configured: boolean;
 }
 
-/** The latest quiet re-sync; reads wait for it so they never see a stale "off". */
-let resuming: Promise<void> = Promise.resolve();
+/**
+ * Every subscription write (on, off, Hide amounts, re-sync) runs in order, so
+ * an older save never undoes a newer choice or brings back a deleted one.
+ */
+let writes: Promise<unknown> = Promise.resolve();
 
-/** What the backend says about this browser's subscription. */
+function inOrder<A>(task: () => Promise<A>): Promise<A> {
+	const next = writes.then(task, task);
+	writes = next.catch(() => undefined);
+	return next;
+}
+
+/** What the backend says about this browser's subscription (after pending writes). */
 export async function readDevicePush(): Promise<DevicePush> {
-	await resuming;
+	await writes;
 	const sub = await subscription();
 	const state = await read(sub?.endpoint ?? null);
 	return { on: state.on, configured: state.publicKey !== null };
@@ -149,41 +158,49 @@ export async function enablePush(
 			: Notification.permission;
 	if (answer === 'denied') return 'blocked';
 	if (answer !== 'granted') return 'off';
-	const reg = await registration();
-	if (!reg) return 'unavailable';
-	const { publicKey } = await read(null);
-	if (!publicKey) return 'unavailable';
-	const key = keyBytes(publicKey);
-	let sub = await reg.pushManager.getSubscription();
-	if (sub && !sameKey(sub, key)) {
-		await sub.unsubscribe();
-		sub = null;
-	}
-	sub ??= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
-	const state = await save(sub, hideAmounts);
-	setOwner(uid);
-	return state.on ? 'on' : 'off';
+	return inOrder(async () => {
+		const reg = await registration();
+		if (!reg) return 'unavailable';
+		const { publicKey } = await read(null);
+		if (!publicKey) return 'unavailable';
+		const key = keyBytes(publicKey);
+		let sub = await reg.pushManager.getSubscription();
+		if (sub && !sameKey(sub, key)) {
+			await sub.unsubscribe();
+			sub = null;
+		}
+		sub ??= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+		const state = await save(sub, hideAmounts);
+		setOwner(uid);
+		return state.on ? 'on' : 'off';
+	});
 }
 
-/** Turns push off for this device: the backend first, then the browser. */
-export async function disablePush(): Promise<void> {
-	const sub = await subscription();
-	setOwner(null);
-	if (!sub) return;
-	await run(
-		requestJson(
-			{
-				fetch,
-				url: PUSH_PATH,
-				method: 'DELETE',
-				route: `DELETE ${PUSH_PATH}`,
-				body: { endpoint: sub.endpoint },
-				timeoutMs: COMMAND_TIMEOUT_MS
-			},
-			PushState
-		)
-	);
-	await sub.unsubscribe().catch(() => false);
+/**
+ * Turns push off for this device: the backend first, then the browser. The
+ * owner mark stays until the backend confirms, so a failed "off" still lets
+ * Hide amounts reach the device.
+ */
+export function disablePush(): Promise<void> {
+	return inOrder(async () => {
+		const sub = await subscription();
+		if (!sub) return setOwner(null);
+		await run(
+			requestJson(
+				{
+					fetch,
+					url: PUSH_PATH,
+					method: 'DELETE',
+					route: `DELETE ${PUSH_PATH}`,
+					body: { endpoint: sub.endpoint },
+					timeoutMs: COMMAND_TIMEOUT_MS
+				},
+				PushState
+			)
+		);
+		setOwner(null);
+		await sub.unsubscribe().catch(() => false);
+	});
 }
 
 /** This browser's push belongs to `uid` and is still allowed. */
@@ -197,15 +214,14 @@ async function ownSubscription(uid: string): Promise<PushSubscription | null> {
  * push back by itself. Quiet: a failure waits for the next start.
  */
 export function resumePush(uid: string, hideAmounts: boolean): Promise<void> {
-	resuming = (async () => {
+	return inOrder(async () => {
 		try {
 			const sub = await ownSubscription(uid);
 			if (sub) await save(sub, hideAmounts);
 		} catch {
 			// quiet
 		}
-	})();
-	return resuming;
+	});
 }
 
 /** The Hide amounts switch changed: notifications follow it. */

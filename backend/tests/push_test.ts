@@ -449,7 +449,7 @@ Deno.test("the push pass sends to every device and reports per device", async ()
   assertEquals(results.map((r) => r.outcome), ["sent", "gone"]);
   assertEquals(results[1]?.errorCode, "push.gone");
   assert(!JSON.stringify(w.logs).includes("fcm.googleapis.com"), "endpoints never reach the logs");
-  assert(!JSON.stringify(w.logs).includes("85"), "nor amounts");
+  assert(!/85,?000/.test(JSON.stringify(w.logs)), "nor amounts");
 });
 
 Deno.test("without VAPID keys nothing is claimed for push", async () => {

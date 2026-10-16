@@ -6,7 +6,7 @@
 begin;
 set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
-select plan(42);
+select plan(43);
 
 create function pg_temp.u(n int) returns uuid language sql immutable as
   $$ select ('10000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
@@ -186,6 +186,22 @@ update notify.push_jobs set status = 'pending', next_attempt_at = now(), lease_t
 create temp table c2 as select api.push_claim('test-worker', 25, 60) as r;
 select is(((pg_temp.job(3, 'task.withdrawal_approve')).skipped_reason), 'resolved',
   'a task done before its push leaves is skipped');
+
+-- A task the approver can no longer do (left the office) is not pushed.
+create temp table w2 as select api.request_withdrawal(pg_temp.u(4), pg_temp.s(4), pg_temp.ws(4), pg_temp.seg(4),
+  '100.00', pg_temp.id('A4'), 'Bus fare home', pg_temp.k()) as r;
+set local session_replication_role = replica;
+create temp table m3 as select id, is_primary from org.memberships where user_id = pg_temp.u(3);
+update org.memberships set status = 'ended', ended_at = now(), is_primary = false where user_id = pg_temp.u(3);
+set local session_replication_role = origin;
+create temp table c2b as select api.push_claim('test-worker', 25, 60) as r;
+select is((select j.skipped_reason from notify.push_jobs j join notify.items i on i.id = j.item_id
+    where i.user_id = pg_temp.u(3) and i.subject_id = (select (r->>'withdrawalId')::uuid from w2)), 'not_allowed',
+  'a task the person can no longer do is skipped');
+set local session_replication_role = replica;
+update org.memberships m set status = 'active', ended_at = null, is_primary = m3.is_primary
+from m3 where m.id = m3.id;
+set local session_replication_role = origin;
 
 -- ── Report (8) ──
 create function pg_temp.report(p_kind text, p_claim jsonb, p_results jsonb) returns jsonb language sql volatile as $$
