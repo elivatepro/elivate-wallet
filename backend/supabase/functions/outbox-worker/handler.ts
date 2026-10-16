@@ -240,7 +240,8 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
     return typeof status === "string" ? status : "unknown";
   }
 
-  async function pushOne(item: PushClaimed, push: PushSetup, requestId: string): Promise<string> {
+  /** Sends one job to every device at once; reporting is left to the caller. */
+  async function sendOne(item: PushClaimed, push: PushSetup) {
     const started = Date.now();
     const results = await Promise.all(item.devices.map(async (device) => {
       const sentAt = Date.now();
@@ -266,6 +267,14 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
         latencyMs: Date.now() - sentAt,
       };
     }));
+    return { item, results, started };
+  }
+
+  /** One report at a time: reports may share devices (row locks, FK checks). */
+  async function reportOne(
+    { item, results, started }: Awaited<ReturnType<typeof sendOne>>,
+    requestId: string,
+  ): Promise<string> {
     const report = await call("push_report", {
       p_item_id: item.itemId,
       p_lease_token: item.leaseToken,
@@ -297,8 +306,11 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
         }),
       );
       claimed += items.length;
-      const statuses = await Promise.all(items.map((item) => pushOne(item, push, requestId)));
-      for (const status of statuses) counts[status] = (counts[status] ?? 0) + 1;
+      const sent = await Promise.all(items.map((item) => sendOne(item, push)));
+      for (const done of sent) {
+        const status = await reportOne(done, requestId);
+        counts[status] = (counts[status] ?? 0) + 1;
+      }
       if (items.length < pushBatchSize) break;
     }
     return { configured: true, claimed, results: counts };

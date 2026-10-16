@@ -599,3 +599,36 @@ Deno.test("GET and DELETE /push/subscription read and end this device's push", a
   assertEquals(calls.map((c) => c.fn), ["push_subscription_state", "push_unsubscribe"]);
   assertEquals(calls[1]?.args.p_endpoint, subscription.endpoint);
 });
+
+Deno.test("a batch sends together but reports one at a time (shared devices never deadlock)", async () => {
+  let inFlight = 0;
+  let most = 0;
+  const handler = createHandler({
+    rpc: async (fn): Promise<RpcResult> => {
+      if (fn === "push_claim") {
+        return { data: [claim(1), claim(2), claim(3)], error: null };
+      }
+      if (fn === "push_report") {
+        inFlight++;
+        most = Math.max(most, inFlight);
+        await new Promise((r) => setTimeout(r, 5));
+        inFlight--;
+        return { data: { applied: true, status: "sent" }, error: null };
+      }
+      return { data: {}, error: null };
+    },
+    workerSecret: secret,
+    email: null,
+    push: { transport: { send: () => Promise.resolve({ outcome: "sent", providerStatus: 201 }) } },
+    workerId: "test-worker",
+    log: () => {},
+  });
+  const body = await (await handler(
+    new Request("http://localhost/outbox-worker", {
+      method: "POST",
+      headers: { authorization: `Bearer ${secret}` },
+    }),
+  )).json();
+  assertEquals(body.data.push.results, { sent: 3 });
+  assertEquals(most, 1);
+});

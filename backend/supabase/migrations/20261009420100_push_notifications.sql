@@ -387,6 +387,12 @@ begin
     return jsonb_build_object('applied', false, 'status', job.status, 'reason', 'stale_lease');
   end if;
   select user_id into owner from notify.items where id = p_item_id;
+  -- Lock this report's devices first, in one order, so two reports that share
+  -- a device wait for each other instead of deadlocking (insert, then delete).
+  perform 1 from notify.push_subscriptions
+  where id in (select (value->>'subscriptionId')::uuid from jsonb_array_elements(p_results))
+  order by id
+  for update;
 
   for result in select value from jsonb_array_elements(p_results) loop
     device := (result->>'subscriptionId')::uuid;
