@@ -12,7 +12,8 @@ Invitations row sheet.
 
 ## Behaviour
 - **Phones only:** the sheet layout (under 1024 px; Activity uses its own `wide` flag; the iOS
-  install hint is always a sheet). Desktop dialogs are unchanged.
+  install hint and the date picker's sheet, shown on any touch screen, always). Desktop dialogs
+  are unchanged.
 - **Where a drag starts:** the grabber and header (`data-sheet-grab`, `touch-action: none` on
   phones), or the content when everything under the finger is scrolled to the top and the
   finger moves down. Sideways or upward moves, scrolled content, the wheel (`role="listbox"`),
@@ -25,6 +26,8 @@ Invitations row sheet.
   Otherwise it springs back in 200 ms; with reduced motion it snaps.
 - **Can't close, can't drag:** each sheet passes its Escape / backdrop rule. `RootDialog`,
   `OrgDialog` and `IncomeConfirm` refuse while busy (posting); the sheet doesn't move at all.
+- A sheet opened inside another (a date picker in Filters, the rank wheel in Edit profile)
+  drags alone; the outer sheet ignores its gestures and its backdrop.
 - The click after a drag is swallowed (a native `<dialog>` would read it as a backdrop tap).
 - Grabbers stay `aria-hidden`; keyboard and screen-reader closing is unchanged.
 
@@ -33,4 +36,5 @@ Invitations row sheet.
   upward moves, refusal while busy, rubber band, velocity window, close past a third, flick
   vs jitter.
 - e2e (`visual.e2e.ts`, 390 px): Edit profile follows a short drag and springs back, closes
-  past a third (focus back on Edit) and on a flick; a drag from a field leaves it open.
+  past a third (focus back on the row) and on a flick; a drag from a field leaves it open; the
+  same with real touches (CDP), so touch-action and the browser's pan are covered.

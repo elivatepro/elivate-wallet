@@ -11,7 +11,8 @@
 	  switches to a month-and-year view for long jumps.
 	- Days outside min/max can't be chosen; Today / Yesterday where allowed;
 	  Clear for optional fields.
-	- Blueprint 43: the phone sheet closes with a drag down (as Escape does).
+	- Blueprint 43: the sheet (phones and touch screens, any width) closes with a
+	  drag down, as Escape does.
 -->
 <script lang="ts" module>
 	let hydrated = false;
@@ -454,7 +455,7 @@
 		onclick={(event) => {
 			if (event.target === sheet) close();
 		}}
-		{@attach sheetDrag({ close: () => close() })}
+		{@attach sheetDrag({ close: () => close(), active: () => true })}
 	>
 		<div class="dp-sheet-body">
 			<span class="dp-grip" aria-hidden="true" data-sheet-grab></span>

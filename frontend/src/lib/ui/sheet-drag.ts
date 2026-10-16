@@ -129,7 +129,7 @@ export interface SheetDragOptions {
 	close: () => void;
 	/** The sheet's Escape / backdrop rule (false while busy). Default: always. */
 	canClose?: () => boolean;
-	/** The sheet layout is on screen. Default: under 1024 px. */
+	/** The sheet layout is on screen. Default: under 1024 px (the sheets' own breakpoint). */
 	active?: () => boolean;
 	/** The element that moves (default: the attached one). */
 	panel?: (node: HTMLElement) => HTMLElement;
@@ -172,9 +172,16 @@ export function sheetDrag(options: SheetDragOptions): Attachment<HTMLElement> {
 		};
 
 		function down(event: PointerEvent) {
-			if (g || closing || !event.isPrimary || event.button !== 0 || !active()) return;
+			// A gesture still waiting was abandoned (released outside the sheet).
+			if (g?.phase === 'drag' || closing || !event.isPrimary || event.button !== 0) return;
+			g = null;
+			if (!active()) return;
 			const target = event.target instanceof Element ? event.target : null;
 			if (!target || target.closest(NO_DRAG)) return;
+			// A sheet opened inside this one (a date picker in Filters) drags alone.
+			if (target.closest('[data-sheet-drag]') !== node) return;
+			const inner = target.closest('dialog');
+			if (inner && inner !== node && node.contains(inner)) return;
 			panel = options.panel?.(node) ?? node;
 			// A native <dialog> is also hit on its backdrop: only the sheet counts.
 			const box = panel.getBoundingClientRect();
@@ -188,6 +195,13 @@ export function sheetDrag(options: SheetDragOptions): Attachment<HTMLElement> {
 
 		function move(event: PointerEvent) {
 			if (!g || event.pointerId !== pointer) return;
+			// A mouse moving with no button held: the press ended out of sight.
+			if (event.pointerType === 'mouse' && (event.buttons & 1) === 0) {
+				const dragged = g.phase === 'drag';
+				end();
+				if (dragged) settle();
+				return;
+			}
 			if (g.phase === 'wait') {
 				g.phase = decide(g, event.clientX, event.clientY, canClose());
 				if (g.phase === 'native') return end();
@@ -271,6 +285,7 @@ export function sheetDrag(options: SheetDragOptions): Attachment<HTMLElement> {
 			if (dy > 0 && dy >= Math.abs(dx) && (g.grab || g.atTop)) event.preventDefault();
 		}
 
+		node.setAttribute('data-sheet-drag', '');
 		node.addEventListener('pointerdown', down);
 		node.addEventListener('pointermove', move);
 		node.addEventListener('pointerup', up);
@@ -278,6 +293,7 @@ export function sheetDrag(options: SheetDragOptions): Attachment<HTMLElement> {
 		node.addEventListener('touchmove', touchmove, { passive: false });
 		return () => {
 			clearTimeout(timer);
+			node.removeAttribute('data-sheet-drag');
 			node.removeEventListener('pointerdown', down);
 			node.removeEventListener('pointermove', move);
 			node.removeEventListener('pointerup', up);
