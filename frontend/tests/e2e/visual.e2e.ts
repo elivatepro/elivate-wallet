@@ -166,7 +166,8 @@ test('phone: a sheet follows a drag, springs back from a short one, closes past 
 	await signInAs(page, member);
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto('/app/account');
-	const editButton = page.getByRole('button', { name: 'Edit' });
+	// On phones the Profile rows open Edit profile (the card's Edit link is desktop only).
+	const editButton = page.getByRole('button', { name: /^Display name/ });
 	const edit = page.getByRole('dialog', { name: 'Edit profile' });
 	const open = async () => {
 		await editButton.click();
@@ -196,7 +197,7 @@ test('phone: a sheet follows a drag, springs back from a short one, closes past 
 		.toBeLessThan(2);
 	await expect(edit).toBeVisible();
 
-	// Past a third of its height: it closes like Cancel (focus back on Edit).
+	// Past a third of its height: it closes like Cancel (focus back on the row).
 	await page.mouse.move(first.x, first.y);
 	await page.mouse.down();
 	await slowly(first.x, first.y, first.y + first.box.height * 0.5);
