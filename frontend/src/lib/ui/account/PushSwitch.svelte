@@ -43,6 +43,14 @@
 
 	onMount(() => {
 		noun = deviceNoun(installDeviceFor(navigator.userAgent, navigator.maxTouchPoints));
+	});
+
+	// Read once the shell knows who is signed in: it has queued the quiet
+	// re-save by then (resumePush), and the read waits for it.
+	let readFor: string | null = null;
+	$effect(() => {
+		if (!uid || uid === readFor) return;
+		readFor = uid;
 		void refresh();
 	});
 
