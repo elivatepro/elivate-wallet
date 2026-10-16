@@ -30,7 +30,7 @@ export type PushOutcome =
   };
 
 export interface PushMessage {
-  readonly payload: Uint8Array;
+  readonly payload: Bytes;
   /** Seconds the push service keeps an undelivered message. */
   readonly ttl: number;
   readonly urgency: "high" | "normal";
@@ -44,7 +44,10 @@ export interface PushTransport {
 
 const encoder = new TextEncoder();
 
-export function fromBase64Url(value: string): Uint8Array {
+/** Bytes backed by a plain ArrayBuffer (what WebCrypto and fetch accept). */
+export type Bytes = Uint8Array<ArrayBuffer>;
+
+export function fromBase64Url(value: string): Bytes {
   const base64 = value.replace(/-/g, "+").replace(/_/g, "/").replace(/=+$/, "");
   const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
   return Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
@@ -56,7 +59,7 @@ export function toBase64Url(bytes: Uint8Array): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-function concat(...parts: Uint8Array[]): Uint8Array {
+function concat(...parts: Bytes[]): Bytes {
   const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
   let offset = 0;
   for (const part of parts) {
@@ -66,7 +69,7 @@ function concat(...parts: Uint8Array[]): Uint8Array {
   return out;
 }
 
-async function hmac(key: Uint8Array, data: Uint8Array): Promise<Uint8Array> {
+async function hmac(key: Bytes, data: Bytes): Promise<Bytes> {
   const k = await crypto.subtle.importKey("raw", key, { name: "HMAC", hash: "SHA-256" }, false, [
     "sign",
   ]);
@@ -74,7 +77,7 @@ async function hmac(key: Uint8Array, data: Uint8Array): Promise<Uint8Array> {
 }
 
 /** The P-256 JWK for a raw public point and, optionally, its private scalar. */
-function p256Jwk(publicKey: Uint8Array, privateKey?: Uint8Array): JsonWebKey {
+function p256Jwk(publicKey: Bytes, privateKey?: Bytes): JsonWebKey {
   if (publicKey.length !== 65 || publicKey[0] !== 4) throw new Error("bad P-256 public key");
   return {
     kty: "EC",
@@ -87,7 +90,7 @@ function p256Jwk(publicKey: Uint8Array, privateKey?: Uint8Array): JsonWebKey {
 }
 
 export interface LocalKeys {
-  readonly publicKey: Uint8Array;
+  readonly publicKey: Bytes;
   readonly privateKey: CryptoKey;
 }
 
@@ -123,10 +126,10 @@ const RECORD_SIZE = 4096;
  * message unless given (test vectors).
  */
 export async function encrypt(
-  plaintext: Uint8Array,
+  plaintext: Bytes,
   device: Pick<PushDevice, "p256dh" | "auth">,
-  options: { readonly salt?: Uint8Array; readonly keys?: LocalKeys } = {},
-): Promise<Uint8Array> {
+  options: { readonly salt?: Bytes; readonly keys?: LocalKeys } = {},
+): Promise<Bytes> {
   const uaPublic = fromBase64Url(device.p256dh);
   const authSecret = fromBase64Url(device.auth);
   if (authSecret.length !== 16) throw new Error("bad auth secret");
@@ -234,7 +237,7 @@ export function createPushTransport(options: TransportOptions): PushTransport {
           errorCode: "push.host_not_allowed",
         };
       }
-      let body: Uint8Array;
+      let body: Bytes;
       let authorization: string;
       try {
         body = await encrypt(message.payload, device);

@@ -66,7 +66,11 @@ Deno.test("encryption matches the RFC 8291 test vector", async () => {
 });
 
 /** The browser's side (RFC 8291 §3.4), to check a fresh message decrypts. */
-async function decrypt(body: Uint8Array, ua: CryptoKeyPair, auth: Uint8Array) {
+async function decrypt(
+  body: Uint8Array<ArrayBuffer>,
+  ua: CryptoKeyPair,
+  auth: Uint8Array<ArrayBuffer>,
+) {
   const salt = body.slice(0, 16);
   const idlen = body[20] ?? 0;
   const asPublic = body.slice(21, 21 + idlen);
@@ -82,7 +86,7 @@ async function decrypt(body: Uint8Array, ua: CryptoKeyPair, auth: Uint8Array) {
   const secret = new Uint8Array(
     await crypto.subtle.deriveBits({ name: "ECDH", public: asKey }, ua.privateKey, 256),
   );
-  const hmac = async (key: Uint8Array, data: Uint8Array) =>
+  const hmac = async (key: Uint8Array<ArrayBuffer>, data: Uint8Array<ArrayBuffer>) =>
     new Uint8Array(
       await crypto.subtle.sign(
         "HMAC",
@@ -310,7 +314,10 @@ Deno.test("the transport posts an encrypted body with VAPID and maps outcomes", 
   assertEquals(headers.urgency, "high");
   assertEquals(headers.topic, "abc");
   assert(headers.authorization!.startsWith("vapid t="));
-  assertEquals(await decrypt(seen[0]!.init.body as Uint8Array, d.b.ua, d.b.auth), '{"v":1}');
+  assertEquals(
+    await decrypt(seen[0]!.init.body as Uint8Array<ArrayBuffer>, d.b.ua, d.b.auth),
+    '{"v":1}',
+  );
 
   const outcome = async (s: number) => {
     status = s;

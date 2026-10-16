@@ -93,7 +93,7 @@ export function pushPayload(
   kind: string,
   params: Readonly<Record<string, unknown>>,
   hide: boolean,
-): Uint8Array | null {
+): Uint8Array<ArrayBuffer> | null {
   const text = pushText(kind, params, hide);
   if (!text) return null;
   const payload: PushPayload = { v: 1, id: itemId, ...text, path: safePath(params.path) };
