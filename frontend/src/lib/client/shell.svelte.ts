@@ -11,6 +11,7 @@ import type { ApiFailure } from '#lib/contract/errors.js';
 import { GATE_PATHS, pathForGateCode, SIGN_IN_PATH, withNext } from '#lib/gate.js';
 import { sweepAttempts } from '#lib/recovery.js';
 import { loadSession } from './api';
+import { resumePush, syncHideAmounts } from './push';
 import { pinLock } from './pin-lock.svelte';
 import {
 	browserStore,
@@ -58,6 +59,8 @@ export class Shell {
 	/** Blueprint 18: operations Elivate has stopped (kill switches), read on write pages. */
 	stopped = $state<readonly string[]>([]);
 	#controller: AbortController | null = null;
+	/** Blueprint 42: the person this tab already re-synced push for. */
+	#pushResumedFor: string | null = null;
 
 	/**
 	 * Blueprint 20 B6: the user and workspace the session reply named. Pages
@@ -128,6 +131,8 @@ export class Shell {
 		} catch {
 			// preference is best-effort
 		}
+		// Blueprint 42: notifications on this device hide amounts too.
+		if (this.state.kind === 'ready') void syncHideAmounts(this.state.view.state.uid, value);
 	}
 
 	async load(): Promise<void> {
@@ -172,6 +177,10 @@ export class Shell {
 		}
 		this.online = true;
 		this.state = { kind: 'ready', view: { ...view, workspace }, summary, loadedAt: Date.now() };
+		if (this.#pushResumedFor !== view.state.uid) {
+			this.#pushResumedFor = view.state.uid;
+			void resumePush(view.state.uid, this.hideAmounts);
+		}
 	}
 
 	#onFailure(failure: ApiFailure): void {

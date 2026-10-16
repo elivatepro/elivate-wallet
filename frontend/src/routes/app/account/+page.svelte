@@ -6,6 +6,8 @@
 	Password row opens the signed-in change (Blueprint 14, Paper Z08).
 	Blueprint 23: the profile and password date open from cache (phone masked,
 	no devices or sign-ins); devices and Edit wait for the live read.
+	Blueprint 42: Notifications (Paper "Push notifications v13" PN02/PN03), this
+	device's push switch, between Security and the devices.
 -->
 <script lang="ts">
 	import { getContext } from 'svelte';
@@ -28,6 +30,7 @@
 	import { rankLabel, ROLE_LABELS } from '#lib/labels.js';
 	import AccountHero from '#lib/ui/account/AccountHero.svelte';
 	import PageBar from '#lib/ui/account/PageBar.svelte';
+	import PushSwitch from '#lib/ui/account/PushSwitch.svelte';
 	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import SessionList from '#lib/ui/account/SessionList.svelte';
 	import FormAlert from '#lib/ui/auth/FormAlert.svelte';
@@ -325,6 +328,12 @@
 			</div>
 		</section>
 	</div>
+
+	<PushSwitch
+		uid={shell.state.kind === 'ready' ? shell.state.view.state.uid : null}
+		hideAmounts={shell.hideAmounts}
+		disabled={!shell.online}
+	/>
 
 	{#if notice}<p class="notice" role="status">{notice}</p>{/if}
 

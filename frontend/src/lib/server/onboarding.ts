@@ -35,6 +35,9 @@ export const ONBOARDING_PATH = '/onboarding';
  */
 export const ONBOARDING_INSTALL_COOKIE = 'ew_onb_install';
 
+/** Blueprint 42: the notifications offer was answered or skipped (browser only). */
+export const ONBOARDING_PUSH_COOKIE = 'ew_onb_push';
+
 export type { Step } from '#lib/onboarding-steps.js';
 export { stepNumber, stepTotal } from '#lib/onboarding-steps.js';
 
@@ -77,10 +80,19 @@ export function clearOnboarding(cookies: Cookies) {
 	cookies.delete(ONBOARDING_COOKIE, { path: '/' });
 	cookies.delete(ONBOARDING_NEXT_COOKIE, { path: ONBOARDING_PATH });
 	cookies.delete(ONBOARDING_INSTALL_COOKIE, { path: ONBOARDING_PATH });
+	cookies.delete(ONBOARDING_PUSH_COOKIE, { path: ONBOARDING_PATH });
 }
 
 export function markInstallHandled(cookies: Cookies, secure: boolean) {
-	cookies.set(ONBOARDING_INSTALL_COOKIE, '1', {
+	markHandled(cookies, ONBOARDING_INSTALL_COOKIE, secure);
+}
+
+export function markPushHandled(cookies: Cookies, secure: boolean) {
+	markHandled(cookies, ONBOARDING_PUSH_COOKIE, secure);
+}
+
+function markHandled(cookies: Cookies, name: string, secure: boolean) {
+	cookies.set(name, '1', {
 		path: ONBOARDING_PATH,
 		httpOnly: true,
 		secure,
@@ -101,6 +113,8 @@ export interface Wizard {
 	readonly walletMembershipId: string | null;
 	/** Blueprint 35: the install step was installed or put off. */
 	readonly installHandled: boolean;
+	/** Blueprint 42: the notifications offer was answered or skipped. */
+	readonly pushHandled: boolean;
 }
 
 let bindings: Promise<{ readonly PHOTOS?: PhotoBucket }> | null = null;
@@ -203,7 +217,8 @@ export async function loadWizard(event: RequestEvent): Promise<Wizard> {
 		membershipId: await membershipFor(event, session, state),
 		level: state.setup?.level ?? 'wallet',
 		walletMembershipId: state.setup?.walletMembershipId ?? null,
-		installHandled: event.cookies.get(ONBOARDING_INSTALL_COOKIE) === '1'
+		installHandled: event.cookies.get(ONBOARDING_INSTALL_COOKIE) === '1',
+		pushHandled: event.cookies.get(ONBOARDING_PUSH_COOKIE) === '1'
 	};
 }
 
@@ -213,7 +228,8 @@ export function nextStep(wizard: Wizard): Step | null {
 		wizard.state.gate,
 		wizard.state.setup,
 		wizard.profile !== null,
-		wizard.installHandled
+		wizard.installHandled,
+		wizard.pushHandled
 	);
 }
 

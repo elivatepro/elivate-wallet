@@ -1,7 +1,7 @@
 # Blueprint 42 — Push notifications (slice 42)
 
-Status: **DRAFT 2026-10-16, waiting for the owner's approval of Paper "Push notifications v13
-(DRAFT 2026-10-16)" PN01–PN03.** Contract: P-05 (bell), U-11, F-02, T-03, P-06 (what a message
+Status: **Approved 2026-10-16** (owner: "Let's build"; Paper "Push notifications v13 (approved
+2026-10-16)" PN01–PN03 and the decisions below). Contract: P-05 (bell), U-11, F-02, T-03, P-06 (what a message
 may show), `02-workflows.md` mobile readiness ("device/push architecture"). Builds on Blueprint
 13 (bell, `notify.emit`, outbox worker), 14 (devices and sessions), 35 (install step), 41 (Hide
 amounts). Migrations `2026100942xxxx`; pgTAP `420_`.
@@ -75,7 +75,7 @@ Profile & security (no prompt).
 | `notify.push_kinds` | `key` → `notify.kinds`. The Q1 kinds: `money.income_posted`, `money.withdrawal_approved`, `money.withdrawal_completed`, `money.withdrawal_not_approved`, every `task.*`. Immutable like `notify.kinds`; later slices add rows. |
 | `notify.push_subscriptions` | `id`, `user_id` → `identity.accounts`, `session_id` → `auth.sessions` **on delete cascade** (sign-out, revocation and password-change sign-outs end push), `endpoint` (unique, https, allow-listed host, ≤ 1000 chars), `p256dh` (base64url, 65-byte point), `auth` (base64url, 16 bytes), `device_label` (from the session's device label), `hide_amounts` bool, `created_at`, `last_success_at`, `failures` int. A new subscription with the same endpoint replaces the old row (one person per device). |
 | `notify.push_jobs` | One per pushed bell item: `item_id` (pk, → `notify.items` on delete cascade, so the 90-day housekeeping clears them), `status` (`pending`, `processing`, `retry_scheduled`, `sent`, `skipped`, `dead_lettered`, same shape checks as `outbox.deliveries`), `attempt_count`, `max_attempts` 6, `next_attempt_at`, lease columns, `skipped_reason`, `updated_at`. |
-| `notify.push_attempts` | Append-only: `job_id`, `subscription_id` (set null on delete), `outcome` (`sent`, `retryable_failure`, `gone`, `permanent_failure`), `provider_status`, `error_code`, `latency_ms`, `at`. Never the endpoint or payload. |
+| `notify.push_attempts` | Append-only (only a removed device's id is cleared): `job_id`, `lease_token`, `subscription_id` (set null on delete), `outcome` (`sent`, `retryable_failure`, `gone`, `permanent_failure`, `lease_expired`), `provider_status`, `error_code`, `latency_ms`, `at`. Never the endpoint or payload. Goes with its job (item retention). |
 
 Endpoint host allow-list (SSRF guard, checked in SQL and again in the worker):
 `fcm.googleapis.com`, `updates.push.services.mozilla.com`, `*.notify.windows.com`,
@@ -90,10 +90,12 @@ Endpoint host allow-list (SSRF guard, checked in SQL and again in the worker):
 
 ### B3. Sending (`outbox-worker`, new push pass; no new function, cron or Vault pair)
 - `api.push_claim(worker, batch, lease)` leases due jobs and returns, per job, the item's kind,
-  params, path and the user's live subscriptions. It skips (with a reason) when the task is
-  already resolved (`resolved`), the account isn't active (`account_inactive`), or no live
-  subscription is left (`no_device`). `api.push_complete` / `api.push_fail` record attempts;
-  `gone` (404/410 from the push service) deletes that subscription.
+  only `amount`, `currency`, `subject` and `path` from its params, and the user's live
+  subscriptions (newest 10). It skips (with a reason) when the task is already resolved
+  (`resolved`), the account is suspended or deactivated (`account_inactive`), the item is older
+  than the 12 h push TTL (`expired`, e.g. jobs that waited for VAPID keys), or no live
+  subscription is left (`no_device`). One `api.push_report(item, lease, results[])` records an
+  attempt per device (idempotent per lease); `gone` (404/410) deletes that subscription.
 - Retries: backoff 30 s, 2 min, 10 min, 30 min, 2 h; then dead-lettered (sent to some devices
   counts as sent).
 - `_shared/push/webpush.ts`: RFC 8291 `aes128gcm` payload encryption and RFC 8292 VAPID (ES256
@@ -119,22 +121,31 @@ New errors reuse the envelope: `validation_error` (`details.field`), `conflict` 
 `details.reason = 'push_host_not_allowed'`.
 
 ### B5. Frontend
-- **BFF:** `PUT|GET|DELETE /api/push/subscription` (same-origin and echo checks as other POSTs).
-  `PUBLIC_PUSH_VAPID_KEY` as a Worker var in `wrangler.jsonc` (not secret).
+- **BFF:** `PUT|GET|DELETE /api/push/subscription` (JSON bodies only, schema-checked, no
+  workspace echo: personal). GET also returns the VAPID `publicKey` (null when not set up), from
+  `PUSH_VAPID_PUBLIC_KEY`, a Worker var in `wrangler.jsonc` (public).
 - **`#lib/client/push.ts`:** `pushSupport()` → `supported | ios-install-first | unsupported`;
   `enablePush()` (permission from the tap, `subscribe({ userVisibleOnly: true,
   applicationServerKey })`, PUT); `disablePush()` (DELETE, then `unsubscribe()`); the Hide
   amounts switch re-PUTs `hideAmounts`. After sign-in, if permission is granted, a browser
   subscription exists and `localStorage['ew_push_owner']` matches the user, it re-PUTs quietly.
 - **Service worker:** `push` → `showNotification(title, { body, tag: id, icon, badge, data:
-  { path } })`, ignoring payloads that fail the shape check; `notificationclick` → focus an open
-  app window and navigate to `path`, else `openWindow(path)`; `pushsubscriptionchange` →
-  resubscribe and PUT.
+  { path } })`, ignoring payloads that fail the shape check (`#lib/push` `parsePushPayload`;
+  links through `#lib/app-path`); `badge` is `/icons/badge-96.png` (white mark, Android);
+  `notificationclick` → focus an open app window and navigate to `path`, else
+  `openWindow(path)`; `pushsubscriptionchange` → resubscribe with the same key; the app saves
+  it on its next start (`resumePush`, which knows Hide amounts).
 - **Onboarding:** `/onboarding/notifications` after `install`, only when `pushSupport()` is
   `supported` and `Notification.permission === 'default'`; cookie `ew_onb_push` like
   `ew_onb_install`; moves on by itself when permission is granted or denied.
 - **Profile & security:** the Notifications group (PN02) between Security and Devices; PN03
   states; "this phone" / "this computer" from `installDeviceFor`.
+
+### B5a. Deploy
+Edge secrets `PUSH_VAPID_PUBLIC_KEY`, `PUSH_VAPID_PRIVATE_KEY`, `PUSH_VAPID_SUBJECT` (values in
+the ignored repo-root `.env`); redeploy `outbox-worker` and `identity`; the Worker var ships with
+`wrangler.jsonc`. The immediate kick needs the existing Vault `outbox_worker_url` /
+`outbox_worker_secret` pair; without it pushes leave on the next minute's run.
 
 ### B6. Tests
 pgTAP `420_push` (kinds, subscribe/replace/unsubscribe, host allow-list, session cascade, job

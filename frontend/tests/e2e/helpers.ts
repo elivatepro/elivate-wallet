@@ -423,7 +423,8 @@ async function chooseNextRank(page: Page) {
 
 /**
  * Blueprint 35: the wizard's last step asks to install the app; tests put it
- * off. A browser with no install prompt offers "Continue" instead.
+ * off. A browser with no install prompt offers "Continue" instead. Blueprint
+ * 42: notifications are offered next; tests put that off too.
  */
 export async function skipInstall(page: Page) {
 	await expect(page).toHaveURL(/\/onboarding\/install$/);
@@ -431,6 +432,28 @@ export async function skipInstall(page: Page) {
 		.getByRole('button', { name: 'Not now' })
 		.or(page.getByRole('button', { name: 'Continue' }))
 		.click();
+	await skipNotifications(page);
+}
+
+/**
+ * Blueprint 42: past the notifications offer (PN01). Headless Chromium says
+ * notifications are blocked, so the page usually moves on by itself; where it
+ * stays, "Not now".
+ */
+export async function skipNotifications(page: Page) {
+	await expect(page).not.toHaveURL(/\/onboarding\/install$/);
+	if (/\/onboarding\/notifications$/.test(new URL(page.url()).pathname)) {
+		const left = page.waitForURL((url) => !url.pathname.endsWith('/onboarding/notifications'));
+		await Promise.race([
+			left,
+			page
+				.getByRole('button', { name: 'Not now' })
+				.click({ timeout: 10_000 })
+				.catch(() => undefined)
+		]);
+		await left;
+	}
+	await expect(page).not.toHaveURL(/\/onboarding\/(install|notifications)$/);
 }
 
 /**

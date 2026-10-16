@@ -7,6 +7,7 @@ import {
 	E2E_GEO_HEADERS,
 	E2E_LOCAL_EXPORTS,
 	EXPORTS_WORKER_SECRET,
+	PUSH_VAPID_PUBLIC_KEY,
 	SUPABASE_PUBLISHABLE_KEY,
 	SUPABASE_URL,
 	TURNSTILE_HOSTNAMES,
@@ -26,6 +27,9 @@ export function requireConfig(): ServerConfig {
 	if (!SUPABASE_PUBLISHABLE_KEY) throw new Error('SUPABASE_PUBLISHABLE_KEY is not configured');
 	return { supabaseUrl: SUPABASE_URL, publishableKey: SUPABASE_PUBLISHABLE_KEY };
 }
+
+/** Blueprint 42: the key browsers subscribe to push with; null when not set up. */
+export const pushPublicKey = (): string | null => PUSH_VAPID_PUBLIC_KEY ?? null;
 
 /**
  * Turnstile keys (Blueprint 10). Either may be missing: the page then renders
