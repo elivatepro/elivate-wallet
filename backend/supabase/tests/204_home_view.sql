@@ -97,7 +97,9 @@ declare
   network jsonb;
   allocation jsonb;
   split jsonb;
-  empty constant jsonb := jsonb_build_object('network', null, 'activity', '[]'::jsonb, 'split', null);
+  -- Blueprint 44: Home also carries the open withdrawals (Activity's first page).
+  empty constant jsonb := jsonb_build_object('network', null, 'activity', '[]'::jsonb, 'pending', '[]'::jsonb,
+    'split', null);
 begin
   select w.value into workspace from jsonb_array_elements(api.my_workspaces(pg_temp.u(n), pg_temp.s(n))) w
   where w.value->>'membershipId' = p_membership::text;
@@ -123,6 +125,9 @@ begin
   end;
   return jsonb_build_object('network', network,
     'activity', api.my_activity(pg_temp.u(n), pg_temp.s(n), (workspace->>'tenantId')::uuid, p_limit => 5)->'items',
+    'pending', coalesce((select jsonb_agg(x.value order by x.ordinality) from jsonb_array_elements(
+      api.my_activity(pg_temp.u(n), pg_temp.s(n), (workspace->>'tenantId')::uuid)->'pending') with ordinality x
+      where x.ordinality <= 5), '[]'::jsonb),
     'split', split);
 end $$;
 create function pg_temp.home(n int, p_membership uuid, p_session uuid default null) returns jsonb language sql volatile as

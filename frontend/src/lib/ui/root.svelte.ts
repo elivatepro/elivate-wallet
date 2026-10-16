@@ -79,6 +79,10 @@ export type RootPose =
 	// (paper plane), C01/C05/C07 (stamp, post box, two receipts), C09 (gavel),
 	// B05 (carry coin).
 	| 'withdrawals'
+	// Paper "Withdrawal follow-through v14" WF05 (Blueprint 44): clipboard
+	// (WF01/WF04 detail) and hourglass (request sent).
+	| 'withdrawal-detail'
+	| 'withdrawal-sent'
 	| 'withdraw'
 	| 'queue'
 	| 'queue-checking'
@@ -225,6 +229,8 @@ export const ROOT_HEIGHTS: Record<RootPose, number> = {
 	'income-refused': 520,
 	withdrawals: 518,
 	withdraw: 523,
+	'withdrawal-detail': 525,
+	'withdrawal-sent': 525,
 	queue: 524,
 	'queue-checking': 524,
 	'queue-correction': 524,

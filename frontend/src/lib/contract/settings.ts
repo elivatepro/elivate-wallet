@@ -61,7 +61,8 @@ export const SettingsField = Schema.Literals([
 	'timeZone',
 	'logoKey',
 	'iconKey',
-	'logoLightKey'
+	'logoLightKey',
+	'oneOpenWithdrawal'
 ]);
 export type SettingsField = typeof SettingsField.Type;
 
@@ -89,6 +90,8 @@ export const TeamSettings = Schema.Struct({
 	hasLogo: Schema.Boolean,
 	hasIcon: Schema.Boolean,
 	hasLogoLight: Schema.Boolean,
+	/** Blueprint 44 (D3): "One open withdrawal at a time", off by default. */
+	oneOpenWithdrawal: Schema.optionalKey(Schema.Boolean),
 	updatedAt: IsoDateTime
 });
 export type TeamSettings = typeof TeamSettings.Type;
@@ -120,7 +123,8 @@ export const SettingsPatch = Schema.Struct({
 	timeZone: Schema.optional(Schema.String),
 	logoKey: Schema.optional(Schema.NullOr(Schema.String)),
 	iconKey: Schema.optional(Schema.NullOr(Schema.String)),
-	logoLightKey: Schema.optional(Schema.NullOr(Schema.String))
+	logoLightKey: Schema.optional(Schema.NullOr(Schema.String)),
+	oneOpenWithdrawal: Schema.optional(Schema.Boolean)
 });
 export type SettingsPatch = typeof SettingsPatch.Type;
 

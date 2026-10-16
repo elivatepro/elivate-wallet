@@ -42,6 +42,31 @@ describe('buildPatch', () => {
 	});
 });
 
+describe('Blueprint 44: one open withdrawal at a time', () => {
+	it('is off when the server says nothing and sends only a real change', () => {
+		expect(formOf(saved).oneOpenWithdrawal).toBe(false);
+		expect(buildPatch(saved, { ...formOf(saved), oneOpenWithdrawal: true })).toEqual({
+			oneOpenWithdrawal: true
+		});
+		const on = { ...saved, oneOpenWithdrawal: true };
+		expect(buildPatch(on, formOf(on))).toEqual({});
+		expect(buildPatch(on, { ...formOf(on), oneOpenWithdrawal: false })).toEqual({
+			oneOpenWithdrawal: false
+		});
+	});
+	it('names the change in Recent changes', () => {
+		expect(
+			revisionTitle({
+				revision: 5,
+				changed: ['oneOpenWithdrawal'],
+				restoredFrom: null,
+				actor: null,
+				createdAt: saved.updatedAt
+			} as Revision)
+		).toBe('Withdrawal rule changed');
+	});
+});
+
 describe('checkForm', () => {
 	it('repeats the database limits', () => {
 		const form = formOf(saved);

@@ -166,7 +166,7 @@ One money-moving commit includes domain transition, financial transaction, balan
 
 `available = posted balance - active reservations` for a funding segment. Reservation is not a posted economic event. Withdrawals/transfers reserve the exact amount immediately; approval/rejection/cancellation/settlement apply their specific consumption/release rules. No double use or temporary release of converted reserved funds.
 
-Lock/serialize affected balance contexts in deterministic order; revalidate current availability and state at the final commit. No request can make an ordinary pocket negative, spend someone else's reserved funds, post twice, or satisfy only part of a multi-journal command. Multiple open requests are allowed when reservations prove sufficiency; no legacy single-open-request rule is inherited.
+Lock/serialize affected balance contexts in deterministic order; revalidate current availability and state at the final commit. No request can make an ordinary pocket negative, spend someone else's reserved funds, post twice, or satisfy only part of a multi-journal command. Multiple open requests are allowed when reservations prove sufficiency; no legacy single-open-request rule is inherited. **Owner decision (2026-10-17, Blueprint 44):** a network may switch on "One open withdrawal at a time" (team setting, off by default, `manage_team_settings`); while on, a withdrawal request takes a per-owner lock in that network and is refused while the owner has a requested or approved withdrawal there.
 
 Debit adjustments and reversals recheck current availability at posting rather than reserve unresolved operations. Returned funds have no reservation phase. Evidence jobs do not themselves change value before verified/cleared canonical completion.
 

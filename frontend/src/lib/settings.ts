@@ -23,6 +23,8 @@ export interface SettingsForm {
 	helpUrl: string;
 	locale: string;
 	timeZone: string;
+	/** Blueprint 44 (D3): "One open withdrawal at a time". */
+	oneOpenWithdrawal: boolean;
 }
 
 export const formOf = (s: TeamSettings): SettingsForm => ({
@@ -35,7 +37,8 @@ export const formOf = (s: TeamSettings): SettingsForm => ({
 	supportPhone: s.supportPhone ?? '',
 	helpUrl: s.helpUrl ?? '',
 	locale: s.locale,
-	timeZone: s.timeZone
+	timeZone: s.timeZone,
+	oneOpenWithdrawal: s.oneOpenWithdrawal ?? false
 });
 
 const OPTIONAL = ['slogan', 'supportName', 'supportEmail', 'supportPhone', 'helpUrl'] as const;
@@ -50,7 +53,7 @@ export function buildPatch(
 	form: SettingsForm,
 	assets: PendingAssets = {}
 ): SettingsPatch {
-	const patch: Record<string, string | null> = {};
+	const patch: Record<string, string | boolean | null> = {};
 	const before = formOf(saved);
 	for (const key of REQUIRED) {
 		const value = form[key].trim();
@@ -59,6 +62,9 @@ export function buildPatch(
 	for (const key of OPTIONAL) {
 		const value = form[key].trim();
 		if (value !== before[key]) patch[key] = value === '' ? null : value;
+	}
+	if (form.oneOpenWithdrawal !== before.oneOpenWithdrawal) {
+		patch['oneOpenWithdrawal'] = form.oneOpenWithdrawal;
 	}
 	for (const [key, value] of Object.entries(assets)) if (value) patch[key] = value;
 	return patch as SettingsPatch;
@@ -113,7 +119,8 @@ const FIELD_TITLES: Readonly<Record<SettingsField, string>> = {
 	timeZone: 'Time zone changed',
 	logoKey: 'New logo uploaded',
 	iconKey: 'New square icon uploaded',
-	logoLightKey: 'New light logo uploaded'
+	logoLightKey: 'New light logo uploaded',
+	oneOpenWithdrawal: 'Withdrawal rule changed'
 };
 
 /** Paper F02 "Recent changes" titles. */

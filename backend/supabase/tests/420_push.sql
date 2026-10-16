@@ -107,8 +107,8 @@ insert into ids select 'A4', pg_temp.add_account(4, '058', '0123456789', 'ADA OB
 
 -- ── Which kinds push (3) ──
 select is((select count(*)::int from notify.push_kinds),
-  (select count(*)::int from notify.kinds where task) + 4, 'every task kind plus four money kinds push');
-select ok(not exists (select 1 from notify.push_kinds where key in ('money.withdrawal_submitted',
+  (select count(*)::int from notify.kinds where task) + 5, 'every task kind plus five money kinds push (Blueprint 44)');
+select ok(not exists (select 1 from notify.push_kinds where key in ('money.withdrawal_cancelled',
   'team.invitation_accepted', 'security.new_sign_in')), 'other kinds never push');
 select throws_ok($$ delete from notify.push_kinds where key = 'task.nin_review' $$, 'P0001', 'invariant_violation',
   'the push kinds never change');
@@ -155,7 +155,8 @@ select is((pg_temp.job(4, 'money.income_posted')).status::text, 'pending', 'inco
 select is(current_setting('notify.push_kick', true), '1', 'and kicks the worker once for the transaction');
 insert into ids select 'w1', (api.request_withdrawal(pg_temp.u(4), pg_temp.s(4), pg_temp.ws(4), pg_temp.seg(4),
   '1500.00', pg_temp.id('A4'), 'School fees', pg_temp.k())->>'withdrawalId')::uuid;
-select ok((pg_temp.job(4, 'money.withdrawal_submitted')).item_id is null, 'a kind outside Q1 never pushes');
+select is((pg_temp.job(4, 'money.withdrawal_submitted')).status::text, 'pending',
+  'Blueprint 44: the owner''s own request pushes too');
 select is((pg_temp.job(3, 'task.withdrawal_approve')).status::text, 'pending', 'a task for a subscribed approver pushes');
 select ok(notify.emit(pg_temp.u(1), null, 'money.income_posted', 'test', gen_random_uuid(), '{}'::jsonb, 'no-device')
   is not null and (pg_temp.job(1, 'money.income_posted')).item_id is null, 'someone with no device gets the bell item only');
@@ -165,7 +166,7 @@ select is((select count(*)::int from notify.push_jobs j join notify.items i on i
 -- ── Claim (7) ──
 create temp table c1 as select api.push_claim('test-worker', 25, 60) as r;
 create temp table c1_items as select value as v from c1, jsonb_array_elements(c1.r);
-select is((select count(*)::int from c1_items), 2, 'both due jobs are claimed');
+select is((select count(*)::int from c1_items), 3, 'every due job is claimed');
 select is((select v->'params' from c1_items where v->>'kind' = 'money.income_posted'),
   jsonb_build_object('amount', '250000.00', 'currency', 'NGN', 'path',
     (select params->>'path' from notify.items where id = (pg_temp.job(4, 'money.income_posted')).item_id)),

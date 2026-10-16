@@ -24,6 +24,8 @@
 	import { CachedRead } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import { formatMoney, hiddenMoney, isZero } from '#lib/money.js';
+	import { statusLabel } from '#lib/activity.js';
+	import { pendingStage, withdrawalHref } from '#lib/withdrawals.js';
 	import BalanceCard from '#lib/ui/app/BalanceCard.svelte';
 	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import CurrencySwitch from '#lib/ui/app/CurrencySwitch.svelte';
@@ -101,6 +103,8 @@
 			: []
 	);
 	const activity = $derived(home?.activity.filter((a) => a.currency === currency) ?? []);
+	/** Blueprint 44 (D1): open withdrawals first, the amount on hold (never signed). */
+	const pending = $derived(home?.pending?.filter((p) => p.currency === currency) ?? []);
 	const firstName = $derived(
 		shell.state.kind === 'ready' ? (shell.state.view.profile?.name?.split(' ')[0] ?? null) : null
 	);
@@ -260,10 +264,28 @@
 				<h2 class="section-label" id="activity-label">Recent activity</h2>
 				{#if canActivity}<a class="see-all" href="/app/activity">See all</a>{/if}
 			</div>
-			{#if activity.length === 0}
+			{#if activity.length === 0 && pending.length === 0}
 				<p class="empty">No activity in {currency} yet.</p>
 			{:else}
 				<ul class="activity">
+					{#each pending as item (item.withdrawalId)}
+						{@const stage = pendingStage(item.status)}
+						<li>
+							<a class="tx" href={withdrawalHref(item.withdrawalId)}>
+								<span class="tx-icon" aria-hidden="true" data-pending-slot>
+									<ArrowUp size={16} strokeWidth={1.8} />
+								</span>
+								<span class="tx-text">
+									<span class="tx-title">{item.title}</span>
+									<span class="tx-sub"
+										>{stage.label} · {day(item.approvedAt ?? item.createdAt)} · on hold</span
+									>
+								</span>
+								<span class="tx-status {stage.tone}">{stage.label}</span>
+								<span class="tx-amount held">{money(item.amount)}</span>
+							</a>
+						</li>
+					{/each}
 					{#each activity as item (item.transactionId + item.currency)}
 						{@const credit = !item.amount.startsWith('-')}
 						{#snippet row()}
@@ -277,7 +299,7 @@
 								<span class="tx-title">{item.type === 'income' ? 'Income' : item.type}</span>
 								<span class="tx-sub">{day(item.postedAt)} · {item.reference}</span>
 							</span>
-							<span class="tx-status">Posted</span>
+							<span class="tx-status">{statusLabel(item.status)}</span>
 							<span class="tx-amount" class:credit>{money(item.amount, true)}</span>
 						{/snippet}
 						<li>
@@ -503,6 +525,20 @@
 
 	.tx-amount.credit {
 		color: var(--color-success);
+	}
+
+	.tx-status.warning {
+		color: var(--color-warning);
+	}
+
+	.tx-status.info {
+		color: var(--color-info);
+	}
+
+	/* On hold, not moved yet (Blueprint 44 D1). */
+	.tx-amount.held {
+		color: var(--color-muted);
+		font-weight: var(--font-weight-medium);
 	}
 
 	.empty {

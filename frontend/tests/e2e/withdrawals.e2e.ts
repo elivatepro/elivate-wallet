@@ -63,11 +63,69 @@ test('a withdrawal is requested, approved, paid out and verified', async ({ page
 	await pin.getByLabel('Your PIN').fill(PIN);
 	await pin.getByRole('button', { name: 'Submit request' }).click();
 	await expect(page.getByRole('heading', { name: 'Request sent' })).toBeVisible();
+	// Blueprint 44 (D7): one line, then the withdrawal itself.
+	await expect(page.getByText('₦1,500.00 is on hold until it’s approved.')).toBeVisible();
 	await expect(page.getByText(/^Reference WDR-/)).toBeVisible();
-	await page.getByRole('link', { name: 'Track this withdrawal' }).click();
+	await shot(page, 'WF-sent');
+	await page.getByRole('link', { name: 'View withdrawal' }).click();
+	// Desktop: the list with the side panel (WF04); the link works as a deep link too.
+	await expect(page).toHaveURL(/\/app\/withdrawals\?w=[0-9a-f-]{36}$/);
+	const detail = page.getByRole('complementary', { name: 'Withdrawal' });
+	await expect(detail.getByText('Waiting for approval')).toBeVisible();
+	await expect(detail.getByText('With your team leader')).toBeVisible();
+	await expect(detail.getByText('School fees for the second term')).toBeVisible();
+	await expect(detail.getByRole('button', { name: 'Cancel withdrawal' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: '₦1,500.00' })).toBeVisible();
-	await expect(page.getByText('Requested').first()).toBeVisible();
-	await expect(page.getByText('“School fees for the second term”')).toBeVisible();
+	const row = page.locator('a.wd-row[aria-current="true"]');
+	await expect(row).toContainText('•• 6789');
+	await expectAccessible(page);
+	await shot(page, 'WF04-panel');
+	const withdrawalId = new URL(page.url()).searchParams.get('w') ?? '';
+
+	// D1: Home's Recent activity shows it as Requested, on hold, and opens it.
+	await page.goto('/app');
+	const open = page.getByRole('link', { name: /•• 6789.*Requested/ });
+	await expect(open).toBeVisible();
+	await expect(open).toContainText('₦1,500.00');
+	await expect(open).not.toContainText('−₦1,500.00');
+	// …and so does Activity, in its Open group.
+	await page.goto('/app/activity');
+	await expect(page.getByRole('heading', { name: 'Open' })).toBeVisible();
+	await expect(page.getByRole('link', { name: /•• 6789/ }).first()).toBeVisible();
+
+	// Phone: the row opens the full page (WF01), and Back returns to the list.
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto('/app/withdrawals');
+	await page.locator('a.wd-row').first().click();
+	await expect(page).toHaveURL(new RegExp(`/app/withdrawals/${withdrawalId}$`));
+	await expect(page.getByRole('heading', { name: 'Withdrawal', exact: true })).toBeVisible();
+	await expect(page.getByText(/^To .*•• 6789$/)).toBeVisible();
+	await shot(page, 'WF01-page');
+	await page.getByRole('button', { name: 'Back to withdrawals' }).click();
+	await expect(page).toHaveURL(/\/app\/withdrawals$/);
+	await page.setViewportSize({ width: 1280, height: 720 });
+
+	// D3: the President switches on "One open withdrawal at a time"…
+	await asPresident(page, founder.email, 'Withdraw Test Network');
+	await page.goto('/app/settings/details');
+	const rule = page.getByRole('switch', { name: 'One open withdrawal at a time' });
+	await expect(rule).toHaveAttribute('aria-checked', 'false');
+	await rule.click();
+	await page.getByRole('button', { name: 'Save changes' }).click();
+	const save = page.getByRole('dialog');
+	await save.getByLabel('Your PIN').fill(PIN);
+	await save.getByRole('button', { name: 'Save changes' }).click();
+	await expect(page.getByText('Saved.')).toBeVisible();
+	await expect(page.getByText('Withdrawal rule changed')).toBeVisible();
+	// …and New withdrawal says so before any form.
+	await signInAs(page, member);
+	await page.goto('/app/withdrawals/new');
+	await expect(
+		page.getByRole('heading', { name: 'Your withdrawal of ₦1,500.00 is still open.' })
+	).toBeVisible();
+	await expect(page.getByLabel('Amount')).toHaveCount(0);
+	await page.getByRole('link', { name: 'View withdrawal' }).click();
+	await expect(page).toHaveURL(/\/app\/withdrawals\?w=/);
 
 	// President: C01 approve → U01 reveal (PIN) → U02 record → C05 checking.
 	await asPresident(page, founder.email, 'Withdraw Test Network');

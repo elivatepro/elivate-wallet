@@ -15,7 +15,7 @@ Part A is for the owner. Part B is the build spec.
 ### Owner decisions (2026-10-16, binding)
 | # | Question | Answer |
 |---|---|---|
-| Q1 | Which events push? | **Tasks + own money:** every "needs your action" task, plus income posted and a withdrawal approved, completed or not approved, for the wallet owner. |
+| Q1 | Which events push? | **Tasks + own money:** every "needs your action" task, plus income posted and a withdrawal approved, completed or not approved, for the wallet owner. *Changed 2026-10-17 (Blueprint 44 D2): a withdrawal requested pushes to its owner too ("Withdrawal requested" · "₦5,000.00 is on hold until it’s approved.").* |
 | Q2 | What shows on a lock screen? | **Title + amount**, e.g. "Income posted · ₦250,000.00". Same limits as email (P-06): never account digits, balances, reasons or evidence. |
 | Q3 | When does the app ask? | **After the install step** (last onboarding screen), plus an on/off switch in **Profile & security**. |
 | Q4 | How much control? | **One switch per device.** Email keeps no opt-out. |

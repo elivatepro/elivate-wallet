@@ -81,6 +81,40 @@ Deno.test("settings save passes the revision and only known fields", async () =>
   assertEquals(calls.length, 1);
 });
 
+Deno.test("Blueprint 44: the one-open-withdrawal switch is a boolean", async () => {
+  const { handler, calls } = org();
+  const ok = await handler(request("PATCH", "/settings", {
+    expectedRevision: 4,
+    fields: { oneOpenWithdrawal: true },
+    idempotencyKey: key,
+  }));
+  assertEquals(ok.status, 200);
+  assertEquals(calls[0]?.args.p_fields, { oneOpenWithdrawal: true });
+  for (const value of ["true", 1, null, "on"]) {
+    assertEquals(
+      await code(
+        await handler(request("PATCH", "/settings", {
+          expectedRevision: 4,
+          fields: { oneOpenWithdrawal: value },
+          idempotencyKey: key,
+        })),
+      ),
+      "validation_error",
+    );
+  }
+  assertEquals(
+    await code(
+      await handler(request("PATCH", "/settings", {
+        expectedRevision: 4,
+        fields: { theme: true },
+        idempotencyKey: key,
+      })),
+    ),
+    "validation_error",
+  );
+  assertEquals(calls.length, 1);
+});
+
 Deno.test("restoring a revision needs both revisions", async () => {
   const { handler, calls } = org();
   await handler(request("POST", "/settings/restore", {

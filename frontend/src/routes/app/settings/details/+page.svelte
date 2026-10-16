@@ -306,6 +306,31 @@
 					</div>
 				</fieldset>
 
+				<!-- Blueprint 44 (D3): off by default; saved with the rest (PIN, a new revision). -->
+				<fieldset class="s-section" disabled={!writable}>
+					<legend class="s-eyebrow">Withdrawals</legend>
+					<div class="rule">
+						<span class="rule-text">
+							<span class="rule-title" id="one-open-label">One open withdrawal at a time</span>
+							<span class="rule-sub" id="one-open-sub"
+								>Members wait for their open withdrawal to finish.</span
+							>
+						</span>
+						<button
+							type="button"
+							class="switch"
+							role="switch"
+							aria-checked={form.oneOpenWithdrawal}
+							aria-labelledby="one-open-label"
+							aria-describedby="one-open-sub"
+							disabled={!writable}
+							onclick={() => form && (form.oneOpenWithdrawal = !form.oneOpenWithdrawal)}
+						>
+							<span class="knob"></span>
+						</button>
+					</div>
+				</fieldset>
+
 				<div class="s-actions">
 					<button type="button" class="s-ghost" onclick={discard} disabled={!dirty}>Discard</button>
 					<button type="submit" class="s-primary" disabled={!dirty || !writable || !shell.canAct}
@@ -435,6 +460,72 @@
 		border: 1px solid var(--color-accent-edge);
 		background: var(--color-accent-subtle);
 		color: var(--color-accent-label);
+	}
+
+	.rule {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+	}
+
+	.rule-text {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		min-width: 0;
+	}
+
+	.rule-title {
+		color: var(--color-text);
+		font-size: 15px;
+		line-height: 20px;
+	}
+
+	.rule-sub {
+		color: var(--color-muted);
+		font-size: 13px;
+		line-height: 18px;
+	}
+
+	.switch {
+		display: flex;
+		align-items: center;
+		flex-shrink: 0;
+		width: 44px;
+		height: 26px;
+		padding: 2px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-pill);
+		background: var(--color-raised);
+		cursor: pointer;
+	}
+
+	.switch .knob {
+		width: 20px;
+		height: 20px;
+		border-radius: var(--radius-pill);
+		background: var(--color-muted);
+	}
+
+	.switch[aria-checked='true'] {
+		justify-content: flex-end;
+		border-color: transparent;
+		background: var(--color-accent);
+	}
+
+	.switch[aria-checked='true'] .knob {
+		background: #fff4ef;
+	}
+
+	.switch:disabled {
+		cursor: not-allowed;
+		opacity: 0.6;
+	}
+
+	.switch:focus-visible {
+		outline: 2px solid var(--focus-ring);
+		outline-offset: 2px;
 	}
 
 	@media (min-width: 1024px) {
