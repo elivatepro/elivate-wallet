@@ -39,9 +39,17 @@ describe('wizard steps by role (Blueprint 22)', () => {
 		expect(nextStepFor('profile_required', setup('wallet', 'bank'), true, true)).toBe('bank');
 	});
 
-	it('is done only when the gate is ready and the install step was handled', () => {
-		expect(nextStepFor('ready', setup('wallet', null), true, true)).toBeNull();
-		expect(nextStepFor('ready', undefined, true, true)).toBeNull();
+	it('offers notifications after the install step (Blueprint 42)', () => {
+		expect(nextStepFor('ready', setup('wallet', null), true, true)).toBe('notifications');
+		expect(nextStepFor('ready', setup('light', null), true, true)).toBe('notifications');
+		expect(nextStepFor('ready', setup('wallet', null), true, false, true)).toBe('install');
+		expect(stepNumber('notifications', 'wallet')).toBe(5);
+		expect(stepNumber('notifications', 'light')).toBe(3);
+	});
+
+	it('is done only when the gate is ready and both last screens were handled', () => {
+		expect(nextStepFor('ready', setup('wallet', null), true, true, true)).toBeNull();
+		expect(nextStepFor('ready', undefined, true, true, true)).toBeNull();
 	});
 
 	it('fails closed when the gate holds but no step came back', () => {

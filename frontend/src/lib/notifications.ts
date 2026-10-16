@@ -8,6 +8,10 @@ import type { NotificationItem } from '#lib/contract/notifications.js';
 import { ROLE_LABELS } from '#lib/labels.js';
 import { placeLabel } from '#lib/devices.js';
 import { formatMoney, hiddenMoney } from '#lib/money.js';
+import { safePath } from './app-path';
+
+/** The item's in-app link (Blueprint 42 moved it to app-path for the service worker). */
+export { safePath };
 
 export type BellTone = 'warning' | 'success' | 'danger' | 'neutral';
 export type BellIcon =
@@ -19,14 +23,6 @@ export interface BellEntry {
 	readonly tone: BellTone;
 	readonly icon: BellIcon;
 	readonly href: string;
-}
-
-const PATH =
-	/^\/app(\/[a-z][a-z-]*)*(\?withdrawal=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?$|^\/app\/billing\/payments\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-
-/** The item's in-app link, or Home when it is missing or not an app path. */
-export function safePath(path: string | undefined): string {
-	return path && PATH.test(path) ? path : '/app';
 }
 
 const isCurrency = (value: string | undefined): value is Currency =>

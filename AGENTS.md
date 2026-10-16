@@ -62,7 +62,9 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
   and `CHATWOOT_HMAC_TOKEN` (Blueprint 17; the app inbox's values since Blueprint 34). Admin Worker `elivate-wallet-admin`
   (`frontend/wrangler.admin.jsonc`, `APP_SURFACE=admin`, admin.elivatewallet.com behind Cloudflare
   Access): `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `APP_SERVER_SECRET`. Edge `BILLING_WORKER_SECRET`
-  matches Vault `billing_worker_secret`; Paystack is test mode (`PAYSTACK_SECRET_KEY`).
+  matches Vault `billing_worker_secret`; Paystack is test mode (`PAYSTACK_SECRET_KEY`). Web Push
+  (Blueprint 42): Edge `PUSH_VAPID_PUBLIC_KEY` / `PUSH_VAPID_PRIVATE_KEY` / `PUSH_VAPID_SUBJECT`;
+  the public key is also the app Worker var `PUSH_VAPID_PUBLIC_KEY` in `wrangler.jsonc`.
 - Still open: the signed-in dev call test (Edge `verify_jwt` with ES256 user tokens; see
   `docs/production-readiness.md`), editing the dev Auth email templates.
 
@@ -70,7 +72,7 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
 
 - One slice at a time, in worktree `../elivate-wallet-worktrees/<nn-name>` from fresh
   `origin/main` (copy `backend/supabase/.temp` in). Blueprint `docs/blueprints/NN-*.md`;
-  migrations `20261009NNxxxx`, pgTAP `NN0_` (next: `41`/`410_`).
+  migrations `20261009NNxxxx`, pgTAP `NN0_` (next: `43`/`430_`).
 - Checks: `backend/scripts/verify-database.sh`, `deno task check`; frontend `pnpm check`,
   `pnpm lint`, `pnpm test:unit`, e2e via `frontend/scripts/e2e-local.sh` (fake Cloudflare into
   local Mailpit). The local stack is shared: hold the `/tmp/elivate-supabase.lock` directory
@@ -129,4 +131,7 @@ shown to approvers, the member, Activity and the M02/M03 emails; never in statem
 Slice 41 (Blueprint 41, frontend only): mobile polish (the current tab scrolls to top, quick search
 above the keyboard, Home activity rows open the detail, a shorter Withdrawals banner, a Dark mode
 switch on More, pressed states, tapped-item spinners and content-shaped outlines).
+Slice 42 (Blueprint 42, Paper PN01–PN03): Web Push for "needs your action" tasks and the owner's
+income posted / withdrawal approved, completed or not approved (title and amount); offered after
+the install step, one switch per device in Profile & security; push ends with the session.
 Next: set-based authorization reads.

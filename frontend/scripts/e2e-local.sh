@@ -64,6 +64,15 @@ BILLING_WORKER_SECRET="$(openssl rand -hex 32)"
 export BILLING_WORKER_SECRET
 E2E_LOCAL_EXPORTS="$(mktemp -d)"
 export E2E_LOCAL_EXPORTS
+# Blueprint 42: a throwaway VAPID key pair per run (public half to the app
+# server, both to the outbox worker); pushes go to the fake push service.
+eval "$(node -e '
+const { generateKeyPairSync } = require("node:crypto");
+const jwk = generateKeyPairSync("ec", { namedCurve: "P-256" }).privateKey.export({ format: "jwk" });
+const pub = Buffer.concat([Buffer.from([4]), Buffer.from(jwk.x, "base64url"), Buffer.from(jwk.y, "base64url")]);
+console.log(`PUSH_VAPID_PUBLIC_KEY=${pub.toString("base64url")}; PUSH_VAPID_PRIVATE_KEY=${jwk.d}`);
+')"
+export PUSH_VAPID_PUBLIC_KEY
 {
   echo "PIN_HMAC_SECRET=$(openssl rand -hex 32)"
   echo "INVITATION_TOKEN_SECRET=$INVITATION_TOKEN_SECRET"
@@ -86,6 +95,10 @@ export E2E_LOCAL_EXPORTS
   echo "APP_ORIGIN=http://127.0.0.1:3000"
   echo "PIN_RESET_REDIRECT_URL=http://127.0.0.1:3000/auth/confirm"
   echo "CORS_ORIGINS="
+  echo "PUSH_VAPID_PUBLIC_KEY=$PUSH_VAPID_PUBLIC_KEY"
+  echo "PUSH_VAPID_PRIVATE_KEY=$PUSH_VAPID_PRIVATE_KEY"
+  echo "PUSH_VAPID_SUBJECT=mailto:support@elivatewallet.com"
+  echo "PUSH_TEST_ENDPOINT_BASE=http://host.docker.internal:54399"
 } > "$env_file"
 
 node "$frontend/tests/e2e/fake-providers.mjs" 54399 &

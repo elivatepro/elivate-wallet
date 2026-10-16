@@ -13,8 +13,13 @@
 		"binding": "ASSETS",
 		"directory": ".svelte-kit/cloudflare"
 	},
-	// Hostnames a Turnstile token may come from (public, not a secret).
-	"vars": { "TURNSTILE_HOSTNAMES": "app.elivatewallet.com" },
+	// Hostnames a Turnstile token may come from (public, not a secret), and the
+	// Web Push VAPID public key browsers subscribe with (Blueprint 42; public;
+	// its private half is an Edge secret of the outbox worker).
+	"vars": {
+		"TURNSTILE_HOSTNAMES": "app.elivatewallet.com",
+		"PUSH_VAPID_PUBLIC_KEY": "BF276oyTx68Ezo21UVN8hba6IYnJAzfYCxynWbqJ1BZyqGkoXFDsrtqdgQE7og8S-LDAfd2OKBqHeueOqrGAO_c"
+	},
 	"observability": { "enabled": true },
 	// Blueprint 20 B1: Smart Placement runs the Worker near Supabase (eu-west-2)
 	// instead of near the visitor; static assets are still served at the edge

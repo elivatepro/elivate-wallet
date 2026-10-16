@@ -22,6 +22,7 @@ export const actions: Actions = {
 	default: async (event) => {
 		await expectStep(event, 'install');
 		markInstallHandled(event.cookies, event.locals.secureCookies);
-		redirect(303, '/onboarding/done');
+		// Blueprint 42: the notifications offer comes next.
+		redirect(303, '/onboarding/notifications');
 	}
 };

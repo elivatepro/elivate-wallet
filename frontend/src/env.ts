@@ -100,6 +100,18 @@ export const variables = defineEnvVars({
 			throw new Error('APP_SURFACE must be member, admin or both');
 		}
 	},
+	// Blueprint 42: Web Push. The VAPID public key is public (the browser
+	// subscribes with it; a Worker var in wrangler.jsonc); its private half is
+	// an Edge secret of the outbox worker. Missing: the switch says push is off.
+	PUSH_VAPID_PUBLIC_KEY: {
+		description: 'Web Push VAPID public key (base64url, 65 bytes; public).',
+		schema: (value: string | undefined) => {
+			if (value === undefined || value === '') return undefined;
+			if (!/^B[A-Za-z0-9_-]{86}$/.test(value))
+				throw new Error('PUSH_VAPID_PUBLIC_KEY is malformed');
+			return value;
+		}
+	},
 	TURNSTILE_SECRET_KEY: {
 		description: 'Turnstile secret key for server-side siteverify. Never sent to the browser.',
 		schema: (value: string | undefined) => (value === '' ? undefined : value)

@@ -10,6 +10,9 @@
 // checkout" page; paying there marks the transaction successful, posts a
 // signed charge.success webhook to the local billing function and sends the
 // payer back. Verify answers from the same store. Synthetic data only.
+// Web Push (Blueprint 42): the outbox worker's pushes to an FCM-shaped path
+// land here (PUSH_TEST_ENDPOINT_BASE); tests read them back encrypted from
+// /e2e/push/<id> and decrypt them with the stand-in browser's keys.
 import { createHmac } from 'node:crypto';
 import { createServer } from 'node:http';
 
@@ -32,6 +35,8 @@ let nextCode = 1;
 const plans = new Map();
 /** @type {Array<{customer: string, code: string, token: string, amount: number, next: string, status: string}>} */
 const subscriptions = [];
+/** @type {Map<string, Array<{headers: Record<string, string | string[] | undefined>, body: string}>>} */
+const pushes = new Map();
 /** @param {import('node:http').IncomingMessage} req */
 const readForm = async (req) => {
 	const chunks = [];
@@ -69,6 +74,20 @@ const accounts = {
 
 createServer(async (req, res) => {
 	const url = new URL(req.url ?? '/', `http://127.0.0.1:${port}`);
+	const push = url.pathname.match(/^\/fcm\/send\/([A-Za-z0-9_-]{1,100})$/);
+	if (push && req.method === 'POST') {
+		const chunks = [];
+		for await (const chunk of req) chunks.push(chunk);
+		const id = push[1] ?? '';
+		const list = pushes.get(id) ?? [];
+		list.push({ headers: req.headers, body: Buffer.concat(chunks).toString('base64') });
+		pushes.set(id, list);
+		res.writeHead(201);
+		res.end();
+		return;
+	}
+	const received = url.pathname.match(/^\/e2e\/push\/([A-Za-z0-9_-]{1,100})$/);
+	if (received && req.method === 'GET') return json(res, 200, pushes.get(received[1] ?? '') ?? []);
 	if (
 		/^\/client\/v4\/accounts\/[^/]+\/email\/sending\/send$/.test(url.pathname) &&
 		req.method === 'POST'

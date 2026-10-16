@@ -14,6 +14,7 @@ import {
 	humanReady,
 	inviteMember,
 	pick,
+	shot,
 	uniqueEmail
 } from './helpers';
 
@@ -144,6 +145,13 @@ test('new person: join link → verify email → password → accept → PIN →
 	await expect(page.getByText('5 / 5')).toBeVisible();
 	await expect(page.getByRole('heading', { name: /Elivate Wallet/ })).toBeVisible();
 	await expectAccessible(page);
+	// Blueprint 42: a browser that hasn't been asked yet (headless Chromium
+	// otherwise says notifications are blocked and PN01 moves on by itself).
+	// The install step moves on client-side, so this page needs it too.
+	const notAskedYet = () =>
+		Object.defineProperty(Notification, 'permission', { get: () => 'default' });
+	await page.addInitScript(notAskedYet);
+	await page.evaluate(notAskedYet);
 	// Chromium's install prompt (a stand-in event): accepting it moves on.
 	await page.evaluate(() => {
 		const offer = Object.assign(new Event('beforeinstallprompt', { cancelable: true }), {
@@ -153,6 +161,15 @@ test('new person: join link → verify email → password → accept → PIN →
 		dispatchEvent(offer);
 	});
 	await page.getByRole('button', { name: 'Install the app' }).click();
+
+	// Blueprint 42 PN01: notifications, offered next (still 5 / 5).
+	await expect(page).toHaveURL(/\/onboarding\/notifications$/);
+	await expect(page.getByText('One last thing')).toBeVisible();
+	await expect(page.getByText('5 / 5')).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Turn on notifications' })).toBeVisible();
+	await expectAccessible(page);
+	await shot(page, 'PN01-notifications');
+	await page.getByRole('button', { name: 'Not now' }).click();
 
 	await expect(page.getByRole('heading', { name: 'You’re all set, Ada' })).toBeVisible();
 	await expect(page.getByText('Test Bank •• 6789')).toBeVisible();

@@ -2,7 +2,8 @@ import { createClient } from "@supabase/supabase-js";
 import { createCloudflareTransport } from "../_shared/email/cloudflare.ts";
 import { localTestOrigin } from "../_shared/name_lookup.ts";
 import { createInviteTokens } from "../_shared/invite_token.ts";
-import { createHandler, type EmailSetup } from "./handler.ts";
+import { createPushTransport } from "../_shared/push/webpush.ts";
+import { createHandler, type EmailSetup, type PushSetup } from "./handler.ts";
 
 function env(name: string): string {
   const value = Deno.env.get(name);
@@ -45,6 +46,24 @@ async function emailSetup(): Promise<EmailSetup | null> {
   };
 }
 
+// Blueprint 42: push needs the VAPID key pair and subject; without them the
+// pass claims nothing and jobs wait.
+function pushSetup(): PushSetup | null {
+  const publicKey = optional("PUSH_VAPID_PUBLIC_KEY");
+  const privateKey = optional("PUSH_VAPID_PRIVATE_KEY");
+  const subject = optional("PUSH_VAPID_SUBJECT");
+  if (!publicKey || !privateKey || !subject) return null;
+  // Local end-to-end only: a fake push service on the host (never loopback
+  // inside a hosted project, see localTestOrigin).
+  const testOrigin = localTestOrigin(optional("PUSH_TEST_ENDPOINT_BASE") ?? undefined);
+  return {
+    transport: createPushTransport({
+      vapid: { publicKey, privateKey, subject },
+      ...(testOrigin ? { testOrigin } : {}),
+    }),
+  };
+}
+
 const handler = createHandler({
   async rpc(fn, args) {
     const { data, error } = await service.schema("api").rpc(fn, args);
@@ -54,6 +73,7 @@ const handler = createHandler({
   },
   workerSecret: optional("OUTBOX_WORKER_SECRET"),
   email: await emailSetup(),
+  push: pushSetup(),
   workerId: `edge:${crypto.randomUUID()}`,
   log: (entry) => console.log(JSON.stringify(entry)),
 });

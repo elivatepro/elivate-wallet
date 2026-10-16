@@ -1,6 +1,6 @@
 // Routes for the `identity` Edge Function (Blueprint 06 — B3): the signed-in
 // person's profile, NIN verification and leader review, and the bell
-// (Blueprint 13). The raw NIN exists
+// (Blueprint 13), and this device's push switch (Blueprint 42). The raw NIN exists
 // only in memory here: the database receives a keyed fingerprint and the last
 // 4 digits. Logs carry route, status, code and latency only.
 
@@ -13,6 +13,7 @@ import {
   success,
 } from "../_shared/http.ts";
 import { ninPattern, type NinProvider } from "../_shared/nin_provider.ts";
+import { endpointAllowed } from "../_shared/push/webpush.ts";
 import * as v from "../_shared/validate.ts";
 
 export interface Actor {
@@ -134,6 +135,18 @@ function middleNames(body: v.Body): string[] {
     }
     return part;
   });
+}
+
+/** A push subscription endpoint: https, ≤ 1000 printable ASCII characters. */
+function pushEndpoint(value: unknown): string {
+  if (
+    typeof value !== "string" || value.length > 1000 ||
+    !/^https:\/\/[!-~]+$/.test(value)
+  ) {
+    throw new ApiError("validation_error", { field: "endpoint" });
+  }
+  if (!endpointAllowed(value)) throw new ApiError("conflict", { reason: "push_host_not_allowed" });
+  return value;
 }
 
 function asObject(value: unknown): Json {
@@ -381,6 +394,50 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
         p_membership_id: workspace(c.request),
         p_ids: ids,
         p_all: all,
+      });
+    }),
+
+    // Blueprint 42: this device's push switch, bound to the caller's session
+    // (personal: no workspace). Only the browsers' push services are accepted.
+    route("PUT", "/push/subscription", async (c) => {
+      const body = await v.readBody(c.request, ["endpoint", "keys", "hideAmounts"]);
+      const keys = body.keys;
+      if (typeof keys !== "object" || keys === null || Array.isArray(keys)) {
+        throw new ApiError("validation_error", { field: "keys" });
+      }
+      const { p256dh, auth, ...extra } = keys as Record<string, unknown>;
+      if (Object.keys(extra).length > 0) throw new ApiError("validation_error", { field: "keys" });
+      if (typeof p256dh !== "string" || !/^B[A-Za-z0-9_-]{86}=?$/.test(p256dh)) {
+        throw new ApiError("validation_error", { field: "p256dh" });
+      }
+      if (typeof auth !== "string" || !/^[A-Za-z0-9_-]{22}(==)?$/.test(auth)) {
+        throw new ApiError("validation_error", { field: "auth" });
+      }
+      if (typeof body.hideAmounts !== "boolean") {
+        throw new ApiError("validation_error", { field: "hideAmounts" });
+      }
+      return callObject("push_subscribe", {
+        ...actorArgs(c),
+        p_endpoint: pushEndpoint(body.endpoint),
+        p_p256dh: p256dh.replace(/=+$/, ""),
+        p_auth: auth.replace(/=+$/, ""),
+        p_hide_amounts: body.hideAmounts,
+      });
+    }),
+
+    route("GET", "/push/subscription", (c) => {
+      onlyQuery(c.query, ["endpoint"]);
+      return callObject("push_subscription_state", {
+        ...actorArgs(c),
+        p_endpoint: pushEndpoint(c.query.get("endpoint")),
+      });
+    }),
+
+    route("DELETE", "/push/subscription", async (c) => {
+      const body = await v.readBody(c.request, ["endpoint"]);
+      return callObject("push_unsubscribe", {
+        ...actorArgs(c),
+        p_endpoint: pushEndpoint(body.endpoint),
       });
     }),
 

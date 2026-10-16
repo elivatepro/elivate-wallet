@@ -38,6 +38,7 @@ import {
 	type MarkReadCommand,
 	type NotificationView
 } from '#lib/contract/notifications.js';
+import { PushDeviceState, PushRoutes, type PushSubscribeCommand } from '#lib/contract/push.js';
 import { EdgeTransport, type EdgeFailure } from './edge';
 
 const readPolicy = {
@@ -89,6 +90,12 @@ export interface IdentityApiShape {
 		query: { view: NotificationView; cursor?: string; limit?: number }
 	) => Effect.Effect<NotificationPage, EdgeFailure>;
 	readonly unread: (membershipId: string) => Effect.Effect<number, EdgeFailure>;
+	/** Blueprint 42: this device's push switch (personal, no workspace). */
+	readonly pushState: (endpoint: string) => Effect.Effect<PushDeviceState, EdgeFailure>;
+	readonly pushSubscribe: (
+		body: PushSubscribeCommand
+	) => Effect.Effect<PushDeviceState, EdgeFailure>;
+	readonly pushUnsubscribe: (endpoint: string) => Effect.Effect<PushDeviceState, EdgeFailure>;
 	readonly markRead: (
 		membershipId: string,
 		body: MarkReadCommand
@@ -155,6 +162,14 @@ export const IdentityApiLive = Layer.effect(
 					Effect.retry(readPolicy),
 					Effect.map((r) => r.unread)
 				),
+			pushState: (endpoint) =>
+				edge
+					.call({ fn, route: PushRoutes.state, query: { endpoint } }, PushDeviceState)
+					.pipe(Effect.retry(readPolicy)),
+			pushSubscribe: (body) =>
+				edge.call({ fn, route: PushRoutes.subscribe, body }, PushDeviceState),
+			pushUnsubscribe: (endpoint) =>
+				edge.call({ fn, route: PushRoutes.unsubscribe, body: { endpoint } }, PushDeviceState),
 			markRead: (membershipId, body) =>
 				edge.call({ fn, route: NotificationRoutes.read, body, membershipId }, MarkedRead)
 		};

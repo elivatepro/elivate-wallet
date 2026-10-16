@@ -46,7 +46,9 @@ export default defineConfig({
 			E2E_LOCAL_EXPORTS: process.env.E2E_LOCAL_EXPORTS ?? '',
 			// Blueprint 18: one server serves the Wallet app and /admin/* (local
 			// only; refused unless SUPABASE_URL is a loopback address).
-			APP_SURFACE: 'both'
+			APP_SURFACE: 'both',
+			// Blueprint 42: the per-run VAPID public key browsers subscribe with.
+			PUSH_VAPID_PUBLIC_KEY: process.env.PUSH_VAPID_PUBLIC_KEY ?? ''
 		}
 	}
 });
