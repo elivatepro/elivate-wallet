@@ -5,13 +5,15 @@
 	peeking over its top edge. Optional reason (one line, 3–500) and PIN
 	cells; Cancel + confirm (coral, or the soft danger pill). Bits UI Dialog:
 	focus is trapped and returns to the trigger. The PIN is cleared on every
-	open and every failure (the field remounts).
+	open and every failure (the field remounts). Blueprint 43: on phones the
+	sheet closes with a drag down (not while busy).
 -->
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { Dialog } from 'bits-ui';
 	import { busyLabel } from '#lib/ui/busy-label.js';
 	import RootImage from '#lib/ui/RootImage.svelte';
+	import { sheetDrag } from '#lib/ui/sheet-drag.js';
 	import type { RootPose } from '#lib/ui/root.svelte.js';
 
 	let {
@@ -98,8 +100,16 @@
 			<div class="rd-peek" aria-hidden="true">
 				<RootImage {pose} class="rd-peek-root" sizes="112px" />
 			</div>
-			<form onsubmit={submit} novalidate>
-				<div class="rd-header">
+			<form
+				onsubmit={submit}
+				novalidate
+				{@attach sheetDrag({
+					close: () => (open = false),
+					canClose: () => !busy,
+					panel: (form) => form.closest<HTMLElement>('.rd-panel') ?? form
+				})}
+			>
+				<div class="rd-header" data-sheet-grab>
 					<div class="rd-shade" aria-hidden="true"></div>
 					<RootImage {pose} class="rd-root" sizes="128px" />
 					<span class="rd-grabber" aria-hidden="true"></span>

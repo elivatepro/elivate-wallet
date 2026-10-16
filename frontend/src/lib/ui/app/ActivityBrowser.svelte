@@ -53,6 +53,7 @@
 	import RootImage from '#lib/ui/RootImage.svelte';
 	import TransactionDetailView from '#lib/ui/app/TransactionDetail.svelte';
 	import WheelPicker from '#lib/ui/WheelPicker.svelte';
+	import { sheetDrag } from '#lib/ui/sheet-drag.js';
 	import { navigationStarted } from '#lib/client/pending-tap.js';
 
 	let {
@@ -750,9 +751,12 @@
 <Dialog.Root bind:open={sheetOpen}>
 	<Dialog.Portal>
 		<Dialog.Overlay class="sheet-overlay" />
-		<Dialog.Content class="sheet">
-			<span class="sheet-handle" aria-hidden="true"></span>
-			<div class="sheet-head">
+		<Dialog.Content
+			class="sheet"
+			{@attach sheetDrag({ close: () => (sheetOpen = false), active: () => !wide })}
+		>
+			<span class="sheet-handle" aria-hidden="true" data-sheet-grab></span>
+			<div class="sheet-head" data-sheet-grab>
 				<Dialog.Title class="sheet-title">Filters</Dialog.Title>
 				<button
 					type="button"

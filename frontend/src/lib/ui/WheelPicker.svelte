@@ -15,6 +15,8 @@
 	  desktop. It is a native modal <dialog> (top layer), so it also works inside
 	  Bits UI dialogs.
 	- A form field (`name`) is posted through a hidden input once enhanced.
+	- Blueprint 43: the phone sheet closes with a drag down from its grip,
+	  heading or empty space (never from the wheel, which keeps scrolling).
 -->
 <script lang="ts" module>
 	// Pickers created after the first hydration start enhanced (no select flash).
@@ -35,6 +37,7 @@
 		typeahead,
 		type WheelOption
 	} from './wheel-picker.js';
+	import { sheetDrag } from './sheet-drag.js';
 
 	type Props = {
 		options: readonly WheelOption[];
@@ -593,10 +596,14 @@
 			close(false);
 		}}
 	>
-		<div class="wp-sheet" style:--wp-lift={`${lift}px`}>
-			<span class="wp-grip" aria-hidden="true"></span>
-			<h2 id={`${key}-title`}>{title ?? label}</h2>
-			{#if sub}<p class="wp-sub">{sub}</p>{/if}
+		<div
+			class="wp-sheet"
+			style:--wp-lift={`${lift}px`}
+			{@attach sheetDrag({ close: () => close(false) })}
+		>
+			<span class="wp-grip" aria-hidden="true" data-sheet-grab></span>
+			<h2 id={`${key}-title`} data-sheet-grab>{title ?? label}</h2>
+			{#if sub}<p class="wp-sub" data-sheet-grab>{sub}</p>{/if}
 			{#if search}
 				<label class="wp-search">
 					<Search size={16} strokeWidth={2} aria-hidden="true" />

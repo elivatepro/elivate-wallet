@@ -158,3 +158,68 @@ test('phone: the current tab stays, Home rows open, Dark mode switch, short bann
 	expect(Math.round(banner.height)).toBeLessThanOrEqual(202);
 	await shot(page, '41-withdrawals');
 });
+
+// Blueprint 43 (owner 2026-10-16): a bottom sheet closes with a drag down.
+test('phone: a sheet follows a drag, springs back from a short one, closes past a third or on a flick', async ({
+	page
+}) => {
+	await signInAs(page, member);
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto('/app/account');
+	const editButton = page.getByRole('button', { name: 'Edit' });
+	const edit = page.getByRole('dialog', { name: 'Edit profile' });
+	const open = async () => {
+		await editButton.click();
+		await expect(edit).toBeVisible();
+		await expect.poll(async () => (await edit.boundingBox())?.y).toBeGreaterThan(100);
+		const box = (await edit.boundingBox())!;
+		const title = (await edit.locator('.rd-title').boundingBox())!;
+		return { box, x: title.x + 20, y: title.y + title.height / 2 };
+	};
+	const slowly = async (x: number, from: number, to: number) => {
+		for (let i = 1; i <= 8; i++) {
+			await page.mouse.move(x, from + ((to - from) * i) / 8);
+			await page.waitForTimeout(16);
+		}
+		await page.waitForTimeout(200);
+	};
+
+	// A short drag: the sheet follows the finger, then springs back.
+	const first = await open();
+	await page.mouse.move(first.x, first.y);
+	await page.mouse.down();
+	await slowly(first.x, first.y, first.y + 60);
+	expect((await edit.boundingBox())!.y).toBeGreaterThan(first.box.y + 40);
+	await page.mouse.up();
+	await expect
+		.poll(async () => Math.abs((await edit.boundingBox())!.y - first.box.y))
+		.toBeLessThan(2);
+	await expect(edit).toBeVisible();
+
+	// Past a third of its height: it closes like Cancel (focus back on Edit).
+	await page.mouse.move(first.x, first.y);
+	await page.mouse.down();
+	await slowly(first.x, first.y, first.y + first.box.height * 0.5);
+	await page.mouse.up();
+	await expect(edit).toHaveCount(0);
+	await expect(editButton).toBeFocused();
+
+	// A quick flick down closes it too.
+	const again = await open();
+	await page.mouse.move(again.x, again.y);
+	await page.mouse.down();
+	await page.mouse.move(again.x, again.y + 50, { steps: 3 });
+	await page.mouse.up();
+	await expect(edit).toHaveCount(0);
+
+	// Fields don't start a drag: a drag from the Display name field leaves it open.
+	await open();
+	const field = (await edit.getByLabel('Display name').boundingBox())!;
+	await page.mouse.move(field.x + 20, field.y + field.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(field.x + 20, field.y + 300, { steps: 3 });
+	await page.mouse.up();
+	await expect(edit).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(edit).toHaveCount(0);
+});

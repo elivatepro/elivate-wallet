@@ -134,4 +134,6 @@ switch on More, pressed states, tapped-item spinners and content-shaped outlines
 Slice 42 (Blueprint 42, Paper PN01–PN03): Web Push for "needs your action" tasks and the owner's
 income posted / withdrawal approved, completed or not approved (title and amount); offered after
 the install step, one switch per device in Profile & security; push ends with the session.
+Slice 43 (Blueprint 43, frontend only): every phone bottom sheet closes with a drag down
+(`sheetDrag`; grabber/header or top-scrolled content; not while busy).
 Next: set-based authorization reads.

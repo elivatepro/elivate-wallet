@@ -2,12 +2,14 @@
 	Confirm + PIN for Record income, Paper "App — Screens v4" J02: "Post ₦X?",
 	who it lands with, a To / Source / Receipts summary, the 4-digit PIN, Cancel
 	and Post income. Centered dialog on desktop, bottom sheet on mobile. While
-	posting it can't be dismissed (the attempt is in flight).
+	posting it can't be dismissed (the attempt is in flight), not even with a
+	drag down (Blueprint 43).
 -->
 <script lang="ts">
 	import { Dialog } from 'bits-ui';
 	import { busyLabel } from '#lib/ui/busy-label.js';
 	import PinField from '#lib/ui/auth/PinField.svelte';
+	import { sheetDrag } from '#lib/ui/sheet-drag.js';
 
 	let {
 		open = $bindable(false),
@@ -51,9 +53,17 @@
 			onEscapeKeydown={hold}
 			onInteractOutside={hold}
 		>
-			<form onsubmit={submit} novalidate>
-				<span class="handle" aria-hidden="true"></span>
-				<div class="head">
+			<form
+				onsubmit={submit}
+				novalidate
+				{@attach sheetDrag({
+					close: () => (open = false),
+					canClose: () => !busy,
+					panel: (form) => form.closest<HTMLElement>('.income-confirm') ?? form
+				})}
+			>
+				<span class="handle" aria-hidden="true" data-sheet-grab></span>
+				<div class="head" data-sheet-grab>
 					<Dialog.Title class="income-confirm-title">{title}</Dialog.Title>
 					<p class="lead" id="income-confirm-lead">{lead}</p>
 				</div>

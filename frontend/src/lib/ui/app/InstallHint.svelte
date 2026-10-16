@@ -1,12 +1,14 @@
 <!--
 	iOS "Add to Home Screen" hint, Paper "App — Screens v3" H08 (decision 36a).
 	Shown once in iOS Safari when the app is not already installed; "Got it"
-	remembers the dismissal on this device.
+	remembers the dismissal on this device. Blueprint 43: a drag down dismisses
+	it too (always a sheet, iPad included).
 -->
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import Share from '@lucide/svelte/icons/share';
 	import SquarePlus from '@lucide/svelte/icons/square-plus';
+	import { sheetDrag } from '#lib/ui/sheet-drag.js';
 
 	const DISMISSED_KEY = 'ew:pref:install-hint-dismissed';
 
@@ -51,10 +53,11 @@
 		onclick={(event) => {
 			if (event.target === dialog) dismiss();
 		}}
+		{@attach sheetDrag({ close: dismiss, active: () => true })}
 	>
 		<div class="inner">
-			<span class="grabber" aria-hidden="true"></span>
-			<div class="head">
+			<span class="grabber" aria-hidden="true" data-sheet-grab></span>
+			<div class="head" data-sheet-grab>
 				<span class="app-tile" aria-hidden="true"
 					><img src="/icons/mark.svg" alt="" width="30" height="30" /></span
 				>

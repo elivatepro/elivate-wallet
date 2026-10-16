@@ -11,6 +11,7 @@
 	  switches to a month-and-year view for long jumps.
 	- Days outside min/max can't be chosen; Today / Yesterday where allowed;
 	  Clear for optional fields.
+	- Blueprint 43: the phone sheet closes with a drag down (as Escape does).
 -->
 <script lang="ts" module>
 	let hydrated = false;
@@ -41,6 +42,7 @@
 		within,
 		type Day
 	} from './date-picker.js';
+	import { sheetDrag } from './sheet-drag.js';
 
 	let {
 		value = $bindable(''),
@@ -452,11 +454,12 @@
 		onclick={(event) => {
 			if (event.target === sheet) close();
 		}}
+		{@attach sheetDrag({ close: () => close() })}
 	>
 		<div class="dp-sheet-body">
-			<span class="dp-grip" aria-hidden="true"></span>
-			<h2 id={`${key}-title`}>{label}</h2>
-			<p class="dp-sub">{chosen ? shortLabel(chosen) : 'No date chosen'}</p>
+			<span class="dp-grip" aria-hidden="true" data-sheet-grab></span>
+			<h2 id={`${key}-title`} data-sheet-grab>{label}</h2>
+			<p class="dp-sub" data-sheet-grab>{chosen ? shortLabel(chosen) : 'No date chosen'}</p>
 			{@render calendar()}
 		</div>
 	</dialog>
