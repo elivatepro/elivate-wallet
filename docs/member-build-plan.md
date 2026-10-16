@@ -315,6 +315,11 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
   Light); the desktop account menu keeps Light / Dark / System. Loading feedback is "spin +
   outlines": a slow tap spins on the tapped item, slow pages show content-shaped outlines, no
   top progress bar. The Withdrawals banner is 200 px on phones with a 120 px Root.
+- **Push notifications (2026-10-16, Blueprint 42; Paper "Push notifications v13" PN01–PN03,
+  draft):** Web Push for "needs your action" tasks plus the owner's own income posted and
+  withdrawal approved / completed / not approved; the lock screen shows the title and amount
+  (P-06 limits, Hide amounts respected); offered after the install step and switchable per
+  device in Profile & security; email keeps no opt-out. Push ends with the session.
 - **Sequencing:** one slice at a time, each new slice in its own thread. Order: 4 → 5 → 8 →
   slice 9 follow-up (IP storage, signed-in password change, PIN-change email, sign-out
   choice after reset) → 6 → 7 → 10.

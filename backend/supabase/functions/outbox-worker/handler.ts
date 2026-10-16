@@ -4,12 +4,16 @@
 // batches, renders and sends each email, and reports the outcome per event.
 // When the email provider isn't configured it claims nothing, so deliveries
 // stay pending without burning attempts.
+// Blueprint 42: first a push pass (the bell's push jobs, kicked right after
+// the bell item commits), the same way: without VAPID keys it claims nothing.
 
 import { ApiError, failure, isErrorCode, success } from "../_shared/http.ts";
 import { renderEmail, TemplateError } from "../_shared/email/templates.ts";
 import type { EmailTransport, SendOutcome } from "../_shared/email/cloudflare.ts";
 import { joinLink } from "../_shared/invite_token.ts";
 import { sameSecret } from "../_shared/secret.ts";
+import { pushPayload, topicFor, urgencyFor } from "../_shared/push/text.ts";
+import type { PushDevice, PushOutcome, PushTransport } from "../_shared/push/webpush.ts";
 
 export type RpcResult =
   | { readonly data: unknown; readonly error: null }
@@ -29,6 +33,9 @@ export interface WorkerLogEntry {
   readonly template?: string;
   readonly outcome?: string;
   readonly providerStatus?: number | null;
+  readonly itemId?: string;
+  readonly kind?: string;
+  readonly devices?: number;
 }
 
 export interface EmailSetup {
@@ -38,12 +45,18 @@ export interface EmailSetup {
   readonly appOrigin: string;
 }
 
+export interface PushSetup {
+  readonly transport: PushTransport;
+}
+
 export interface Deps {
   rpc(fn: string, args: Record<string, unknown>): Promise<RpcResult>;
   /** OUTBOX_WORKER_SECRET; null when unset (then every call is refused). */
   readonly workerSecret: string | null;
   /** Null when the email provider isn't configured. */
   readonly email: EmailSetup | null;
+  /** Null (or absent) when the VAPID keys aren't configured. */
+  readonly push?: PushSetup | null;
   readonly workerId: string;
   log(entry: WorkerLogEntry): void;
   readonly batchSize?: number;
@@ -69,6 +82,59 @@ interface Claimed {
   readonly params: Record<string, unknown>;
   readonly to: string;
   readonly tokenId: string | null;
+}
+
+/** Blueprint 42: a push goes to each device at once, each bounded by 10 s. */
+const pushBatchSize = 5;
+const pushTtlSeconds = 12 * 60 * 60;
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+interface PushClaimed {
+  readonly itemId: string;
+  readonly leaseToken: string;
+  readonly kind: string;
+  readonly params: Record<string, unknown>;
+  readonly devices:
+    readonly (PushDevice & { readonly id: string; readonly hideAmounts: boolean })[];
+}
+
+function parsePushClaimed(data: unknown): PushClaimed[] {
+  if (!Array.isArray(data)) throw new Error("push_claim returned an unexpected result");
+  return data.map((item: unknown) => {
+    const r = item as Record<string, unknown>;
+    if (
+      typeof r !== "object" || r === null || typeof r.itemId !== "string" ||
+      !uuidPattern.test(r.itemId) || typeof r.leaseToken !== "string" ||
+      typeof r.kind !== "string" || typeof r.params !== "object" || r.params === null ||
+      Array.isArray(r.params) || !Array.isArray(r.devices) || r.devices.length > 10
+    ) {
+      throw new Error("push_claim returned an unexpected item");
+    }
+    const devices = r.devices.map((d: unknown) => {
+      const x = d as Record<string, unknown>;
+      if (
+        typeof x !== "object" || x === null || typeof x.id !== "string" ||
+        typeof x.endpoint !== "string" || typeof x.p256dh !== "string" ||
+        typeof x.auth !== "string" || typeof x.hideAmounts !== "boolean"
+      ) {
+        throw new Error("push_claim returned an unexpected device");
+      }
+      return {
+        id: x.id,
+        endpoint: x.endpoint,
+        p256dh: x.p256dh,
+        auth: x.auth,
+        hideAmounts: x.hideAmounts,
+      };
+    });
+    return {
+      itemId: r.itemId,
+      leaseToken: r.leaseToken,
+      kind: r.kind,
+      params: r.params as Record<string, unknown>,
+      devices,
+    };
+  });
 }
 
 function parseClaimed(data: unknown): Claimed[] {
@@ -169,6 +235,71 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
     return typeof status === "string" ? status : "unknown";
   }
 
+  async function pushOne(item: PushClaimed, push: PushSetup, requestId: string): Promise<string> {
+    const started = Date.now();
+    const results = await Promise.all(item.devices.map(async (device) => {
+      const sentAt = Date.now();
+      let outcome: PushOutcome;
+      try {
+        const payload = pushPayload(item.itemId, item.kind, item.params, device.hideAmounts);
+        outcome = payload === null
+          ? { outcome: "permanent_failure", providerStatus: null, errorCode: "push.unknown_kind" }
+          : await push.transport.send(device, {
+            payload,
+            ttl: pushTtlSeconds,
+            urgency: urgencyFor(item.kind),
+            topic: topicFor(item.itemId),
+          });
+      } catch {
+        outcome = { outcome: "permanent_failure", providerStatus: null, errorCode: "push.failed" };
+      }
+      return {
+        subscriptionId: device.id,
+        outcome: outcome.outcome,
+        providerStatus: outcome.providerStatus,
+        ...(outcome.outcome === "sent" ? {} : { errorCode: outcome.errorCode }),
+        latencyMs: Date.now() - sentAt,
+      };
+    }));
+    const report = await call("push_report", {
+      p_item_id: item.itemId,
+      p_lease_token: item.leaseToken,
+      p_results: results,
+    });
+    const status = (report as { status?: unknown } | null)?.status;
+    deps.log({
+      requestId,
+      route: "push",
+      itemId: item.itemId,
+      kind: item.kind,
+      devices: item.devices.length,
+      outcome: typeof status === "string" ? status : "unknown",
+      ms: Date.now() - started,
+    });
+    return typeof status === "string" ? status : "unknown";
+  }
+
+  async function pushPass(push: PushSetup, requestId: string, started: number) {
+    const counts: Record<string, number> = {};
+    let claimed = 0;
+    for (let batch = 0; batch < maxBatches && Date.now() - started < timeBudgetMs; batch++) {
+      const items = parsePushClaimed(
+        await call("push_claim", {
+          p_worker_id: deps.workerId,
+          p_batch_size: pushBatchSize,
+          p_lease_seconds: leaseSeconds,
+        }),
+      );
+      claimed += items.length;
+      for (const item of items) {
+        const status = await pushOne(item, push, requestId);
+        counts[status] = (counts[status] ?? 0) + 1;
+      }
+      if (items.length < pushBatchSize) break;
+    }
+    return { configured: true, claimed, results: counts };
+  }
+
   return async (request: Request): Promise<Response> => {
     const started = Date.now();
     const requestId = crypto.randomUUID();
@@ -196,10 +327,13 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
       }
 
       const maintenance = await call("outbox_run_maintenance", {});
+      const push = deps.push
+        ? await pushPass(deps.push, requestId, started)
+        : { configured: false, claimed: 0 };
       if (!deps.email) {
         const message = "email provider not configured";
         return finish(
-          success({ configured: false, message, maintenance, claimed: 0 }, requestId),
+          success({ configured: false, message, maintenance, claimed: 0, push }, requestId),
           undefined,
           message,
         );
@@ -223,7 +357,7 @@ export function createHandler(deps: Deps): (request: Request) => Promise<Respons
         if (items.length < batchSize) break;
       }
       return finish(
-        success({ configured: true, maintenance, claimed, results: counts }, requestId),
+        success({ configured: true, maintenance, claimed, results: counts, push }, requestId),
       );
     } catch (error) {
       if (error instanceof ApiError) {
