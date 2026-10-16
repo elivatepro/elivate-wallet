@@ -4,7 +4,8 @@
 	grain band holding the title and its own Root pose; mobile is a bottom sheet
 	with Root peeking above it. Extra fields come in as children; a reason
 	(3–500) and the 4-digit PIN (step-up, A-05) are built in. Bits UI Dialog:
-	focus is trapped and returns to the trigger.
+	focus is trapped and returns to the trigger. Blueprint 43: on phones the
+	sheet closes with a drag down (not while busy).
 -->
 <script lang="ts">
 	import { enterMovesOn } from '#lib/ui/enter-moves-on.js';
@@ -13,6 +14,7 @@
 	import { busyLabel } from '#lib/ui/busy-label.js';
 	import PinField from '#lib/ui/auth/PinField.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
+	import { sheetDrag } from '#lib/ui/sheet-drag.js';
 	import type { RootPose } from '#lib/ui/root.svelte.js';
 
 	let {
@@ -91,8 +93,18 @@
 		<Dialog.Overlay class="org-scrim" />
 		<Dialog.Content class={wide ? 'org-dialog wide' : 'org-dialog'}>
 			<RootImage {pose} class="org-dialog-peek" sizes="120px" />
-			<form class="org-form" onsubmit={submit} novalidate {@attach enterMovesOn}>
-				<header class="org-band">
+			<form
+				class="org-form"
+				onsubmit={submit}
+				novalidate
+				{@attach enterMovesOn}
+				{@attach sheetDrag({
+					close: () => (open = false),
+					canClose: () => !busy,
+					panel: (form) => form.closest<HTMLElement>('.org-dialog') ?? form
+				})}
+			>
+				<header class="org-band" data-sheet-grab>
 					<div class="org-shade" aria-hidden="true"></div>
 					<RootImage {pose} class="org-dialog-root" sizes="140px" />
 					<span class="org-handle" aria-hidden="true"></span>

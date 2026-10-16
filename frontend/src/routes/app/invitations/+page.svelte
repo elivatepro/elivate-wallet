@@ -55,6 +55,7 @@
 	import SeatLimitDialog from '#lib/ui/app/SeatLimitDialog.svelte';
 	import TeamLinkCard from '#lib/ui/app/TeamLinkCard.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
+	import { sheetDrag } from '#lib/ui/sheet-drag.js';
 
 	const shell = getContext<Shell>('shell');
 	const STATUS_ICONS = { pending: Clock, accepted: CircleCheck, expired: TimerOff, revoked: Ban };
@@ -563,11 +564,16 @@
 <Dialog.Root bind:open={sheetOpen}>
 	<Dialog.Portal>
 		<Dialog.Overlay class="confirm-overlay" />
-		<Dialog.Content class="confirm-dialog invite-sheet">
-			<span class="handle" aria-hidden="true"></span>
+		<Dialog.Content
+			class="confirm-dialog invite-sheet"
+			{@attach sheetDrag({ close: () => (sheetOpen = false) })}
+		>
+			<span class="handle" aria-hidden="true" data-sheet-grab></span>
 			{#if sheetTarget}
-				<Dialog.Title class="sheet-title">{sheetTarget.email}</Dialog.Title>
-				<Dialog.Description class="sheet-meta">{describe(sheetTarget)}</Dialog.Description>
+				<Dialog.Title class="sheet-title" data-sheet-grab>{sheetTarget.email}</Dialog.Title>
+				<Dialog.Description class="sheet-meta" data-sheet-grab
+					>{describe(sheetTarget)}</Dialog.Description
+				>
 				<div class="sheet-actions">
 					{#if rowActions(sheetTarget).resend}
 						<button type="button" class="sheet-row" onclick={() => fromSheet(resend)}>

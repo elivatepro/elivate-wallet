@@ -212,6 +212,16 @@ input {
 	}
 }
 
+/*
+ * Blueprint 43: a bottom sheet's grabber and header take a drag down
+ * (`sheetDrag` in #lib/ui/sheet-drag.ts), so the browser doesn't pan there.
+ */
+@media (max-width: 1023.98px) {
+	[data-sheet-grab] {
+		touch-action: none;
+	}
+}
+
 /* Reduced motion: the spinner turns slowly instead of not at all (it still means
    "working"); the outlines stay still. */
 @media (prefers-reduced-motion: reduce) {
