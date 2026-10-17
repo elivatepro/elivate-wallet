@@ -5,6 +5,8 @@
 	stage with Root, then title, lead, actions and a mono footnote. Mobile: a
 	full-height screen with Root on the page grain and the actions at the
 	bottom, primary first.
+	Blueprint 46: money refusals pass no pose; there is no stage and the
+	message moves up. Successes keep their Root.
 -->
 <script lang="ts">
 	import type { Snippet } from 'svelte';
@@ -20,7 +22,8 @@
 		alert,
 		actions
 	}: {
-		pose: RootPose;
+		/** Blueprint 46: omit for refusals (no Root, no stage). */
+		pose?: RootPose | null;
 		title: string;
 		lead: string;
 		footnote?: string | null;
@@ -31,13 +34,15 @@
 	} = $props();
 </script>
 
-<section class="outcome" aria-labelledby="outcome-title">
+<section class="outcome" class:bare={!pose} aria-labelledby="outcome-title">
 	<div class="grain" aria-hidden="true"></div>
-	<div class="stage" aria-hidden="true">
-		<div class="shade"></div>
-		<div class="stage-grain"></div>
-		<RootImage {pose} class="stage-root" sizes="(min-width: 1024px) 190px, 210px" eager />
-	</div>
+	{#if pose}
+		<div class="stage" aria-hidden="true">
+			<div class="shade"></div>
+			<div class="stage-grain"></div>
+			<RootImage {pose} class="stage-root" sizes="(min-width: 1024px) 190px, 210px" eager />
+		</div>
+	{/if}
 	<div class="message">
 		{#if chip}<span class="chip">{chip}</span>{/if}
 		<h1 id="outcome-title" class="title">{title}</h1>
@@ -100,6 +105,10 @@
 		gap: 10px;
 		padding: 24px 28px 0;
 		text-align: center;
+	}
+
+	.outcome.bare .message {
+		padding-top: 64px;
 	}
 
 	.chip {
@@ -252,7 +261,8 @@
 			height: 256px;
 		}
 
-		.message {
+		.message,
+		.outcome.bare .message {
 			padding: 0;
 		}
 

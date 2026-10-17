@@ -1,6 +1,7 @@
 <!--
 	Export report on mobile (Paper S06, with S13d's three formats): the same
 	choices as the desktop dialog, then the workspace's recent reports.
+	Blueprint 46: no Root stage; the form leads.
 -->
 <script lang="ts">
 	import { enterMovesOn } from '#lib/ui/enter-moves-on.js';
@@ -20,7 +21,6 @@
 	import ExportReportForm from '#lib/ui/exports/ExportReportForm.svelte';
 	import FileList from '#lib/ui/exports/FileList.svelte';
 	import ReportDownload from '#lib/ui/exports/ReportDownload.svelte';
-	import RootImage from '#lib/ui/RootImage.svelte';
 	import '#lib/ui/exports/exports.css';
 
 	const shell = getContext<Shell>('shell');
@@ -54,7 +54,6 @@
 		part: () => overviewPart(currency, thisMonth),
 		load: () => readOverview(currency, thisMonth)
 	});
-	const scopeName = $derived(figures.data?.scope.name ?? '');
 	const scopeKind = $derived<'office' | 'network'>(figures.data?.scope.kind ?? 'office');
 	const currencies = $derived<readonly Currency[]>(figures.data?.currencies ?? ['NGN', 'USD']);
 	const recent = cachedPage(shell, { kind: 'reports', part: () => 'files', load: readReports });
@@ -102,11 +101,6 @@
 
 <form class="page" onsubmit={submit} {@attach enterMovesOn}>
 	<CacheNote savedAt={recent.savedAt} online={shell.online} failed={recent.error !== null} />
-	<section class="stage" aria-hidden="true">
-		<div class="stage-shade"></div>
-		<RootImage pose="export-mobile" class="stage-root" sizes="116px" eager />
-		<p class="stage-title">{scopeName ? `${scopeName} report` : 'Report'}</p>
-	</section>
 
 	<ExportReportForm
 		{scopeKind}
@@ -161,47 +155,6 @@
 		gap: 22px;
 		padding: 8px 20px 40px;
 		max-width: 560px;
-	}
-
-	.stage {
-		position: relative;
-		display: flex;
-		align-items: flex-end;
-		height: 150px;
-		padding: 20px;
-		overflow: clip;
-		border: 1px solid #ffffff14;
-		border-radius: 20px;
-		background: #1a1d1e url('/auth-bg/mobile-dark.jpg') 60% 30% / cover;
-		isolation: isolate;
-	}
-
-	.stage-shade {
-		position: absolute;
-		inset: 0;
-		background-image: linear-gradient(
-			in oklab 90deg,
-			oklab(21.5% -0.004 -0.003 / 92%) 0%,
-			oklab(21.5% -0.004 -0.003 / 50%) 55%,
-			oklab(21.5% -0.004 -0.003 / 0%) 100%
-		);
-	}
-
-	.stage :global(.stage-root) {
-		position: absolute;
-		right: 14px;
-		bottom: -8px;
-		width: 116px;
-		height: 156px;
-	}
-
-	.stage-title {
-		position: relative;
-		max-width: 200px;
-		color: #f2f4f4;
-		font-size: 20px;
-		font-weight: var(--font-weight-semibold);
-		line-height: 26px;
 	}
 
 	.recent {

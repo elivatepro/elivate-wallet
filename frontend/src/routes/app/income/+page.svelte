@@ -73,7 +73,6 @@
 	import IncomeConfirm from '#lib/ui/income/IncomeConfirm.svelte';
 	import Outcome from '#lib/ui/app/Outcome.svelte';
 	import MemberPicker from '#lib/ui/income/MemberPicker.svelte';
-	import RootImage from '#lib/ui/RootImage.svelte';
 	import WheelPicker from '#lib/ui/WheelPicker.svelte';
 
 	const shell = getContext<Shell>('shell');
@@ -686,7 +685,6 @@
 	</Outcome>
 {:else if phase === 'unknown' && pending && attempt}
 	<Outcome
-		pose="income-checking"
 		title="Checking what happened"
 		lead={`We’re confirming the ${formatMoney(pending.amount, pending.currency)} income for ${firstOf(attempt.target.name) ?? attempt.target.uid}. Don’t record it again.`}
 		footnote={`Sent ${formatSent(attempt.savedAt)}`}
@@ -714,7 +712,7 @@
 		{/snippet}
 	</Outcome>
 {:else if phase === 'refused' && refusal}
-	<Outcome pose="income-refused" title="Couldn’t record this income" lead={refusal.lead}>
+	<Outcome title="Couldn’t record this income" lead={refusal.lead}>
 		{#snippet actions()}
 			{#if refusal?.aboutTarget}
 				<button type="button" class="out-ghost" onclick={backToForm}>Back to the form</button>
@@ -990,11 +988,6 @@
 						disabled={!shell.canAct || shell.paused('income') || !view.fresh}
 						>Review and post</button
 					>
-				</div>
-				<div class="stage" aria-hidden="true">
-					<div class="shade"></div>
-					<div class="stage-grain"></div>
-					<RootImage pose="income-abacus" class="stage-root" sizes="176px" />
 				</div>
 			</aside>
 		</fieldset>
@@ -1749,46 +1742,6 @@
 			height: 50px;
 			font-size: 15px;
 			line-height: 18px;
-		}
-
-		.stage {
-			position: relative;
-			display: flex;
-			flex-shrink: 0;
-			justify-content: center;
-			height: 220px;
-			overflow: clip;
-			background: var(--color-surface) url('/root/stage.webp') 50% / cover;
-		}
-
-		.shade {
-			position: absolute;
-			inset: 0;
-			background: linear-gradient(
-				in oklab 180deg,
-				oklab(21.5% -0.004 -0.003 / 0%) 30%,
-				oklab(21.5% -0.004 -0.003 / 85%) 100%
-			);
-		}
-
-		.stage-grain {
-			position: absolute;
-			inset: 0;
-			/* Blueprint 20 B8: the 128 px tile, four times, fills the same centred 256 px square. */
-			background:
-				url('/auth-bg/grain-128.webp') calc(50% - 64px) calc(50% - 64px) / 128px 128px no-repeat,
-				url('/auth-bg/grain-128.webp') calc(50% + 64px) calc(50% - 64px) / 128px 128px no-repeat,
-				url('/auth-bg/grain-128.webp') calc(50% - 64px) calc(50% + 64px) / 128px 128px no-repeat,
-				url('/auth-bg/grain-128.webp') calc(50% + 64px) calc(50% + 64px) / 128px 128px no-repeat;
-			mix-blend-mode: overlay;
-			opacity: 0.25;
-		}
-
-		.stage :global(.stage-root) {
-			position: absolute;
-			bottom: -10px;
-			width: 176px;
-			height: 236px;
 		}
 
 		.panel {

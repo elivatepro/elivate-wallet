@@ -924,10 +924,12 @@
 				{:else if pausedHere && summary}
 					<PausedView network={summary.tenantName} canPay={billing} />
 				{:else if officesBlocked}
-					<!-- Slice 28: offices are run by the President Team and World Team. -->
+					<!-- Slice 28: offices are run by the President Team and World Team.
+					     Blueprint 46: blocked money and record pages show no Root. -->
 					<NoAccess
 						title="Not available for your role"
 						lead="Offices are managed by the President Team and World Team."
+						plain
 					/>
 				{:else if ownBlocked}
 					<!-- Slice 21: an own-money page in a workspace that holds no wallet. -->
@@ -936,6 +938,7 @@
 						lead="This page is for your own wallet. {summary
 							? ROLE_LABELS[summary.role]
 							: 'This role'} doesn’t hold one in this workspace."
+						plain
 					/>
 				{:else if slowNav}
 					<PageFrame title={pageTitle} />

@@ -162,7 +162,6 @@ end $$`);
 	await page.goto('/app/statements');
 	await expect(page.getByRole('button', { name: 'Recreate' })).toBeVisible();
 	await expect(page.getByText('Too large', { exact: true })).toBeVisible();
-	await expect(page.getByText('That’s a big one')).toHaveCount(0);
 	await shot(page, 'S11d-statement-file-states');
 
 	await page.setViewportSize(MOBILE);

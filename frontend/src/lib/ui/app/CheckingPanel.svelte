@@ -1,12 +1,11 @@
 <!--
 	"Checking" screen, Paper "App — Screens v1" B16/B16d and "App — Screens v4"
-	J04 (income): Root with the pocket watch, title, lead, two actions and a
-	mono footnote. Presentational; OutcomeUnknown and the income page fill it.
+	J04 (income): title, lead, two actions and a mono footnote. Blueprint 46:
+	no Root while money is pending (the pocket-watch stage is gone). Presentational; OutcomeUnknown and the income page fill it.
 	On desktop the actions sit side by side with the primary on the right.
 -->
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import RootImage from '#lib/ui/RootImage.svelte';
 
 	let {
 		title,
@@ -27,11 +26,6 @@
 </script>
 
 <section class="outcome" aria-live="polite" aria-busy={busy}>
-	<div class="art" aria-hidden="true">
-		<div class="shade"></div>
-		<div class="grain"></div>
-		<RootImage pose="checking" class="art-root" sizes="(min-width: 1024px) 190px, 210px" eager />
-	</div>
 	<div class="text">
 		<h1 class="title" tabindex="-1">{title}</h1>
 		<p class="lead">{lead}</p>
@@ -48,26 +42,8 @@
 		flex-direction: column;
 		align-items: center;
 		gap: 24px;
-		padding-top: 40px;
+		padding-top: 64px;
 		text-align: center;
-	}
-
-	.art {
-		position: relative;
-		display: flex;
-		justify-content: center;
-		width: 210px;
-		height: 284px;
-	}
-
-	.shade,
-	.grain {
-		display: none;
-	}
-
-	.art :global(.art-root) {
-		width: 210px;
-		height: 284px;
 	}
 
 	.text {
@@ -144,42 +120,6 @@
 		.outcome {
 			gap: 28px;
 			padding: 40px 0 24px;
-		}
-
-		.art {
-			width: 640px;
-			height: 250px;
-			overflow: clip;
-			border-radius: 28px;
-			background: #1a1d1e url('/auth-bg/mobile-dark.jpg') 50% / cover;
-		}
-
-		.shade,
-		.grain {
-			position: absolute;
-			inset: 0;
-			display: block;
-		}
-
-		.shade {
-			background-image: linear-gradient(
-				in oklab 180deg,
-				oklab(21.5% -0.004 -0.003 / 0%) 30%,
-				oklab(21.5% -0.004 -0.003 / 85%) 100%
-			);
-		}
-
-		.grain {
-			background: url('/auth-bg/grain-128.webp') 50% / 128px 128px;
-			mix-blend-mode: overlay;
-			opacity: 0.25;
-		}
-
-		.art :global(.art-root) {
-			position: absolute;
-			bottom: -10px;
-			width: 190px;
-			height: 256px;
 		}
 
 		.title {

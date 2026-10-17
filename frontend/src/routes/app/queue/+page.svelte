@@ -162,6 +162,7 @@
 	const hero = $derived.by(() => {
 		if (!counts) return null;
 		// Paper v4 U04–U06: the selected withdrawal's state comes first.
+		// Blueprint 46: Root only on the paid-out success; the other cards have none.
 		if (detail?.status === 'completed') {
 			return {
 				pose: 'payout-done' as const,
@@ -171,7 +172,6 @@
 		}
 		if (detail?.status === 'approved' && detail.payout?.status === 'rejected') {
 			return {
-				pose: 'income-refused' as const,
 				title: 'A reviewer rejected the receipt',
 				lead: `${formatMoney(detail.reserved, 'NGN')} stays reserved. Record it again or cancel.`
 			};
@@ -182,28 +182,24 @@
 			checkDelayed(currentRevision(detail.payout))
 		) {
 			return {
-				pose: 'load-error' as const,
 				title: 'We couldn’t read a receipt yet',
 				lead: 'We’ll keep trying. It doesn’t use your one fix.'
 			};
 		}
 		if (tab === 'action' && correcting) {
 			return {
-				pose: 'queue-correction' as const,
 				title: 'One receipt didn’t match',
 				lead: 'You can fix it once before it goes to review'
 			};
 		}
 		if (tab === 'action' && counts.action > 0) {
 			return {
-				pose: 'queue' as const,
 				title: `${counts.action} ${counts.action === 1 ? 'request' : 'requests'} waiting on you`,
 				lead: `${formatMoney(page?.reserved ?? '0', 'NGN')} reserved across them`
 			};
 		}
 		if (tab === 'verifying' && counts.verifying > 0) {
 			return {
-				pose: 'queue-checking' as const,
 				title: `Checking ${counts.verifying} ${counts.verifying === 1 ? 'receipt' : 'receipts'}`,
 				lead: 'The amounts stay reserved until they match'
 			};
@@ -215,7 +211,7 @@
 <svelte:head><title>Withdrawal queue · Elivate Wallet</title></svelte:head>
 
 {#if denied}
-	<NoAccess lead={loadError ?? undefined} />
+	<NoAccess lead={loadError ?? undefined} plain />
 {:else}
 	<div class="mm-page">
 		<QueueTabs {tabs} bind:value={tab} label="Withdrawal queue" />
@@ -272,7 +268,13 @@
 						{/if}
 					{/if}
 					{#if hero}
-						<RootHero pose={hero.pose} title={hero.title} lead={hero.lead} headingLevel={2} card />
+						<RootHero
+							pose={'pose' in hero ? hero.pose : null}
+							title={hero.title}
+							lead={hero.lead}
+							headingLevel={2}
+							card
+						/>
 					{:else if tab === 'action'}
 						<div class="mm-card info">
 							<p class="mm-box-title">Approving doesn’t move money</p>

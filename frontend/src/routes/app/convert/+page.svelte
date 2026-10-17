@@ -50,7 +50,6 @@
 	import MemberPicker from '#lib/ui/income/MemberPicker.svelte';
 	import EvidencePicker from '#lib/ui/money/EvidencePicker.svelte';
 	import WheelPicker from '#lib/ui/WheelPicker.svelte';
-	import RootImage from '#lib/ui/RootImage.svelte';
 	import '#lib/ui/money/entry.css';
 	import NoAccess from '#lib/ui/app/NoAccess.svelte';
 
@@ -393,7 +392,7 @@
 	</header>
 	<div class="en-page">
 		{#if denied}
-			<NoAccess lead={loadError ?? undefined} headingLevel={2} />
+			<NoAccess lead={loadError ?? undefined} headingLevel={2} plain />
 		{:else if loadError}
 			<p class="mm-empty" role="alert">{loadError}</p>
 		{:else}
@@ -636,11 +635,6 @@
 							>
 						</div>
 					</div>
-					<div class="en-art en-desktop-only" aria-hidden="true">
-						<div class="en-art-shade"></div>
-						<div class="en-art-grain"></div>
-						<RootImage pose="convert" class="en-art-root" sizes="160px" />
-					</div>
 				</aside>
 			</form>
 		{/if}
@@ -649,7 +643,6 @@
 
 <RootDialog
 	bind:open={pinOpen}
-	pose="convert"
 	title="Confirm with your PIN"
 	summary={source && amount && received && destination
 		? `${money(amount, source.currency)} → ${money(received, destination)}, sent for review`

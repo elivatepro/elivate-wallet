@@ -43,7 +43,6 @@
 	import RootDialog from '#lib/ui/account/RootDialog.svelte';
 	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import { setReplaceIntent } from '#lib/client/replace-intent.js';
-	import RootImage from '#lib/ui/RootImage.svelte';
 
 	const shell = getContext<Shell>('shell');
 
@@ -182,12 +181,6 @@
 	<section class="hero" aria-labelledby="payout-heading">
 		<div class="shade" aria-hidden="true"></div>
 		<div class="grain" aria-hidden="true"></div>
-		<RootImage
-			pose="payout-accounts"
-			class="hero-root"
-			sizes="(min-width: 1024px) 176px, 112px"
-			eager
-		/>
 		<div class="hero-text">
 			<h1 id="payout-heading">Where your money lands</h1>
 			<p>Withdrawals go to your primary account.</p>
@@ -327,7 +320,6 @@
 		<!-- Paper "App — Screens v4" Z05 (replace) / Z06 (remove): reason + PIN. -->
 		<RootDialog
 			bind:open={dialogOpen}
-			pose={pending.kind === 'replace' ? 'dialog-replace' : 'dialog-remove'}
 			title={`${pending.kind === 'replace' ? 'Replace' : 'Remove'} ${accountTitle(pending.account)}`}
 			summary={pending.kind === 'replace'
 				? 'You’ll look up the new account next'
@@ -352,13 +344,12 @@
 		gap: 20px;
 	}
 
-	/* Hero: the BalanceCard recipe (dark in both themes). */
+	/* Hero: the BalanceCard recipe (dark in both themes). Blueprint 46: no Root beside money. */
 	.hero {
 		position: relative;
 		display: flex;
 		flex-direction: column;
 		justify-content: flex-end;
-		height: 150px;
 		padding: 20px;
 		overflow: clip;
 		border: 1px solid #ffffff14;
@@ -395,17 +386,8 @@
 		opacity: 0.25;
 	}
 
-	.hero :global(.hero-root) {
-		position: absolute;
-		right: 18px;
-		bottom: -10px;
-		width: 112px;
-		height: 150px;
-	}
-
 	.hero-text {
 		position: relative;
-		max-width: 190px;
 	}
 
 	h1 {
@@ -634,7 +616,6 @@
 		.hero {
 			justify-content: space-between;
 			gap: 24px;
-			height: 220px;
 			padding: 32px;
 			border-radius: var(--radius-24);
 		}
@@ -648,18 +629,10 @@
 			);
 		}
 
-		.hero :global(.hero-root) {
-			right: 56px;
-			bottom: -14px;
-			width: 176px;
-			height: 236px;
-		}
-
 		.hero-text {
 			display: flex;
 			flex-direction: column;
 			gap: 8px;
-			max-width: none;
 		}
 
 		h1 {

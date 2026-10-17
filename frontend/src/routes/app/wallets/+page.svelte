@@ -28,7 +28,6 @@
 	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import CurrencySwitch from '#lib/ui/app/CurrencySwitch.svelte';
 	import RootHero from '#lib/ui/app/RootHero.svelte';
-	import RootImage from '#lib/ui/RootImage.svelte';
 
 	const shell = getContext<Shell>('shell');
 	/** Navigation hints only; the backend authorizes every command. */
@@ -195,11 +194,10 @@
 
 <svelte:head><title>Member wallets · Elivate Wallet</title></svelte:head>
 
-{#snippet hero(pose: 'member-wallets' | 'member-wallet', title: string, line: string)}
+{#snippet hero(title: string, line: string)}
 	<section class="hero" aria-labelledby="hero-title">
 		<div class="hero-shade" aria-hidden="true"></div>
 		<div class="hero-grain" aria-hidden="true"></div>
-		<RootImage {pose} class="hero-root" sizes="180px" eager />
 		<div class="hero-text">
 			<h1 id="hero-title" tabindex="-1">{title}</h1>
 			{#if line}<p>{line}</p>{/if}
@@ -222,17 +220,16 @@
 		><ChevronLeft size={18} strokeWidth={2} aria-hidden="true" />Member wallets</a
 	>
 	{#if viewError}
-		<RootHero pose="load-error" title="Couldn’t load this wallet" lead={viewError} compact />
+		<RootHero title="Couldn’t load this wallet" lead={viewError} compact />
 	{:else if !view}
 		<div class="skeleton" aria-hidden="true"></div>
 		<p class="visually-hidden" role="status">Loading the wallet</p>
 	{:else}
-		<div class="desktop-only">{@render hero('member-wallet', name, subtitle)}</div>
+		<div class="desktop-only">{@render hero(name, subtitle)}</div>
 
 		<!-- Q05 mobile hero card -->
 		<section class="card-hero mobile-only" aria-label="{name}: available">
 			<div class="ch-shade" aria-hidden="true"></div>
-			<RootImage pose="member-wallet" class="ch-root" sizes="110px" eager />
 			<div class="ch-top">
 				<span class="ch-label">{firstName} · available</span>
 				{#if currencies.length > 1 && currency}
@@ -355,7 +352,6 @@
 	{#if list}
 		<div class="list-hero">
 			{@render hero(
-				'member-wallets',
 				`${list.people ?? items.length} ${(list.people ?? items.length) === 1 ? 'person' : 'people'}`,
 				scopeLine
 			)}
@@ -482,13 +478,12 @@
 		background: var(--color-surface);
 	}
 
-	/* ── Hero (Q04 / Q05) ── */
+	/* ── Hero (Q04 / Q05). Blueprint 46: no Root beside money; the card fits its text. ── */
 	.hero {
 		position: relative;
 		display: flex;
 		flex-direction: column;
 		justify-content: flex-start;
-		height: 156px;
 		padding: 20px;
 		overflow: clip;
 		border: 1px solid #ffffff14;
@@ -518,20 +513,11 @@
 		opacity: 0.25;
 	}
 
-	.hero :global(.hero-root) {
-		position: absolute;
-		right: 16px;
-		bottom: -12px;
-		width: 110px;
-		height: 148px;
-	}
-
 	.hero-text {
 		position: relative;
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
-		max-width: 60%;
 	}
 
 	.hero-text h1 {
@@ -717,14 +703,6 @@
 			oklab(21.5% -0.004 -0.003 / 70%) 60%,
 			oklab(21.5% -0.004 -0.003 / 20%) 100%
 		);
-	}
-
-	.card-hero :global(.ch-root) {
-		position: absolute;
-		right: -4px;
-		bottom: -12px;
-		width: 110px;
-		height: 148px;
 	}
 
 	.ch-top {
@@ -956,17 +934,8 @@
 		}
 
 		.hero {
-			justify-content: space-between;
-			height: 220px;
 			padding: 32px;
 			border-radius: 24px;
-		}
-
-		.hero :global(.hero-root) {
-			right: 64px;
-			bottom: -14px;
-			width: 180px;
-			height: 242px;
 		}
 
 		.hero-text h1 {

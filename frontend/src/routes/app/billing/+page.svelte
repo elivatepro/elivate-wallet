@@ -267,12 +267,7 @@
 	{:else if !view}
 		<div class="o-skeleton" aria-hidden="true"></div>
 	{:else}
-		<OrgHero
-			id="billing-title"
-			pose={view.status === 'paused' ? 'dialog-sign-out' : 'income-abacus'}
-			title={heroTitle}
-			line={heroLine}
-		>
+		<OrgHero id="billing-title" title={heroTitle} line={heroLine}>
 			{#snippet eyebrow()}
 				<span class="chip" data-tone={chip?.tone}>{chip?.label}</span>
 				<span>{view?.plan.name} · yearly</span>
@@ -428,7 +423,6 @@
 {#if view && facts}
 	<OrgDialog
 		bind:open={upgradeOpen}
-		pose="upgrade"
 		title={atCap ? `${view.network} is full` : 'Move up a plan'}
 		subtitle={atCap
 			? 'Move up a plan to keep adding people'
@@ -463,7 +457,6 @@
 {#if view}
 	<OrgDialog
 		bind:open={ownerOpen}
-		pose="dialog-replace"
 		title="Change Billing Owner"
 		subtitle={`Pick an active member of ${view.network}`}
 		confirmLabel={pickedPerson ? `Make ${firstName(pickedPerson)} Billing Owner` : 'Choose someone'}
@@ -508,7 +501,6 @@
 
 	<OrgDialog
 		bind:open={renewalOpen}
-		pose="upgrade"
 		title="Renewal"
 		subtitle="Your card is charged a day before the year ends"
 		confirmLabel="Save"

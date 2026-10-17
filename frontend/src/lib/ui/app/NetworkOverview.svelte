@@ -217,14 +217,9 @@
 	<div class="skeleton" aria-hidden="true"></div>
 	<p class="visually-hidden" role="status">Loading the overview</p>
 {:else if denied && !view}
-	<NoAccess lead="This workspace has no team overview." />
+	<NoAccess plain lead="This workspace has no team overview." />
 {:else if !view}
-	<RootHero
-		pose="load-error"
-		title="Couldn’t load the overview"
-		lead={overview.error ?? ''}
-		compact
-	/>
+	<RootHero title="Couldn’t load the overview" lead={overview.error ?? ''} compact />
 {:else}
 	<div class="overview">
 		<header class="head">

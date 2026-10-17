@@ -369,14 +369,11 @@
 		<p class="mm-ref sent-ref">Reference {result.reference}</p>
 	</section>
 {:else if denied}
-	<NoAccess lead={loadError ?? undefined} />
+	<NoAccess lead={loadError ?? undefined} plain />
 {:else if blocked}
-	<!-- Blueprint 44 (D3): one open withdrawal at a time; no form to fill first. -->
+	<!-- Blueprint 44 (D3): one open withdrawal at a time; no form to fill first.
+	     Blueprint 46: a refusal, so no Root. -->
 	<section class="sent blocked">
-		<div class="sent-hero">
-			<div class="shade" aria-hidden="true"></div>
-			<RootImage pose="withdrawal-sent" class="sent-root" sizes="190px" eager />
-		</div>
 		<h1 class="mm-title" tabindex="-1">
 			{blocking
 				? stillOpenLine(blocking.amount, shell.hideAmounts)
@@ -675,10 +672,6 @@
 							>
 						</div>
 					</form>
-					<div class="art" aria-hidden="true">
-						<div class="shade"></div>
-						<RootImage pose="withdraw" class="art-root" sizes="300px" eager />
-					</div>
 				{:else if source && amount && account && !wide.current}
 					<!-- Paper M10: the amount, then where it goes; the PIN sheet confirms. -->
 					<section class="m10" aria-label="Review your withdrawal">
@@ -796,13 +789,7 @@
 						</div>
 					</section>
 					<aside class="mm-card next">
-						<div class="next-head">
-							<RootImage pose="withdraw" class="next-root" sizes="56px" />
-							<div>
-								<p class="mm-box-title">What happens next</p>
-								<p class="mm-box-sub">Root walks you through it.</p>
-							</div>
-						</div>
+						<p class="mm-box-title">What happens next</p>
 						<ol class="next-list">
 							<li>
 								Submitting reserves the amount in {source.pocket.name} straight away, so it can't be spent
@@ -847,28 +834,10 @@
 		min-width: 0;
 	}
 
-	.art {
-		position: relative;
-		display: none;
-		overflow: clip;
-		border: 1px solid #ffffff14;
-		border-radius: var(--radius-24);
-		background: #1a1d1e url('/auth-bg/desktop-dark.jpg') 70% 40% / cover;
-	}
-
-	.art .shade,
 	.sent-hero .shade {
 		position: absolute;
 		inset: 0;
 		background: linear-gradient(90deg, #111314e0 0%, #11131400 70%);
-	}
-
-	.art :global(.art-root) {
-		position: absolute;
-		right: 20px;
-		bottom: -10px;
-		width: 300px;
-		height: 400px;
 	}
 
 	.bank {
@@ -929,17 +898,6 @@
 
 	.next {
 		gap: 16px;
-	}
-
-	.next-head {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-	}
-
-	.next-head :global(.next-root) {
-		width: 56px;
-		height: 75px;
 	}
 
 	.next-list {
@@ -1012,6 +970,10 @@
 	.sent-ref {
 		font-family: var(--font-mono);
 		font-size: 12px;
+	}
+
+	.blocked {
+		padding-top: 48px;
 	}
 
 	.blocked .mm-title {
@@ -1432,10 +1394,9 @@
 			align-items: stretch;
 		}
 
-		.art {
-			display: block;
-			width: 360px;
-			flex-shrink: 0;
+		/* Blueprint 46: no Root beside money; the amount form keeps a readable width. */
+		.layout > form.mm-card {
+			max-width: 720px;
 		}
 
 		.next {

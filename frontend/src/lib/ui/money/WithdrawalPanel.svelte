@@ -51,7 +51,6 @@
 		withinRequested
 	} from '#lib/withdrawals.js';
 	import RootDialog from '#lib/ui/account/RootDialog.svelte';
-	import type { RootPose } from '#lib/ui/root.svelte.js';
 	import Pill from './Pill.svelte';
 
 	let {
@@ -141,12 +140,11 @@
 	let pinTitle = $state('');
 	let pinSummary = $state('');
 	let pinLabel = $state('Confirm');
-	let pinPose = $state<RootPose>('payout-reveal');
 	let pending: ((pin: string | undefined) => Promise<void>) | null = null;
 
 	/** Runs `run` without a PIN; on step_up_required asks for it and runs again. */
 	async function withStepUp(
-		copy: { title: string; summary: string; label: string; pose?: RootPose },
+		copy: { title: string; summary: string; label: string },
 		run: (pin: string | undefined) => Promise<ApiFailure | null>
 	) {
 		error = null;
@@ -159,7 +157,6 @@
 			pinTitle = copy.title;
 			pinSummary = copy.summary;
 			pinLabel = copy.label;
-			pinPose = copy.pose ?? 'queue';
 			pinError = null;
 			pending = async (pin) => {
 				busy = true;
@@ -262,8 +259,7 @@
 			{
 				title: 'Show account number',
 				summary: 'Only you see it. It hides again when you leave',
-				label: 'Show number',
-				pose: 'payout-reveal'
+				label: 'Show number'
 			},
 			async (pin) => {
 				const exit = await Effect.runPromiseExit(
@@ -320,8 +316,7 @@
 			{
 				title: 'Confirm with your PIN',
 				summary: `${naira(sent)} sent to ${destinationTitle(w)}, checked against the receipt`,
-				label: 'Submit for verification',
-				pose: 'queue-checking'
+				label: 'Submit for verification'
 			},
 			async (pin) => {
 				// 1. The receipt, bound to this command's key (once per key and file).
@@ -441,8 +436,7 @@
 			{
 				title: 'Check the receipt again',
 				summary: 'It doesn’t use your one fix',
-				label: 'Check again',
-				pose: 'load-error'
+				label: 'Check again'
 			},
 			async (pin) => {
 				const exit = await act('retry', payout.payoutId, {
@@ -891,7 +885,6 @@
 
 <RootDialog
 	bind:open={pinOpen}
-	pose={pinPose}
 	title={pinTitle}
 	summary={pinSummary}
 	confirmLabel={pinLabel}
@@ -904,7 +897,6 @@
 
 <RootDialog
 	bind:open={fixOpen}
-	pose="queue-correction"
 	title={fixLabel(reasons)}
 	summary="This is your one fix before a reviewer looks"
 	confirmLabel="Send again"
@@ -945,7 +937,6 @@
 
 <RootDialog
 	bind:open={rejectOpen}
-	pose="income-refused"
 	title="Reject this request?"
 	summary={`${naira(w.amount)} goes back to ${memberName}’s ${w.pocket.name}`}
 	confirmLabel="Reject request"
@@ -959,7 +950,6 @@
 
 <RootDialog
 	bind:open={cancelOpen}
-	pose="dialog-remove"
 	title="Cancel this withdrawal"
 	summary="Only if no money was sent"
 	confirmLabel="Cancel withdrawal"

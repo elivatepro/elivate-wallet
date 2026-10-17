@@ -3,6 +3,7 @@
 	receipt), B07/B08 (still confirming) and v4 PL10d (not completed). Paystack
 	sends the payer back here; the page only asks the server, which checks the
 	payment with Paystack itself. The redirect proves nothing.
+	Blueprint 46: Root shows only once the payment is confirmed.
 -->
 <script lang="ts">
 	import '#lib/ui/org/org.css';
@@ -15,7 +16,6 @@
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import CacheNote from '#lib/ui/app/CacheNote.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
-	import type { RootPose } from '#lib/ui/root.svelte.js';
 
 	const shell = getContext<Shell>('shell');
 	const id = $derived(page.params.id ?? '');
@@ -79,13 +79,6 @@
 					? 'confirming'
 					: 'unpaid'
 	);
-	const pose = $derived<RootPose>(
-		phase === 'paid'
-			? 'payment-confirmed'
-			: phase === 'confirming'
-				? 'payment-confirming'
-				: 'income-refused'
-	);
 	const covers = $derived(
 		payment?.coversFrom && payment.coversTo
 			? `${dayLabel(payment.coversFrom)} – ${lastDayLabel(payment.coversTo)}`
@@ -105,10 +98,12 @@
 	{:else if !payment}
 		<div class="o-skeleton" aria-hidden="true"></div>
 	{:else}
-		<div class="hero" aria-hidden="true">
-			<div class="grain"></div>
-			<RootImage {pose} class="hero-root" sizes="200px" eager />
-		</div>
+		{#if phase === 'paid'}
+			<div class="hero" aria-hidden="true">
+				<div class="grain"></div>
+				<RootImage pose="payment-confirmed" class="hero-root" sizes="200px" eager />
+			</div>
+		{/if}
 		<div class="headline">
 			{#if phase === 'paid'}
 				<span class="chip ok">Paid · confirmed</span>

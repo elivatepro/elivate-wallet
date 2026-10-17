@@ -341,12 +341,42 @@ Deno.test("billing emails refuse foreign links, references and chips", () => {
   }
 });
 
-Deno.test("every notification email renders on the Paper layout with its own pose", () => {
+/** Blueprint 46: money emails keep the band without Root. */
+const plainBand = new Set([
+  "income-posted",
+  "withdrawal-submitted",
+  "withdrawal-awaiting",
+  "withdrawal-approved",
+  "withdrawal-completed",
+  "withdrawal-rejected",
+  "withdrawal-cancelled",
+  "payout-correction",
+  "evidence-review",
+  "payout-receipt-rejected",
+  "move-done",
+  "move-declined",
+  "adjustment-posted",
+  "conversion-posted",
+  "not-posted",
+  "reversed",
+  "returned-funds",
+  "statement-ready",
+  "payment-received",
+  "renewal-reminder",
+  "plan-paused",
+]);
+
+Deno.test("every notification email renders on the Paper layout; Root only off money", () => {
   const poses = new Set<string>();
   for (const [key, params, headline, pose] of samples) {
     const email = renderEmail(key, 1, params, { appUrl });
     assert(email.html.includes(headline.replace(/’/g, "’")), `${key}: headline`);
-    assert(email.html.includes(`${appUrl}/email/root-${pose}.png`), `${key}: pose`);
+    if (plainBand.has(pose)) {
+      assert(!email.html.includes(`${appUrl}/email/root-`), `${key}: no Root on money`);
+      assert(!email.html.includes(`class="ew-root-cell"`), `${key}: no Root cell`);
+    } else {
+      assert(email.html.includes(`${appUrl}/email/root-${pose}.png`), `${key}: pose`);
+    }
     assert(
       email.html.includes(`href="${appUrl}${params.path?.replace(/&/g, "&amp;")}"`),
       `${key}: button link`,

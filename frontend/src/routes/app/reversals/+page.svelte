@@ -37,7 +37,6 @@
 	import Outcome from '#lib/ui/app/Outcome.svelte';
 	import OutcomeUnknown from '#lib/ui/app/OutcomeUnknown.svelte';
 	import CacheNote from '#lib/ui/app/CacheNote.svelte';
-	import RootImage from '#lib/ui/RootImage.svelte';
 	import WheelPicker from '#lib/ui/WheelPicker.svelte';
 	import '#lib/ui/money/entry.css';
 
@@ -412,11 +411,6 @@
 							>
 						</div>
 					</div>
-					<div class="en-art en-desktop-only" aria-hidden="true">
-						<div class="en-art-shade"></div>
-						<div class="en-art-grain"></div>
-						<RootImage pose="reverse" class="en-art-root" sizes="160px" />
-					</div>
 				</aside>
 			{/if}
 		</form>
@@ -425,7 +419,6 @@
 
 <RootDialog
 	bind:open={pinOpen}
-	pose="reverse"
 	title="Confirm with your PIN"
 	summary={tx ? `Reverse ${tx.reference}. This posts at once.` : undefined}
 	confirmLabel="Reverse transaction"

@@ -1,7 +1,7 @@
 <!--
 	Balance card, Paper "App — Screens v3" H04/H06 (desktop 280 px, mobile
 	T04-style): "Available to withdraw" with the hide-amounts eye, the amount,
-	Posted/Reserved chips, Root on the coin stack. On mobile the currency
+	Posted/Reserved chips (Blueprint 46: no Root beside the money). On mobile the currency
 	switch sits inside the card top-right (owner rule); it appears only when
 	the person actually holds more than one currency. Stays dark in both themes.
 -->
@@ -10,7 +10,6 @@
 	import EyeOff from '@lucide/svelte/icons/eye-off';
 	import type { Currency, CurrencyBalance } from '#lib/contract/ledger.js';
 	import { formatMoney, hiddenMoney } from '#lib/money.js';
-	import RootImage from '#lib/ui/RootImage.svelte';
 	import CurrencySwitch from './CurrencySwitch.svelte';
 
 	let {
@@ -33,7 +32,6 @@
 <section class="card" aria-label="Balance">
 	<div class="shade" aria-hidden="true"></div>
 	<div class="grain" aria-hidden="true"></div>
-	<RootImage pose="home" class="card-root" sizes="(min-width: 1024px) 196px, 120px" eager />
 	<div class="top">
 		<span class="label">Available to withdraw</span>
 		<button
@@ -68,7 +66,7 @@
 		flex-direction: column;
 		justify-content: space-between;
 		gap: 40px;
-		min-height: 236px;
+		min-height: 200px;
 		padding: 22px 20px;
 		overflow: clip;
 		border: 1px solid #ffffff14;
@@ -103,14 +101,6 @@
 		background-size: 128px 128px;
 		mix-blend-mode: overlay;
 		opacity: 0.25;
-	}
-
-	.card :global(.card-root) {
-		position: absolute;
-		right: 4px;
-		bottom: -12px;
-		width: 120px;
-		height: 162px;
 	}
 
 	.top,
@@ -164,7 +154,6 @@
 	}
 
 	.chips {
-		max-width: calc(100% - 96px);
 		display: flex;
 		flex-wrap: wrap;
 		gap: 8px;
@@ -183,16 +172,9 @@
 
 	@media (min-width: 1024px) {
 		.card {
-			height: 280px;
+			height: 240px;
 			padding: 28px 32px;
 			border-radius: var(--radius-24);
-		}
-
-		.card :global(.card-root) {
-			right: 36px;
-			bottom: -18px;
-			width: 196px;
-			height: 264px;
 		}
 
 		.switch-mobile {
@@ -202,10 +184,6 @@
 		.amount {
 			font-size: 64px;
 			line-height: 68px;
-		}
-
-		.bottom {
-			max-width: calc(100% - 260px);
 		}
 	}
 </style>

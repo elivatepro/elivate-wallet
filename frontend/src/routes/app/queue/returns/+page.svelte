@@ -246,9 +246,9 @@
 		<span></span>
 	</header>
 	<div class="en-page">
+		<!-- Blueprint 46: no Root on review pages. -->
 		<div class="en-desktop-only">
 			<RootHero
-				pose="returned-funds"
 				title="Money came back from a payout"
 				lead="Record it with proof. It returns to the same pocket once checked."
 				headingLevel={1}
@@ -258,7 +258,6 @@
 		{#if returnable}
 			<div class="en-mobile-only">
 				<RootHero
-					pose="returned-funds"
 					kicker="Can still come back"
 					title={naira(remaining)}
 					lead={`of ${naira(returnable.paidOut)} paid out`}
@@ -446,7 +445,6 @@
 
 <RootDialog
 	bind:open={pinOpen}
-	pose="returned-funds"
 	title="Confirm with your PIN"
 	summary={amount ? `${naira(amount)} back to ${memberName}, sent for checking` : undefined}
 	confirmLabel="Send for checking"

@@ -1,5 +1,6 @@
 // Paper "Emails — Transactional v2" layout (owner-approved P-06 system):
-// sender header, dark hero band with a Root pose, headline, one line, a coral
+// sender header, dark hero band with a Root pose (Blueprint 46: money emails
+// keep the band without Root), headline, one line, a coral
 // pill button and a quiet footer. Light by default with a dark counterpart for
 // clients that honour prefers-color-scheme, and a 320px-friendly mobile rule.
 // Images are served by the app (frontend/static/email/) from `assetBase`.
@@ -79,7 +80,8 @@ export interface EmailLayout {
   readonly display: string;
   /** Mono line under the display (office, reference, masked address). */
   readonly reference?: string;
-  readonly root: RootPose;
+  /** Blueprint 46: `null` on money emails (the plain band, no Root). */
+  readonly root: RootPose | null;
   readonly headline: string;
   readonly line: string;
   /**
@@ -168,6 +170,10 @@ export function renderLayout(input: EmailLayout): string {
 </td>
 </tr></table>`
     : "";
+  const rootCell = input.root === null ? "" : `
+<td class="ew-root-cell" width="168" valign="bottom" align="right" style="width:168px;padding:0 12px 0 0;vertical-align:bottom;line-height:0;font-size:0;">
+<img class="ew-root" src="${base}/root-${input.root}.png" width="156" height="210" alt="" style="display:block;border:0;width:156px;height:210px;">
+</td>`;
   const status = input.status
     ? `<td style="padding-left:8px;white-space:nowrap;font-family:${font};font-size:13px;line-height:16px;color:${
       statusColor[input.status.tone]
@@ -237,10 +243,7 @@ ${sender(input.brand, base)}
   }</div>${reference}
 </td></tr>
 </table>
-</td>
-<td class="ew-root-cell" width="168" valign="bottom" align="right" style="width:168px;padding:0 12px 0 0;vertical-align:bottom;line-height:0;font-size:0;">
-<img class="ew-root" src="${base}/root-${input.root}.png" width="156" height="210" alt="" style="display:block;border:0;width:156px;height:210px;">
-</td>
+</td>${rootCell}
 </tr>
 </table>
 </td></tr>
