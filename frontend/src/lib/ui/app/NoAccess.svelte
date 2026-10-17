@@ -3,6 +3,7 @@
 	the velvet rope, "You don’t have access" and the way back. Leaders go back
 	to Team overview (X03), everyone else to Home. Shown when the backend
 	answers `authorization_denied` for a whole page; it decides nothing itself.
+	Blueprint 46: `plain` (money, review and record pages) leaves Root out.
 -->
 <script lang="ts">
 	import { getContext } from 'svelte';
@@ -13,12 +14,15 @@
 	let {
 		title = 'You don’t have access',
 		lead = 'Your role doesn’t include this page. Ask your President if you need it.',
-		headingLevel = 1
+		headingLevel = 1,
+		plain = false
 	}: {
 		title?: string;
 		lead?: string;
 		/** 2 under a page that already has its own h1 (pushed entry pages). */
 		headingLevel?: 1 | 2;
+		/** Blueprint 46: no Root on money, review and record pages. */
+		plain?: boolean;
 	} = $props();
 
 	const shell = getContext<Shell | undefined>('shell');
@@ -34,7 +38,14 @@
 	const switchWorkspace = () => window.location.assign('/workspaces?switch');
 </script>
 
-<StateScreen pose="no-access" eyebrow="No access" {title} {lead} {headingLevel} wide>
+<StateScreen
+	pose={plain ? null : 'no-access'}
+	eyebrow="No access"
+	{title}
+	{lead}
+	{headingLevel}
+	wide
+>
 	{#snippet actions()}
 		{#if team}
 			<a class="state-primary" href="/app"

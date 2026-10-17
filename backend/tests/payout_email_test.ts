@@ -12,6 +12,7 @@ Deno.test("payout alert: bank, action and time; button to the app; no reference 
   assert(email.text.includes(`Open Wallet: ${appUrl}`));
   assert(email.html.includes(`href="${appUrl}"`));
   assertEquals(email.html.includes("Reference"), false);
+  assertEquals(email.html.includes("/email/root-"), false, "Blueprint 46: no Root on money");
 });
 
 Deno.test("payout alert: every action has its own subject", () => {

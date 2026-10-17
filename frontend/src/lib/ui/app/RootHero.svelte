@@ -4,6 +4,8 @@
 	desktop 220 px. The card stays dark in both themes (brand surface).
 	Blueprint 41: `short` (Withdrawals) is 200 px on phones with a 120 px Root;
 	desktop is unchanged.
+	Blueprint 46: without a `pose` (money, review and record pages) there is no
+	Root and the card closes up around its text.
 -->
 <script lang="ts">
 	import type { Snippet } from 'svelte';
@@ -21,7 +23,8 @@
 		short = false,
 		headingLevel = 1
 	}: {
-		pose: RootPose;
+		/** Blueprint 46: omit on money, review and record pages (no Root). */
+		pose?: RootPose | null;
 		title: string;
 		lead?: string;
 		/** Small line above the title (Paper v2 W01 "Reserved for open withdrawals"). */
@@ -38,15 +41,17 @@
 	} = $props();
 </script>
 
-<section class="hero" class:compact class:card class:short>
+<section class="hero" class:compact class:card class:short class:bare={!pose}>
 	<div class="shade" aria-hidden="true"></div>
 	<div class="grain" aria-hidden="true"></div>
-	<RootImage
-		{pose}
-		class="hero-root"
-		sizes={short ? '(min-width: 1024px) 178px, 120px' : '(min-width: 1024px) 178px, 170px'}
-		eager
-	/>
+	{#if pose}
+		<RootImage
+			{pose}
+			class="hero-root"
+			sizes={short ? '(min-width: 1024px) 178px, 120px' : '(min-width: 1024px) 178px, 170px'}
+			eager
+		/>
+	{/if}
 	<div class="text">
 		{#if kicker}<p class="kicker">{kicker}</p>{/if}
 		<svelte:element this={`h${headingLevel}`} class="title" tabindex="-1">{title}</svelte:element>
@@ -141,6 +146,16 @@
 		max-width: calc(100% - 104px);
 	}
 
+	/* Blueprint 46: no Root, so no fixed height and the text takes the width. */
+	.hero.bare {
+		height: auto;
+	}
+
+	.hero.bare .text {
+		width: auto;
+		max-width: none;
+	}
+
 	.title {
 		color: #ffffff;
 		font-size: 22px;
@@ -218,6 +233,16 @@
 		.hero.card .text {
 			max-width: calc(100% - 260px);
 			gap: 6px;
+		}
+
+		.hero.bare,
+		.hero.bare.short,
+		.hero.bare.card {
+			height: auto;
+		}
+
+		.hero.bare.card .text {
+			max-width: none;
 		}
 
 		.hero.card .title {

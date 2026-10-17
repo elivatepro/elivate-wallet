@@ -6,7 +6,8 @@
 	cells; Cancel + confirm (coral, or the soft danger pill). Bits UI Dialog:
 	focus is trapped and returns to the trigger. The PIN is cleared on every
 	open and every failure (the field remounts). Blueprint 43: on phones the
-	sheet closes with a drag down (not while busy).
+	sheet closes with a drag down (not while busy). Blueprint 46: money
+	confirmations pass no pose; there is no Root and, on desktop, a plain header.
 -->
 <script lang="ts">
 	import type { Snippet } from 'svelte';
@@ -36,7 +37,8 @@
 		onConfirm
 	}: {
 		open?: boolean;
-		pose: RootPose;
+		/** Blueprint 46: omit on money confirmations (no Root, plain header). */
+		pose?: RootPose | null;
 		title: string;
 		summary?: string;
 		confirmLabel: string;
@@ -96,10 +98,15 @@
 <Dialog.Root bind:open>
 	<Dialog.Portal>
 		<Dialog.Overlay class="rd-scrim" />
-		<Dialog.Content class="rd-panel" aria-describedby={summary ? 'rd-summary' : undefined}>
-			<div class="rd-peek" aria-hidden="true">
-				<RootImage {pose} class="rd-peek-root" sizes="112px" />
-			</div>
+		<Dialog.Content
+			class={pose ? 'rd-panel' : 'rd-panel rd-bare'}
+			aria-describedby={summary ? 'rd-summary' : undefined}
+		>
+			{#if pose}
+				<div class="rd-peek" aria-hidden="true">
+					<RootImage {pose} class="rd-peek-root" sizes="112px" />
+				</div>
+			{/if}
 			<form
 				onsubmit={submit}
 				novalidate
@@ -110,8 +117,10 @@
 				})}
 			>
 				<div class="rd-header" data-sheet-grab>
-					<div class="rd-shade" aria-hidden="true"></div>
-					<RootImage {pose} class="rd-root" sizes="128px" />
+					{#if pose}
+						<div class="rd-shade" aria-hidden="true"></div>
+						<RootImage {pose} class="rd-root" sizes="128px" />
+					{/if}
 					<span class="rd-grabber" aria-hidden="true"></span>
 					<div class="rd-heading">
 						<Dialog.Title class="rd-title">{title}</Dialog.Title>
@@ -527,6 +536,21 @@
 		.rd-summary {
 			padding-top: 4px;
 			color: #a9b0b3;
+		}
+
+		/* Blueprint 46: no felt band or Root, the title sits on the panel. */
+		:global(.rd-bare) .rd-header {
+			height: auto;
+			padding: 28px 28px 0;
+			background: none;
+		}
+
+		:global(.rd-bare) :global(.rd-title) {
+			color: var(--color-text);
+		}
+
+		:global(.rd-bare) .rd-summary {
+			color: var(--color-muted);
 		}
 
 		.rd-fields {

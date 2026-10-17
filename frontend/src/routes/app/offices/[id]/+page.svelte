@@ -286,9 +286,9 @@
 			<button type="button" class="o-ghost" onclick={load}>Try again</button>
 		</div>
 	{:else}
+		<!-- Blueprint 46: no Root on review pages. -->
 		<OrgHero
 			id="office-heading"
-			pose={office.status === 'closed' ? 'office-closed' : 'office'}
 			title={office.name}
 			line={`${OFFICE_TYPE_LABELS[office.type]}${parentName ? ` · ${parentName}` : ''}`}
 		>
@@ -481,7 +481,6 @@
 
 <OrgDialog
 	bind:open={renameOpen}
-	pose="office-rename"
 	title="Rename office"
 	subtitle={office ? `${OFFICE_TYPE_LABELS[office.type]} · ${office.name}` : undefined}
 	confirmLabel="Save name"
@@ -506,7 +505,6 @@
 
 <OrgDialog
 	bind:open={replaceOpen}
-	pose="office-leader"
 	title="Change leader"
 	subtitle={office ? `${office.name} · the current leader is replaced` : undefined}
 	confirmLabel="Replace leader"
@@ -560,7 +558,6 @@
 
 <OrgDialog
 	bind:open={resendOpen}
-	pose="office-leader"
 	title="Resend the invite?"
 	subtitle={waiting[0]
 		? `${waiting[0].email} · a fresh 7-day link; the old one stops working`
@@ -576,7 +573,6 @@
 
 <OrgDialog
 	bind:open={closeOpen}
-	pose="office-close"
 	title={office ? `Close ${office.name}` : 'Close office'}
 	subtitle="Its money history stays visible to leaders above"
 	confirmLabel="Close office"
@@ -589,7 +585,6 @@
 
 <OrgDialog
 	bind:open={placeOpen}
-	pose="office-place"
 	title="Place under another office"
 	subtitle={office ? `Everything below ${office.name} moves with it` : undefined}
 	confirmLabel="Move office"

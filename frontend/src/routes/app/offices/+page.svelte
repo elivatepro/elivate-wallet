@@ -176,9 +176,9 @@
 <svelte:head><title>Offices · Elivate Wallet</title></svelte:head>
 
 <div class="o-page">
+	<!-- Blueprint 46: no Root on review pages. -->
 	<OrgHero
 		id="offices-heading"
-		pose="offices"
 		title={view ? `${counts.all} ${counts.all === 1 ? 'office' : 'offices'}` : 'Offices'}
 		line={view ? officeCountLine(active) : null}
 	>
@@ -289,7 +289,6 @@
 
 <OrgDialog
 	bind:open={createOpen}
-	pose="office-new"
 	title="New office"
 	subtitle={workspace ? `Add a branch to ${workspace.tenantName}` : undefined}
 	confirmLabel={newLeader?.kind === 'invite' ? 'Create and invite' : 'Create office'}

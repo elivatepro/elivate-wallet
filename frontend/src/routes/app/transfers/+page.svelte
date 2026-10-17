@@ -129,7 +129,7 @@
 <svelte:head><title>Transfers · Elivate Wallet</title></svelte:head>
 
 {#if denied}
-	<NoAccess lead={loadError ?? undefined} />
+	<NoAccess lead={loadError ?? undefined} plain />
 {:else}
 	<div class="mm-page">
 		<QueueTabs {tabs} bind:value={tab} label="Pocket moves" />
@@ -191,7 +191,6 @@
 					{/if}
 					{#if tab === 'waiting' && page.counts.open > 0}
 						<RootHero
-							pose="transfers"
 							title={`${page.counts.open} pocket ${page.counts.open === 1 ? 'move' : 'moves'} waiting on you`}
 							lead={`${reservedLine} reserved across them`}
 							headingLevel={2}
@@ -290,7 +289,6 @@
 {#if selected}
 	<RootDialog
 		bind:open={rejectOpen}
-		pose="income-refused"
 		title="Decline this pocket move?"
 		summary={`${money(selected.amount, selected.currency)} stays in ${selected.from.name}`}
 		confirmLabel="Decline"

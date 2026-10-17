@@ -632,7 +632,7 @@
 		<div class="body">
 			<div class="list">
 				{#if failure && !loaded}
-					<RootHero pose="load-error" title="Couldn’t load activity" lead={failure} compact />
+					<RootHero title="Couldn’t load activity" lead={failure} compact />
 					<div class="retry">
 						<button type="button" class="more" onclick={() => load()}>Try again</button>
 						{#if reference}<p class="ref-note">Reference <span>{reference}</span></p>{/if}

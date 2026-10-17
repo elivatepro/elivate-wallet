@@ -126,7 +126,7 @@
 <svelte:head><title>NIN reviews · Elivate Wallet</title></svelte:head>
 
 {#if denied}
-	<NoAccess lead={loadError ?? undefined} />
+	<NoAccess lead={loadError ?? undefined} plain />
 {:else}
 	<header class="head">
 		<h1 tabindex="-1">NIN reviews</h1>

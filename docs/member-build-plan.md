@@ -320,6 +320,12 @@ approved (2026-10-09): build these directly, replacing the slice 4 U/MV stubs.
   withdrawal approved / completed / not approved; the lock screen shows the title and amount
   (P-06 limits, Hide amounts respected); offered after the install step and switchable per
   device in Profile & security; email keeps no opt-out. Push ends with the session.
+- **Root off money and records (2026-10-17, Blueprint 46; built directly, no Paper draft):** a
+  mascot beside money reads as less trustworthy, pulls the eye from the numbers and takes space.
+  No Root on balances, money forms and confirmations, refused and pending money outcomes, review
+  and record pages or their load errors; nothing replaces it. Successes and empty states keep
+  Root. Money emails keep the hero band without Root. Supersedes "every screen gets a pose" there;
+  the Withdrawals banner above no longer carries Root.
 - **Sequencing:** one slice at a time, each new slice in its own thread. Order: 4 → 5 → 8 →
   slice 9 follow-up (IP storage, signed-in password change, PIN-change email, sign-out
   choice after reset) → 6 → 7 → 10.

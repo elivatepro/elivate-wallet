@@ -67,7 +67,6 @@
 
 <OrgDialog
 	bind:open
-	pose="export-report"
 	title="Download report"
 	subtitle="It holds your team’s money. Enter your PIN."
 	confirmLabel={pending?.format === 'csv' ? 'Download CSV' : 'Download PDF'}

@@ -149,7 +149,7 @@
 	<div class="skeleton" aria-hidden="true"></div>
 	<p class="visually-hidden" role="status">Loading your wallet</p>
 {:else if failed && !home}
-	<RootHero pose="load-error" title="Couldn’t load your wallet" lead={failed} compact />
+	<RootHero title="Couldn’t load your wallet" lead={failed} compact />
 {:else if walletless && (!network || !balance || !currency)}
 	<RootHero
 		pose="home-empty"

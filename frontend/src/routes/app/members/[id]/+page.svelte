@@ -162,9 +162,9 @@
 			<button type="button" class="o-ghost" onclick={load}>Try again</button>
 		</div>
 	{:else}
+		<!-- Blueprint 46: no Root on review pages. -->
 		<OrgHero
 			id="member-heading"
-			pose="member"
 			title={personName(member.person)}
 			line={`${member.person?.uid ?? ''} · ${ROLE_LABELS[member.role]} · ${place}`}
 		>
@@ -370,7 +370,6 @@
 	{#if dialog === 'suspend' || dialog === 'reactivate'}
 		<OrgDialog
 			bind:open
-			pose="member-suspend"
 			title={dialog === 'suspend' ? 'Suspend membership' : 'Reactivate membership'}
 			subtitle={`${place} membership only`}
 			confirmLabel={dialog === 'suspend' ? 'Suspend membership' : 'Reactivate membership'}
@@ -384,7 +383,6 @@
 	{:else if dialog === 'move'}
 		<OrgDialog
 			bind:open
-			pose="member-move"
 			title="Move to another office"
 			subtitle={`From ${place}; history stays where it is`}
 			confirmLabel="Move membership"
@@ -416,7 +414,6 @@
 	{:else if dialog === 'role'}
 		<OrgDialog
 			bind:open
-			pose="member-role"
 			title="Change role"
 			subtitle="Same office. Wallet and history stay intact"
 			confirmLabel="Change role"
@@ -444,7 +441,6 @@
 	{:else if dialog === 'funds'}
 		<OrgDialog
 			bind:open
-			pose="member-role"
 			title={member.fundsNotManaged ? 'Manage funds again' : 'Funds not managed'}
 			subtitle={member.fundsNotManaged
 				? 'Their wallet works again; setup asks for their NIN, phone and bank'
@@ -459,7 +455,6 @@
 	{:else if dialog === 'end'}
 		<OrgDialog
 			bind:open
-			pose="member-end"
 			title="End membership"
 			subtitle={`${place}; wallet and history stay`}
 			confirmLabel="End membership"

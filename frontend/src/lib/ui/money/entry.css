@@ -424,53 +424,6 @@ select.en-input {
 	flex: 1;
 }
 
-.en-art {
-	position: relative;
-	min-height: 200px;
-	overflow: clip;
-	border: 1px solid color-mix(in oklab, var(--color-text) 8%, transparent);
-	border-radius: 24px;
-	background: #1a1d1e url('/root/stage.webp') 70% 30% / cover;
-}
-
-.en-art-shade {
-	position: absolute;
-	inset: 0;
-	background: linear-gradient(
-		in oklab 90deg,
-		oklab(18.5% -0.002 -0.003 / 85%) 0%,
-		oklab(18.5% -0.002 -0.003 / 30%) 60%,
-		oklab(18.5% -0.002 -0.003 / 0%) 100%
-	);
-}
-
-.en-art-grain {
-	position: absolute;
-	inset: 0;
-	background: url('/auth-bg/grain-128.webp') 50% / 128px 128px repeat;
-	mix-blend-mode: overlay;
-	opacity: 0.25;
-}
-
-.en-art .en-art-root {
-	position: absolute;
-	right: 48px;
-	bottom: -12px;
-	width: 160px;
-	height: 216px;
-}
-
-.en-art-text {
-	position: absolute;
-	left: 20px;
-	right: 180px;
-	bottom: 20px;
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-	color: #f2f4f4;
-}
-
 .en-error {
 	color: var(--color-danger);
 	font-size: 13px;
@@ -540,11 +493,6 @@ select.en-input {
 
 	.en-desktop-only {
 		display: block;
-	}
-
-	.en-art.en-desktop-only {
-		display: block;
-		flex: 1;
 	}
 }
 

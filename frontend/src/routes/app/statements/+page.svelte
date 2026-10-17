@@ -92,8 +92,6 @@
 	const networks = $derived<readonly StatementNetwork[]>(view?.options.networks ?? []);
 	const network = $derived(networks.find((n) => n.tenantId === tenantId) ?? networks[0] ?? null);
 	const currencies = $derived<readonly Currency[]>(network?.currencies ?? ['NGN', 'USD']);
-	const latest = $derived(files.files[0] ?? null);
-	const big = $derived(latest?.status === 'too_large');
 
 	$effect(() => {
 		if (network && !network.currencies.includes(currency))
@@ -174,7 +172,6 @@
 
 {#if failed}
 	<section class="ex-problem" role="alert">
-		<RootImage pose="load-error" sizes="140px" class="ex-problem-root" />
 		<p>{failed}</p>
 		<button type="button" class="ex-action" onclick={load}>Try again</button>
 	</section>
@@ -187,18 +184,8 @@
 		<p>Statements cover your own wallet. You don’t hold money in any network yet.</p>
 	</section>
 {:else}
+	<!-- Blueprint 46: no Root stage beside money; the builder and files take the space. -->
 	<div class="layout">
-		<section class="stage" class:big aria-hidden="true">
-			<div class="stage-shade"></div>
-			<RootImage
-				pose={big ? 'statements-big' : 'statements'}
-				class="stage-root"
-				sizes="(min-width: 1024px) 168px, 116px"
-				eager
-			/>
-			<p class="stage-title">{big ? 'That’s a big one' : 'Your money, on paper'}</p>
-		</section>
-
 		<form
 			class="builder ex-card"
 			onsubmit={(e) => (e.preventDefault(), void create())}
@@ -292,48 +279,6 @@
 		display: none;
 	}
 
-	.stage {
-		position: relative;
-		display: flex;
-		align-items: flex-end;
-		height: 150px;
-		padding: 20px;
-		overflow: clip;
-		border: 1px solid #ffffff14;
-		border-radius: 20px;
-		background: #1a1d1e url('/auth-bg/mobile-dark.jpg') 60% 30% / cover;
-		background-origin: border-box;
-		isolation: isolate;
-	}
-
-	.stage-shade {
-		position: absolute;
-		inset: 0;
-		background-image: linear-gradient(
-			in oklab 90deg,
-			oklab(21.5% -0.004 -0.003 / 92%) 0%,
-			oklab(21.5% -0.004 -0.003 / 50%) 55%,
-			oklab(21.5% -0.004 -0.003 / 0%) 100%
-		);
-	}
-
-	.stage :global(.stage-root) {
-		position: absolute;
-		right: 14px;
-		bottom: -8px;
-		width: 116px;
-		height: 156px;
-	}
-
-	.stage-title {
-		position: relative;
-		max-width: 210px;
-		color: #f2f4f4;
-		font-size: 20px;
-		font-weight: var(--font-weight-semibold);
-		line-height: 26px;
-	}
-
 	.files {
 		display: flex;
 		flex-direction: column;
@@ -374,8 +319,7 @@
 		.layout {
 			display: grid;
 			grid-template-columns: 520px minmax(0, 1fr);
-			grid-template-areas: 'builder files' 'builder stage';
-			grid-template-rows: auto 1fr;
+			grid-template-areas: 'builder files';
 			align-items: start;
 			gap: 16px 24px;
 			padding: 0 0 48px;
@@ -393,27 +337,6 @@
 		.files {
 			grid-area: files;
 			padding-top: 4px;
-		}
-
-		.stage {
-			grid-area: stage;
-			min-height: 237px;
-			height: auto;
-			padding: 28px;
-			border-radius: 24px;
-		}
-
-		.stage :global(.stage-root) {
-			right: 56px;
-			bottom: -12px;
-			width: 168px;
-			height: 226px;
-		}
-
-		.stage-title {
-			max-width: 320px;
-			font-size: 24px;
-			line-height: 30px;
 		}
 	}
 </style>

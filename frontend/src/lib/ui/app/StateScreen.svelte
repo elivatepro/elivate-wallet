@@ -3,7 +3,8 @@
 	Root, a mono eyebrow, title, one line and the actions. Desktop: a surface
 	card filling the content area (padding 48, radius 20). Mobile: no card, a
 	centred column with the actions stacked full width, primary first.
-	Used by NoAccess, PausedView and the error pages.
+	Used by NoAccess, PausedView and the error pages. Blueprint 46: without a
+	`pose` (load errors on money, review and record pages) there is no Root.
 -->
 <script lang="ts">
 	import type { Snippet } from 'svelte';
@@ -20,7 +21,8 @@
 		children,
 		actions
 	}: {
-		pose: RootPose;
+		/** Blueprint 46: omit for load errors on money, review and record pages. */
+		pose?: RootPose | null;
 		eyebrow: string;
 		title: string;
 		lead?: string;
@@ -34,8 +36,10 @@
 	} = $props();
 </script>
 
-<section class="state" class:wide aria-labelledby="state-title">
-	<RootImage {pose} class="state-root" sizes="(min-width: 1024px) 220px, 190px" eager />
+<section class="state" class:wide class:bare={!pose} aria-labelledby="state-title">
+	{#if pose}
+		<RootImage {pose} class="state-root" sizes="(min-width: 1024px) 220px, 190px" eager />
+	{/if}
 	<p class="eyebrow">{eyebrow}</p>
 	<svelte:element this={`h${headingLevel}`} id="state-title" class="title" tabindex="-1"
 		>{title}</svelte:element
@@ -65,6 +69,10 @@
 
 	.state.wide :global(.state-root) {
 		width: 190px;
+	}
+
+	.state.bare {
+		padding-top: 64px;
 	}
 
 	.eyebrow {
@@ -157,6 +165,11 @@
 			border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
 			border-radius: 20px;
 			background: var(--color-surface);
+		}
+
+		.state.bare {
+			min-height: 360px;
+			padding-top: 48px;
 		}
 
 		.state :global(.state-root) {

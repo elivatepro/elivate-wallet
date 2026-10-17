@@ -249,7 +249,7 @@
 {/snippet}
 
 {#if denied}
-	<NoAccess lead={loadError ?? undefined} />
+	<NoAccess lead={loadError ?? undefined} plain />
 {:else}
 	<div class="mm-page">
 		<QueueTabs {tabs} bind:value={tab} label="Evidence review" />
@@ -307,8 +307,8 @@
 						{/if}
 					{/if}
 					{#if tab === 'assigned' && counts?.assigned}
+						<!-- Blueprint 46: no Root on review pages. -->
 						<RootHero
-							pose="evidence-review"
 							title={`${counts.assigned} ${counts.assigned === 1 ? 'case needs' : 'cases need'} your decision`}
 							lead="Nothing posts until you clear it"
 							headingLevel={2}

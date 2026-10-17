@@ -23,7 +23,6 @@
 	import type { Shell } from '#lib/client/shell.svelte.js';
 	import ConfirmDialog from '#lib/ui/app/ConfirmDialog.svelte';
 	import CacheNote from '#lib/ui/app/CacheNote.svelte';
-	import RootImage from '#lib/ui/RootImage.svelte';
 
 	const shell = getContext<Shell>('shell');
 	const DOTS = [
@@ -275,9 +274,9 @@
 	<p class="load-error" role="alert">{loadError}</p>
 {:else}
 	<div class="layout">
+		<!-- Blueprint 46: no Root beside money; the banner closes up around its text. -->
 		<section class="hero-mobile" aria-hidden="true">
 			<div class="shade"></div>
-			<RootImage pose="split" class="hero-root" sizes="120px" eager />
 			<div class="hero-text">
 				<p class="hero-kicker">Version {view.allocation.version} · live</p>
 				<p class="hero-title">Pockets &amp; split</p>
@@ -393,9 +392,6 @@
 					{/each}
 				</ul>
 			</section>
-			<div class="stage" aria-hidden="true">
-				<RootImage pose="split" class="stage-root" sizes="390px" />
-			</div>
 		</aside>
 	</div>
 
@@ -433,7 +429,6 @@
 		position: relative;
 		display: flex;
 		align-items: flex-end;
-		height: 150px;
 		padding: 20px;
 		overflow: clip;
 		border-radius: 22px;
@@ -450,14 +445,6 @@
 			oklab(18.5% -0.002 -0.003 / 92%) 0%,
 			oklab(18.5% -0.002 -0.003 / 0%) 100%
 		);
-	}
-
-	.hero-mobile :global(.hero-root) {
-		position: absolute;
-		right: 8px;
-		bottom: -10px;
-		width: 110px;
-		height: 146px;
 	}
 
 	.hero-text {
@@ -753,10 +740,6 @@
 		font-size: 13px;
 	}
 
-	.stage {
-		display: none;
-	}
-
 	@media (min-width: 1024px) {
 		.layout {
 			display: grid;
@@ -799,26 +782,6 @@
 
 		.primary {
 			flex: 0 0 auto;
-		}
-
-		.stage {
-			position: relative;
-			display: block;
-			height: 452px;
-			overflow: clip;
-			border-radius: var(--radius-24);
-			border: 1px solid #ffffff14;
-			background: #1a1d1e url('/auth-bg/mobile-dark.jpg') 50% 30% / cover;
-		}
-
-		.stage :global(.stage-root) {
-			position: absolute;
-			left: 0;
-			right: 0;
-			margin-inline: auto;
-			bottom: 0;
-			width: 340px;
-			height: 453px;
 		}
 	}
 

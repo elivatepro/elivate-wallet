@@ -37,7 +37,6 @@
 	import IncomeConfirm from '#lib/ui/income/IncomeConfirm.svelte';
 	import MemberPicker from '#lib/ui/income/MemberPicker.svelte';
 	import EvidencePicker from '#lib/ui/money/EvidencePicker.svelte';
-	import RootImage from '#lib/ui/RootImage.svelte';
 	import '#lib/ui/money/entry.css';
 	import NoAccess from '#lib/ui/app/NoAccess.svelte';
 	import WheelPicker from '#lib/ui/WheelPicker.svelte';
@@ -324,7 +323,7 @@
 	</header>
 	<div class="en-page">
 		{#if denied}
-			<NoAccess lead={loadError ?? undefined} headingLevel={2} />
+			<NoAccess lead={loadError ?? undefined} headingLevel={2} plain />
 		{:else if loadError}
 			<p class="mm-empty" role="alert">{loadError}</p>
 		{:else}
@@ -491,11 +490,6 @@
 								>Submit adjustment</button
 							>
 						</div>
-					</div>
-					<div class="en-art en-desktop-only" aria-hidden="true">
-						<div class="en-art-shade"></div>
-						<div class="en-art-grain"></div>
-						<RootImage pose="adjust" class="en-art-root" sizes="160px" />
 					</div>
 				</aside>
 			</form>

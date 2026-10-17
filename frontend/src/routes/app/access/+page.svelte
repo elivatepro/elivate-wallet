@@ -464,12 +464,8 @@
 {/snippet}
 
 <div class="o-page">
-	<OrgHero
-		id="access-heading"
-		pose={tab === 'reviewers' ? 'reviewers' : 'roles'}
-		title={heroTitle}
-		line={heroLine}
-	>
+	<!-- Blueprint 46: no Root on review pages. -->
+	<OrgHero id="access-heading" title={heroTitle} line={heroLine}>
 		{#snippet actions()}
 			{#if tab !== 'reviewers' && view?.canManageAccess}
 				<button type="button" class="hero-cta" disabled={!shell.canAct} onclick={openGrant}>
@@ -852,7 +848,6 @@
 
 <OrgDialog
 	bind:open={saveOpen}
-	pose="roles"
 	title="Save role permissions?"
 	subtitle={`${pending.size} ${pending.size === 1 ? 'change' : 'changes'} · applies right away`}
 	confirmLabel="Save changes"
@@ -865,7 +860,6 @@
 
 <OrgDialog
 	bind:open={grantOpen}
-	pose="cross-access"
 	title="New cross-access rule"
 	subtitle="Specific permissions, not a role"
 	confirmLabel="Save rule"
@@ -1003,7 +997,6 @@
 
 <OrgDialog
 	bind:open={revokeOpen}
-	pose="cross-access"
 	title="Revoke cross-access?"
 	subtitle={revokeTarget ? `${personName(revokeTarget.subject)} · every rule in it` : undefined}
 	confirmLabel="Revoke"
@@ -1016,7 +1009,6 @@
 
 <OrgDialog
 	bind:open={assignOpen}
-	pose="reviewers"
 	title="Add reviewer"
 	subtitle={reviewerPick
 		? `${personName(reviewerPick.person)} · never their own operations`
@@ -1031,7 +1023,6 @@
 
 <OrgDialog
 	bind:open={removeOpen}
-	pose="reviewers"
 	title="Remove reviewer?"
 	subtitle={removeTarget ? personName(removeTarget.person) : undefined}
 	confirmLabel="Remove"

@@ -31,7 +31,6 @@
 	import { moveMessage, moveTitle, transferStage, withinRequested } from '#lib/withdrawals.js';
 	import Outcome from '#lib/ui/app/Outcome.svelte';
 	import OutcomeUnknown from '#lib/ui/app/OutcomeUnknown.svelte';
-	import RootImage from '#lib/ui/RootImage.svelte';
 	import Pill from '#lib/ui/money/Pill.svelte';
 	import '#lib/ui/money/money.css';
 	import NoAccess from '#lib/ui/app/NoAccess.svelte';
@@ -230,7 +229,7 @@
 		{/snippet}
 	</Outcome>
 {:else if denied}
-	<NoAccess lead={loadError ?? undefined} />
+	<NoAccess lead={loadError ?? undefined} plain />
 {:else}
 	<div class="mm-page">
 		<h1 class="mm-title" tabindex="-1">Move between pockets</h1>
@@ -440,10 +439,6 @@
 							{/if}
 						</section>
 					{/if}
-					<div class="art" aria-hidden="true">
-						<div class="shade"></div>
-						<RootImage pose="pocket-move" class="art-root" sizes="200px" />
-					</div>
 				</div>
 			</div>
 		{/if}
@@ -537,30 +532,6 @@
 		font-weight: var(--font-weight-semibold);
 	}
 
-	.art {
-		position: relative;
-		display: none;
-		height: 220px;
-		overflow: clip;
-		border: 1px solid #ffffff14;
-		border-radius: var(--radius-24);
-		background: #1a1d1e url('/auth-bg/desktop-dark.jpg') 70% 40% / cover;
-	}
-
-	.art .shade {
-		position: absolute;
-		inset: 0;
-		background: linear-gradient(90deg, #111314e0 0%, #11131400 70%);
-	}
-
-	.art :global(.art-root) {
-		position: absolute;
-		right: 40px;
-		bottom: -10px;
-		width: 160px;
-		height: 214px;
-	}
-
 	.static {
 		cursor: default;
 	}
@@ -578,10 +549,6 @@
 		.side {
 			width: 360px;
 			flex-shrink: 0;
-		}
-
-		.art {
-			display: block;
 		}
 	}
 </style>

@@ -131,7 +131,7 @@ function payoutAccountAlert(params: Params, context: RenderContext): RenderedEma
     status: { label: copy.status, tone: mismatch ? "danger" : "warning" },
     display: copy.display,
     reference: at,
-    root: "payout",
+    root: null,
     headline: `${copy.subject}.`,
     line,
     button: { label: "Open Wallet", url: appUrl },

@@ -5,7 +5,8 @@
 	with Root peeking above it. Extra fields come in as children; a reason
 	(3–500) and the 4-digit PIN (step-up, A-05) are built in. Bits UI Dialog:
 	focus is trapped and returns to the trigger. Blueprint 43: on phones the
-	sheet closes with a drag down (not while busy).
+	sheet closes with a drag down (not while busy). Blueprint 46: money dialogs
+	(billing, report export) pass no pose; no Root and, on desktop, a plain header.
 -->
 <script lang="ts">
 	import { enterMovesOn } from '#lib/ui/enter-moves-on.js';
@@ -39,7 +40,8 @@
 		onConfirm
 	}: {
 		open?: boolean;
-		pose: RootPose;
+		/** Blueprint 46: omit on money dialogs (no Root, plain header). */
+		pose?: RootPose | null;
 		title: string;
 		subtitle?: string;
 		confirmLabel: string;
@@ -91,8 +93,10 @@
 <Dialog.Root bind:open>
 	<Dialog.Portal>
 		<Dialog.Overlay class="org-scrim" />
-		<Dialog.Content class={wide ? 'org-dialog wide' : 'org-dialog'}>
-			<RootImage {pose} class="org-dialog-peek" sizes="120px" />
+		<Dialog.Content
+			class={['org-dialog', wide && 'wide', !pose && 'org-bare'].filter(Boolean).join(' ')}
+		>
+			{#if pose}<RootImage {pose} class="org-dialog-peek" sizes="120px" />{/if}
 			<form
 				class="org-form"
 				onsubmit={submit}
@@ -105,8 +109,10 @@
 				})}
 			>
 				<header class="org-band" data-sheet-grab>
-					<div class="org-shade" aria-hidden="true"></div>
-					<RootImage {pose} class="org-dialog-root" sizes="140px" />
+					{#if pose}
+						<div class="org-shade" aria-hidden="true"></div>
+						<RootImage {pose} class="org-dialog-root" sizes="140px" />
+					{/if}
 					<span class="org-handle" aria-hidden="true"></span>
 					<Dialog.Title class="org-dialog-title">{title}</Dialog.Title>
 					{#if subtitle}<Dialog.Description class="org-dialog-sub">{subtitle}</Dialog.Description
@@ -364,6 +370,22 @@
 		.org-band :global(.org-dialog-sub) {
 			padding-top: 4px;
 			color: #a9b0b3;
+		}
+
+		/* Blueprint 46: no felt band or Root, the title sits on the panel. */
+		:global(.org-bare) .org-band {
+			height: auto;
+			padding: 28px 28px 0;
+			background: none;
+			color: var(--color-text);
+		}
+
+		:global(.org-bare) .org-band :global(.org-dialog-title) {
+			max-width: none;
+		}
+
+		:global(.org-bare) .org-band :global(.org-dialog-sub) {
+			color: var(--color-muted);
 		}
 
 		.org-body {

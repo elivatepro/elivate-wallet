@@ -32,7 +32,6 @@
 	import PeriodPicker from '#lib/ui/exports/PeriodPicker.svelte';
 	import ReportDownload from '#lib/ui/exports/ReportDownload.svelte';
 	import OrgDialog from '#lib/ui/org/OrgDialog.svelte';
-	import RootImage from '#lib/ui/RootImage.svelte';
 	import '#lib/ui/exports/exports.css';
 	import '#lib/ui/org/org.css';
 
@@ -195,7 +194,6 @@
 
 	<section class="hero">
 		<div class="hero-shade" aria-hidden="true"></div>
-		<RootImage pose="reports" class="hero-root" sizes="(min-width: 1024px) 178px, 140px" eager />
 		<div class="hero-copy">
 			<p class="hero-amount">{overview ? money(income) : '—'}</p>
 			<p class="hero-sub">
@@ -315,7 +313,6 @@
 
 <OrgDialog
 	bind:open={exportOpen}
-	pose="export-report"
 	title="Export report"
 	subtitle={overview?.scope.name ?? ''}
 	confirmLabel="Create report"
@@ -360,13 +357,13 @@
 	}
 
 	.hero {
-		/* Paper S12: the hero leads on mobile, above currency and period. */
+		/* Paper S12: the hero leads on mobile, above currency and period.
+		   Blueprint 46: no Root beside money; the card fits its figures. */
 		order: -1;
 		position: relative;
 		display: flex;
 		flex-direction: column;
 		justify-content: flex-end;
-		height: 150px;
 		padding: 20px;
 		overflow: clip;
 		border: 1px solid #ffffff14;
@@ -388,17 +385,8 @@
 		);
 	}
 
-	.hero :global(.hero-root) {
-		position: absolute;
-		right: 0;
-		bottom: -10px;
-		width: 140px;
-		height: 156px;
-	}
-
 	.hero-copy {
 		position: relative;
-		max-width: 220px;
 	}
 
 	.hero-amount {
@@ -564,21 +552,9 @@
 
 		.hero {
 			order: 0;
-			height: 220px;
+			gap: 24px;
 			padding: 34px 34px 32px;
-			justify-content: space-between;
 			border-radius: 24px;
-		}
-
-		.hero :global(.hero-root) {
-			right: 72px;
-			bottom: -24px;
-			width: 178px;
-			height: 240px;
-		}
-
-		.hero-copy {
-			max-width: none;
 		}
 
 		.hero-amount {

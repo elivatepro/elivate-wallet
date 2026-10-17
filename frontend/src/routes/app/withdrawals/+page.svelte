@@ -127,12 +127,11 @@
 <svelte:head><title>Withdrawals · Elivate Wallet</title></svelte:head>
 
 {#if denied}
-	<NoAccess lead={loadError ?? undefined} />
+	<NoAccess lead={loadError ?? undefined} plain />
 {:else}
 	<div class="mm-page">
-		<!-- Blueprint 41: a shorter banner on phones (owner 2026-10-15). -->
+		<!-- Blueprint 46: no Root beside money; the banner closes up around its text. -->
 		<RootHero
-			pose="withdrawals"
 			short
 			kicker="Reserved for open withdrawals"
 			title={page ? formatMoney(page.reserved, 'NGN') : '—'}

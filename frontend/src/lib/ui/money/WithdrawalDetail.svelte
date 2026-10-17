@@ -1,8 +1,8 @@
 <!--
 	One of my withdrawals, Paper "Withdrawal follow-through v14" WF01 (phone,
 	full page) and WF04 (desktop side panel). Blueprint 44 D4: the felt card
-	with the stage pill, the amount and "To <Bank> •• last4", Root with a
-	clipboard; Requested → Approval → Paid out (or where it stopped); From,
+	with the stage pill, the amount and "To <Bank> •• last4" (Blueprint 46: no
+	Root); Requested → Approval → Paid out (or where it stopped); From,
 	For (Blueprint 40, only when given) and Reference. "Cancel withdrawal"
 	only while it is requested and the member may cancel; the dialog says
 	where the money goes back to (D6). Masked digits only, never evidence.
@@ -30,7 +30,6 @@
 		withdrawalHref
 	} from '#lib/withdrawals.js';
 	import RootDialog from '#lib/ui/account/RootDialog.svelte';
-	import RootImage from '#lib/ui/RootImage.svelte';
 	import './money.css';
 
 	let {
@@ -150,7 +149,6 @@
 				</p>
 				<p class="wd-to">To {destinationTitle(w)}</p>
 			</div>
-			<RootImage pose="withdrawal-detail" class="wd-root" sizes="128px" eager />
 		</section>
 
 		<ol class="wd-steps" aria-label="Progress">
@@ -254,7 +252,6 @@
 {#if w}
 	<RootDialog
 		bind:open={dialogOpen}
-		pose="dialog-remove"
 		title="Cancel this withdrawal?"
 		summary={cancelSummary(w)}
 		confirmLabel="Cancel withdrawal"
@@ -313,7 +310,7 @@
 		outline: none;
 	}
 
-	/* ── Card (WF01: 188 px felt, stays dark in both themes) ── */
+	/* ── Card (WF01 felt, stays dark in both themes; closes up around its text) ── */
 	.wd-card {
 		position: relative;
 		display: flex;
@@ -321,7 +318,6 @@
 		justify-content: flex-end;
 		gap: 10px;
 		flex-shrink: 0;
-		height: 188px;
 		padding: 20px;
 		overflow: clip;
 		border: 1px solid #ffffff14;
@@ -351,14 +347,6 @@
 		background: url('/auth-bg/grain-128.webp') 50% / 128px 128px;
 		mix-blend-mode: overlay;
 		opacity: 0.25;
-	}
-
-	.wd-card :global(.wd-root) {
-		position: absolute;
-		right: 10px;
-		bottom: -6px;
-		width: 128px;
-		height: 170px;
 	}
 
 	.wd-pill {
@@ -397,7 +385,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
-		max-width: calc(100% - 128px);
 		min-width: 0;
 	}
 
@@ -635,7 +622,7 @@
 	}
 
 	.wd-skel-card {
-		height: 188px;
+		height: 138px;
 		border-radius: 20px;
 	}
 

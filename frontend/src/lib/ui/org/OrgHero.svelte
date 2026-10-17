@@ -2,6 +2,7 @@
 	Org page header card (Paper "App — Screens v2" O01/O07/R01/R05/R07 hero):
 	grain-gradient band, a large title, one line, an action row and its own
 	Root pose on the right. Dark in both themes, like the BalanceCard recipe.
+	Blueprint 46: org, review and record pages pass no pose; the band closes up.
 -->
 <script lang="ts">
 	import type { Snippet } from 'svelte';
@@ -16,7 +17,7 @@
 		eyebrow,
 		actions
 	}: {
-		pose: RootPose | null;
+		pose?: RootPose | null;
 		title: string;
 		line?: string | null;
 		id: string;
@@ -25,7 +26,7 @@
 	} = $props();
 </script>
 
-<section class="hero" aria-labelledby={id}>
+<section class="hero" class:bare={!pose} aria-labelledby={id}>
 	<div class="shade" aria-hidden="true"></div>
 	<div class="grain" aria-hidden="true"></div>
 	{#if pose}
@@ -101,6 +102,14 @@
 		flex-direction: column;
 		gap: 4px;
 		max-width: calc(100% - 116px);
+	}
+
+	.hero.bare {
+		min-height: 0;
+	}
+
+	.hero.bare .text {
+		max-width: none;
 	}
 
 	.eyebrow {
@@ -186,6 +195,10 @@
 			min-height: 220px;
 			padding: 32px;
 			border-radius: var(--radius-24);
+		}
+
+		.hero.bare {
+			min-height: 0;
 		}
 
 		.hero :global(.hero-root) {

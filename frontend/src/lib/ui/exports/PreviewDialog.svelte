@@ -2,6 +2,7 @@
 	Statement preview (Paper S09d desktop modal, S09 mobile full screen): the
 	first page as an image ("Page 1 of N"), Share where the device can share
 	files, and Download PDF. The file itself is fetched only on Download/Share.
+	Blueprint 46: no Root; a plain header on desktop.
 -->
 <script lang="ts">
 	import { Dialog } from 'bits-ui';
@@ -9,7 +10,6 @@
 	import X from '@lucide/svelte/icons/x';
 	import type { ExportFile } from '#lib/contract/exports.js';
 	import { fetchFile, saveBlob } from '#lib/client/exports.svelte.js';
-	import RootImage from '#lib/ui/RootImage.svelte';
 
 	let { file = $bindable() }: { file: ExportFile | null } = $props();
 
@@ -67,8 +67,6 @@
 		<Dialog.Content class="pv-dialog" aria-describedby="pv-sub">
 			{#if file}
 				<header class="pv-band">
-					<div class="pv-shade" aria-hidden="true"></div>
-					<RootImage pose="statement-preview" class="pv-root" sizes="140px" />
 					<Dialog.Close class="pv-back" aria-label="Close preview" type="button"
 						><ChevronLeft size={22} strokeWidth={2} aria-hidden="true" /></Dialog.Close
 					>
@@ -89,7 +87,6 @@
 						alt="First page of the {file.period.title} {file.currency} statement"
 					/>
 					<p class="pv-count">Page 1 of {pages}</p>
-					<RootImage pose="statement-preview" class="pv-peek" sizes="120px" />
 				</div>
 				{#if error}<p class="pv-error" role="alert">{error}</p>{/if}
 				<footer class="pv-actions">
@@ -139,8 +136,6 @@
 		padding: calc(8px + env(safe-area-inset-top)) 16px 10px 12px;
 	}
 
-	.pv-shade,
-	.pv-band :global(.pv-root),
 	.pv-band :global(.pv-close) {
 		display: none;
 	}
@@ -175,7 +170,6 @@
 	}
 
 	.pv-body {
-		position: relative;
 		display: flex;
 		flex: 1;
 		flex-direction: column;
@@ -202,15 +196,6 @@
 		color: var(--color-text);
 		font-size: 13px;
 		line-height: 18px;
-	}
-
-	.pv-body :global(.pv-peek) {
-		position: absolute;
-		right: 12px;
-		bottom: 0;
-		width: 110px;
-		height: 148px;
-		pointer-events: none;
 	}
 
 	.pv-error {
@@ -267,32 +252,8 @@
 		}
 
 		.pv-band {
-			height: 122px;
-			padding: 0 28px;
-			overflow: clip;
-			background: #1a1d1e url('/auth-bg/mobile-dark.jpg') 70% 40% / cover;
-			color: #f2f4f4;
-		}
-
-		.pv-shade {
-			display: block;
-			position: absolute;
-			inset: 0;
-			background-image: linear-gradient(
-				in oklab 90deg,
-				oklab(21.5% -0.004 -0.003 / 95%) 0%,
-				oklab(21.5% -0.004 -0.003 / 60%) 55%,
-				oklab(21.5% -0.004 -0.003 / 0%) 100%
-			);
-		}
-
-		.pv-band :global(.pv-root) {
-			display: block;
-			position: absolute;
-			right: 78px;
-			bottom: -26px;
-			width: 110px;
-			height: 148px;
+			padding: 24px 24px 20px 28px;
+			border-bottom: 1px solid var(--color-border);
 		}
 
 		.pv-band :global(.pv-back) {
@@ -300,41 +261,33 @@
 		}
 
 		.pv-heading {
-			position: relative;
 			padding: 0;
 			text-align: left;
 		}
 
 		:global(.pv-title) {
-			font-size: 26px;
-			line-height: 32px;
-			color: #fff;
+			font-size: 24px;
+			line-height: 30px;
 		}
 
 		.pv-sub {
-			color: #d5dadb;
 			font-size: 14px;
 		}
 
 		.pv-band :global(.pv-close) {
 			display: flex;
-			position: relative;
 			align-items: center;
 			justify-content: center;
 			width: 38px;
 			height: 38px;
 			border: 0;
 			border-radius: var(--radius-pill);
-			background: #2c3133cc;
-			color: #f2f4f4;
+			background: var(--color-raised);
+			color: var(--color-text);
 		}
 
 		.pv-body {
 			padding: 24px;
-		}
-
-		.pv-body :global(.pv-peek) {
-			display: none;
 		}
 
 		.pv-actions {
