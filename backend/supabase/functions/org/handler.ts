@@ -250,7 +250,10 @@ const settingsFields: Readonly<Record<string, number>> = {
   logoLightKey: 120,
 };
 
-function settingsPatch(body: v.Body): Record<string, string | null> {
+// Blueprint 44 (D3): switches a save may carry, true or false only.
+const settingsSwitches: ReadonlySet<string> = new Set(["oneOpenWithdrawal"]);
+
+function settingsPatch(body: v.Body): Record<string, string | boolean | null> {
   const value = body.fields;
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new ApiError("validation_error", { field: "fields" });
@@ -259,8 +262,13 @@ function settingsPatch(body: v.Body): Record<string, string | null> {
   if (entries.length < 1) {
     throw new ApiError("validation_error", { field: "fields" });
   }
-  const patch: Record<string, string | null> = {};
+  const patch: Record<string, string | boolean | null> = {};
   for (const [key, field] of entries) {
+    if (settingsSwitches.has(key)) {
+      if (typeof field !== "boolean") throw new ApiError("validation_error", { field: key });
+      patch[key] = field;
+      continue;
+    }
     const max = settingsFields[key];
     if (max === undefined) {
       throw new ApiError("validation_error", {

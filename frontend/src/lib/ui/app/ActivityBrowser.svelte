@@ -26,6 +26,7 @@
 		type ActivityItem,
 		type ActivityMonth,
 		type Currency,
+		type PendingWithdrawal,
 		type Pocket,
 		type TransactionDetail
 	} from '#lib/contract/ledger.js';
@@ -55,6 +56,7 @@
 	import WheelPicker from '#lib/ui/WheelPicker.svelte';
 	import { sheetDrag } from '#lib/ui/sheet-drag.js';
 	import { navigationStarted } from '#lib/client/pending-tap.js';
+	import { pendingStage, withdrawalHref } from '#lib/withdrawals.js';
 
 	let {
 		wallet = null,
@@ -93,6 +95,9 @@
 	let total = $state<number | null>(null);
 
 	let items = $state<ActivityItem[]>([]);
+	/** Blueprint 44 (D1): own open withdrawals, above the posted rows (first page only). */
+	let pending = $state<readonly PendingWithdrawal[]>([]);
+	let pendingMore = $state(false);
 	let months = $state<ActivityMonth[]>([]);
 	let pockets = $state<readonly Pocket[]>([]);
 	let nextCursor = $state<string | null>(null);
@@ -244,6 +249,8 @@
 	let cachedAt = $state<number | null>(null);
 	function apply(view: ActivityView) {
 		items = [...view.activity.items];
+		pending = view.activity.pending ?? [];
+		pendingMore = view.activity.pendingMore ?? false;
 		months = [...view.activity.months];
 		if (view.pockets) pockets = view.pockets;
 		nextCursor = view.activity.nextCursor;
@@ -262,6 +269,7 @@
 		cached.confirm(shell.scope);
 		if (cachedAt !== null && !cached.data) {
 			items = [];
+			pending = [];
 			months = [];
 			nextCursor = null;
 			total = null;
@@ -296,6 +304,8 @@
 			} else {
 				items = [...view.activity.items];
 				months = [...view.activity.months];
+				pending = wallet ? [] : (view.activity.pending ?? []);
+				pendingMore = !wallet && (view.activity.pendingMore ?? false);
 			}
 			if (view.pockets) pockets = view.pockets;
 			nextCursor = view.activity.nextCursor;
@@ -635,7 +645,7 @@
 				{:else if !loaded}
 					<div class="skeleton" aria-hidden="true"></div>
 					<p class="visually-hidden" role="status">Loading activity</p>
-				{:else if items.length === 0 && filtered}
+				{:else if items.length === 0 && pending.length === 0 && filtered}
 					<section class="no-match" aria-labelledby="no-match-title">
 						<div class="nm-art" aria-hidden="true">
 							<div class="nm-shade"></div>
@@ -660,9 +670,44 @@
 							{/if}
 						</div>
 					</section>
-				{:else if items.length === 0}
+				{:else if items.length === 0 && pending.length === 0}
 					<p class="empty" role="status">No activity yet.</p>
 				{:else}
+					{#if pending.length}
+						<!-- Blueprint 44 (D1): open withdrawals, on hold; they open the withdrawal. -->
+						<section class="month" aria-labelledby="activity-open">
+							<header class="month-head">
+								<h2 id="activity-open">Open</h2>
+								{#if pendingMore}<a class="open-all" href="/app/withdrawals">All open withdrawals</a
+									>{/if}
+							</header>
+							<ul class="rows">
+								{#each pending as p (p.withdrawalId)}
+									{@const stage = pendingStage(p.status)}
+									<li>
+										<a class="row" href={withdrawalHref(p.withdrawalId)}>
+											<span class="tile" aria-hidden="true" data-pending-slot>
+												<ArrowUp size={16} strokeWidth={2} />
+											</span>
+											<span class="text">
+												<span class="name">{p.title}</span>
+												<span class="sub"
+													>Withdrawal · {when(p.approvedAt ?? p.createdAt, wide)} · on hold</span
+												>
+											</span>
+											<span class="status-slot"
+												><span class="pill {stage.tone}">{stage.label}</span></span
+											>
+											<span class="figures">
+												<span class="value held">{money(p.amount, p.currency)}</span>
+												<span class="status-inline {stage.tone}">{stage.label}</span>
+											</span>
+										</a>
+									</li>
+								{/each}
+							</ul>
+						</section>
+					{/if}
 					{#each groups as group (group.key)}
 						{@const totals = monthTotals(group.totals, hidden)}
 						<section class="month" aria-label={monthLabel(group.key)}>
@@ -1128,6 +1173,40 @@
 
 	.status-inline.danger {
 		color: var(--color-danger);
+	}
+
+	.pill.warning {
+		background: color-mix(in oklab, var(--color-warning) 16%, var(--color-surface));
+		color: var(--color-warning);
+	}
+
+	.pill.info {
+		background: color-mix(in oklab, var(--color-info) 16%, var(--color-surface));
+		color: var(--color-info);
+	}
+
+	.status-inline.warning {
+		color: var(--color-warning);
+	}
+
+	.status-inline.info {
+		color: var(--color-info);
+	}
+
+	/* On hold, not moved yet (Blueprint 44 D1). */
+	.value.held {
+		color: var(--color-muted);
+	}
+
+	.open-all {
+		color: var(--color-accent-text, var(--color-accent));
+		font-size: 13px;
+		text-decoration: none;
+	}
+
+	a.row {
+		text-decoration: none;
+		-webkit-tap-highlight-color: transparent;
 	}
 
 	.activity {

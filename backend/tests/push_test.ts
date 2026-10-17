@@ -212,6 +212,11 @@ const amount = { amount: "250000.00", currency: "NGN", path: "/app/activity" };
 Deno.test("every Q1 kind has its title and line, with and without hidden amounts", () => {
   const cases: [string, string, string][] = [
     ["money.income_posted", "Income posted", "₦250,000.00, split across your pockets"],
+    [
+      "money.withdrawal_submitted",
+      "Withdrawal requested",
+      "₦250,000.00 is on hold until it’s approved.",
+    ],
     ["money.withdrawal_approved", "Withdrawal approved", "₦250,000.00. Payout is next."],
     ["money.withdrawal_completed", "Withdrawal completed", "Payout of ₦250,000.00 confirmed."],
     [
@@ -238,8 +243,20 @@ Deno.test("every Q1 kind has its title and line, with and without hidden amounts
     pushText("task.entry_review", { ...amount, subject: "returned_funds" }, false)?.title,
     "Returned funds to review",
   );
-  assertEquals(pushText("money.withdrawal_submitted", amount, false), null);
+  assertEquals(pushText("money.withdrawal_cancelled", amount, false), null);
   assertEquals(pushText("security.new_sign_in", amount, false), null);
+});
+
+Deno.test("Blueprint 44: withdrawal requested, shown and hidden", () => {
+  const params = { amount: "5000.00", currency: "NGN", path: "/app/withdrawals" };
+  assertEquals(pushText("money.withdrawal_submitted", params, false), {
+    title: "Withdrawal requested",
+    body: "₦5,000.00 is on hold until it’s approved.",
+  });
+  assertEquals(pushText("money.withdrawal_submitted", params, true), {
+    title: "Withdrawal requested",
+    body: "₦•••••• is on hold until it’s approved.",
+  });
 });
 
 Deno.test("odd params never leak or break the line", () => {

@@ -1,36 +1,33 @@
 <!--
-	My withdrawals (W-09), Paper "App — Screens v2" W01 (desktop) / W02 (mobile)
-	and the W03/W04 cancel dialog. The hero shows what is reserved for open
-	requests in this network; All / Open / Completed / Closed filter the list.
-	A requested withdrawal can be cancelled by the member (no PIN, the hold is
-	released). An approved one is the approver's to finish or cancel.
+	My withdrawals (W-09), Paper "App — Screens v2" W01/W02 as amended by
+	"Withdrawal follow-through v14" WF02 (phone) / WF03 (desktop). The hero
+	shows what is reserved for open requests in this network; All / Open /
+	Completed / Closed filter the list. Blueprint 44 D5: every row opens the
+	withdrawal (WF01 page on phones, the WF04 side panel beside the list on
+	desktop, ?w=<id>); cancelling lives in the detail.
 -->
 <script lang="ts">
 	import { getContext } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { page as route } from '$app/state';
+	import { MediaQuery } from 'svelte/reactivity';
 	import { Cause, Effect, Exit, Option } from 'effect';
 	import ArrowUp from '@lucide/svelte/icons/arrow-up';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import Upload from '@lucide/svelte/icons/upload';
 	import {
-		Withdrawal,
 		WithdrawalAppRoutes,
 		WithdrawalPage,
 		type Withdrawal as WithdrawalType
 	} from '#lib/contract/withdrawals.js';
-	import { getJson, newKey, sendCommand } from '#lib/client/api.js';
+	import { getJson } from '#lib/client/api.js';
 	import { cachedPage, MorePages, type PageLoaded } from '#lib/client/page-cache.svelte.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
-	import { isUnknownOutcome } from '#lib/recovery.js';
-	import { formatMoney } from '#lib/money.js';
-	import {
-		debited,
-		destinationTitle,
-		memberLine,
-		memberStage,
-		moveMessage
-	} from '#lib/withdrawals.js';
-	import RootDialog from '#lib/ui/account/RootDialog.svelte';
+	import { formatMoney, hiddenMoney } from '#lib/money.js';
+	import { debited, memberLine, memberStage, phoneLine, withdrawalHref } from '#lib/withdrawals.js';
 	import RootHero from '#lib/ui/app/RootHero.svelte';
 	import Pill from '#lib/ui/money/Pill.svelte';
+	import WithdrawalDetail from '#lib/ui/money/WithdrawalDetail.svelte';
 	import '#lib/ui/money/money.css';
 	import NoAccess from '#lib/ui/app/NoAccess.svelte';
 	import CacheNote from '#lib/ui/app/CacheNote.svelte';
@@ -41,15 +38,13 @@
 	let filter = $state<Filter>('all');
 	let notice = $state<string | null>(null);
 
-	let target = $state<WithdrawalType | null>(null);
-	let dialogOpen = $state(false);
-	let busy = $state(false);
-	let dialogError = $state<string | null>(null);
-	let cancelKey = newKey();
-
-	const workspaceId = $derived(
-		shell.state.kind === 'ready' ? shell.state.view.workspace.membershipId : null
-	);
+	const wide = new MediaQuery('(min-width: 1280px)');
+	/** Desktop: the withdrawal open in the side panel (WF04). */
+	const selected = $derived(route.url.searchParams.get('w'));
+	// A phone opened the desktop link: show the full page instead.
+	$effect(() => {
+		if (!wide.current && selected) void goto(withdrawalHref(selected), { replaceState: true });
+	});
 
 	const DENIED = 'Withdrawals aren’t open to you in this network.';
 	const queryFor = (status: Filter, cursor?: string) => {
@@ -105,46 +100,28 @@
 		{ key: 'closed', label: 'Closed' }
 	]);
 
-	function askCancel(w: WithdrawalType) {
-		target = w;
-		dialogError = null;
-		cancelKey = newKey();
-		dialogOpen = true;
+	const panelOpen = $derived(wide.current && !!selected);
+	const rowHref = (w: WithdrawalType) =>
+		wide.current
+			? `/app/withdrawals?w=${encodeURIComponent(w.withdrawalId)}`
+			: withdrawalHref(w.withdrawalId);
+	function closePanel() {
+		void goto('/app/withdrawals', { replaceState: true });
+	}
+	function changed(w: WithdrawalType) {
+		notice = `Cancelled. ${formatMoney(w.amount, 'NGN')} is back in ${w.pocket.name}.`;
+		void view.reload();
 	}
 
-	async function confirmCancel() {
-		if (!target || !workspaceId) return;
-		busy = true;
-		dialogError = null;
-		const exit = await Effect.runPromiseExit(
-			sendCommand(
-				WithdrawalAppRoutes.cancelOwn(target.withdrawalId),
-				'POST',
-				{ idempotencyKey: cancelKey },
-				workspaceId,
-				Withdrawal
-			)
-		);
-		busy = false;
-		if (Exit.isSuccess(exit)) {
-			dialogOpen = false;
-			notice = `Cancelled. ${formatMoney(exit.value.amount, 'NGN')} is back in ${exit.value.pocket.name}.`;
-			// The command invalidated 'withdrawals': the list reads again by itself.
-			return;
-		}
-		const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
-		if (failure && !isUnknownOutcome(failure)) cancelKey = newKey();
-		dialogError = moveMessage(failure);
-		if (failure?._tag === 'BackendError' && failure.code === 'conflict') void view.reload();
-	}
-
+	const money = (amount: string) =>
+		shell.hideAmounts ? hiddenMoney('NGN') : formatMoney(amount, 'NGN');
 	const amountText = (w: WithdrawalType) =>
-		w.status === 'completed' ? formatMoney(`-${debited(w)}`, 'NGN') : formatMoney(w.amount, 'NGN');
+		w.status === 'completed'
+			? shell.hideAmounts
+				? hiddenMoney('NGN')
+				: formatMoney(`-${debited(w)}`, 'NGN')
+			: money(w.amount);
 	const closed = (w: WithdrawalType) => w.status === 'cancelled' || w.status === 'rejected';
-	const when = (iso: string) =>
-		new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(
-			new Date(iso)
-		);
 </script>
 
 <svelte:head><title>Withdrawals · Elivate Wallet</title></svelte:head>
@@ -190,114 +167,86 @@
 
 		{#if notice}<p class="mm-notice" role="status">{notice}</p>{/if}
 
-		{#if !page && !loadError}
-			<div class="mm-skeleton" aria-hidden="true"></div>
-		{:else if loadError}
-			<p class="mm-empty" role="alert">{loadError}</p>
-		{:else if items.length === 0}
-			<p class="mm-empty">
-				{filter === 'all' ? 'No withdrawals yet.' : 'Nothing here.'}
-			</p>
-		{:else}
-			<div class="mm-list wd">
-				<div class="mm-list-head" aria-hidden="true">
-					<span class="lane-icon"></span>
-					<span class="wide">Withdrawal</span>
-					<span class="from">From</span>
-					<span class="st">Status</span>
-					<span class="num">Amount</span>
-					<span class="lane-action"></span>
-				</div>
-				{#each items as w (w.withdrawalId)}
-					{@const stage = memberStage(w)}
-					<div class="mm-row static">
-						<span class="lane-icon icon" aria-hidden="true"
-							><ArrowUp size={16} strokeWidth={1.8} /></span
-						>
-						<div class="mm-names wide">
-							<span class="mm-name">{destinationTitle(w)}</span>
-							<span class="mm-sub">{memberLine(w)}</span>
-							<!-- Blueprint 40: what it is for, as written (none before it was asked). -->
-							{#if w.reason}<span class="mm-sub for">“{w.reason}”</span>{/if}
-							<span class="mobile-only"><Pill {...stage} /></span>
+		<div class="mm-split wd-split" class:open={panelOpen}>
+			<div class="mm-col">
+				{#if !page && !loadError}
+					<div class="mm-skeleton" aria-hidden="true"></div>
+				{:else if loadError}
+					<p class="mm-empty" role="alert">{loadError}</p>
+				{:else if items.length === 0}
+					<p class="mm-empty">
+						{filter === 'all' ? 'No withdrawals yet.' : 'Nothing here.'}
+					</p>
+				{:else}
+					<div class="wd-list">
+						<div class="wd-head" aria-hidden="true">
+							<span class="c-tile"></span>
+							<span class="c-main">Withdrawal</span>
+							<span class="c-from">From</span>
+							<span class="c-status">Status</span>
+							<span class="c-amount">Amount</span>
+							<span class="c-go"></span>
 						</div>
-						<span class="from mm-muted">{w.pocket.name}</span>
-						<span class="mm-status"><Pill {...stage} /></span>
-						<span class="mm-amount" class:muted={closed(w)}>{amountText(w)}</span>
-						<span class="lane-action">
-							{#if w.can.cancel && w.status === 'requested'}
-								<button
-									type="button"
-									class="mm-btn sm"
-									disabled={!shell.canAct}
-									onclick={() => askCancel(w)}>Cancel</button
-								>
-							{/if}
-						</span>
+						<ul class="wd-rows">
+							{#each items as w (w.withdrawalId)}
+								{@const stage = memberStage(w)}
+								<li>
+									<a
+										class="wd-row"
+										href={rowHref(w)}
+										aria-current={panelOpen && selected === w.withdrawalId ? 'true' : undefined}
+										data-sveltekit-noscroll={wide.current ? '' : undefined}
+										data-sveltekit-replacestate={panelOpen ? '' : undefined}
+									>
+										<span class="c-tile tile" aria-hidden="true" data-pending-slot
+											><ArrowUp size={16} strokeWidth={1.6} /></span
+										>
+										<span class="c-main names">
+											<span class="dest"
+												><span class="bank">{w.destination.bankName ?? 'Bank'}</span><span
+													class="last4">&nbsp;•• {w.destination.accountLast4}</span
+												></span
+											>
+											<span class="sub phone">{phoneLine(w)}</span>
+											<span class="sub desk">{memberLine(w, undefined, panelOpen)}</span>
+										</span>
+										<span class="c-from from">{w.pocket.name}</span>
+										<span class="c-status status"><Pill {...stage} /></span>
+										<span class="c-amount figures">
+											<span class="amount" class:muted={closed(w)}>{amountText(w)}</span>
+											<span class="phone-pill"><Pill {...stage} /></span>
+										</span>
+										<span class="c-go go" aria-hidden="true"
+											><ChevronRight size={18} strokeWidth={2} /></span
+										>
+									</a>
+								</li>
+							{/each}
+						</ul>
 					</div>
-				{/each}
+					{#if pages.nextCursor}
+						<button type="button" class="mm-btn more" disabled={pages.loading} onclick={loadMore}
+							>{pages.loading ? 'Loading…' : 'Show more'}</button
+						>
+						{#if pages.error}<p class="mm-empty" role="alert">{pages.error}</p>{/if}
+					{/if}
+				{/if}
 			</div>
-			{#if pages.nextCursor}
-				<button type="button" class="mm-btn more" disabled={pages.loading} onclick={loadMore}
-					>{pages.loading ? 'Loading…' : 'Show more'}</button
-				>
-				{#if pages.error}<p class="mm-empty" role="alert">{pages.error}</p>{/if}
+			{#if panelOpen && selected}
+				{#key selected}
+					<WithdrawalDetail
+						id={selected}
+						variant="panel"
+						onClose={closePanel}
+						onChanged={changed}
+					/>
+				{/key}
 			{/if}
-		{/if}
+		</div>
 	</div>
 {/if}
 
-{#if target}
-	<RootDialog
-		bind:open={dialogOpen}
-		pose="dialog-remove"
-		title="Cancel this withdrawal?"
-		summary="The hold is released. No money moves."
-		confirmLabel="Cancel withdrawal"
-		cancelLabel="Keep it"
-		tone="danger"
-		{busy}
-		error={dialogError}
-		onConfirm={confirmCancel}
-	>
-		{#snippet fields()}
-			<div class="cancel-body">
-				<p class="mm-muted">Back to {target?.pocket.name}</p>
-				<p class="mm-big">{formatMoney(target?.amount ?? '0', 'NGN')}</p>
-				<dl class="mm-box facts">
-					<div>
-						<dt>Was going to</dt>
-						<dd>{target ? destinationTitle(target) : ''}</dd>
-					</div>
-					<div>
-						<dt>Requested</dt>
-						<dd>{target ? when(target.createdAt) : ''}</dd>
-					</div>
-					{#if target?.reason}
-						<div>
-							<dt>For</dt>
-							<dd class="for">{target.reason}</dd>
-						</div>
-					{/if}
-					<div>
-						<dt>Reference</dt>
-						<dd class="mm-ref">{target?.reference}</dd>
-					</div>
-				</dl>
-			</div>
-		{/snippet}
-	</RootDialog>
-{/if}
-
 <style>
-	.mm-sub.for {
-		color: color-mix(in oklab, var(--color-text) 85%, transparent);
-	}
-
-	dd.for {
-		overflow-wrap: anywhere;
-	}
-
 	.hero-chips {
 		display: flex;
 		flex-wrap: wrap;
@@ -355,112 +304,258 @@
 		flex: 0 0 auto;
 	}
 
-	.wd {
-		padding: 0 22px;
-	}
-
-	.wd .mm-row {
-		padding-inline: 0;
-		cursor: default;
-	}
-
-	.wd .mm-list-head {
-		padding-inline: 0;
-	}
-
-	.lane-icon {
-		width: 36px;
-		flex-shrink: 0;
-	}
-
-	.icon {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		height: 36px;
-		border-radius: 50%;
-		background: var(--color-raised);
-		color: var(--color-text);
-	}
-
-	.wide {
-		flex: 1;
-		min-width: 0;
-	}
-
-	.from {
-		display: none;
-		width: 120px;
-		flex-shrink: 0;
-	}
-
-	.lane-action {
-		display: flex;
-		justify-content: flex-end;
-		width: 88px;
-		flex-shrink: 0;
-	}
-
-	.mobile-only {
-		margin-top: 4px;
-	}
-
 	.more {
 		align-self: center;
 		flex: 0 0 auto;
 	}
 
-	.cancel-body {
+	/* ── List (Paper WF02 phone, WF03 desktop; Blueprint 44 D5) ── */
+	.wd-list {
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
-	}
-
-	.facts {
-		flex-direction: column;
-		align-items: stretch;
-		gap: 0;
-		margin: 8px 0 0;
 		padding: 0 16px;
+		border: 1px solid color-mix(in oklab, var(--color-text) 8%, transparent);
+		border-radius: 20px;
+		background: var(--color-surface);
 	}
 
-	.facts div {
+	.wd-head {
+		display: none;
+	}
+
+	.wd-rows {
 		display: flex;
-		justify-content: space-between;
-		gap: 12px;
-		padding: 12px 0;
-	}
-
-	.facts div + div {
-		border-top: 1px solid color-mix(in oklab, var(--color-text) 6%, transparent);
-	}
-
-	.facts dt {
-		color: var(--color-muted);
-		font-size: var(--text-14);
-	}
-
-	.facts dd {
+		flex-direction: column;
 		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.wd-rows li + li {
+		border-top: 1px solid color-mix(in oklab, var(--color-text) 8%, transparent);
+	}
+
+	.wd-row {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		margin-inline: -8px;
+		padding: 14px 8px;
+		border-radius: 14px;
+		color: inherit;
+		text-decoration: none;
+		-webkit-tap-highlight-color: transparent;
+	}
+
+	/* The press answers at once (Blueprint 41). */
+	.wd-row:active {
+		background: color-mix(in oklab, var(--color-text) 6%, transparent);
+	}
+
+	.tile {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+		width: 36px;
+		height: 36px;
+		border-radius: var(--radius-pill);
+		background: var(--color-raised);
+		color: color-mix(in oklab, var(--color-text) 88%, transparent);
+	}
+
+	.names {
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		gap: 3px;
+		min-width: 0;
+	}
+
+	/* "<Bank> •• last4": the bank name gives way, the last four never do. */
+	.dest {
+		display: flex;
+		min-width: 0;
 		color: var(--color-text);
 		font-size: var(--text-14);
 		font-weight: var(--font-weight-medium);
+		line-height: 18px;
+		white-space: nowrap;
 	}
 
-	@media (max-width: 767px) {
-		.lane-action:empty,
-		.wd .mm-list-head .lane-action {
+	.bank {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.last4 {
+		flex-shrink: 0;
+	}
+
+	.sub {
+		overflow: hidden;
+		color: var(--color-muted);
+		font-size: var(--text-12);
+		line-height: 16px;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.sub.desk,
+	.from,
+	.status,
+	.go {
+		display: none;
+	}
+
+	.figures {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		flex-shrink: 0;
+		gap: 4px;
+	}
+
+	.amount {
+		color: var(--color-text);
+		font-size: var(--text-14);
+		font-variant-numeric: tabular-nums;
+		font-weight: var(--font-weight-medium);
+		line-height: 18px;
+		white-space: nowrap;
+	}
+
+	/* Closed: never moved. Muted, kept at AA contrast. */
+	.amount.muted {
+		color: var(--color-muted);
+		font-weight: var(--font-weight-regular);
+	}
+
+	.phone-pill :global(.mm-pill) {
+		padding: 2px 8px;
+		font-size: 11px;
+		font-weight: var(--font-weight-medium);
+		line-height: 14px;
+	}
+
+	@media (min-width: 1024px) {
+		.wd-split.open {
+			gap: 24px;
+		}
+
+		.wd-list {
+			padding: 0 24px 4px;
+		}
+
+		.wd-head {
+			display: flex;
+			align-items: center;
+			gap: 16px;
+			height: 44px;
+			border-bottom: 1px solid color-mix(in oklab, var(--color-text) 8%, transparent);
+			color: var(--color-muted);
+			font-family: var(--font-mono);
+			font-size: 11px;
+			font-weight: var(--font-weight-medium);
+			letter-spacing: 0.06em;
+			line-height: 14px;
+			text-transform: uppercase;
+		}
+
+		.wd-rows li + li {
+			border-top: 1px solid color-mix(in oklab, var(--color-text) 8%, transparent);
+		}
+
+		.wd-row {
+			gap: 16px;
+			height: 72px;
+			margin-inline: -12px;
+			padding: 0 12px;
+		}
+
+		@media (hover: hover) {
+			.wd-row:hover {
+				background: color-mix(in oklab, var(--color-text) 3%, transparent);
+			}
+		}
+
+		/* Selected (panel open): a lighter fill and a quiet outline, never an edge bar. */
+		.wd-row[aria-current='true'] {
+			background: color-mix(in oklab, var(--color-text) 4%, var(--color-surface));
+			outline: 1px solid color-mix(in oklab, var(--color-text) 12%, transparent);
+			outline-offset: -1px;
+		}
+
+		.c-tile {
+			width: 36px;
+			flex-shrink: 0;
+		}
+
+		.c-main {
+			flex: 1;
+			min-width: 0;
+		}
+
+		.c-from {
+			display: block;
+			width: 180px;
+			flex-shrink: 0;
+		}
+
+		.c-status {
+			display: flex;
+			width: 110px;
+			flex-shrink: 0;
+		}
+
+		.c-amount {
+			width: 130px;
+			flex-shrink: 0;
+			text-align: right;
+			justify-content: flex-end;
+		}
+
+		.c-go {
+			display: flex;
+			justify-content: flex-end;
+			width: 28px;
+			flex-shrink: 0;
+		}
+
+		/* With the panel open there is no room for the pocket (WF04). */
+		.wd-split.open .c-from {
 			display: none;
 		}
-	}
 
-	@media (min-width: 768px) {
 		.from {
+			overflow: hidden;
+			color: var(--color-text);
+			font-size: var(--text-14);
+			line-height: 18px;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
+		.go {
+			color: color-mix(in oklab, var(--color-muted) 55%, var(--color-canvas));
+		}
+
+		.sub.phone,
+		.phone-pill {
+			display: none;
+		}
+
+		.sub.desk {
 			display: block;
 		}
 
-		.mobile-only {
-			display: none;
+		.amount {
+			font-size: 15px;
 		}
+	}
+
+	:global([data-theme='light']) .wd-list {
+		border-color: var(--color-border);
 	}
 </style>

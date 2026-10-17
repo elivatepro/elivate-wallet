@@ -72,7 +72,7 @@ Rules for any agent in this repo. History lives in Git and `docs/`; keep this fi
 
 - One slice at a time, in worktree `../elivate-wallet-worktrees/<nn-name>` from fresh
   `origin/main` (copy `backend/supabase/.temp` in). Blueprint `docs/blueprints/NN-*.md`;
-  migrations `20261009NNxxxx`, pgTAP `NN0_` (next: `43`/`430_`).
+  migrations `20261009NNxxxx`, pgTAP `NN0_` (next: `45`/`450_`).
 - Checks: `backend/scripts/verify-database.sh`, `deno task check`; frontend `pnpm check`,
   `pnpm lint`, `pnpm test:unit`, e2e via `frontend/scripts/e2e-local.sh` (fake Cloudflare into
   local Mailpit). The local stack is shared: hold the `/tmp/elivate-supabase.lock` directory
@@ -136,4 +136,7 @@ income posted / withdrawal approved, completed or not approved (title and amount
 the install step, one switch per device in Profile & security; push ends with the session.
 Slice 43 (Blueprint 43, frontend only): every phone bottom sheet closes with a drag down
 (`sheetDrag`; grabber/header or top-scrolled content; not while busy).
+Slice 44 (Blueprint 44): withdrawal follow-through: open withdrawals in Home/Activity (on hold),
+a detail page / desktop panel per withdrawal, a push on request, and the opt-in team setting
+"One open withdrawal at a time" (enforced with a per-owner lock).
 Next: set-based authorization reads.

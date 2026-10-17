@@ -51,6 +51,7 @@ export const APP_ROUTES = [
 	'/app/wallet',
 	'/app/wallets',
 	'/app/withdrawals',
+	'/app/withdrawals/[id]',
 	'/app/withdrawals/new',
 	// The workspace picker (Switch workspace opens it in the app).
 	'/(auth)/workspaces'

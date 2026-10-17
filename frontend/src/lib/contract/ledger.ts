@@ -66,6 +66,26 @@ export const ActivityItem = Schema.Struct({
 });
 export type ActivityItem = typeof ActivityItem.Type;
 
+/**
+ * Blueprint 44 (D1): one of the person's own open withdrawals (requested or
+ * approved), shown above the posted rows. The amount is on hold, never
+ * signed; it never counts in the month totals. Opens the withdrawal itself.
+ */
+export const PendingWithdrawal = Schema.Struct({
+	withdrawalId: Uuid,
+	reference: Schema.String,
+	status: Schema.Literals(['requested', 'approved']),
+	currency: Currency,
+	amount: Money,
+	/** "<Bank> •• last4" */
+	title: Schema.String,
+	pocket: Schema.Struct({ pocketId: Uuid, name: Schema.String }),
+	tenantId: Uuid,
+	createdAt: IsoDateTime,
+	approvedAt: Schema.NullOr(IsoDateTime)
+});
+export type PendingWithdrawal = typeof PendingWithdrawal.Type;
+
 /** Money in / out of one month and currency, from the whole filtered set (never one page). */
 export const ActivityMonth = Schema.Struct({
 	month: Schema.String.check(Schema.isPattern(/^[0-9]{4}-[0-9]{2}$/)),
@@ -79,7 +99,11 @@ export const Activity = Schema.Struct({
 	months: Schema.Array(ActivityMonth),
 	/** Size of the whole filtered set (mobile sheet "Show N results"). */
 	total: Schema.optionalKey(Schema.Int),
-	timeZone: Schema.String
+	timeZone: Schema.String,
+	/** Blueprint 44: own open withdrawals, first page of your own activity only. */
+	pending: Schema.optionalKey(Schema.Array(PendingWithdrawal)),
+	/** More open withdrawals than `pending` shows (Withdrawals lists them all). */
+	pendingMore: Schema.optionalKey(Schema.Boolean)
 });
 export type Activity = typeof Activity.Type;
 

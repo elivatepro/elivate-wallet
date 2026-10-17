@@ -34,7 +34,14 @@
 	import { formatMoney, isZero, sumMoney } from '#lib/money.js';
 	import { accountTitle } from '#lib/payout.js';
 	import { pinProblem } from '#lib/payout.js';
-	import { moveMessage, withinRequested } from '#lib/withdrawals.js';
+	import {
+		moveMessage,
+		onHoldLine,
+		openWithdrawalConflict,
+		stillOpenLine,
+		withdrawalHref,
+		withinRequested
+	} from '#lib/withdrawals.js';
 	import ConfirmDialog from '#lib/ui/app/ConfirmDialog.svelte';
 	import OutcomeUnknown from '#lib/ui/app/OutcomeUnknown.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
@@ -120,6 +127,10 @@
 	});
 	const data = $derived(view.data);
 	const denied = $derived(view.error === DENIED);
+	/** Blueprint 44 (D3): the open withdrawal a new one waits for (read up front, or from a refusal). */
+	let blockedId = $state<string | null>(null);
+	const blocking = $derived(data?.openWithdrawal ?? null);
+	const blocked = $derived(blocking !== null || blockedId !== null);
 	const loadError = $derived(view.data ? null : view.error);
 
 	// Defaults once data is shown; kept by id across refreshes (a choice that
@@ -223,6 +234,14 @@
 		if (problem?.kind === 'locked') return void window.location.assign('/pin/locked');
 		if (problem) return void (pinError = problem.message);
 		attempt.reset();
+		// Blueprint 44 (D3): one open withdrawal at a time; show the calm state.
+		const open = openWithdrawalConflict(state.failure);
+		if (open !== null) {
+			pinOpen = false;
+			blockedId = open;
+			void view.reload();
+			return;
+		}
 		dialogError = moveMessage(state.failure);
 		if (state.failure._tag === 'BackendError' && state.failure.code === 'insufficient_funds') {
 			void view.reload();
@@ -334,26 +353,45 @@
 		backLabel="Back to withdrawals"
 	/>
 {:else if result}
+	<!-- Blueprint 44 (D7): the hourglass, one line, then where to go. -->
 	<section class="sent">
 		<div class="sent-hero">
 			<div class="shade" aria-hidden="true"></div>
-			<RootImage pose="income-posted" class="sent-root" sizes="190px" eager />
+			<RootImage pose="withdrawal-sent" class="sent-root" sizes="190px" eager />
 		</div>
-		<span class="mm-pill warning">Requested · waiting for approval</span>
+		<span class="mm-pill warning">Waiting for approval</span>
 		<h1 class="mm-title" tabindex="-1">Request sent</h1>
-		<p class="sent-lead">
-			{formatMoney(result.amount, 'NGN')} is now reserved in {result.pocket.name}. We’ll notify you
-			when it’s approved and again when the payout to {result.destination.bankName ?? 'your bank'} ••
-			{result.destination.accountLast4} is verified.
-		</p>
+		<p class="sent-lead">{onHoldLine(result.amount, shell.hideAmounts)}</p>
 		<div class="mm-actions sent-actions">
+			<a class="mm-btn primary" href={withdrawalHref(result.withdrawalId)}>View withdrawal</a>
 			<a class="mm-btn" href="/app">Back to Home</a>
-			<a class="mm-btn primary" href="/app/withdrawals">Track this withdrawal</a>
 		</div>
-		<p class="mm-ref">Reference {result.reference}</p>
+		<p class="mm-ref sent-ref">Reference {result.reference}</p>
 	</section>
 {:else if denied}
 	<NoAccess lead={loadError ?? undefined} />
+{:else if blocked}
+	<!-- Blueprint 44 (D3): one open withdrawal at a time; no form to fill first. -->
+	<section class="sent blocked">
+		<div class="sent-hero">
+			<div class="shade" aria-hidden="true"></div>
+			<RootImage pose="withdrawal-sent" class="sent-root" sizes="190px" eager />
+		</div>
+		<h1 class="mm-title" tabindex="-1">
+			{blocking
+				? stillOpenLine(blocking.amount, shell.hideAmounts)
+				: 'Your last withdrawal is still open.'}
+		</h1>
+		<div class="mm-actions sent-actions">
+			{#if blocking?.withdrawalId || blockedId}
+				<a class="mm-btn primary" href={withdrawalHref(blocking?.withdrawalId ?? blockedId ?? '')}
+					>View withdrawal</a
+				>
+			{:else}
+				<a class="mm-btn primary" href="/app/withdrawals">View withdrawals</a>
+			{/if}
+		</div>
+	</section>
 {:else}
 	<div class="mm-page" class:phone={!wide.current}>
 		{#if !wide.current}
@@ -969,6 +1007,17 @@
 
 	.sent-actions .mm-btn {
 		flex: 0 0 auto;
+	}
+
+	.sent-ref {
+		font-family: var(--font-mono);
+		font-size: 12px;
+	}
+
+	.blocked .mm-title {
+		max-width: 460px;
+		font-size: 22px;
+		line-height: 28px;
 	}
 
 	/* ── Slice 29: Paper M09 (phone) ── */

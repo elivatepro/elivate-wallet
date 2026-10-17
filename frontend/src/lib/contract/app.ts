@@ -9,6 +9,7 @@ import {
 	Allocation,
 	AllocationVersion,
 	ManagedWallet,
+	PendingWithdrawal,
 	Pocket,
 	WalletNetwork
 } from './ledger';
@@ -54,6 +55,8 @@ export type SessionView = typeof SessionView.Type;
 export const HomeView = Schema.Struct({
 	network: Schema.NullOr(WalletNetwork),
 	activity: Schema.Array(ActivityItem),
+	/** Blueprint 44 (D1): open withdrawals in this network, newest first (five at most). */
+	pending: Schema.optionalKey(Schema.Array(PendingWithdrawal)),
 	split: Schema.NullOr(
 		Schema.Array(Schema.Struct({ pocketId: Schema.String, percent: Schema.String }))
 	)

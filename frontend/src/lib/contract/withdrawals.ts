@@ -181,10 +181,22 @@ export const WithdrawalSource = Schema.Struct({
 });
 export type WithdrawalSource = typeof WithdrawalSource.Type;
 
+/** Blueprint 44 (D3): the open withdrawal that keeps a new one waiting. */
+export const OpenWithdrawal = Schema.Struct({
+	withdrawalId: Uuid,
+	reference: Schema.String,
+	status: Schema.Literals(['requested', 'approved']),
+	currency: Schema.String,
+	amount: Money
+});
+export type OpenWithdrawal = typeof OpenWithdrawal.Type;
+
 export const WithdrawalSources = Schema.Struct({
 	currency: Schema.Literal('NGN'),
 	sources: Schema.Array(WithdrawalSource),
-	payoutAccounts: Schema.Array(Schema.Struct({ ...PayoutAccount.fields, usable: Schema.Boolean }))
+	payoutAccounts: Schema.Array(Schema.Struct({ ...PayoutAccount.fields, usable: Schema.Boolean })),
+	/** Set while "One open withdrawal at a time" is on and one is open (Blueprint 44). */
+	openWithdrawal: Schema.optionalKey(Schema.NullOr(OpenWithdrawal))
 });
 export type WithdrawalSources = typeof WithdrawalSources.Type;
 

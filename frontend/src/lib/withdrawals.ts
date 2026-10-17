@@ -10,7 +10,7 @@ import type {
 	PocketTransfer,
 	Withdrawal
 } from '#lib/contract/withdrawals.js';
-import { formatMoney, sumMoney } from '#lib/money.js';
+import { formatMoney, hiddenMoney, sumMoney } from '#lib/money.js';
 
 export type Tone = 'warning' | 'info' | 'success' | 'danger' | 'neutral';
 
@@ -89,23 +89,165 @@ const dayTime = (iso: string, timeZone?: string) =>
 		timeZone
 	}).format(new Date(iso));
 
-/** W01 row subtitle. */
-export function memberLine(w: Withdrawal, timeZone?: string): string {
+const cancelledByMember = (w: Withdrawal) =>
+	!!w.decidedBy && !!w.member && w.decidedBy.uid === w.member.uid;
+
+/**
+ * W01 row subtitle (Blueprint 44 D5, Paper WF03): what happened last. With
+ * the detail panel open (`compact`) the reference and the reason stay out.
+ */
+export function memberLine(w: Withdrawal, timeZone?: string, compact = false): string {
 	switch (w.status) {
 		case 'requested':
-			return `Requested ${dayTime(w.createdAt, timeZone)} · ${w.reference}`;
+			return `Requested ${dayTime(w.createdAt, timeZone)}${compact ? '' : ` · ${w.reference}`}`;
 		case 'approved':
 			return `Approved ${day(w.approvedAt ?? w.createdAt, timeZone)} · waiting for payout`;
 		case 'completed':
 			return `Paid ${day(w.completedAt ?? w.createdAt, timeZone)} · ${w.reference}`;
 		case 'cancelled':
-			return `Cancelled ${w.decidedBy && w.decidedBy.uid === w.member?.uid ? 'by you ' : ''}${day(
-				w.decidedAt ?? w.createdAt,
-				timeZone
-			)} · hold released`;
+			return `Cancelled ${cancelledByMember(w) ? 'by you ' : ''}${day(w.decidedAt ?? w.createdAt, timeZone)}`;
 		case 'rejected':
-			return `Rejected ${day(w.decidedAt ?? w.createdAt, timeZone)}${w.decisionReason ? ` · ${w.decisionReason}` : ''}`;
+			return `Rejected ${day(w.decidedAt ?? w.createdAt, timeZone)}${
+				w.decisionReason && !compact ? ` · ${w.decisionReason}` : ''
+			}`;
 	}
+}
+
+/** When the withdrawal last moved (the phone row's date, Paper WF02). */
+export function stageAt(w: Withdrawal): string {
+	switch (w.status) {
+		case 'approved':
+			return w.approvedAt ?? w.createdAt;
+		case 'completed':
+			return w.completedAt ?? w.createdAt;
+		case 'cancelled':
+		case 'rejected':
+			return w.decidedAt ?? w.createdAt;
+		default:
+			return w.createdAt;
+	}
+}
+
+/** Phone row sub-line (WF02): "Business Investment · 16 Oct". */
+export const phoneLine = (w: Withdrawal, timeZone?: string) =>
+	`${w.pocket.name} · ${day(stageAt(w), timeZone)}`;
+
+/** The detail card's pill (WF01): where it is, in the member's words. */
+export function detailPill(w: Pick<Withdrawal, 'status'>): { label: string; tone: Tone } {
+	switch (w.status) {
+		case 'requested':
+			return { label: 'Waiting for approval', tone: 'warning' };
+		case 'approved':
+			return { label: 'Waiting for payout', tone: 'info' };
+		case 'completed':
+			return { label: 'Paid out', tone: 'success' };
+		case 'cancelled':
+			return { label: 'Cancelled', tone: 'neutral' };
+		case 'rejected':
+			return { label: 'Not approved', tone: 'danger' };
+	}
+}
+
+export interface DetailStep {
+	label: string;
+	sub: string | null;
+	state: 'done' | 'current' | 'todo' | 'stopped';
+	/** Rejected: the approver's reason, as the member may see it. */
+	note?: string | null;
+}
+
+/**
+ * The detail's progress (Blueprint 44 D4, WF01): Requested → Approval → Paid
+ * out. A cancelled or rejected withdrawal ends at the step that stopped it.
+ */
+export function detailSteps(w: Withdrawal, timeZone?: string): DetailStep[] {
+	const requested: DetailStep = {
+		label: 'Requested',
+		sub: dayTime(w.createdAt, timeZone),
+		state: 'done'
+	};
+	const approvedDone: DetailStep = {
+		label: 'Approved',
+		sub: w.approvedAt ? dayTime(w.approvedAt, timeZone) : null,
+		state: 'done'
+	};
+	const paidTodo = (state: 'current' | 'todo'): DetailStep => ({
+		label: 'Paid out',
+		sub: 'To your bank',
+		state
+	});
+	switch (w.status) {
+		case 'requested':
+			return [
+				requested,
+				{ label: 'Approval', sub: 'With your team leader', state: 'current' },
+				paidTodo('todo')
+			];
+		case 'approved':
+			return [requested, approvedDone, paidTodo('current')];
+		case 'completed':
+			return [
+				requested,
+				approvedDone,
+				{
+					label: 'Paid out',
+					sub: w.completedAt ? dayTime(w.completedAt, timeZone) : 'To your bank',
+					state: 'done'
+				}
+			];
+		case 'cancelled': {
+			const by = cancelledByMember(w)
+				? 'by you'
+				: w.decidedBy
+					? `by ${w.decidedBy.name ?? w.decidedBy.uid}`
+					: '';
+			const stop: DetailStep = {
+				label: `Cancelled${by ? ` ${by}` : ''}`,
+				sub: w.decidedAt ? dayTime(w.decidedAt, timeZone) : null,
+				state: 'stopped'
+			};
+			return w.approvedAt ? [requested, approvedDone, stop] : [requested, stop];
+		}
+		case 'rejected':
+			return [
+				requested,
+				{
+					label: 'Not approved',
+					sub: w.decidedAt ? dayTime(w.decidedAt, timeZone) : null,
+					state: 'stopped',
+					note: w.decisionReason
+				}
+			];
+	}
+}
+
+/** D6: what cancelling does, with the exact amount and pocket. */
+export const cancelSummary = (w: Pick<Withdrawal, 'amount' | 'pocket'>) =>
+	`${naira(w.amount)} goes back to ${w.pocket.name}.`;
+
+/** D7 and D2: the request is held until it is approved. */
+export const onHoldLine = (amount: string, hidden = false) =>
+	`${hidden ? hiddenMoney('NGN') : naira(amount)} is on hold until it’s approved.`;
+
+/** D3: New withdrawal waits for the open one. */
+export const stillOpenLine = (amount: string, hidden = false) =>
+	`Your withdrawal of ${hidden ? hiddenMoney('NGN') : naira(amount)} is still open.`;
+
+/** D1: an open withdrawal's row label in Home and Activity. */
+export const pendingStage = (status: 'requested' | 'approved'): { label: string; tone: Tone } =>
+	status === 'requested'
+		? { label: 'Requested', tone: 'warning' }
+		: { label: 'Approved', tone: 'info' };
+
+/** Where one of my withdrawals opens (the route turns into the panel on desktop). */
+export const withdrawalHref = (id: string) => `/app/withdrawals/${encodeURIComponent(id)}`;
+
+/** The conflict that means "one open withdrawal at a time" (Blueprint 44 D3). */
+export function openWithdrawalConflict(failure: ApiFailure | undefined): string | null {
+	if (failure?._tag !== 'BackendError' || failure.code !== 'conflict') return null;
+	if (failure.details.reason !== 'open_withdrawal_exists') return null;
+	const id = failure.details.withdrawalId;
+	return typeof id === 'string' ? id : '';
 }
 
 /** T03 row subtitle: "GTBank •• 0412 · requested 5 Oct". */
@@ -248,6 +390,8 @@ export function moveMessage(failure: ApiFailure | undefined): string {
 			if (reason === 'payout_open')
 				return 'A payout is already recorded. Wait for the receipt check.';
 			if (reason === 'debt_limit') return 'That’s more than the Debt pocket owes.';
+			if (reason === 'open_withdrawal_exists')
+				return 'There’s already an open withdrawal. It has to finish first.';
 			if (reason === 'withdrawal_state' || reason === 'transfer_state' || reason === 'payout_state')
 				return 'Someone already acted on this. It’s been refreshed.';
 			return failure.message;

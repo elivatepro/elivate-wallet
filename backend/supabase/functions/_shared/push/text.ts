@@ -47,6 +47,12 @@ export function pushText(
   switch (kind) {
     case "money.income_posted":
       return { title: "Income posted", body: line((a) => `${a}, split across your pockets`) };
+    // Blueprint 44 (D2): the owner's own request, on hold until approved.
+    case "money.withdrawal_submitted":
+      return {
+        title: "Withdrawal requested",
+        body: line((a) => `${a} is on hold until it’s approved.`),
+      };
     case "money.withdrawal_approved":
       return { title: "Withdrawal approved", body: line((a) => `${a}. Payout is next.`) };
     case "money.withdrawal_completed":
