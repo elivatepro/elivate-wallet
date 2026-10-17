@@ -89,7 +89,7 @@ describe('quick search destinations', () => {
 	it('routes records to what the workspace can open', () => {
 		const approver = ['approve_withdrawal', 'approve_pocket_transfer', 'record_returned_funds'];
 		const wallet = '00000000-0000-0000-0000-0000000000c9';
-		expect(recordHref(record({ own: true }))).toBe('/app/withdrawals');
+		expect(recordHref(record({ own: true }))).toBe(`/app/withdrawals/${ID.record}`);
 		expect(recordHref(record(), approver)).toBe(`/app/queue?withdrawal=${ID.record}`);
 		expect(recordHref(record({ walletId: wallet }), ['view_managed_wallets'])).toBe(
 			`/app/wallets?wallet=${wallet}&view=activity`

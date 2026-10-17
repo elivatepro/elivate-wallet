@@ -242,6 +242,18 @@ const samples: ReadonlyArray<readonly [string, Record<string, string>, string, s
   ],
 ];
 
+Deno.test("Blueprint 45: the owner's withdrawal emails open that withdrawal", () => {
+  const path = "/app/withdrawals/0b0e7b5c-6d3a-4f4e-9a52-6c2f1f7e8a10";
+  for (const key of ["money.withdrawal_submitted", "money.withdrawal_not_approved"]) {
+    const email = renderEmail(key, 1, { ...money, path }, { appUrl });
+    assert(email.html.includes(`href="${appUrl}${path}"`), key);
+  }
+  assertThrows(
+    () => renderEmail("money.withdrawal_submitted", 1, { ...money, path: `${path}/x` }, { appUrl }),
+    TemplateError,
+  );
+});
+
 Deno.test("B01 shows the PAY reference with the exact amount; B02–B05 follow Paper", () => {
   const b01 = renderEmail("billing.payment_received", 1, {
     network: "Cedar Network",

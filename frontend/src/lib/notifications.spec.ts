@@ -141,6 +141,25 @@ describe('bell wording (Paper NB01/S01)', () => {
 		expect(safePath(undefined)).toBe('/app');
 	});
 
+	it('opens one of my withdrawals (Blueprint 45)', () => {
+		const id = '0b0e7b5c-6d3a-4f4e-9a52-6c2f1f7e8a10';
+		expect(safePath(`/app/withdrawals/${id}`)).toBe(`/app/withdrawals/${id}`);
+		expect(safePath(`/app/withdrawals/${id.toUpperCase()}`)).toBe('/app');
+		expect(safePath(`/app/withdrawals/${id}/cancel`)).toBe('/app');
+		expect(safePath(`/app/withdrawals/${id}?next=//evil.example`)).toBe('/app');
+		expect(safePath(`/app/withdrawals/${id}?withdrawal=${id}`)).toBe('/app');
+		expect(safePath(`/app/withdrawals/${id.slice(0, -1)}`)).toBe('/app');
+		expect(safePath('/app/withdrawals')).toBe('/app/withdrawals');
+		const entry = present(
+			item('money.withdrawal_approved', {
+				amount: '5000.00',
+				currency: 'NGN',
+				path: `/app/withdrawals/${id}`
+			})
+		);
+		expect(entry.href).toBe(`/app/withdrawals/${id}`);
+	});
+
 	it('times read like Paper', () => {
 		const now = new Date(2026, 9, 9, 18, 0);
 		expect(when(new Date(2026, 9, 9, 9, 20).toISOString(), now)).toBe('Today · 09:20');

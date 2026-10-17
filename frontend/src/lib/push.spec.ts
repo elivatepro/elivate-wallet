@@ -77,6 +77,9 @@ describe('what the service worker shows', () => {
 		expect(parsePushPayload({ ...good, path: 'https://evil.example/app' })?.path).toBe('/app');
 		expect(parsePushPayload({ ...good, path: '//evil.example' })?.path).toBe('/app');
 		expect(parsePushPayload(good)?.path).toBe('/app');
+		const wd = '/app/withdrawals/0b0e7b5c-6d3a-4f4e-9a52-6c2f1f7e8a10';
+		expect(parsePushPayload({ ...good, path: wd })?.path).toBe(wd);
+		expect(parsePushPayload({ ...good, path: `${wd}/x` })?.path).toBe('/app');
 	});
 
 	it('ignores anything else', () => {
