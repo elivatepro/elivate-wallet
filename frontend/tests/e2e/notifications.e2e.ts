@@ -68,7 +68,9 @@ test('money events reach the bell and the mail catcher; tasks clear when done', 
 	await expectAccessible(page);
 	await shot(page, 'S01-bell-member');
 	await panel.getByText('Withdrawal requested').click();
-	await expect(page).toHaveURL(/\/app\/withdrawals$/);
+	// Blueprint 45: the item opens that withdrawal (the side panel on desktop).
+	await expect(page).toHaveURL(/\/app\/withdrawals\?w=[0-9a-f-]{36}$/);
+	await expect(page.getByRole('complementary', { name: 'Withdrawal' })).toBeVisible();
 	await expect(page.getByRole('button', { name: /^Notifications, 2 unread$/ })).toBeVisible();
 
 	// Member, mobile S04.
