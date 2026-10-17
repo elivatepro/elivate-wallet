@@ -1,7 +1,7 @@
 <!--
 	One of my withdrawals (Blueprint 44 D4), Paper WF01: the full page on
-	phones. On desktop the same link opens the list with the side panel
-	(WF04, /app/withdrawals?w=<id>), so a deep link works on both.
+	phones and narrow windows. From 1280 px the same link opens the list with
+	the side panel (WF04, /app/withdrawals?w=<id>), so a deep link works on both.
 -->
 <script lang="ts">
 	import { afterNavigate, goto } from '$app/navigation';
@@ -9,7 +9,7 @@
 	import { MediaQuery } from 'svelte/reactivity';
 	import WithdrawalDetail from '#lib/ui/money/WithdrawalDetail.svelte';
 
-	const wide = new MediaQuery('(min-width: 1024px)');
+	const wide = new MediaQuery('(min-width: 1280px)');
 	const id = $derived(page.params.id ?? '');
 
 	$effect(() => {
@@ -18,11 +18,12 @@
 		}
 	});
 
-	// Opened from inside the app: back goes where it was opened; a deep link
-	// (a push, an email) goes to the list.
+	// Opened from a tap inside the app (or reached with Back/Forward): back goes
+	// where it was. A deep link (push, email) or a redirect from the desktop
+	// link (?w=, which replaced its own entry) goes to the list.
 	let fromApp = false;
 	afterNavigate((nav) => {
-		fromApp = !!nav.from;
+		fromApp = !!nav.from && (nav.type === 'link' || nav.type === 'popstate');
 	});
 	function close() {
 		if (fromApp) history.back();

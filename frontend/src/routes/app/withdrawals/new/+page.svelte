@@ -361,7 +361,7 @@
 		</div>
 		<span class="mm-pill warning">Waiting for approval</span>
 		<h1 class="mm-title" tabindex="-1">Request sent</h1>
-		<p class="sent-lead">{onHoldLine(result.amount)}</p>
+		<p class="sent-lead">{onHoldLine(result.amount, shell.hideAmounts)}</p>
 		<div class="mm-actions sent-actions">
 			<a class="mm-btn primary" href={withdrawalHref(result.withdrawalId)}>View withdrawal</a>
 			<a class="mm-btn" href="/app">Back to Home</a>
@@ -378,7 +378,9 @@
 			<RootImage pose="withdrawal-sent" class="sent-root" sizes="190px" eager />
 		</div>
 		<h1 class="mm-title" tabindex="-1">
-			{blocking ? stillOpenLine(blocking.amount) : 'Your last withdrawal is still open.'}
+			{blocking
+				? stillOpenLine(blocking.amount, shell.hideAmounts)
+				: 'Your last withdrawal is still open.'}
 		</h1>
 		<div class="mm-actions sent-actions">
 			{#if blocking?.withdrawalId || blockedId}

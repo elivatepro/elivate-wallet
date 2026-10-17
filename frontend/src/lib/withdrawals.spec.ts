@@ -250,6 +250,9 @@ describe('Blueprint 44 copy (D1, D3, D6, D7)', () => {
 	it('says the request is on hold, and what keeps a new one waiting', () => {
 		expect(onHoldLine('4000.00')).toBe('₦4,000.00 is on hold until it’s approved.');
 		expect(stillOpenLine('5000.00')).toBe('Your withdrawal of ₦5,000.00 is still open.');
+		// Hide amounts (Greptile on PR #83).
+		expect(stillOpenLine('5000.00', true)).toBe('Your withdrawal of ₦•••••• is still open.');
+		expect(onHoldLine('4000.00', true)).toBe('₦•••••• is on hold until it’s approved.');
 	});
 	it('labels open withdrawals by stage', () => {
 		expect(pendingStage('requested')).toEqual({ label: 'Requested', tone: 'warning' });

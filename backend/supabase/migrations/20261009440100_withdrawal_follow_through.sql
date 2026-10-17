@@ -601,7 +601,7 @@ begin
 end;
 $$;
 
--- Activity: the first page also carries `pending` (later pages do not).
+-- Activity: the first page also carries `pending` and `pendingMore` (later pages do not).
 create or replace function api.my_activity(
   p_user_id uuid,
   p_session_id uuid,
@@ -628,6 +628,7 @@ declare
   v_wallet_id uuid;
   v_tenant_id uuid := p_tenant_id;
   result jsonb;
+  pending jsonb;
 begin
   perform identity.require_session(p_user_id, p_session_id);
   if p_membership_id is not null then
@@ -640,8 +641,13 @@ begin
   result := ledger.activity(v_wallet_id, v_tenant_id, null, p_currency, p_pocket_id, p_direction, p_type,
     p_from, p_to, p_cursor, p_limit, p_query, p_status, p_tz);
   if p_cursor is null then
-    result := result || jsonb_build_object('pending', ledger.open_withdrawals(p_user_id, v_wallet_id, v_tenant_id,
-      p_currency, p_pocket_id, p_direction, p_type, p_from, p_to, p_query, p_status, p_tz));
+    -- Twenty at most; `pendingMore` says there are others (Withdrawals lists them all).
+    pending := ledger.open_withdrawals(p_user_id, v_wallet_id, v_tenant_id, p_currency, p_pocket_id, p_direction,
+      p_type, p_from, p_to, p_query, p_status, p_tz, 21);
+    result := result || jsonb_build_object(
+      'pending', coalesce((select jsonb_agg(x.value order by x.n) from jsonb_array_elements(pending)
+        with ordinality x (value, n) where x.n <= 20), '[]'::jsonb),
+      'pendingMore', jsonb_array_length(pending) > 20);
   end if;
   return result;
 end;

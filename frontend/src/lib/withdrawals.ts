@@ -10,7 +10,7 @@ import type {
 	PocketTransfer,
 	Withdrawal
 } from '#lib/contract/withdrawals.js';
-import { formatMoney, sumMoney } from '#lib/money.js';
+import { formatMoney, hiddenMoney, sumMoney } from '#lib/money.js';
 
 export type Tone = 'warning' | 'info' | 'success' | 'danger' | 'neutral';
 
@@ -226,11 +226,12 @@ export const cancelSummary = (w: Pick<Withdrawal, 'amount' | 'pocket'>) =>
 	`${naira(w.amount)} goes back to ${w.pocket.name}.`;
 
 /** D7 and D2: the request is held until it is approved. */
-export const onHoldLine = (amount: string) => `${naira(amount)} is on hold until it’s approved.`;
+export const onHoldLine = (amount: string, hidden = false) =>
+	`${hidden ? hiddenMoney('NGN') : naira(amount)} is on hold until it’s approved.`;
 
 /** D3: New withdrawal waits for the open one. */
-export const stillOpenLine = (amount: string) =>
-	`Your withdrawal of ${naira(amount)} is still open.`;
+export const stillOpenLine = (amount: string, hidden = false) =>
+	`Your withdrawal of ${hidden ? hiddenMoney('NGN') : naira(amount)} is still open.`;
 
 /** D1: an open withdrawal's row label in Home and Activity. */
 export const pendingStage = (status: 'requested' | 'approved'): { label: string; tone: Tone } =>

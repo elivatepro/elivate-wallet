@@ -8,7 +8,7 @@
 begin;
 set local identity.setup_gate = off;
 create extension if not exists pgtap with schema extensions;
-select plan(43);
+select plan(44);
 
 create function pg_temp.u(n int) returns uuid language sql immutable as
   $$ select ('10000000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid $$;
@@ -157,6 +157,10 @@ create temp table w1 as select pg_temp.wd(4, '1000.00', 'School fees', 'k-wd-440
 insert into ids select 'w1', (r->>'withdrawalId')::uuid from w1;
 create temp table w2 as select pg_temp.wd(4, '500.00', 'Rent share') as r;
 insert into ids select 'w2', (r->>'withdrawalId')::uuid from w2;
+-- One transaction: both share now(). Place the first a minute earlier so "newest" is defined.
+set local session_replication_role = replica;
+update finance.withdrawals set created_at = created_at - interval '1 minute' where id = pg_temp.id('w1');
+set local session_replication_role = origin;
 select is((select count(*)::int from finance.withdrawals where status = 'requested'), 2,
   'with the rule off a second open request is placed');
 select is((api.withdrawal_sources(pg_temp.u(4), pg_temp.s(4), pg_temp.ws(4))->'openWithdrawal'), 'null'::jsonb,
@@ -164,6 +168,7 @@ select is((api.withdrawal_sources(pg_temp.u(4), pg_temp.s(4), pg_temp.ws(4))->'o
 
 -- ── D1: Activity and Home (11) ──
 select is(jsonb_array_length(pg_temp.act(4)->'pending'), 2, 'Activity lists both open withdrawals as pending');
+select is(pg_temp.act(4)->>'pendingMore', 'false', 'and says there are no others');
 select is(pg_temp.act(4)->'pending'->0->>'withdrawalId', pg_temp.id('w2')::text, 'newest first');
 select is(pg_temp.act(4)->'pending'->0->>'amount', '500.00', 'the amount on hold, never signed');
 select is(pg_temp.act(4)->'pending'->0->>'title', 'Guaranty Trust Bank •• 6789', 'titled by bank and last four');

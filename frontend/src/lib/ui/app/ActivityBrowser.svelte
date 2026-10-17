@@ -97,6 +97,7 @@
 	let items = $state<ActivityItem[]>([]);
 	/** Blueprint 44 (D1): own open withdrawals, above the posted rows (first page only). */
 	let pending = $state<readonly PendingWithdrawal[]>([]);
+	let pendingMore = $state(false);
 	let months = $state<ActivityMonth[]>([]);
 	let pockets = $state<readonly Pocket[]>([]);
 	let nextCursor = $state<string | null>(null);
@@ -249,6 +250,7 @@
 	function apply(view: ActivityView) {
 		items = [...view.activity.items];
 		pending = view.activity.pending ?? [];
+		pendingMore = view.activity.pendingMore ?? false;
 		months = [...view.activity.months];
 		if (view.pockets) pockets = view.pockets;
 		nextCursor = view.activity.nextCursor;
@@ -303,6 +305,7 @@
 				items = [...view.activity.items];
 				months = [...view.activity.months];
 				pending = wallet ? [] : (view.activity.pending ?? []);
+				pendingMore = !wallet && (view.activity.pendingMore ?? false);
 			}
 			if (view.pockets) pockets = view.pockets;
 			nextCursor = view.activity.nextCursor;
@@ -675,6 +678,8 @@
 						<section class="month" aria-labelledby="activity-open">
 							<header class="month-head">
 								<h2 id="activity-open">Open</h2>
+								{#if pendingMore}<a class="open-all" href="/app/withdrawals">All open withdrawals</a
+									>{/if}
 							</header>
 							<ul class="rows">
 								{#each pending as p (p.withdrawalId)}
@@ -1191,6 +1196,12 @@
 	/* On hold, not moved yet (Blueprint 44 D1). */
 	.value.held {
 		color: var(--color-muted);
+	}
+
+	.open-all {
+		color: var(--color-accent-text, var(--color-accent));
+		font-size: 13px;
+		text-decoration: none;
 	}
 
 	a.row {

@@ -40,8 +40,8 @@ File "Elivate Wallet", page "Withdrawal follow-through v14 (approved 2026-10-17)
 new Root poses (clipboard `withdrawal-detail`, hourglass `withdrawal-sent`).
 
 ### Decisions I applied (say if you want them changed)
-- **Desktop panel routing.** One link for every entry point: `/app/withdrawals/<id>`. On phones it
-  is the full page; at 1024 px and wider it opens the list with the panel
+- **Desktop panel routing.** One link for every entry point: `/app/withdrawals/<id>`. Below 1280 px
+  it is the full page; at 1280 px and wider it opens the list with the panel
   (`/app/withdrawals?w=<id>`). A phone given the `?w=` link opens the full page. Push, email,
   Home, Activity and "View withdrawal" all use the same link.
 - **Where the setting lives:** Team details, a "Withdrawals" group above Save, saved with the
@@ -58,6 +58,8 @@ new Root poses (clipboard `withdrawal-detail`, hourglass `withdrawal-sent`).
 - **Leader-placed:** the rule refuses a leader placing a withdrawal on behalf while the owner has
   one open, with the same reason; Withdraw on behalf has no screen of its own yet, so the
   refusal shows as a plain message there.
+- **Panel width:** the side panel opens from 1280 px; between 1024 and 1279 px the withdrawal
+  opens as its own page, so the list never squeezes the bank name.
 - **Contrast:** closed amounts, column heads and "To your bank" use the app's muted text colour
   (Paper's darker grey is under AA at those sizes).
 
@@ -101,8 +103,8 @@ limits on how many open withdrawals a leader may place.
 - `ledger.open_withdrawals(user, wallet, tenant, filters…)`: the caller's own requested/approved
   withdrawals in that wallet and network, newest first: `{ withdrawalId, reference, status,
   currency, amount, title ("<Bank> •• last4"), pocket, tenantId, createdAt, approvedAt }`.
-- `api.my_activity` adds `pending` on the first page only (no cursor); `api.home_view` adds
-  `pending` (five newest). `ledger.activity` (managed wallets), month totals, `total` and the
+- `api.my_activity` adds `pending` (twenty newest) and `pendingMore` on the first page only (no
+  cursor); Activity then links to Withdrawals. `api.home_view` adds `pending` (five newest). `ledger.activity` (managed wallets), month totals, `total` and the
   statement/report figures are unchanged.
 
 ### B5. Frontend

@@ -101,7 +101,9 @@ export const Activity = Schema.Struct({
 	total: Schema.optionalKey(Schema.Int),
 	timeZone: Schema.String,
 	/** Blueprint 44: own open withdrawals, first page of your own activity only. */
-	pending: Schema.optionalKey(Schema.Array(PendingWithdrawal))
+	pending: Schema.optionalKey(Schema.Array(PendingWithdrawal)),
+	/** More open withdrawals than `pending` shows (Withdrawals lists them all). */
+	pendingMore: Schema.optionalKey(Schema.Boolean)
 });
 export type Activity = typeof Activity.Type;
 

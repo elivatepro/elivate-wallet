@@ -38,7 +38,7 @@
 	let filter = $state<Filter>('all');
 	let notice = $state<string | null>(null);
 
-	const wide = new MediaQuery('(min-width: 1024px)');
+	const wide = new MediaQuery('(min-width: 1280px)');
 	/** Desktop: the withdrawal open in the side panel (WF04). */
 	const selected = $derived(route.url.searchParams.get('w'));
 	// A phone opened the desktop link: show the full page instead.
