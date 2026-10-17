@@ -7,6 +7,7 @@
 import type { Component } from 'svelte';
 import { ROLE_LABELS } from '#lib/labels.js';
 import { OFFICE_TYPE_LABELS } from '#lib/org.js';
+import { withdrawalHref } from '#lib/withdrawals.js';
 import type {
 	SearchOffice,
 	SearchPerson,
@@ -154,7 +155,7 @@ export function recordHref(r: SearchRecord, permissions: readonly string[] = [])
 			: '/app/wallets';
 	switch (r.kind) {
 		case 'withdrawal':
-			if (r.own) return '/app/withdrawals';
+			if (r.own) return withdrawalHref(r.id);
 			return has('approve_withdrawal') ? `/app/queue?withdrawal=${id}` : walletView();
 		case 'transfer':
 			if (r.own) return '/app/split';

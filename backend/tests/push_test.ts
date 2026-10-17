@@ -26,6 +26,7 @@ import {
   type RpcResult,
   type WorkerLogEntry,
 } from "../supabase/functions/outbox-worker/handler.ts";
+import { safePath as bellSafePath } from "../../frontend/src/lib/app-path.ts";
 import { createHandler as createIdentityHandler } from "../supabase/functions/identity/handler.ts";
 import type {
   PushDevice,
@@ -277,6 +278,43 @@ Deno.test("odd params never leak or break the line", () => {
     safePath("/app/queue?withdrawal=00000000-0000-0000-0000-000000000001"),
     "/app/queue?withdrawal=00000000-0000-0000-0000-000000000001",
   );
+});
+
+Deno.test("Blueprint 45: the owner's push opens that withdrawal", () => {
+  const wid = "0b0e7b5c-6d3a-4f4e-9a52-6c2f1f7e8a10";
+  assertEquals(safePath(`/app/withdrawals/${wid}`), `/app/withdrawals/${wid}`);
+  assertEquals(safePath(`/app/withdrawals/${wid.toUpperCase()}`), "/app");
+  assertEquals(safePath(`/app/withdrawals/${wid}/cancel`), "/app");
+  assertEquals(safePath(`/app/withdrawals/${wid}?next=//evil.example`), "/app");
+  assertEquals(safePath(`/app/withdrawals/${wid}?withdrawal=${wid}`), "/app");
+  const id = "11111111-2222-3333-4444-555555555555";
+  const bytes = pushPayload(
+    id,
+    "money.withdrawal_approved",
+    { amount: "5000.00", currency: "NGN", path: `/app/withdrawals/${wid}` },
+    false,
+  )!;
+  assertEquals(JSON.parse(new TextDecoder().decode(bytes)).path, `/app/withdrawals/${wid}`);
+});
+
+Deno.test("the push allow-list behaves exactly like the bell's", () => {
+  const wid = "0b0e7b5c-6d3a-4f4e-9a52-6c2f1f7e8a10";
+  for (
+    const path of [
+      "/app",
+      "/app/withdrawals",
+      `/app/withdrawals/${wid}`,
+      `/app/withdrawals/${wid.toUpperCase()}`,
+      `/app/withdrawals/${wid}/x`,
+      `/app/queue?withdrawal=${wid}`,
+      `/app/billing/payments/${wid}`,
+      "//evil.example",
+      "/app/../admin",
+      undefined,
+    ]
+  ) {
+    assertEquals(safePath(path), bellSafePath(path), String(path));
+  }
 });
 
 Deno.test("the payload is small JSON with a safe link, urgency and topic", () => {

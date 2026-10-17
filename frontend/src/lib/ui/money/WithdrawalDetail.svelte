@@ -17,6 +17,7 @@
 	import { getJson, newKey, sendCommand } from '#lib/client/api.js';
 	import { navigationStarted } from '#lib/client/pending-tap.js';
 	import type { Shell } from '#lib/client/shell.svelte.js';
+	import { withNext } from '#lib/gate.js';
 	import { isUnknownOutcome } from '#lib/recovery.js';
 	import { formatMoney, hiddenMoney } from '#lib/money.js';
 	import {
@@ -25,7 +26,8 @@
 		destinationTitle,
 		detailPill,
 		detailSteps,
-		moveMessage
+		moveMessage,
+		withdrawalHref
 	} from '#lib/withdrawals.js';
 	import RootDialog from '#lib/ui/account/RootDialog.svelte';
 	import RootImage from '#lib/ui/RootImage.svelte';
@@ -48,6 +50,10 @@
 
 	let w = $state<Withdrawal | null>(null);
 	let loadError = $state<string | null>(null);
+	// A push or link for a withdrawal in another network lands here (the read is
+	// this workspace's): say so and offer the switch, which opens it after
+	// (Blueprint 45).
+	let notFound = $state(false);
 
 	async function load(withdrawalId: string, signal: AbortSignal) {
 		const settle = w ? () => undefined : navigationStarted();
@@ -63,10 +69,10 @@
 		}
 		const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
 		if (failure?._tag === 'TransportError' && failure.reason === 'aborted') return;
-		loadError =
-			failure?._tag === 'BackendError' && failure.code === 'not_found'
-				? 'We couldn’t find that withdrawal.'
-				: 'We couldn’t load this withdrawal.';
+		notFound = failure?._tag === 'BackendError' && failure.code === 'not_found';
+		loadError = notFound
+			? 'We couldn’t find that withdrawal in this workspace.'
+			: 'We couldn’t load this withdrawal.';
 	}
 
 	$effect(() => {
@@ -202,7 +208,16 @@
 			>
 		{/if}
 	{:else if loadError}
-		<p class="wd-note" role="alert">{loadError}</p>
+		<p class="wd-note" role="alert">
+			{loadError}
+			{#if notFound}
+				<a
+					class="wd-switch"
+					href={withNext('/workspaces?switch', withdrawalHref(id))}
+					data-sveltekit-reload>Switch workspace</a
+				>
+			{/if}
+		</p>
 	{:else}
 		<div class="wd-outline" aria-busy="true">
 			<p class="visually-hidden" role="status">Loading withdrawal</p>
@@ -604,6 +619,13 @@
 		padding: 24px 4px;
 		color: var(--color-muted);
 		font-size: var(--text-14);
+	}
+
+	.wd-switch {
+		display: block;
+		margin-top: 8px;
+		color: var(--color-text);
+		font-weight: 500;
 	}
 
 	.wd-outline {
