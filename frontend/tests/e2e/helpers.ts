@@ -310,6 +310,16 @@ export function invitationToken(invitationId: string): string {
  * scanned elsewhere (e.g. a control an open popover covers).
  */
 export async function expectAccessible(page: Page, exclude: readonly string[] = []) {
+	// Let open/close animations finish first: a fade-in (DatePicker `dp-in`)
+	// caught mid-way reads as low contrast. Endless ones (spinners) are skipped.
+	await page.evaluate(() =>
+		Promise.all(
+			document
+				.getAnimations()
+				.filter((a) => Number.isFinite(a.effect?.getComputedTiming().endTime ?? Infinity))
+				.map((a) => a.finished.catch(() => undefined))
+		)
+	);
 	let builder = new AxeBuilder({ page }).withTags([
 		'wcag2a',
 		'wcag2aa',
